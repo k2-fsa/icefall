@@ -6,6 +6,6 @@ line-length = 80
 exclude = '''
 /(
     \.git
-  | \.mypy_cache
+  | \.github
 )/
 '''

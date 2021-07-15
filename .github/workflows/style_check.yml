@@ -45,7 +45,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip mypy black flake8
+          python3 -m pip install --upgrade pip black flake8
 
       - name: Run flake8
         shell: bash
@@ -60,9 +60,3 @@ jobs:
         working-directory: ${{github.workspace}}
         run: |
           black --check --diff .
-
-      - name: Run mypy
-        shell: bash
-        working-directory: ${{github.workspace}}
-        run: |
-          mypy .
