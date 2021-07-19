@@ -2,6 +2,7 @@
 
 set -eou pipefail
 
+nj=15
 stage=-1
 stop_stage=100
 
@@ -28,7 +29,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 
   if [ ! -f data/LibriSpeech/train-other-500/.completed ]; then
     # It's compatible with kaldi's egs/librispeech/s5/local/download_and_untar.sh
-    ./local/download_data.py
+    lhotse download librispeech --full data
   fi
 
   # If you have pre-downloaded it to /path/to/musan,
@@ -36,8 +37,8 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   #   ln -s /path/to/musan data/
   #
-  if [ ! -e data/musan ]; then
-    wget https://www.openslr.org/resources/17/musan.tar.gz
+  if [ ! -f data/musan/.musan_completed ]; then
+    lhotse download musan data
   fi
 fi
 
@@ -46,7 +47,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the librispeech corpus
   # to data/LibriSpeech
   mkdir -p data/manifests
-  ./local/prepare_librispeech_manifest.py
+  lhotse prepare librispeech -j $nj data/LibriSpeech data/manifests
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -54,7 +55,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # We assume that you have downloaded the musan corpus
   # to data/musan
   mkdir -p data/manifests
-  ./local/prepare_musan_manifest.py
+  lhotse prepare musan data/musan data/manifests
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
