@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
+"""
+This file downloads librispeech LM files to data/lm
+"""
 
 import gzip
 import os
@@ -26,9 +29,7 @@ def download_lm():
         filename = target_dir / f
         if filename.is_file() is False:
             urlretrieve_progress(
-                f"{url}/{f}",
-                filename=filename,
-                desc=f"Downloading {filename}",
+                f"{url}/{f}", filename=filename, desc=f"Downloading {filename}",
             )
 
         if ".gz" in str(filename):
