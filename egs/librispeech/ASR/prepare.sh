@@ -20,24 +20,30 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   echo "stage 0: Download data"
 
   # If you have pre-downloaded it to /path/to/LibriSpeech,
-  # you can create a symlink to avoid downloading it again:
+  # you can create a symlink
   #
   #   ln -sfv /path/to/LibriSpeech data/
   #
+  # The script checks that if
+  #
+  #   data/LibriSpeech/test-clean/.completed exists,
+  #
+  # it will not re-download it.
+  #
+  # The same goes for dev-clean, dev-other, test-other, train-clean-100
+  # train-clean-360, and train-other-500
 
   mkdir -p data/LibriSpeech
-
-  if [ ! -f data/LibriSpeech/train-other-500/.completed ]; then
-    # It's compatible with kaldi's egs/librispeech/s5/local/download_and_untar.sh
-    lhotse download librispeech --full data
-  fi
+  lhotse download librispeech --full data
 
   # If you have pre-downloaded it to /path/to/musan,
-  # you can create a symlink to avoid downloading it again:
+  # you can create a symlink
   #
-  #   ln -s /path/to/musan data/
+  #   ln -sfv /path/to/musan data/
   #
-  if [ ! -f data/musan/.musan_completed ]; then
+  # and create a file data/.musan_completed
+  # to avoid downloading it again
+  if [ ! -f data/.musan_completed ]; then
     lhotse download musan data
   fi
 fi
@@ -65,7 +71,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  echo "Stage 4: Compute fbank for librispeech"
+  echo "Stage 4: Compute fbank for musan"
   mkdir -p data/fbank
   ./local/compute_fbank_musan.py
 fi

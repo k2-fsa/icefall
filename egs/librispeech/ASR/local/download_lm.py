@@ -31,6 +31,8 @@ def download_lm():
             urlretrieve_progress(
                 f"{url}/{f}", filename=filename, desc=f"Downloading {filename}",
             )
+        else:
+            print(f'{filename} already exists - skipping')
 
         if ".gz" in str(filename):
             unzip_file = Path(os.path.splitext(filename)[0])
@@ -38,6 +40,8 @@ def download_lm():
                 with gzip.open(filename, "rb") as f_in:
                     with open(unzip_file, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
+            else:
+                print(f'{unzip_file} already exist - skipping')
 
 
 if __name__ == "__main__":
