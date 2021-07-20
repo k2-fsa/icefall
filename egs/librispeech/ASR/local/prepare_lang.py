@@ -41,9 +41,6 @@ def read_lexicon(filename: str) -> Lexicon:
     That is, the first field is a word and the remaining
     fields are phones. Fields are separated by space(s).
 
-    We assume that the input lexicon does not contain words:
-    <eps>, <s>, </s>, !SIL, <SPOKEN_NOISE>, <UNK>.
-
     Args:
       filename:
         Path to the lexicon.txt
@@ -51,10 +48,6 @@ def read_lexicon(filename: str) -> Lexicon:
     Returns:
       A list of tuples., e.g., [('w', ['p1', 'p2']), ('w1', ['p3, 'p4'])]
     """
-    #  ans = ["!SIL", ["SIL"]]
-    #  ans.append(["<SPOKEN_NOISE>", ["SPN"]])
-    #  ans.append(["<UNK>", ["SPN"]])
-
     ans = []
 
     with open(filename, "r", encoding="latin-1") as f:
@@ -359,7 +352,7 @@ def main():
     # whose ilabel is phone2id['#0'] and olable is word2id['#0']
     # Need to implement it in k2
 
-    if False:
+    if True:
         # Just for debugging, will remove it
         torch.save(L.as_dict(), out_dir / "L.pt")
         torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")
@@ -368,8 +361,8 @@ def main():
         L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
         L_disambig.labels_sym = L.labels_sym
         L_disambig.aux_labels_sym = L.aux_labels_sym
-        L.draw(out_dir / "L.svg", title="L")
-        L_disambig.draw(out_dir / "L_disambig.svg", title="L_disambig")
+        L.draw(out_dir / "L.png", title="L")
+        L_disambig.draw(out_dir / "L_disambig.png", title="L_disambig")
 
 
 if __name__ == "__main__":
