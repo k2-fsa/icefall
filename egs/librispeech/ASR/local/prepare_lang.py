@@ -18,15 +18,13 @@ consisting of words and phones and does the following:
         lexicon = k2.Fsa.from_dict(d)
 
 5. Generate L_disambig.pt, in k2 format.
-
-6. Generate lexicon_disambig.txt
 """
 import math
 import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import k2
 import torch
@@ -90,6 +88,10 @@ def write_lexicon(filename: str, lexicon: Lexicon) -> None:
 def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
     """Write a symbol to ID mapping to a file.
 
+    Note:
+      No need to implement `read_mapping` as it can be done
+      through :func:`k2.SymbolTable.from_file`.
+
     Args:
       filename:
         Filename to save the mapping.
@@ -119,7 +121,7 @@ def get_phones(lexicon: Lexicon) -> List[str]:
     return sorted_ans
 
 
-def get_words(lexicon: List[Tuple[str, List[str]]]) -> List[str]:
+def get_words(lexicon: Lexicon) -> List[str]:
     """Get words from a lexicon.
 
     Args:
@@ -213,12 +215,46 @@ def generate_id_map(symbols: List[str]) -> Dict[str, int]:
     return {sym: i for i, sym in enumerate(symbols)}
 
 
+def add_self_loops(
+    arcs: List[List[Any]], disambig_phone: int, disambig_word: int
+) -> List[List[Any]]:
+    """Adds self-loops to states of an FST to propagate disambiguation symbols
+    through it. They are added on each state with non-epsilon output symbols
+    on at least one arc out of the state.
+
+    See also fstaddselfloops.pl from Kaldi. One difference is that
+    Kaldi uses OpenFst style FSTs and it has multiple final states.
+    This function uses k2 style FSTs and it does not need to add self-loops
+    to the final state.
+
+    Args:
+      arcs:
+        A list-of-list. The sublist contains
+        `[src_state, dest_state, label, aux_label, score]`
+
+    Return:
+      Return new `arcs` that contain self-loops.
+    """
+    states_needs_self_loops = set()
+    for arc in arcs:
+        src, dst, ilable, olable, score = arc
+        if olable != 0:
+            states_needs_self_loops.add(src)
+
+    ans = []
+    for s in states_needs_self_loops:
+        ans.append([s, s, disambig_phone, disambig_word, 0])
+
+    return arcs + ans
+
+
 def lexicon_to_fst(
     lexicon: Lexicon,
     phone2id: Dict[str, int],
     word2id: Dict[str, int],
     sil_phone: str = "SIL",
     sil_prob: float = 0.5,
+    need_self_loops: bool = False,
 ) -> k2.Fsa:
     """Convert a lexicon to an FST (in k2 format) with optional silence at
     the beginning and end of the word.
@@ -235,6 +271,9 @@ def lexicon_to_fst(
       sil_prob:
         The probability for adding a silence at the beginning and end
         of the word.
+      need_self_loops:
+        If True, add self-loop to states with non-epsilon output symbols
+        on at least one arc out of the state.
     Returns:
       Return an instance of `k2.Fsa` representing the given lexicon.
     """
@@ -284,6 +323,15 @@ def lexicon_to_fst(
         w = word if i == 0 else eps
         arcs.append([cur_state, loop_state, prons[i], w, no_sil_score])
         arcs.append([cur_state, sil_state, prons[i], w, sil_score])
+
+    if need_self_loops:
+        disambig_phone = phone2id["#0"]
+        disambig_word = word2id["#0"]
+        arcs = add_self_loops(
+            arcs,
+            disambig_phone=disambig_phone,
+            disambig_word=disambig_word,
+        )
 
     final_state = next_state
     arcs.append([loop_state, final_state, -1, -1, 0])
@@ -346,13 +394,10 @@ def main():
         word2id=word2id,
         sil_phone=sil_phone,
         sil_prob=sil_prob,
+        need_self_loops=True,
     )
 
-    # TODO(fangjun): add self-loops to L_disambig
-    # whose ilabel is phone2id['#0'] and olable is word2id['#0']
-    # Need to implement it in k2
-
-    if True:
+    if False:
         # Just for debugging, will remove it
         torch.save(L.as_dict(), out_dir / "L.pt")
         torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")

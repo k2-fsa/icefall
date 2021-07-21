@@ -75,3 +75,15 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   mkdir -p data/fbank
   ./local/compute_fbank_musan.py
 fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  echo "Stage 5: Prepare phone based lang"
+  # TODO: add BPE based lang
+  mkdir -p data/lang
+
+  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+    cat - data/lm/librispeech-lexicon.txt |
+    sort | uniq > data/lang/lexicon.txt
+
+  ./local/prepare_lang.py
+fi
