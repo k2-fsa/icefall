@@ -400,12 +400,11 @@ def main():
         sil_prob=sil_prob,
         need_self_loops=True,
     )
-    # Just for debugging, will remove it
     torch.save(L.as_dict(), out_dir / "L.pt")
     torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")
 
     if False:
-
+        # Just for debugging, will remove it
         L.labels_sym = k2.SymbolTable.from_file(out_dir / "phones.txt")
         L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
         L_disambig.labels_sym = L.labels_sym
