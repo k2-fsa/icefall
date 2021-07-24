@@ -93,12 +93,22 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
-  if [ ! -e data/lm/G_3_gram.fst.txt ]; then
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+    # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="data/lang/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
       data/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
+  fi
+
+  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
+    # It is used for LM rescoring
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=4 \
+      data/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
   fi
 fi
 
