@@ -13,6 +13,7 @@ from model import TdnnLstm
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.dataset.librispeech import LibriSpeechAsrDataModule
+from icefall.decode import get_lattice, nbest_decoding, one_best_decoding
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -48,7 +49,7 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_lstm_ctc/exp3/"),
+            "exp_dir": Path("tdnn_lstm_ctc/exp/"),
             "lang_dir": Path("data/lang"),
             "feature_dim": 80,
             "subsampling_factor": 3,
@@ -56,6 +57,9 @@ def get_params() -> AttributeDict:
             "output_beam": 8,
             "min_active_states": 30,
             "max_active_states": 10000,
+            "use_double_scores": True,
+            "method": "1best",  # [1best, nbest]
+            "num_paths": 30,  # used when method is nbest
         }
     )
     return params
@@ -100,20 +104,28 @@ def decode_one_batch(
         1,
     ).to(torch.int32)
 
-    dense_fsa_vec = k2.DenseFsaVec(nnet_output, supervision_segments)
-
-    lattices = k2.intersect_dense_pruned(
-        HLG,
-        dense_fsa_vec,
+    lattice = get_lattice(
+        nnet_output=nnet_output,
+        HLG=HLG,
+        supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
         min_active_states=params.min_active_states,
         max_active_states=params.max_active_states,
     )
 
-    best_paths = k2.shortest_path(lattices, use_double_scores=True)
+    if params.method == "1best":
+        best_path = one_best_decoding(
+            lattice=lattice, use_double_scores=params.use_double_scores
+        )
+    else:
+        best_path = nbest_decoding(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            use_double_scores=params.use_double_scores,
+        )
 
-    hyps = get_texts(best_paths)
+    hyps = get_texts(best_path)
     hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
 
     texts = supervisions["text"]

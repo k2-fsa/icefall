@@ -139,7 +139,7 @@ class AttributeDict(dict):
 
 
 def encode_supervisions(
-    supervisions: Dict[str, torch.Tensor], subsampling_factor: int
+    supervisions: dict, subsampling_factor: int
 ) -> Tuple[torch.Tensor, List[str]]:
     """
     Encodes Lhotse's ``batch["supervisions"]`` dict into a pair of torch Tensor,
