@@ -87,3 +87,24 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   ./local/prepare_lang.py
 fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  echo "Stage 6: Prepare G"
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+
+  if [ ! -e data/lm/G_3_gram.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      data/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  echo "Stage 7: Compile HLG"
+  if [ ! -f data/lm/HLG.pt ]; then
+    python3 ./local/compile_hlg.py
+  fi
+fi

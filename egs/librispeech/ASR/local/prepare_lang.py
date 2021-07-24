@@ -231,14 +231,18 @@ def add_self_loops(
       arcs:
         A list-of-list. The sublist contains
         `[src_state, dest_state, label, aux_label, score]`
+      disambig_phone:
+        It is the phone ID of the symbol `#0`.
+      disambig_word:
+        It is the word ID of the symbol `#0`.
 
     Return:
-      Return new `arcs` that contain self-loops.
+      Return new `arcs` containing self-loops.
     """
     states_needs_self_loops = set()
     for arc in arcs:
-        src, dst, ilable, olable, score = arc
-        if olable != 0:
+        src, dst, ilabel, olabel, score = arc
+        if olabel != 0:
             states_needs_self_loops.add(src)
 
     ans = []
@@ -396,11 +400,11 @@ def main():
         sil_prob=sil_prob,
         need_self_loops=True,
     )
+    # Just for debugging, will remove it
+    torch.save(L.as_dict(), out_dir / "L.pt")
+    torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")
 
     if False:
-        # Just for debugging, will remove it
-        torch.save(L.as_dict(), out_dir / "L.pt")
-        torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")
 
         L.labels_sym = k2.SymbolTable.from_file(out_dir / "phones.txt")
         L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")

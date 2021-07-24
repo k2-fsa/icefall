@@ -80,7 +80,18 @@ def test_read_lexicon(filename: str):
     fsa_disambig.draw("L_disambig.pdf", title="L_disambig")
 
 
-if __name__ == "__main__":
+def test_lexicon():
+    from icefall.lexicon import Lexicon
+
+    lexicon = Lexicon("data/lang")
+    print(lexicon.tokens)
+
+
+def main():
     filename = generate_lexicon_file()
     test_read_lexicon(filename)
     os.remove(filename)
+
+
+if __name__ == "__main__":
+    test_lexicon()
