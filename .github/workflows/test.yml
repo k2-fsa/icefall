@@ -63,7 +63,9 @@ jobs:
           ls -lh
           export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
           echo $PYTHONPATH
-          pytest ./test
+          # Skip CtcTrainingGraphCompiler since it requires
+          # k2.ctc_topo, which has not been merged into master
+          pytest -k "not TestCtc" ./test
 
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
@@ -73,4 +75,4 @@ jobs:
           lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
           echo "lib_path: $lib_path"
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
-          pytest ./test
+          pytest -k "not TestCtc" ./test
