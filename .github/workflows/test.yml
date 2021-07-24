@@ -47,11 +47,19 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip
+          python3 -m pip install --upgrade pip pytest
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
-          pip install git+https://github.com/lhotse-speech/lhotse
+
+          # Don't use: pip install lhotse
+          # since it installs a version of PyTorch that is not predictable
+          git clone --depth 1 https://github.com/lhotse-speech/lhotse
+          cd lhotse
+          sed -i.bak "/torch/d" requirements.txt
+
 
       - name: Run tests
         run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
+          ls -lh
+          export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
+          echo $PYTHONPATH
           pytest ./test
