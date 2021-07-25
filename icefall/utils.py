@@ -6,7 +6,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
 import k2.ragged as k2r
@@ -171,7 +171,7 @@ def encode_supervisions(
 
 
 def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
-    """Extract the texts from the best-path FSAs.
+    """Extract the texts (as word IDs) from the best-path FSAs.
     Args:
       best_paths:
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
@@ -204,9 +204,60 @@ def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
     return k2r.to_list(aux_labels)
 
 
+def store_transcripts(
+    filename: Pathlike, texts: Iterable[Tuple[str, str]]
+) -> None:
+    """Save predicted results and reference transcripts to a file.
+
+    Args:
+      filename:
+        File to save the results to.
+      texts:
+        An iterable of tuples. The first element is the reference transcript
+        while the second element is the predicted result.
+    Returns:
+      Return None.
+    """
+    with open(filename, "w") as f:
+        for ref, hyp in texts:
+            print(f"ref={ref}", file=f)
+            print(f"hyp={hyp}", file=f)
+
+
 def write_error_stats(
     f: TextIO, test_set_name: str, results: List[Tuple[str, str]]
 ) -> float:
+    """Write statistics based on predicted results and reference transcripts.
+
+    It will write the following to the given file:
+
+        - WER
+        - number of insertions, deletions, substitutions, corrects and total
+          reference words. For example::
+
+              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
+              reference words (2337 correct)
+
+        - The difference between the reference transcript and predicted results.
+          An instance is given below::
+
+            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
+
+          The above example shows that the reference word is `EDISON`, but it is
+          predicted to `ADDISON` (a substitution error).
+
+          Another example is::
+
+            FOR THE FIRST DAY (SIR->*) I THINK
+
+          The reference word `SIR` is missing in the predicted
+          results (a deletion error).
+      results:
+        An iterable of tuples. The first element is the reference transcript
+        while the second element is the predicted result.
+    Returns:
+      Return None.
+    """
     subs: Dict[Tuple[str, str], int] = defaultdict(int)
     ins: Dict[str, int] = defaultdict(int)
     dels: Dict[str, int] = defaultdict(int)
