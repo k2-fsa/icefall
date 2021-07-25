@@ -214,6 +214,8 @@ def save_checkpoint(
       model:
         The training model.
     """
+    if rank != 0:
+        return
     filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
     save_checkpoint_impl(
         filename=filename,
