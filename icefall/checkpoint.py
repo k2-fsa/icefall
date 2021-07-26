@@ -94,7 +94,7 @@ def load_checkpoint(
         s = checkpoint[name]
         if obj and s:
             obj.load_state_dict(s)
-        checkpoint.pop(name)
+            checkpoint.pop(name)
 
     load("optimizer", optimizer)
     load("scheduler", scheduler)
