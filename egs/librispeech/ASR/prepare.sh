@@ -89,7 +89,17 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  echo "Stage 6: Prepare G"
+  echo "State 6: Prepare BPE based lang"
+  mkdir -p data/lang/bpe
+  cp data/lang/words.txt data/lang/bpe/
+
+  if [ ! -f data/lang/bpe/L_disambig.pt ]; then
+    ./local/prepare_lang_bpe.py
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  echo "Stage 7: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
@@ -112,9 +122,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   fi
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  echo "Stage 7: Compile HLG"
-  if [ ! -f data/lm/HLG.pt ]; then
-    python3 ./local/compile_hlg.py
-  fi
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  echo "Stage 8: Compile HLG"
+  python3 ./local/compile_hlg.py
 fi

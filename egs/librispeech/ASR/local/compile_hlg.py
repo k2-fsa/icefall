@@ -3,28 +3,48 @@
 """
 This script compiles HLG from
 
-    - H, the ctc topology, built from phones contained in data/lang/lexicon.txt
-    - L, the lexicon, built from data/lang/L_disambig.pt
+    - H, the ctc topology, built from phones contained in lexicon.txt
+    - L, the lexicon, built from L_disambig.pt
 
         Caution: We use a lexicon that contains disambiguation symbols
 
     - G, the LM, built from data/lm/G_3_gram.fst.txt
 
-The generated HLG is saved in data/lm/HLG.pt
+The generated HLG is saved in data/lm/HLG.pt (phone based)
+or data/lm/HLG_bpe.pt (BPE based)
 """
+from pathlib import Path
+
 import k2
 import torch
 
 from icefall.lexicon import Lexicon
 
 
-def main():
-    lexicon = Lexicon("data/lang")
+def compile_HLG(lang_dir: str) -> k2.Fsa:
+    """
+    Args:
+      lang_dir:
+        The language directory, e.g., data/lang or data/lang/bpe.
+
+    Return:
+      An FSA representing HLG.
+    """
+    lexicon = Lexicon(lang_dir)
     max_token_id = max(lexicon.tokens)
+    print(f"building ctc_top. max_token_id: {max_token_id}")
     H = k2.ctc_topo(max_token_id)
-    L = k2.Fsa.from_dict(torch.load("data/lang/L_disambig.pt"))
-    with open("data/lm/G_3_gram.fst.txt") as f:
-        G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
+
+    if Path("data/lm/G_3_gram.pt").is_file():
+        print("Loading pre-compiled G_3_gram")
+        d = torch.load("data/lm/G_3_gram.pt")
+        G = k2.Fsa.from_dict(d).to(device)
+    else:
+        print("Loading G_3_gram.fst.txt")
+        with open("data/lm/G_3_gram.fst.txt") as f:
+            G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+            torch.save(G.as_dict(), "G_3_gram.pt")
 
     first_token_disambig_id = lexicon.phones["#0"]
     first_word_disambig_id = lexicon.words["#0"]
@@ -74,8 +94,33 @@ def main():
     print("Arc sorting LG")
     HLG = k2.arc_sort(HLG)
 
+    return HLG
+
+
+def phone_based_HLG():
+    if Path("data/lm/HLG.pt").is_file():
+        return
+
+    print("Compiling phone based HLG")
+    HLG = compile_HLG("data/lang")
+
     print("Saving HLG.pt to data/lm")
     torch.save(HLG.as_dict(), "data/lm/HLG.pt")
+
+
+def bpe_based_HLG():
+    if Path("data/lm/HLG_bpe.pt").is_file():
+        return
+
+    print("Compiling BPE based HLG")
+    HLG = compile_HLG("data/lang/bpe")
+    print("Saving HLG.pt to data/lm")
+    torch.save(HLG.as_dict(), "data/lm/HLG_bpe.pt")
+
+
+def main():
+    phone_based_HLG()
+    bpe_based_HLG()
 
 
 if __name__ == "__main__":

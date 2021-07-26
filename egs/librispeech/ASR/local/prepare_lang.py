@@ -48,7 +48,7 @@ def read_lexicon(filename: str) -> Lexicon:
     """
     ans = []
 
-    with open(filename, "r", encoding="latin-1") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         whitespace = re.compile("[ \t]+")
         for line in f:
             a = whitespace.split(line.strip(" \t\r\n"))
@@ -80,7 +80,7 @@ def write_lexicon(filename: str, lexicon: Lexicon) -> None:
       lexicon:
         It can be the return value of :func:`read_lexicon`.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         for word, prons in lexicon:
             f.write(f"{word} {' '.join(prons)}\n")
 
@@ -100,7 +100,7 @@ def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         for sym, i in sym2id.items():
             f.write(f"{sym} {i}\n")
 
@@ -151,7 +151,8 @@ def add_disambig_symbols(lexicon: Lexicon) -> Tuple[Lexicon, int]:
       Return a tuple with two elements:
 
         - The output lexicon with disambiguation symbols
-        - The ID of the max disambiguation symbols
+        - The ID of the max disambiguation symbols that appears
+          in the lexicon
     """
 
     # (1) Work out the count of each phone-sequence in the
