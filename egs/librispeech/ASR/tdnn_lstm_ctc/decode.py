@@ -326,6 +326,8 @@ def main():
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
 
+    logging.info(f"device: {device}")
+
     HLG = k2.Fsa.from_dict(torch.load("data/lm/HLG.pt"))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False

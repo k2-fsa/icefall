@@ -54,6 +54,7 @@ def get_lattice(
     output_beam: float,
     min_active_states: int,
     max_active_states: int,
+    subsampling_factor: int = 1,
 ):
     """Get the decoding lattice from a decoding graph and neural
     network output.
@@ -87,10 +88,14 @@ def get_lattice(
         frame for any given intersection/composition task. This is advisory,
         in that it will try not to exceed that but may not always succeed.
         You can use a very large number if no constraint is needed.
+      subsampling_factor:
+        The subsampling factor of the model.
     Returns:
       A lattice containing the decoding result.
     """
-    dense_fsa_vec = k2.DenseFsaVec(nnet_output, supervision_segments)
+    dense_fsa_vec = k2.DenseFsaVec(
+        nnet_output, supervision_segments, allow_truncate=subsampling_factor - 1
+    )
 
     lattice = k2.intersect_dense_pruned(
         HLG,

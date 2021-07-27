@@ -39,7 +39,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     if Path("data/lm/G_3_gram.pt").is_file():
         print("Loading pre-compiled G_3_gram")
         d = torch.load("data/lm/G_3_gram.pt")
-        G = k2.Fsa.from_dict(d).to(device)
+        G = k2.Fsa.from_dict(d)
     else:
         print("Loading G_3_gram.fst.txt")
         with open("data/lm/G_3_gram.fst.txt") as f:
@@ -114,7 +114,7 @@ def bpe_based_HLG():
 
     print("Compiling BPE based HLG")
     HLG = compile_HLG("data/lang/bpe")
-    print("Saving HLG.pt to data/lm")
+    print("Saving HLG_bpe.pt to data/lm")
     torch.save(HLG.as_dict(), "data/lm/HLG_bpe.pt")
 
 
