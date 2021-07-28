@@ -21,6 +21,7 @@ from icefall.decode import (
     get_lattice,
     nbest_decoding,
     one_best_decoding,
+    rescore_with_attention_decoder,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
@@ -82,9 +83,12 @@ def get_params() -> AttributeDict:
             #  - nbest
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
-            "method": "nbest-rescoring",
-            # num_paths is used when method is "nbest" and "nbest-rescoring"
-            "num_paths": 100,
+            #  - attention-decoder
+            #  "method": "whole-lattice-rescoring",
+            "method": "attention-decoder",
+            # num_paths is used when method is "nbest", "nbest-rescoring",
+            # and attention-decoder
+            "num_paths": 1000,
         }
     )
     return params
@@ -147,7 +151,7 @@ def decode_one_batch(
 
     supervisions = batch["supervisions"]
 
-    nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
+    nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     # nnet_output is [N, C, T]
 
     nnet_output = nnet_output.permute(0, 2, 1)
@@ -191,7 +195,11 @@ def decode_one_batch(
         hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
-    assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
+    assert params.method in [
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
+        "attention-decoder",
+    ]
 
     lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
@@ -203,10 +211,25 @@ def decode_one_batch(
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
         )
-    else:
+    elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
             lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
         )
+    elif params.method == "attention-decoder":
+        # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
+        rescored_lattice = rescore_with_whole_lattice(
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+        )
+
+        best_path_dict = rescore_with_attention_decoder(
+            lattice=rescored_lattice,
+            num_paths=params.num_paths,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+        )
+    else:
+        assert False, f"Unsupported decoding method: {params.method}"
 
     ans = dict()
     for lm_scale_str, best_path in best_path_dict.items():
@@ -351,7 +374,11 @@ def main():
     if not hasattr(HLG, "lm_scores"):
         HLG.lm_scores = HLG.scores.clone()
 
-    if params.method in ["nbest-rescoring", "whole-lattice-rescoring"]:
+    if params.method in (
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
+        "attention-decoder",
+    ):
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
             logging.warning("It may take 8 minutes.")
@@ -374,7 +401,7 @@ def main():
             d = torch.load(params.lm_dir / "G_4_gram.pt")
             G = k2.Fsa.from_dict(d).to(device)
 
-        if params.method == "whole-lattice-rescoring":
+        if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)

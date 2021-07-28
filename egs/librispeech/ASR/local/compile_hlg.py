@@ -32,7 +32,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     """
     lexicon = Lexicon(lang_dir)
     max_token_id = max(lexicon.tokens)
-    print(f"building ctc_top. max_token_id: {max_token_id}")
+    print(f"Building ctc_topo. max_token_id: {max_token_id}")
     H = k2.ctc_topo(max_token_id)
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
@@ -86,13 +86,18 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     LG = k2.arc_sort(LG)
 
     print("Composing H and LG")
-    HLG = k2.compose(H, LG, inner_labels="phones")
+    # CAUTION: The name of the inner_labels is fixed
+    # to `tokens`. If you want to change it, please
+    # also change other places in icefall that are using
+    # it.
+    HLG = k2.compose(H, LG, inner_labels="tokens")
 
     print("Connecting LG")
     HLG = k2.connect(HLG)
 
     print("Arc sorting LG")
     HLG = k2.arc_sort(HLG)
+    print(f"HLG.shape: {HLG.shape}")
 
     return HLG
 

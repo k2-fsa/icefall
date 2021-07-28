@@ -259,7 +259,7 @@ class Transformer(nn.Module):
         return decoder_loss
 
     def decoder_nll(
-        self, x: Tensor, encoder_mask: Tensor, token_ids: List[int] = None
+        self, x: Tensor, encoder_mask: Tensor, token_ids: List[List[int]] = None
     ) -> Tensor:
         """
         Args:
