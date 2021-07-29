@@ -41,7 +41,8 @@ def test_load_checkpoints(checkpoints1):
     m.p2 = nn.Parameter(torch.Tensor([0, 0]))
     params = load_checkpoint(checkpoints1, m)
     assert torch.allclose(m.p1, torch.Tensor([10.0, 20]))
-    assert params == {"a": 10, "b": 20}
+    assert params["a"] == 10
+    assert params["b"] == 20
 
 
 def test_average_checkpoints(checkpoints1, checkpoints2):

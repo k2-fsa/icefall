@@ -72,7 +72,7 @@ def get_params() -> AttributeDict:
             #  - nbest
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
-            "method": "whole-lattice-rescoring",
+            "method": "1best",
             # num_paths is used when method is "nbest" and "nbest-rescoring"
             "num_paths": 30,
         }
@@ -173,7 +173,7 @@ def decode_one_batch(
             )
             key = f"no_rescore-{params.num_paths}"
         hyps = get_texts(best_path)
-        hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
@@ -196,7 +196,7 @@ def decode_one_batch(
     ans = dict()
     for lm_scale_str, best_path in best_path_dict.items():
         hyps = get_texts(best_path)
-        hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
         ans[lm_scale_str] = hyps
     return ans
 

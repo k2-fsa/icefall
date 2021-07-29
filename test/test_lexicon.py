@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
+
 import k2
 import pytest
 import torch
 
-from icefall.lexicon import Lexicon
+from icefall.lexicon import BpeLexicon, Lexicon
 
 
 @pytest.fixture
@@ -47,7 +49,7 @@ def lang_dir(tmp_path):
         num_aux_labels=1,
     )
 
-    with open(tmp_path / "phones.txt", "w") as f:
+    with open(tmp_path / "tokens.txt", "w") as f:
         f.write(phone2id)
     with open(tmp_path / "words.txt", "w") as f:
         f.write(word2id)
@@ -60,3 +62,16 @@ def lang_dir(tmp_path):
 def test_lexicon(lang_dir):
     lexicon = Lexicon(lang_dir)
     assert lexicon.tokens == list(range(1, 8))
+
+
+def test_bpe_lexicon():
+    lang_dir = Path("data/lang/bpe")
+    if not lang_dir.is_dir():
+        return
+    # TODO: Generate test data for BpeLexicon
+
+    lexicon = BpeLexicon(lang_dir)
+    words = ["<UNK>", "HELLO", "ZZZZ", "WORLD"]
+    ids = lexicon.words_to_piece_ids(words)
+    print(ids)
+    print([lexicon.token_table[i] for i in ids.values().tolist()])

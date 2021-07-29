@@ -8,10 +8,7 @@ from icefall.lexicon import Lexicon
 
 class CtcTrainingGraphCompiler(object):
     def __init__(
-        self,
-        lexicon: Lexicon,
-        device: torch.device,
-        oov: str = "<UNK>",
+        self, lexicon: Lexicon, device: torch.device, oov: str = "<UNK>",
     ):
         """
         Args:
@@ -26,11 +23,11 @@ class CtcTrainingGraphCompiler(object):
         L_inv = lexicon.L_inv.to(device)
         assert L_inv.requires_grad is False
 
-        assert oov in lexicon.words
+        assert oov in lexicon.word_table
 
         self.L_inv = k2.arc_sort(L_inv)
-        self.oov_id = lexicon.words[oov]
-        self.words = lexicon.words
+        self.oov_id = lexicon.word_table[oov]
+        self.word_table = lexicon.word_table
 
         max_token_id = max(lexicon.tokens)
         ctc_topo = k2.ctc_topo(max_token_id, modified=False)
@@ -90,8 +87,8 @@ class CtcTrainingGraphCompiler(object):
         for text in texts:
             word_ids = []
             for word in text.split(" "):
-                if word in self.words:
-                    word_ids.append(self.words[word])
+                if word in self.word_table:
+                    word_ids.append(self.word_table[word])
                 else:
                     word_ids.append(self.oov_id)
             word_ids_list.append(word_ids)

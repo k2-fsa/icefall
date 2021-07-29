@@ -10,14 +10,20 @@ stop_stage=100
 
 mkdir -p data
 
+log() {
+  # This function is from espnet
+  local fname=${BASH_SOURCE[1]##*/}
+  echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
+}
+
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  echo "stage -1: Download LM"
+  log "stage -1: Download LM"
   mkdir -p data/lm
   ./local/download_lm.py
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  echo "stage 0: Download data"
+  log "stage 0: Download data"
 
   # If you have pre-downloaded it to /path/to/LibriSpeech,
   # you can create a symlink
@@ -49,7 +55,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  echo "Stage 1: Prepare librispeech manifest"
+  log "Stage 1: Prepare librispeech manifest"
   # We assume that you have downloaded the librispeech corpus
   # to data/LibriSpeech
   mkdir -p data/manifests
@@ -57,7 +63,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  echo "Stage 2: Prepare musan manifest"
+  log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
   # to data/musan
   mkdir -p data/manifests
@@ -65,19 +71,19 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  echo "Stage 3: Compute fbank for librispeech"
+  log "Stage 3: Compute fbank for librispeech"
   mkdir -p data/fbank
   ./local/compute_fbank_librispeech.py
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  echo "Stage 4: Compute fbank for musan"
+  log "Stage 4: Compute fbank for musan"
   mkdir -p data/fbank
   ./local/compute_fbank_musan.py
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  echo "Stage 5: Prepare phone based lang"
+  log "Stage 5: Prepare phone based lang"
   # TODO: add BPE based lang
   mkdir -p data/lang
 
@@ -85,13 +91,29 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     cat - data/lm/librispeech-lexicon.txt |
     sort | uniq > data/lang/lexicon.txt
 
-  ./local/prepare_lang.py
+  if [ ! -f data/lang/L_disambig.pt ]; then
+    ./local/prepare_lang.py
+  fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  echo "State 6: Prepare BPE based lang"
+  log "State 6: Prepare BPE based lang"
   mkdir -p data/lang/bpe
   cp data/lang/words.txt data/lang/bpe/
+
+  if [ ! -f data/lang/bpe/train.txt ]; then
+    log "Generate data for BPE training"
+    files=$(
+      find "data/LibriSpeech/train-clean-100" -name "*.trans.txt"
+      find "data/LibriSpeech/train-clean-360" -name "*.trans.txt"
+      find "data/LibriSpeech/train-other-500" -name "*.trans.txt"
+    )
+    for f in ${files[@]}; do
+      cat $f | cut -d " " -f 2-
+    done > data/lang/bpe/train.txt
+  fi
+
+  python3 ./local/train_bpe_model.py
 
   if [ ! -f data/lang/bpe/L_disambig.pt ]; then
     ./local/prepare_lang_bpe.py
@@ -99,7 +121,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  echo "Stage 7: Prepare G"
+  log "Stage 7: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
@@ -123,6 +145,6 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  echo "Stage 8: Compile HLG"
+  log "Stage 8: Compile HLG"
   python3 ./local/compile_hlg.py
 fi

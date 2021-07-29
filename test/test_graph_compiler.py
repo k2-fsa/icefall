@@ -81,8 +81,8 @@ def lexicon():
     """
     )
     ans = Lexicon.__new__(Lexicon)
-    ans.phones = L.labels_sym
-    ans.words = L.aux_labels_sym
+    ans.token_table = L.labels_sym
+    ans.word_table = L.aux_labels_sym
     ans.L_inv = k2.arc_sort(L.invert_())
     ans.disambig_pattern = re.compile(r"^#\d+$")
 
@@ -107,11 +107,11 @@ class TestCtcTrainingGraphCompiler(object):
         aux_labels1 = fsa[1].aux_labels[:-1]
         aux_labels1 = aux_labels1[aux_labels1 != 0].tolist()
 
-        labels0 = [lexicon.phones[i] for i in labels0]
-        labels1 = [lexicon.phones[i] for i in labels1]
+        labels0 = [lexicon.token_table[i] for i in labels0]
+        labels1 = [lexicon.token_table[i] for i in labels1]
 
-        aux_labels0 = [lexicon.words[i] for i in aux_labels0]
-        aux_labels1 = [lexicon.words[i] for i in aux_labels1]
+        aux_labels0 = [lexicon.word_table[i] for i in aux_labels0]
+        aux_labels1 = [lexicon.word_table[i] for i in aux_labels1]
 
         assert labels0 == ["b", "a", "r", "f", "o", "o"]
         assert aux_labels0 == ["bar", "foo"]
@@ -129,11 +129,11 @@ class TestCtcTrainingGraphCompiler(object):
         input2 = ["b", "b", "a", "a", "a", "<blk>", "<blk>", "z", "z"]
         input2 += ["<blk>", "<blk>", "SPN", "SPN", "<blk>", "<blk>"]
 
-        lexicon.phones._id2sym[0] == "<blk>"
-        lexicon.phones._sym2id["<blk>"] = 0
+        lexicon.token_table._id2sym[0] == "<blk>"
+        lexicon.token_table._sym2id["<blk>"] = 0
 
-        input1 = [lexicon.phones[i] for i in input1]
-        input2 = [lexicon.phones[i] for i in input2]
+        input1 = [lexicon.token_table[i] for i in input1]
+        input2 = [lexicon.token_table[i] for i in input2]
 
         fsa1 = k2.linear_fsa(input1)
         fsa2 = k2.linear_fsa(input2)
@@ -147,14 +147,14 @@ class TestCtcTrainingGraphCompiler(object):
 
         aux_labels0 = lattice[0].aux_labels[:-1]
         aux_labels0 = aux_labels0[aux_labels0 != 0].tolist()
-        aux_labels0 = [lexicon.words[i] for i in aux_labels0]
+        aux_labels0 = [lexicon.word_table[i] for i in aux_labels0]
         assert aux_labels0 == ["bar", "foo"]
 
         aux_labels1 = lattice[1].aux_labels[:-1]
         aux_labels1 = aux_labels1[aux_labels1 != 0].tolist()
-        aux_labels1 = [lexicon.words[i] for i in aux_labels1]
+        aux_labels1 = [lexicon.word_table[i] for i in aux_labels1]
         assert aux_labels1 == ["baz", "<UNK>"]
 
         texts = get_texts(lattice)
-        texts = [[lexicon.words[i] for i in words] for words in texts]
+        texts = [[lexicon.word_table[i] for i in words] for words in texts]
         assert texts == [["bar", "foo"], ["baz", "<UNK>"]]

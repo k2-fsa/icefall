@@ -4,13 +4,13 @@
 
 """
 This script takes as input a lexicon file "data/lang/lexicon.txt"
-consisting of words and phones and does the following:
+consisting of words and tokens (i.e., phones) and does the following:
 
 1. Add disambiguation symbols to the lexicon and generate lexicon_disambig.txt
 
-2. Generate phones.txt, the phones table mapping a phone to a unique integer.
+2. Generate tokens.txt, the token table mapping a token to a unique integer.
 
-3. Generate words.txt, the words table mapping a word to a unique integer.
+3. Generate words.txt, the word table mapping a word to a unique integer.
 
 4. Generate L.pt, in k2 format. It can be loaded by
 
@@ -29,60 +29,9 @@ from typing import Any, Dict, List, Tuple
 import k2
 import torch
 
+from icefall.lexicon import read_lexicon, write_lexicon
+
 Lexicon = List[Tuple[str, List[str]]]
-
-
-def read_lexicon(filename: str) -> Lexicon:
-    """Read a lexicon.txt in `filename`.
-
-    Each line in the lexicon contains "word p1 p2 p3 ...".
-    That is, the first field is a word and the remaining
-    fields are phones. Fields are separated by space(s).
-
-    Args:
-      filename:
-        Path to the lexicon.txt
-
-    Returns:
-      A list of tuples., e.g., [('w', ['p1', 'p2']), ('w1', ['p3, 'p4'])]
-    """
-    ans = []
-
-    with open(filename, "r", encoding="utf-8") as f:
-        whitespace = re.compile("[ \t]+")
-        for line in f:
-            a = whitespace.split(line.strip(" \t\r\n"))
-            if len(a) == 0:
-                continue
-
-            if len(a) < 2:
-                print(f"Found bad line {line} in lexicon file {filename}")
-                print("Every line is expected to contain at least 2 fields")
-                sys.exit(1)
-            word = a[0]
-            if word == "<eps>":
-                print(f"Found bad line {line} in lexicon file {filename}")
-                print("<eps> should not be a valid word")
-                sys.exit(1)
-
-            prons = a[1:]
-            ans.append((word, prons))
-
-    return ans
-
-
-def write_lexicon(filename: str, lexicon: Lexicon) -> None:
-    """Write a lexicon to a file.
-
-    Args:
-      filename:
-        Path to the lexicon file to be generated.
-      lexicon:
-        It can be the return value of :func:`read_lexicon`.
-    """
-    with open(filename, "w", encoding="utf-8") as f:
-        for word, prons in lexicon:
-            f.write(f"{word} {' '.join(prons)}\n")
 
 
 def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
@@ -105,18 +54,18 @@ def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
             f.write(f"{sym} {i}\n")
 
 
-def get_phones(lexicon: Lexicon) -> List[str]:
-    """Get phones from a lexicon.
+def get_tokens(lexicon: Lexicon) -> List[str]:
+    """Get tokens from a lexicon.
 
     Args:
       lexicon:
         It is the return value of :func:`read_lexicon`.
     Returns:
-      Return a list of unique phones.
+      Return a list of unique tokens.
     """
     ans = set()
-    for _, prons in lexicon:
-        ans.update(prons)
+    for _, tokens in lexicon:
+        ans.update(tokens)
     sorted_ans = sorted(list(ans))
     return sorted_ans
 
@@ -138,8 +87,8 @@ def get_words(lexicon: Lexicon) -> List[str]:
 
 
 def add_disambig_symbols(lexicon: Lexicon) -> Tuple[Lexicon, int]:
-    """It adds pseudo-phone disambiguation symbols #1, #2 and so on
-    at the ends of phones to ensure that all pronunciations are different,
+    """It adds pseudo-token disambiguation symbols #1, #2 and so on
+    at the ends of tokens to ensure that all pronunciations are different,
     and that none is a prefix of another.
 
     See also add_lex_disambig.pl from kaldi.
@@ -151,30 +100,30 @@ def add_disambig_symbols(lexicon: Lexicon) -> Tuple[Lexicon, int]:
       Return a tuple with two elements:
 
         - The output lexicon with disambiguation symbols
-        - The ID of the max disambiguation symbols that appears
+        - The ID of the max disambiguation symbol that appears
           in the lexicon
     """
 
-    # (1) Work out the count of each phone-sequence in the
+    # (1) Work out the count of each token-sequence in the
     # lexicon.
     count = defaultdict(int)
-    for _, prons in lexicon:
-        count[" ".join(prons)] += 1
+    for _, tokens in lexicon:
+        count[" ".join(tokens)] += 1
 
-    # (2) For each left sub-sequence of each phone-sequence, note down
+    # (2) For each left sub-sequence of each token-sequence, note down
     # that it exists (for identifying prefixes of longer strings).
     issubseq = defaultdict(int)
-    for _, prons in lexicon:
-        prons = prons.copy()
-        prons.pop()
-        while prons:
-            issubseq[" ".join(prons)] = 1
-            prons.pop()
+    for _, tokens in lexicon:
+        tokens = tokens.copy()
+        tokens.pop()
+        while tokens:
+            issubseq[" ".join(tokens)] = 1
+            tokens.pop()
 
     # (3) For each entry in the lexicon:
-    # if the phone sequence is unique and is not a
+    # if the token sequence is unique and is not a
     # prefix of another word, no disambig symbol.
-    # Else output #1, or #2, #3, ... if the same phone-seq
+    # Else output #1, or #2, #3, ... if the same token-seq
     # has already been assigned a disambig symbol.
     ans = []
 
@@ -183,14 +132,14 @@ def add_disambig_symbols(lexicon: Lexicon) -> Tuple[Lexicon, int]:
     max_disambig = first_allowed_disambig - 1
     last_used_disambig_symbol_of = defaultdict(int)
 
-    for word, prons in lexicon:
-        phnseq = " ".join(prons)
-        assert phnseq != ""
-        if issubseq[phnseq] == 0 and count[phnseq] == 1:
-            ans.append((word, prons))
+    for word, tokens in lexicon:
+        tokenseq = " ".join(tokens)
+        assert tokenseq != ""
+        if issubseq[tokenseq] == 0 and count[tokenseq] == 1:
+            ans.append((word, tokens))
             continue
 
-        cur_disambig = last_used_disambig_symbol_of[phnseq]
+        cur_disambig = last_used_disambig_symbol_of[tokenseq]
         if cur_disambig == 0:
             cur_disambig = first_allowed_disambig
         else:
@@ -198,9 +147,9 @@ def add_disambig_symbols(lexicon: Lexicon) -> Tuple[Lexicon, int]:
 
         if cur_disambig > max_disambig:
             max_disambig = cur_disambig
-        last_used_disambig_symbol_of[phnseq] = cur_disambig
-        phnseq += f" #{cur_disambig}"
-        ans.append((word, phnseq.split()))
+        last_used_disambig_symbol_of[tokenseq] = cur_disambig
+        tokenseq += f" #{cur_disambig}"
+        ans.append((word, tokenseq.split()))
     return ans, max_disambig
 
 
@@ -217,7 +166,7 @@ def generate_id_map(symbols: List[str]) -> Dict[str, int]:
 
 
 def add_self_loops(
-    arcs: List[List[Any]], disambig_phone: int, disambig_word: int
+    arcs: List[List[Any]], disambig_token: int, disambig_word: int
 ) -> List[List[Any]]:
     """Adds self-loops to states of an FST to propagate disambiguation symbols
     through it. They are added on each state with non-epsilon output symbols
@@ -228,12 +177,15 @@ def add_self_loops(
     This function uses k2 style FSTs and it does not need to add self-loops
     to the final state.
 
+    The input label of a self-loop is `disambig_token`, while the output
+    label is `disambig_word`.
+
     Args:
       arcs:
         A list-of-list. The sublist contains
         `[src_state, dest_state, label, aux_label, score]`
-      disambig_phone:
-        It is the phone ID of the symbol `#0`.
+      disambig_token:
+        It is the token ID of the symbol `#0`.
       disambig_word:
         It is the word ID of the symbol `#0`.
 
@@ -248,37 +200,38 @@ def add_self_loops(
 
     ans = []
     for s in states_needs_self_loops:
-        ans.append([s, s, disambig_phone, disambig_word, 0])
+        ans.append([s, s, disambig_token, disambig_word, 0])
 
     return arcs + ans
 
 
 def lexicon_to_fst(
     lexicon: Lexicon,
-    phone2id: Dict[str, int],
+    token2id: Dict[str, int],
     word2id: Dict[str, int],
-    sil_phone: str = "SIL",
+    sil_token: str = "SIL",
     sil_prob: float = 0.5,
     need_self_loops: bool = False,
 ) -> k2.Fsa:
     """Convert a lexicon to an FST (in k2 format) with optional silence at
-    the beginning and end of the word.
+    the beginning and end of each word.
 
     Args:
       lexicon:
         The input lexicon. See also :func:`read_lexicon`
-      phone2id:
-        A dict mapping phones to IDs.
+      token2id:
+        A dict mapping tokens to IDs.
       word2id:
         A dict mapping words to IDs.
-      sil_phone:
-        The silence phone.
+      sil_token:
+        The silence token.
       sil_prob:
         The probability for adding a silence at the beginning and end
         of the word.
       need_self_loops:
         If True, add self-loop to states with non-epsilon output symbols
-        on at least one arc out of the state.
+        on at least one arc out of the state. The input label for this
+        self loop is `token2id["#0"]` and the output label is `word2id["#0"]`.
     Returns:
       Return an instance of `k2.Fsa` representing the given lexicon.
     """
@@ -294,48 +247,44 @@ def lexicon_to_fst(
     next_state = 3  # the next un-allocated state, will be incremented as we go.
     arcs = []
 
-    assert phone2id["<eps>"] == 0
+    assert token2id["<eps>"] == 0
     assert word2id["<eps>"] == 0
 
     eps = 0
 
-    sil_phone = phone2id[sil_phone]
+    sil_token = token2id[sil_token]
 
     arcs.append([start_state, loop_state, eps, eps, no_sil_score])
     arcs.append([start_state, sil_state, eps, eps, sil_score])
-    arcs.append([sil_state, loop_state, sil_phone, eps, 0])
+    arcs.append([sil_state, loop_state, sil_token, eps, 0])
 
-    for word, prons in lexicon:
-        assert len(prons) > 0, f"{word} has no pronunciations"
+    for word, tokens in lexicon:
+        assert len(tokens) > 0, f"{word} has no pronunciations"
         cur_state = loop_state
 
         word = word2id[word]
-        prons = [phone2id[i] for i in prons]
+        tokens = [token2id[i] for i in tokens]
 
-        for i in range(len(prons) - 1):
-            if i == 0:
-                arcs.append([cur_state, next_state, prons[i], word, 0])
-            else:
-                arcs.append([cur_state, next_state, prons[i], eps, 0])
+        for i in range(len(tokens) - 1):
+            w = word if i == 0 else eps
+            arcs.append([cur_state, next_state, tokens[i], w, 0])
 
             cur_state = next_state
             next_state += 1
 
-        # now for the last phone of this word
+        # now for the last token of this word
         # It has two out-going arcs, one to the loop state,
         # the other one to the sil_state.
-        i = len(prons) - 1
+        i = len(tokens) - 1
         w = word if i == 0 else eps
-        arcs.append([cur_state, loop_state, prons[i], w, no_sil_score])
-        arcs.append([cur_state, sil_state, prons[i], w, sil_score])
+        arcs.append([cur_state, loop_state, tokens[i], w, no_sil_score])
+        arcs.append([cur_state, sil_state, tokens[i], w, sil_score])
 
     if need_self_loops:
-        disambig_phone = phone2id["#0"]
+        disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs,
-            disambig_phone=disambig_phone,
-            disambig_word=disambig_word,
+            arcs, disambig_token=disambig_token, disambig_word=disambig_word,
         )
 
     final_state = next_state
@@ -354,22 +303,22 @@ def lexicon_to_fst(
 def main():
     out_dir = Path("data/lang")
     lexicon_filename = out_dir / "lexicon.txt"
-    sil_phone = "SIL"
+    sil_token = "SIL"
     sil_prob = 0.5
 
     lexicon = read_lexicon(lexicon_filename)
-    phones = get_phones(lexicon)
+    tokens = get_tokens(lexicon)
     words = get_words(lexicon)
 
     lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
 
     for i in range(max_disambig + 1):
         disambig = f"#{i}"
-        assert disambig not in phones
-        phones.append(f"#{i}")
+        assert disambig not in tokens
+        tokens.append(f"#{i}")
 
-    assert "<eps>" not in phones
-    phones = ["<eps>"] + phones
+    assert "<eps>" not in tokens
+    tokens = ["<eps>"] + tokens
 
     assert "<eps>" not in words
     assert "#0" not in words
@@ -378,26 +327,26 @@ def main():
 
     words = ["<eps>"] + words + ["#0", "<s>", "</s>"]
 
-    phone2id = generate_id_map(phones)
+    token2id = generate_id_map(tokens)
     word2id = generate_id_map(words)
 
-    write_mapping(out_dir / "phones.txt", phone2id)
+    write_mapping(out_dir / "tokens.txt", token2id)
     write_mapping(out_dir / "words.txt", word2id)
     write_lexicon(out_dir / "lexicon_disambig.txt", lexicon_disambig)
 
     L = lexicon_to_fst(
         lexicon,
-        phone2id=phone2id,
+        token2id=token2id,
         word2id=word2id,
-        sil_phone=sil_phone,
+        sil_token=sil_token,
         sil_prob=sil_prob,
     )
 
     L_disambig = lexicon_to_fst(
         lexicon_disambig,
-        phone2id=phone2id,
+        token2id=token2id,
         word2id=word2id,
-        sil_phone=sil_phone,
+        sil_token=sil_token,
         sil_prob=sil_prob,
         need_self_loops=True,
     )
@@ -406,7 +355,7 @@ def main():
 
     if False:
         # Just for debugging, will remove it
-        L.labels_sym = k2.SymbolTable.from_file(out_dir / "phones.txt")
+        L.labels_sym = k2.SymbolTable.from_file(out_dir / "tokens.txt")
         L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
         L_disambig.labels_sym = L.labels_sym
         L_disambig.aux_labels_sym = L.aux_labels_sym

@@ -189,6 +189,8 @@ class Transformer(nn.Module):
         supervision: Supervisions = None,
         graph_compiler: object = None,
         token_ids: List[int] = None,
+        sos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
     ) -> Tensor:
         """
         Args:
@@ -197,6 +199,8 @@ class Transformer(nn.Module):
             supervision: Supervison in lhotse format, get from batch['supervisions']
             graph_compiler: use graph_compiler.L_inv (Its labels are words, while its aux_labels are phones)
                             , graph_compiler.words and graph_compiler.oov
+            sos_id: sos token id
+            eos_id: eos token id
 
         Returns:
             Tensor: Decoder loss.
@@ -206,18 +210,9 @@ class Transformer(nn.Module):
                 supervision, graph_compiler.lexicon.words, graph_compiler.oov
             )
             ys_in_pad, ys_out_pad = add_sos_eos(
-                batch_text,
-                graph_compiler.L_inv,
-                self.decoder_num_class - 1,
-                self.decoder_num_class - 1,
+                batch_text, graph_compiler.L_inv, sos_id, eos_id,
             )
         elif token_ids is not None:
-            # speical token ids:
-            # <blank> 0
-            # <UNK> 1
-            # <sos/eos> self.decoder_num_class - 1
-            sos_id = self.decoder_num_class - 1
-            eos_id = self.decoder_num_class - 1
             _sos = torch.tensor([sos_id])
             _eos = torch.tensor([eos_id])
             ys_in = [
@@ -259,7 +254,12 @@ class Transformer(nn.Module):
         return decoder_loss
 
     def decoder_nll(
-        self, x: Tensor, encoder_mask: Tensor, token_ids: List[List[int]] = None
+        self,
+        x: Tensor,
+        encoder_mask: Tensor,
+        token_ids: List[List[int]],
+        sos_id: int,
+        eos_id: int,
     ) -> Tensor:
         """
         Args:
@@ -273,12 +273,6 @@ class Transformer(nn.Module):
         # The common part between this fuction and decoder_forward could be
         # extracted as a seperated function.
         if token_ids is not None:
-            # speical token ids:
-            # <blank> 0
-            # <UNK> 1
-            # <sos/eos> self.decoder_num_class - 1
-            sos_id = self.decoder_num_class - 1
-            eos_id = self.decoder_num_class - 1
             _sos = torch.tensor([sos_id])
             _eos = torch.tensor([eos_id])
             ys_in = [
@@ -866,7 +860,8 @@ class LabelSmoothingLoss(nn.Module):
             target = target.masked_fill(ignore, 0)  # avoid -1 index
             true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
         kl = self.criterion(torch.log_softmax(x, dim=1), true_dist)
-        denom = total if self.normalize_length else batch_size
+        #  denom = total if self.normalize_length else batch_size
+        denom = total if self.normalize_length else 1
         return kl.masked_fill(ignore.unsqueeze(1), 0).sum() / denom
 
 
@@ -983,8 +978,8 @@ def generate_square_subsequent_mask(sz: int) -> Tensor:
 def add_sos_eos(
     ys: List[List[int]],
     lexicon: k2.Fsa,
-    sos: int,
-    eos: int,
+    sos_id: int,
+    eos_id: int,
     ignore_id: int = -1,
 ) -> Tuple[Tensor, Tensor]:
     """Add <sos> and <eos> labels.
@@ -992,8 +987,8 @@ def add_sos_eos(
     Args:
         ys: batch of unpadded target sequences
         lexicon: Its labels are words, while its aux_labels are phones.
-        sos: index of <sos>
-        eos: index of <eos>
+        sos_id: index of <sos>
+        eos_id: index of <eos>
         ignore_id: index of padding
 
     Returns:
@@ -1001,8 +996,8 @@ def add_sos_eos(
         Tensor: Output of transformer decoder. padded tensor of dimention (batch_size, max_length).
     """
 
-    _sos = torch.tensor([sos])
-    _eos = torch.tensor([eos])
+    _sos = torch.tensor([sos_id])
+    _eos = torch.tensor([eos_id])
     ys = get_hierarchical_targets(ys, lexicon)
     ys_in = [torch.cat([_sos, y], dim=0) for y in ys]
     ys_out = [torch.cat([y, _eos], dim=0) for y in ys]
