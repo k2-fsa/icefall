@@ -659,8 +659,9 @@ def rescore_with_attention_decoder(
         0, path_to_seq_map_long
     )
 
+    # TODO: pass the sos_token_id and eos_token_id via function arguments
     nll = model.decoder_nll(
-        expanded_memory, expanded_memory_key_padding_mask, token_ids
+        expanded_memory, expanded_memory_key_padding_mask, token_ids, 1, 1
     )
     assert nll.ndim == 2
     assert nll.shape[0] == num_word_seqs

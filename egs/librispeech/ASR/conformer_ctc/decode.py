@@ -85,10 +85,10 @@ def get_params() -> AttributeDict:
             #  - whole-lattice-rescoring
             #  - attention-decoder
             #  "method": "whole-lattice-rescoring",
-            "method": "attention-decoder",
+            "method": "1best",
             # num_paths is used when method is "nbest", "nbest-rescoring",
             # and attention-decoder
-            "num_paths": 1000,
+            "num_paths": 100,
         }
     )
     return params
@@ -192,7 +192,7 @@ def decode_one_batch(
             key = f"no_rescore-{params.num_paths}"
 
         hyps = get_texts(best_path)
-        hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.method in [
@@ -234,7 +234,7 @@ def decode_one_batch(
     ans = dict()
     for lm_scale_str, best_path in best_path_dict.items():
         hyps = get_texts(best_path)
-        hyps = [[lexicon.words[i] for i in ids] for ids in hyps]
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
         ans[lm_scale_str] = hyps
     return ans
 
@@ -374,6 +374,8 @@ def main():
     if not hasattr(HLG, "lm_scores"):
         HLG.lm_scores = HLG.scores.clone()
 
+    #  HLG = k2.ctc_topo(4999).to(device)
+
     if params.method in (
         "nbest-rescoring",
         "whole-lattice-rescoring",
@@ -383,7 +385,7 @@ def main():
             logging.info("Loading G_4_gram.fst.txt")
             logging.warning("It may take 8 minutes.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
-                first_word_disambig_id = lexicon.words["#0"]
+                first_word_disambig_id = lexicon.word_table["#0"]
 
                 G = k2.Fsa.from_openfst(f.read(), acceptor=False)
                 # G.aux_labels is not needed in later computations, so
