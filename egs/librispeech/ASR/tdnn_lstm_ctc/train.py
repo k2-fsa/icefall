@@ -501,8 +501,9 @@ def run(rank, world_size, args):
     )
     scheduler = StepLR(optimizer, step_size=8, gamma=0.1)
 
-    optimizer.load_state_dict(checkpoints["optimizer"])
-    scheduler.load_state_dict(checkpoints["scheduler"])
+    if checkpoints:
+        optimizer.load_state_dict(checkpoints["optimizer"])
+        scheduler.load_state_dict(checkpoints["scheduler"])
 
     librispeech = LibriSpeechAsrDataModule(args)
     train_dl = librispeech.train_dataloaders()
