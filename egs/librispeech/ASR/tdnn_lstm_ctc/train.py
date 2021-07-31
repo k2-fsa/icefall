@@ -127,7 +127,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("tdnn_lstm_ctc/exp"),
-            "lang_dir": Path("data/lang"),
+            "lang_dir": Path("data/lang_phone"),
             "lr": 1e-3,
             "feature_dim": 80,
             "weight_decay": 5e-4,

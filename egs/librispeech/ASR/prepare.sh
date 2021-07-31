@@ -6,8 +6,38 @@ nj=15
 stage=-1
 stop_stage=100
 
-. local/parse_options.sh || exit 1
+# We assume dl_dir (download dir) contains the following
+# directories and files. If not, they will be downloaded
+# by this script automatically.
+#
+#  - $dl_dir/LibriSpeech
+#      You can find BOOKS.TXT, test-clean, train-clean-360, etc, inside it.
+#      You can download them from https://www.openslr.org/12
+#
+#  - $dl_dir/lm
+#      This directory contains the following files downloaded from
+#       http://www.openslr.org/resources/11
+#
+#        - 3-gram.pruned.1e-7.arpa.gz
+#        - 3-gram.pruned.1e-7.arpa
+#        - 4-gram.arpa.gz
+#        - 4-gram.arpa
+#        - librispeech-vocab.txt
+#        - librispeech-lexicon.txt
+#
+#  - $do_dir/musan
+#      This directory contains the following directories downloaded from
+#       http://www.openslr.org/17/
+#
+#     - music
+#     - noise
+#     - speech
+dl_dir=$PWD/download
 
+. shared/parse_options.sh || exit 1
+
+
+# All generated files by this script are saved in "data"
 mkdir -p data
 
 log() {
@@ -16,10 +46,11 @@ log() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
 
+log "dl_dir: $dl_dir"
+
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "stage -1: Download LM"
-  mkdir -p data/lm
-  ./local/download_lm.py
+  ./local/download_lm.py --out-dir=$dl_dir/lm
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
@@ -28,38 +59,28 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   # If you have pre-downloaded it to /path/to/LibriSpeech,
   # you can create a symlink
   #
-  #   ln -sfv /path/to/LibriSpeech data/
+  #   ln -sfv /path/to/LibriSpeech $dl_dir/LibriSpeech
   #
-  # The script checks that if
-  #
-  #   data/LibriSpeech/test-clean/.completed exists,
-  #
-  # it will not re-download it.
-  #
-  # The same goes for dev-clean, dev-other, test-other, train-clean-100
-  # train-clean-360, and train-other-500
-
-  mkdir -p data/LibriSpeech
-  lhotse download librispeech --full data
+  if [ ! -d $dl_dir/LibriSpeech/train-other-500 ]; then
+    lhotse download librispeech --full $dl_dir
+  fi
 
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
   #
-  #   ln -sfv /path/to/musan data/
+  #   ln -sfv /path/to/musan $dl_dir/
   #
-  # and create a file data/.musan_completed
-  # to avoid downloading it again
-  if [ ! -f data/.musan_completed ]; then
-    lhotse download musan data
+  if [ ! -d $dl_dir/musan ]; then
+    lhotse download musan $dl_dir
   fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare librispeech manifest"
-  # We assume that you have downloaded the librispeech corpus
-  # to data/LibriSpeech
+  log "Stage 1: Prepare LibriSpeech manifest"
+  # We assume that you have downloaded the LibriSpeech corpus
+  # to $dl_dir/LibriSpeech
   mkdir -p data/manifests
-  lhotse prepare librispeech -j $nj data/LibriSpeech data/manifests
+  lhotse prepare librispeech -j $nj $dl_dir/LibriSpeech data/manifests
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -67,7 +88,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # We assume that you have downloaded the musan corpus
   # to data/musan
   mkdir -p data/manifests
-  lhotse prepare musan data/musan data/manifests
+  lhotse prepare musan $dl_dir/musan data/manifests
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
@@ -84,24 +105,25 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  # TODO: add BPE based lang
-  mkdir -p data/lang
+  mkdir -p data/lang_phone
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
-    cat - data/lm/librispeech-lexicon.txt |
-    sort | uniq > data/lang/lexicon.txt
+    cat - $dl_dir/lm/librispeech-lexicon.txt |
+    sort | uniq > data/lang_phone/lexicon.txt
 
-  if [ ! -f data/lang/L_disambig.pt ]; then
+  if [ ! -f data/lang_phone/L_disambig.pt ]; then
     ./local/prepare_lang.py
   fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "State 6: Prepare BPE based lang"
-  mkdir -p data/lang/bpe
-  cp data/lang/words.txt data/lang/bpe/
+  mkdir -p data/lang_bpe
+  # We reuse words.txt from phone based lexicon
+  # so that the two can share G.pt later.
+  cp data/lang_phone/words.txt data/lang_bpe/
 
-  if [ ! -f data/lang/bpe/train.txt ]; then
+  if [ ! -f data/lang_bpe/train.txt ]; then
     log "Generate data for BPE training"
     files=$(
       find "data/LibriSpeech/train-clean-100" -name "*.trans.txt"
@@ -110,12 +132,12 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     )
     for f in ${files[@]}; do
       cat $f | cut -d " " -f 2-
-    done > data/lang/bpe/train.txt
+    done > data/lang_bpe/train.txt
   fi
 
   python3 ./local/train_bpe_model.py
 
-  if [ ! -f data/lang/bpe/L_disambig.pt ]; then
+  if [ ! -f data/lang_bpe/L_disambig.pt ]; then
     ./local/prepare_lang_bpe.py
   fi
 fi
@@ -125,22 +147,23 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
+  mkdir -p data/lm
   if [ ! -f data/lm/G_3_gram.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
-      --read-symbol-table="data/lang/words.txt" \
+      --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      data/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
+      $dl_dir/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
   fi
 
   if [ ! -f data/lm/G_4_gram.fst.txt ]; then
     # It is used for LM rescoring
     python3 -m kaldilm \
-      --read-symbol-table="data/lang/words.txt" \
+      --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=4 \
-      data/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+      $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
   fi
 fi
 

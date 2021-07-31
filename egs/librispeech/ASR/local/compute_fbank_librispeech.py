@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 """
-This file computes fbank features of the librispeech dataset.
-Its looks for manifests in the directory data/manifests
-and generated fbank features are saved in data/fbank.
+This file computes fbank features of the LibriSpeech dataset.
+Its looks for manifests in the directory data/manifests.
+
+The generated fbank features are saved in data/fbank.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -40,9 +42,9 @@ def compute_fbank_librispeech():
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
             if (output_dir / f"cuts_{partition}.json.gz").is_file():
-                print(f"{partition} already exists - skipping.")
+                logging.info(f"{partition} already exists - skipping.")
                 continue
-            print("Processing", partition)
+            logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
@@ -65,4 +67,10 @@ def compute_fbank_librispeech():
 
 
 if __name__ == "__main__":
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
     compute_fbank_librispeech()

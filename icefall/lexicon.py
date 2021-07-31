@@ -1,7 +1,8 @@
 import logging
 import re
+import sys
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import k2
 import torch
@@ -31,13 +32,19 @@ def read_lexicon(filename: str) -> List[Tuple[str, List[str]]]:
                 continue
 
             if len(a) < 2:
-                print(f"Found bad line {line} in lexicon file {filename}")
-                print("Every line is expected to contain at least 2 fields")
+                logging.info(
+                    f"Found bad line {line} in lexicon file {filename}"
+                )
+                logging.info(
+                    "Every line is expected to contain at least 2 fields"
+                )
                 sys.exit(1)
             word = a[0]
             if word == "<eps>":
-                print(f"Found bad line {line} in lexicon file {filename}")
-                print("<eps> should not be a valid word")
+                logging.info(
+                    f"Found bad line {line} in lexicon file {filename}"
+                )
+                logging.info("<eps> should not be a valid word")
                 sys.exit(1)
 
             tokens = a[1:]
@@ -61,13 +68,12 @@ def write_lexicon(filename: str, lexicon: List[Tuple[str, List[str]]]) -> None:
 
 
 class Lexicon(object):
-    """Phone based lexicon.
-
-    TODO: Add BpeLexicon for BPE models.
-    """
+    """Phone based lexicon."""
 
     def __init__(
-        self, lang_dir: Path, disambig_pattern: str = re.compile(r"^#\d+$"),
+        self,
+        lang_dir: Path,
+        disambig_pattern: str = re.compile(r"^#\d+$"),
     ):
         """
         Args:
@@ -121,7 +127,9 @@ class Lexicon(object):
 
 class BpeLexicon(Lexicon):
     def __init__(
-        self, lang_dir: Path, disambig_pattern: str = re.compile(r"^#\d+$"),
+        self,
+        lang_dir: Path,
+        disambig_pattern: str = re.compile(r"^#\d+$"),
     ):
         """
         Refer to the help information in Lexicon.__init__.

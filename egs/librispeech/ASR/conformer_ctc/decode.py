@@ -62,7 +62,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("conformer_ctc/exp"),
-            "lang_dir": Path("data/lang/bpe"),
+            "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
             "nhead": 8,
@@ -367,14 +367,12 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lm_dir}/HLG_bpe.pt"))
+    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt"))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
     if not hasattr(HLG, "lm_scores"):
         HLG.lm_scores = HLG.scores.clone()
-
-    #  HLG = k2.ctc_topo(4999).to(device)
 
     if params.method in (
         "nbest-rescoring",

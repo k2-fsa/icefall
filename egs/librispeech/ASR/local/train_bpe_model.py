@@ -14,18 +14,17 @@ and generates "data/lang/bpe/bep.model".
 #
 # Please install a version >=0.1.96
 
+import shutil
 from pathlib import Path
 
 import sentencepiece as spm
-
-import shutil
 
 
 def main():
     model_type = "unigram"
     vocab_size = 5000
-    model_prefix = f"data/lang/bpe/{model_type}_{vocab_size}"
-    train_text = "data/lang/bpe/train.txt"
+    model_prefix = f"data/lang_bpe/{model_type}_{vocab_size}"
+    train_text = "data/lang_bpe/train.txt"
     character_coverage = 1.0
     input_sentence_size = 100000000
 
@@ -53,7 +52,7 @@ def main():
     sp = spm.SentencePieceProcessor(model_file=str(model_file))
     vocab_size = sp.vocab_size()
 
-    shutil.copyfile(model_file, "data/lang/bpe/bpe.model")
+    shutil.copyfile(model_file, "data/lang_bpe/bpe.model")
 
 
 if __name__ == "__main__":

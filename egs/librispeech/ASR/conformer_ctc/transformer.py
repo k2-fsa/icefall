@@ -188,7 +188,7 @@ class Transformer(nn.Module):
         encoder_mask: Tensor,
         supervision: Supervisions = None,
         graph_compiler: object = None,
-        token_ids: List[int] = None,
+        token_ids: List[List[int]] = None,
         sos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
     ) -> Tensor:
@@ -199,6 +199,7 @@ class Transformer(nn.Module):
             supervision: Supervison in lhotse format, get from batch['supervisions']
             graph_compiler: use graph_compiler.L_inv (Its labels are words, while its aux_labels are phones)
                             , graph_compiler.words and graph_compiler.oov
+            token_ids: A list of lists. Each list contains word piece IDs for an utterance.
             sos_id: sos token id
             eos_id: eos token id
 
@@ -210,7 +211,10 @@ class Transformer(nn.Module):
                 supervision, graph_compiler.lexicon.words, graph_compiler.oov
             )
             ys_in_pad, ys_out_pad = add_sos_eos(
-                batch_text, graph_compiler.L_inv, sos_id, eos_id,
+                batch_text,
+                graph_compiler.L_inv,
+                sos_id,
+                eos_id,
             )
         elif token_ids is not None:
             _sos = torch.tensor([sos_id])
@@ -225,7 +229,7 @@ class Transformer(nn.Module):
             ys_out_pad = pad_list(ys_out, -1)
 
         else:
-            raise ValueError("Invalid input for decoder self attetion")
+            raise ValueError("Invalid input for decoder self attention")
 
         ys_in_pad = ys_in_pad.to(x.device)
         ys_out_pad = ys_out_pad.to(x.device)
@@ -284,7 +288,7 @@ class Transformer(nn.Module):
             ys_in_pad = pad_list(ys_in, eos_id)
             ys_out_pad = pad_list(ys_out, -1)
         else:
-            raise ValueError("Invalid input for decoder self attetion")
+            raise ValueError("Invalid input for decoder self attention")
 
         ys_in_pad = ys_in_pad.to(x.device, dtype=torch.int64)
         ys_out_pad = ys_out_pad.to(x.device, dtype=torch.int64)

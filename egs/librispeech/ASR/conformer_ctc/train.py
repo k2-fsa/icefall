@@ -125,7 +125,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("conformer_ctc/exp"),
-            "lang_dir": Path("data/lang/bpe"),
+            "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "weight_decay": 0.0,
             "subsampling_factor": 4,

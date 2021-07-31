@@ -2,10 +2,12 @@
 
 """
 This file computes fbank features of the musan dataset.
-Its looks for manifests in the directory data/manifests
-and generated fbank features are saved in data/fbank.
+Its looks for manifests in the directory data/manifests.
+
+The generated fbank features are saved in data/fbank.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -34,10 +36,10 @@ def compute_fbank_musan():
     musan_cuts_path = output_dir / "cuts_musan.json.gz"
 
     if musan_cuts_path.is_file():
-        print(f"{musan_cuts_path} already exists - skipping")
+        logging.info(f"{musan_cuts_path} already exists - skipping")
         return
 
-    print("Extracting features for Musan")
+    logging.info("Extracting features for Musan")
 
     extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
@@ -63,4 +65,9 @@ def compute_fbank_musan():
 
 
 if __name__ == "__main__":
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan()

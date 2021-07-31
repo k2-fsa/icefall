@@ -58,7 +58,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("tdnn_lstm_ctc/exp/"),
-            "lang_dir": Path("data/lang"),
+            "lang_dir": Path("data/lang_phone"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
             "subsampling_factor": 3,
@@ -328,7 +328,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(torch.load("data/lm/HLG.pt"))
+    HLG = k2.Fsa.from_dict(torch.load("data/lang_phone/HLG.pt"))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -340,7 +340,7 @@ def main():
             logging.info("Loading G_4_gram.fst.txt")
             logging.warning("It may take 8 minutes.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
-                first_word_disambig_id = lexicon.words["#0"]
+                first_word_disambig_id = lexicon.word_table["#0"]
 
                 G = k2.Fsa.from_openfst(f.read(), acceptor=False)
                 # G.aux_labels is not needed in later computations, so
