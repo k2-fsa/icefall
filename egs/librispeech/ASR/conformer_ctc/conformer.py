@@ -89,15 +89,21 @@ class Conformer(Transformer):
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Args:
-            x: Tensor of dimension (batch_size, num_features, input_length).
-            supervisions : Supervison in lhotse format, i.e., batch['supervisions']
+          x:
+            The model input. Its shape is [N, T, C].
+          supervisions:
+            Supervision in lhotse format.
+            See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
+            CAUTION: It contains length information, i.e., start and number of
+            frames, before subsampling
+            It is read directly from the batch, without any sorting. It is used
+            to compute encoder padding mask, which is used as memory key padding
+            mask for the decoder.
 
         Returns:
             Tensor: Predictor tensor of dimension (input_length, batch_size, d_model).
             Tensor: Mask tensor of dimension (batch_size, input_length)
         """
-        x = x.permute(0, 2, 1)  # (B, F, T) -> (B, T, F)
-
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
@@ -796,8 +802,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz, num_heads, tgt_len, src_len
             )
             attn_output_weights = attn_output_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float("-inf"),
+                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"),
             )
             attn_output_weights = attn_output_weights.view(
                 bsz * num_heads, tgt_len, src_len
@@ -867,12 +872,7 @@ class ConvolutionModule(nn.Module):
         )
         self.norm = nn.BatchNorm1d(channels)
         self.pointwise_conv2 = nn.Conv1d(
-            channels,
-            channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
+            channels, channels, kernel_size=1, stride=1, padding=0, bias=bias,
         )
         self.activation = Swish()
 

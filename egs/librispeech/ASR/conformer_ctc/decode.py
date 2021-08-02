@@ -147,15 +147,10 @@ def decode_one_batch(
     feature = feature.to(device)
     # at entry, feature is [N, T, C]
 
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
-
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, C, T]
-
-    nnet_output = nnet_output.permute(0, 2, 1)
-    # now nnet_output is [N, T, C]
+    # nnet_output is [N, T, C]
 
     supervision_segments = torch.stack(
         (
@@ -227,6 +222,8 @@ def decode_one_batch(
             model=model,
             memory=memory,
             memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=lexicon.sos_id,
+            eos_id=lexicon.eos_id,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
@@ -467,6 +464,9 @@ def main():
 
     logging.info("Done!")
 
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
