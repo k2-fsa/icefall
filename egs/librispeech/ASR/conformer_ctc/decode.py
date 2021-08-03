@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 from conformer import Conformer
 
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
@@ -85,7 +86,7 @@ def get_params() -> AttributeDict:
             #  - whole-lattice-rescoring
             #  - attention-decoder
             #  "method": "whole-lattice-rescoring",
-            "method": "1best",
+            "method": "attention-decoder",
             # num_paths is used when method is "nbest", "nbest-rescoring",
             # and attention-decoder
             "num_paths": 100,
@@ -100,6 +101,8 @@ def decode_one_batch(
     HLG: k2.Fsa,
     batch: dict,
     lexicon: Lexicon,
+    sos_id: int,
+    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -133,6 +136,10 @@ def decode_one_batch(
         for the format of the `batch`.
       lexicon:
         It contains word symbol table.
+      sos_id:
+        The token ID of the SOS.
+      eos_id:
+        The token ID of the EOS.
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -222,8 +229,8 @@ def decode_one_batch(
             model=model,
             memory=memory,
             memory_key_padding_mask=memory_key_padding_mask,
-            sos_id=lexicon.sos_id,
-            eos_id=lexicon.eos_id,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
@@ -242,6 +249,8 @@ def decode_dataset(
     model: nn.Module,
     HLG: k2.Fsa,
     lexicon: Lexicon,
+    sos_id: int,
+    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[int], List[int]]]]:
     """Decode dataset.
@@ -257,6 +266,10 @@ def decode_dataset(
         The decoding graph.
       lexicon:
         It contains word symbol table.
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -284,6 +297,8 @@ def decode_dataset(
             batch=batch,
             lexicon=lexicon,
             G=G,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
 
         for lm_scale, hyps in hyps_dict.items():
@@ -363,6 +378,15 @@ def main():
         device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
+
+    graph_compiler = BpeCtcTrainingGraphCompiler(
+        params.lang_dir,
+        device=device,
+        sos_token="<sos/eos>",
+        eos_token="<sos/eos>",
+    )
+    sos_id = graph_compiler.sos_id
+    eos_id = graph_compiler.eos_id
 
     HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt"))
     HLG = HLG.to(device)
@@ -456,6 +480,8 @@ def main():
             HLG=HLG,
             lexicon=lexicon,
             G=G,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
 
         save_results(

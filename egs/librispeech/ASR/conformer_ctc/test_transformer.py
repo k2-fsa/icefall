@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 
 import torch
-from transformer import Transformer, encoder_padding_mask
+from transformer import (
+    Transformer,
+    encoder_padding_mask,
+    generate_square_subsequent_mask,
+    decoder_padding_mask,
+    add_sos,
+    add_eos,
+)
+
+from torch.nn.utils.rnn import pad_sequence
 
 
 def test_encoder_padding_mask():
@@ -34,3 +43,47 @@ def test_transformer():
         x = torch.rand(N, T, num_features)
         y, _, _ = model(x)
         assert y.shape == (N, (((T - 1) // 2) - 1) // 2, num_classes)
+
+
+def test_generate_square_subsequent_mask():
+    s = 5
+    mask = generate_square_subsequent_mask(s)
+    inf = float("inf")
+    expected_mask = torch.tensor(
+        [
+            [0.0, -inf, -inf, -inf, -inf],
+            [0.0, 0.0, -inf, -inf, -inf],
+            [0.0, 0.0, 0.0, -inf, -inf],
+            [0.0, 0.0, 0.0, 0.0, -inf],
+            [0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+    assert torch.all(torch.eq(mask, expected_mask))
+
+
+def test_decoder_padding_mask():
+    x = [torch.tensor([1, 2]), torch.tensor([3]), torch.tensor([2, 5, 8])]
+    y = pad_sequence(x, batch_first=True, padding_value=-1)
+    mask = decoder_padding_mask(y, ignore_id=-1)
+    expected_mask = torch.tensor(
+        [
+            [False, False, True],
+            [False, True, True],
+            [False, False, False],
+        ]
+    )
+    assert torch.all(torch.eq(mask, expected_mask))
+
+
+def test_add_sos():
+    x = [[1, 2], [3], [2, 5, 8]]
+    y = add_sos(x, sos_id=0)
+    expected_y = [[0, 1, 2], [0, 3], [0, 2, 5, 8]]
+    assert y == expected_y
+
+
+def test_add_eos():
+    x = [[1, 2], [3], [2, 5, 8]]
+    y = add_eos(x, eos_id=0)
+    expected_y = [[1, 2, 0], [3, 0], [2, 5, 8, 0]]
+    assert y == expected_y

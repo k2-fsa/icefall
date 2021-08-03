@@ -84,7 +84,7 @@ class Conformer(Transformer):
             #       and throws an error without this change.
             self.after_norm = identity
 
-    def encode(
+    def run_encoder(
         self, x: Tensor, supervisions: Optional[Supervisions] = None
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
@@ -802,7 +802,8 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz, num_heads, tgt_len, src_len
             )
             attn_output_weights = attn_output_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"),
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                float("-inf"),
             )
             attn_output_weights = attn_output_weights.view(
                 bsz * num_heads, tgt_len, src_len
@@ -872,7 +873,12 @@ class ConvolutionModule(nn.Module):
         )
         self.norm = nn.BatchNorm1d(channels)
         self.pointwise_conv2 = nn.Conv1d(
-            channels, channels, kernel_size=1, stride=1, padding=0, bias=bias,
+            channels,
+            channels,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=bias,
         )
         self.activation = Swish()
 
