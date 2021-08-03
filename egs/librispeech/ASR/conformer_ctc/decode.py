@@ -326,20 +326,31 @@ def save_results(
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
+    if params.method == "attention-decoder":
+        # Set it to False since there are too many logs.
+        enable_log = False
+    else:
+        enable_log = True
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
         store_transcripts(filename=recog_path, texts=results)
-        logging.info(f"The transcripts are stored in {recog_path}")
+        if enable_log:
+            logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results)
+            wer = write_error_stats(
+                f, f"{test_set_name}-{key}", results, enable_log=enable_log
+            )
             test_set_wers[key] = wer
 
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
+        if enable_log:
+            logging.info(
+                "Wrote detailed error stats to {}".format(errs_filename)
+            )
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"

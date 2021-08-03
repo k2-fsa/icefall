@@ -45,7 +45,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
         logging.info("Loading G_3_gram.fst.txt")
         with open("data/lm/G_3_gram.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "G_3_gram.pt")
+            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
