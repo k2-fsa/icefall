@@ -84,20 +84,26 @@ class Conformer(Transformer):
             #       and throws an error without this change.
             self.after_norm = identity
 
-    def encode(
+    def run_encoder(
         self, x: Tensor, supervisions: Optional[Supervisions] = None
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Args:
-            x: Tensor of dimension (batch_size, num_features, input_length).
-            supervisions : Supervison in lhotse format, i.e., batch['supervisions']
+          x:
+            The model input. Its shape is [N, T, C].
+          supervisions:
+            Supervision in lhotse format.
+            See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
+            CAUTION: It contains length information, i.e., start and number of
+            frames, before subsampling
+            It is read directly from the batch, without any sorting. It is used
+            to compute encoder padding mask, which is used as memory key padding
+            mask for the decoder.
 
         Returns:
             Tensor: Predictor tensor of dimension (input_length, batch_size, d_model).
             Tensor: Mask tensor of dimension (batch_size, input_length)
         """
-        x = x.permute(0, 2, 1)  # (B, F, T) -> (B, T, F)
-
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)

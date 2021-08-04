@@ -2,10 +2,25 @@
 
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
 """
-This file downloads librispeech LM files to data/lm
+This file downloads the following LibriSpeech LM files:
+
+    - 3-gram.pruned.1e-7.arpa.gz
+    - 4-gram.arpa.gz
+    - librispeech-vocab.txt
+    - librispeech-lexicon.txt
+
+from http://www.openslr.org/resources/11
+and save them in the user provided directory.
+
+Files are not re-downloaded if they already exist.
+
+Usage:
+    ./local/download_lm.py --out-dir ./download/lm
 """
 
+import argparse
 import gzip
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -14,9 +29,17 @@ from lhotse.utils import urlretrieve_progress
 from tqdm.auto import tqdm
 
 
-def download_lm():
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out-dir", type=str, help="Output directory.")
+
+    args = parser.parse_args()
+    return args
+
+
+def main(out_dir: str):
     url = "http://www.openslr.org/resources/11"
-    target_dir = Path("data/lm")
+    out_dir = Path(out_dir)
 
     files_to_download = (
         "3-gram.pruned.1e-7.arpa.gz",
@@ -26,7 +49,7 @@ def download_lm():
     )
 
     for f in tqdm(files_to_download, desc="Downloading LibriSpeech LM files"):
-        filename = target_dir / f
+        filename = out_dir / f
         if filename.is_file() is False:
             urlretrieve_progress(
                 f"{url}/{f}",
@@ -34,17 +57,26 @@ def download_lm():
                 desc=f"Downloading {filename}",
             )
         else:
-            print(f"{filename} already exists - skipping")
+            logging.info(f"{filename} already exists - skipping")
 
         if ".gz" in str(filename):
-            unzip_file = Path(os.path.splitext(filename)[0])
-            if unzip_file.is_file() is False:
+            unzipped = Path(os.path.splitext(filename)[0])
+            if unzipped.is_file() is False:
                 with gzip.open(filename, "rb") as f_in:
-                    with open(unzip_file, "wb") as f_out:
+                    with open(unzipped, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
             else:
-                print(f"{unzip_file} already exist - skipping")
+                logging.info(f"{unzipped} already exist - skipping")
 
 
 if __name__ == "__main__":
-    download_lm()
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
+    args = get_args()
+    logging.info(f"out_dir: {args.out_dir}")
+
+    main(out_dir=args.out_dir)

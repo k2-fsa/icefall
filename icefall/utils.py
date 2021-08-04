@@ -226,7 +226,10 @@ def store_transcripts(
 
 
 def write_error_stats(
-    f: TextIO, test_set_name: str, results: List[Tuple[str, str]]
+    f: TextIO,
+    test_set_name: str,
+    results: List[Tuple[str, str]],
+    enable_log: bool = True,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
 
@@ -256,6 +259,9 @@ def write_error_stats(
       results:
         An iterable of tuples. The first element is the reference transcript
         while the second element is the predicted result.
+      enable_log:
+        If True, also print detailed WER to the console.
+        Otherwise, it is written only to the given file.
     Returns:
       Return None.
     """
@@ -291,11 +297,12 @@ def write_error_stats(
     tot_errs = sub_errs + ins_errs + del_errs
     tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
 
-    logging.info(
-        f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
-        f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
-        f"{del_errs} del, {sub_errs} sub ]"
-    )
+    if enable_log:
+        logging.info(
+            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
+            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
+            f"{del_errs} del, {sub_errs} sub ]"
+        )
 
     print(f"%WER = {tot_err_rate}", file=f)
     print(

@@ -555,24 +555,31 @@ def rescore_with_attention_decoder(
     model: nn.Module,
     memory: torch.Tensor,
     memory_key_padding_mask: torch.Tensor,
+    sos_id: int,
+    eos_id: int,
 ) -> Dict[str, k2.Fsa]:
     """This function extracts n paths from the given lattice and uses
     an attention decoder to rescore them. The path with the highest
     score is used as the decoding output.
 
-    lattice:
-      An FsaVec. It can be the return value of :func:`get_lattice`.
-    num_paths:
-      Number of paths to extract from the given lattice for rescoring.
-    model:
-      A transformer model. See the class "Transformer" in
-      conformer_ctc/transformer.py for its interface.
-    memory:
-      The encoder memory of the given model. It is the output of
-      the last torch.nn.TransformerEncoder layer in the given model.
-      Its shape is `[T, N, C]`.
-    memory_key_padding_mask:
-      The padding mask for memory with shape [N, T].
+    Args:
+      lattice:
+        An FsaVec. It can be the return value of :func:`get_lattice`.
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `[T, N, C]`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape [N, T].
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
     Returns:
       A dict of FsaVec, whose key contains a string
       ngram_lm_scale_attention_scale and the value is the
@@ -661,7 +668,11 @@ def rescore_with_attention_decoder(
 
     # TODO: pass the sos_token_id and eos_token_id via function arguments
     nll = model.decoder_nll(
-        expanded_memory, expanded_memory_key_padding_mask, token_ids, 1, 1
+        memory=expanded_memory,
+        memory_key_padding_mask=expanded_memory_key_padding_mask,
+        token_ids=token_ids,
+        sos_id=sos_id,
+        eos_id=eos_id,
     )
     assert nll.ndim == 2
     assert nll.shape[0] == num_word_seqs
