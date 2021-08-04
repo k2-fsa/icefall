@@ -3,7 +3,7 @@
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
 
 """
-This script takes as input a lexicon file "data/lang/lexicon.txt"
+This script takes as input a lexicon file "data/lang_phone/lexicon.txt"
 consisting of words and tokens (i.e., phones) and does the following:
 
 1. Add disambiguation symbols to the lexicon and generate lexicon_disambig.txt
@@ -20,8 +20,6 @@ consisting of words and tokens (i.e., phones) and does the following:
 5. Generate L_disambig.pt, in k2 format.
 """
 import math
-import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -284,7 +282,9 @@ def lexicon_to_fst(
         disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs, disambig_token=disambig_token, disambig_word=disambig_word,
+            arcs,
+            disambig_token=disambig_token,
+            disambig_word=disambig_word,
         )
 
     final_state = next_state
@@ -301,7 +301,7 @@ def lexicon_to_fst(
 
 
 def main():
-    out_dir = Path("data/lang")
+    out_dir = Path("data/lang_phone")
     lexicon_filename = out_dir / "lexicon.txt"
     sil_token = "SIL"
     sil_prob = 0.5

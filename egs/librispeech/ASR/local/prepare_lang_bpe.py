@@ -5,10 +5,10 @@
 """
 This script takes as inputs the following two files:
 
-    - data/lang/bpe/bpe.model,
-    - data/lang/bpe/words.txt
+    - data/lang_bpe/bpe.model,
+    - data/lang_bpe/words.txt
 
-and generates the following files in the directory data/lang/bpe:
+and generates the following files in the directory data/lang_bpe:
 
     - lexicon.txt
     - lexicon_disambig.txt
@@ -88,7 +88,9 @@ def lexicon_to_fst_no_sil(
         disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs, disambig_token=disambig_token, disambig_word=disambig_word,
+            arcs,
+            disambig_token=disambig_token,
+            disambig_word=disambig_word,
         )
 
     final_state = next_state
@@ -140,7 +142,7 @@ def generate_lexicon(
 
 
 def main():
-    lang_dir = Path("data/lang/bpe")
+    lang_dir = Path("data/lang_bpe")
     model_file = lang_dir / "bpe.model"
 
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
@@ -173,7 +175,9 @@ def main():
     write_lexicon(lang_dir / "lexicon_disambig.txt", lexicon_disambig)
 
     L = lexicon_to_fst_no_sil(
-        lexicon, token2id=token_sym_table, word2id=word_sym_table,
+        lexicon,
+        token2id=token_sym_table,
+        word2id=word_sym_table,
     )
 
     L_disambig = lexicon_to_fst_no_sil(

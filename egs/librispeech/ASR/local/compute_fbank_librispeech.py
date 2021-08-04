@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 
 """
-This file computes fbank features of the librispeech dataset.
-Its looks for manifests in the directory data/manifests
-and generated fbank features are saved in data/fbank.
+This file computes fbank features of the LibriSpeech dataset.
+Its looks for manifests in the directory data/manifests.
+
+The generated fbank features are saved in data/fbank.
 """
 
+import logging
 import os
 from pathlib import Path
 
+import torch
 from lhotse import CutSet, Fbank, FbankConfig, LilcomHdf5Writer
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
+
+# Torch's multithreaded behavior needs to be disabled or it wastes a lot of CPU and
+# slow things down.  Do this outside of main() in case it needs to take effect
+# even when we are not invoking the main (e.g. when spawning subprocesses).
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 
 def compute_fbank_librispeech():
@@ -40,12 +49,11 @@ def compute_fbank_librispeech():
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
             if (output_dir / f"cuts_{partition}.json.gz").is_file():
-                print(f"{partition} already exists - skipping.")
+                logging.info(f"{partition} already exists - skipping.")
                 continue
-            print("Processing", partition)
+            logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
-                recordings=m["recordings"],
-                supervisions=m["supervisions"],
+                recordings=m["recordings"], supervisions=m["supervisions"],
             )
             if "train" in partition:
                 cut_set = (
@@ -65,4 +73,10 @@ def compute_fbank_librispeech():
 
 
 if __name__ == "__main__":
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
     compute_fbank_librispeech()

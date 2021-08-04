@@ -26,7 +26,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     """
     Args:
       lang_dir:
-        The language directory, e.g., data/lang or data/lang/bpe.
+        The language directory, e.g., data/lang_phone or data/lang_bpe.
 
     Return:
       An FSA representing HLG.
@@ -45,7 +45,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
         logging.info("Loading G_3_gram.fst.txt")
         with open("data/lm/G_3_gram.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "G_3_gram.pt")
+            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
@@ -103,30 +103,18 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     return HLG
 
 
-def phone_based_HLG():
-    if Path("data/lm/HLG.pt").is_file():
-        return
-
-    logging.info("Compiling phone based HLG")
-    HLG = compile_HLG("data/lang")
-
-    logging.info("Saving HLG.pt to data/lm")
-    torch.save(HLG.as_dict(), "data/lm/HLG.pt")
-
-
-def bpe_based_HLG():
-    if Path("data/lm/HLG_bpe.pt").is_file():
-        return
-
-    logging.info("Compiling BPE based HLG")
-    HLG = compile_HLG("data/lang/bpe")
-    logging.info("Saving HLG_bpe.pt to data/lm")
-    torch.save(HLG.as_dict(), "data/lm/HLG_bpe.pt")
-
-
 def main():
-    phone_based_HLG()
-    bpe_based_HLG()
+    for d in ["data/lang_phone", "data/lang_bpe"]:
+        d = Path(d)
+        logging.info(f"Processing {d}")
+
+        if (d / "HLG.pt").is_file():
+            logging.info(f"{d}/HLG.pt already exists - skipping")
+            continue
+
+        HLG = compile_HLG(d)
+        logging.info(f"Saving HLG.pt to {d}")
+        torch.save(HLG.as_dict(), f"{d}/HLG.pt")
 
 
 if __name__ == "__main__":

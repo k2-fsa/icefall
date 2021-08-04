@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 from conformer import Conformer
 
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
@@ -62,7 +63,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("conformer_ctc/exp"),
-            "lang_dir": Path("data/lang/bpe"),
+            "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
             "nhead": 8,
@@ -85,7 +86,7 @@ def get_params() -> AttributeDict:
             #  - whole-lattice-rescoring
             #  - attention-decoder
             #  "method": "whole-lattice-rescoring",
-            "method": "1best",
+            "method": "attention-decoder",
             # num_paths is used when method is "nbest", "nbest-rescoring",
             # and attention-decoder
             "num_paths": 100,
@@ -100,6 +101,8 @@ def decode_one_batch(
     HLG: k2.Fsa,
     batch: dict,
     lexicon: Lexicon,
+    sos_id: int,
+    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -133,6 +136,10 @@ def decode_one_batch(
         for the format of the `batch`.
       lexicon:
         It contains word symbol table.
+      sos_id:
+        The token ID of the SOS.
+      eos_id:
+        The token ID of the EOS.
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -147,15 +154,10 @@ def decode_one_batch(
     feature = feature.to(device)
     # at entry, feature is [N, T, C]
 
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
-
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, C, T]
-
-    nnet_output = nnet_output.permute(0, 2, 1)
-    # now nnet_output is [N, T, C]
+    # nnet_output is [N, T, C]
 
     supervision_segments = torch.stack(
         (
@@ -227,6 +229,8 @@ def decode_one_batch(
             model=model,
             memory=memory,
             memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
@@ -245,6 +249,8 @@ def decode_dataset(
     model: nn.Module,
     HLG: k2.Fsa,
     lexicon: Lexicon,
+    sos_id: int,
+    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[int], List[int]]]]:
     """Decode dataset.
@@ -260,6 +266,10 @@ def decode_dataset(
         The decoding graph.
       lexicon:
         It contains word symbol table.
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -287,6 +297,8 @@ def decode_dataset(
             batch=batch,
             lexicon=lexicon,
             G=G,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
 
         for lm_scale, hyps in hyps_dict.items():
@@ -314,20 +326,31 @@ def save_results(
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
+    if params.method == "attention-decoder":
+        # Set it to False since there are too many logs.
+        enable_log = False
+    else:
+        enable_log = True
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
         store_transcripts(filename=recog_path, texts=results)
-        logging.info(f"The transcripts are stored in {recog_path}")
+        if enable_log:
+            logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results)
+            wer = write_error_stats(
+                f, f"{test_set_name}-{key}", results, enable_log=enable_log
+            )
             test_set_wers[key] = wer
 
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
+        if enable_log:
+            logging.info(
+                "Wrote detailed error stats to {}".format(errs_filename)
+            )
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
@@ -367,14 +390,21 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lm_dir}/HLG_bpe.pt"))
+    graph_compiler = BpeCtcTrainingGraphCompiler(
+        params.lang_dir,
+        device=device,
+        sos_token="<sos/eos>",
+        eos_token="<sos/eos>",
+    )
+    sos_id = graph_compiler.sos_id
+    eos_id = graph_compiler.eos_id
+
+    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt"))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
     if not hasattr(HLG, "lm_scores"):
         HLG.lm_scores = HLG.scores.clone()
-
-    #  HLG = k2.ctc_topo(4999).to(device)
 
     if params.method in (
         "nbest-rescoring",
@@ -461,6 +491,8 @@ def main():
             HLG=HLG,
             lexicon=lexicon,
             G=G,
+            sos_id=sos_id,
+            eos_id=eos_id,
         )
 
         save_results(
@@ -469,6 +501,9 @@ def main():
 
     logging.info("Done!")
 
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-# Copyright (c)  2021  University of Chinese Academy of Sciences (author: Han Zhu)
+# Copyright (c) 2021 University of Chinese Academy of Sciences (author: Han Zhu)
 # Apache 2.0
 
 import math
@@ -8,30 +6,17 @@ from typing import Dict, List, Optional, Tuple
 
 import k2
 import torch
-from torch import Tensor, nn
+import torch.nn as nn
+from subsampling import Conv2dSubsampling, VggSubsampling
 
 from icefall.utils import get_texts
+from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
-Supervisions = Dict[str, Tensor]
+Supervisions = Dict[str, torch.Tensor]
 
 
 class Transformer(nn.Module):
-    """
-    Args:
-        num_features (int): Number of input features
-        num_classes (int): Number of output classes
-        subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
-        d_model (int): attention dimension
-        nhead (int): number of head
-        dim_feedforward (int): feedforward dimention
-        num_encoder_layers (int): number of encoder layers
-        num_decoder_layers (int): number of decoder layers
-        dropout (float): dropout rate
-        normalize_before (bool): whether to use layer_norm before the first block.
-        vgg_frontend (bool): whether to use vgg frontend.
-    """
-
     def __init__(
         self,
         num_features: int,
@@ -48,6 +33,36 @@ class Transformer(nn.Module):
         mmi_loss: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
+        """
+        Args:
+          num_features:
+            The input dimension of the model.
+          num_classes:
+            The output dimension of the model.
+          subsampling_factor:
+            Number of output frames is num_in_frames // subsampling_factor.
+            Currently, subsampling_factor MUST be 4.
+          d_model:
+            Attention dimension.
+          nhead:
+            Number of heads in multi-head attention.
+            Must satisfy d_model // nhead == 0.
+          dim_feedforward:
+            The output dimension of the feedforward layers in encoder/decoder.
+          num_encoder_layers:
+            Number of encoder layers.
+          num_decoder_layers:
+            Number of decoder layers.
+          dropout:
+            Dropout in encoder/decoder.
+          normalize_before:
+            If True, use pre-layer norm; False to use post-layer norm.
+          vgg_frontend:
+            True to use vgg style frontend for subsampling.
+          mmi_loss:
+          use_feat_batchnorm:
+            True to use batchnorm for the input layer.
+        """
         super().__init__()
         self.use_feat_batchnorm = use_feat_batchnorm
         if use_feat_batchnorm:
@@ -59,18 +74,23 @@ class Transformer(nn.Module):
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
 
-        self.encoder_embed = (
-            VggSubsampling(num_features, d_model)
-            if vgg_frontend
-            else Conv2dSubsampling(num_features, d_model)
-        )
+        # self.encoder_embed converts the input of shape [N, T, num_classes]
+        # to the shape [N, T//subsampling_factor, d_model].
+        # That is, it does two things simultaneously:
+        #   (1) subsampling: T -> T//subsampling_factor
+        #   (2) embedding: num_classes -> d_model
+        if vgg_frontend:
+            self.encoder_embed = VggSubsampling(num_features, d_model)
+        else:
+            self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+
         self.encoder_pos = PositionalEncoding(d_model, dropout)
 
         encoder_layer = TransformerEncoderLayer(
-            d_model,
-            nhead,
-            dim_feedforward,
-            dropout,
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
             normalize_before=normalize_before,
         )
 
@@ -80,9 +100,12 @@ class Transformer(nn.Module):
             encoder_norm = None
 
         self.encoder = nn.TransformerEncoder(
-            encoder_layer, num_encoder_layers, encoder_norm
+            encoder_layer=encoder_layer,
+            num_layers=num_encoder_layers,
+            norm=encoder_norm,
         )
 
+        # TODO(fangjun): remove dropout
         self.encoder_output_layer = nn.Sequential(
             nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
         )
@@ -97,14 +120,16 @@ class Transformer(nn.Module):
                     self.num_classes
                 )  # bpe model already has sos/eos symbol
 
-            self.decoder_embed = nn.Embedding(self.decoder_num_class, d_model)
+            self.decoder_embed = nn.Embedding(
+                num_embeddings=self.decoder_num_class, embedding_dim=d_model
+            )
             self.decoder_pos = PositionalEncoding(d_model, dropout)
 
             decoder_layer = TransformerDecoderLayer(
-                d_model,
-                nhead,
-                dim_feedforward,
-                dropout,
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
                 normalize_before=normalize_before,
             )
 
@@ -114,7 +139,9 @@ class Transformer(nn.Module):
                 decoder_norm = None
 
             self.decoder = nn.TransformerDecoder(
-                decoder_layer, num_decoder_layers, decoder_norm
+                decoder_layer=decoder_layer,
+                num_layers=num_decoder_layers,
+                norm=decoder_norm,
             )
 
             self.decoder_output_layer = torch.nn.Linear(
@@ -126,128 +153,143 @@ class Transformer(nn.Module):
             self.decoder_criterion = None
 
     def forward(
-        self, x: Tensor, supervision: Optional[Supervisions] = None
-    ) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
+        self, x: torch.Tensor, supervision: Optional[Supervisions] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Args:
-            x: Tensor of dimension (batch_size, num_features, input_length).
-            supervision: Supervison in lhotse format, get from batch['supervisions']
+          x:
+            The input tensor. Its shape is [N, T, C].
+          supervision:
+            Supervision in lhotse format.
+            See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
+            (CAUTION: It contains length information, i.e., start and number of
+             frames, before subsampling)
 
         Returns:
-            Tensor: After log-softmax tensor of dimension (batch_size, number_of_classes, input_length).
-            Tensor: Before linear layer tensor of dimension (input_length, batch_size, d_model).
-            Optional[Tensor]: Mask tensor of dimension (batch_size, input_length) or None.
-
+          Return a tuple containing 3 tensors:
+            - CTC output for ctc decoding. Its shape is [N, T, C]
+            - Encoder output with shape [T, N, C]. It can be used as key and
+              value for the decoder.
+            - Encoder output padding mask. It can be used as
+              memory_key_padding_mask for the decoder. Its shape is [N, T].
+              It is None if `supervision` is None.
         """
         if self.use_feat_batchnorm:
+            x = x.permute(0, 2, 1)  # [N, T, C] -> [N, C, T]
             x = self.feat_batchnorm(x)
-        encoder_memory, memory_mask = self.encode(x, supervision)
-        x = self.encoder_output(encoder_memory)
-        return x, encoder_memory, memory_mask
+            x = x.permute(0, 2, 1)  # [N, C, T] -> [N, T, C]
+        encoder_memory, memory_key_padding_mask = self.run_encoder(
+            x, supervision
+        )
+        x = self.ctc_output(encoder_memory)
+        return x, encoder_memory, memory_key_padding_mask
 
-    def encode(
-        self, x: Tensor, supervisions: Optional[Supervisions] = None
-    ) -> Tuple[Tensor, Optional[Tensor]]:
-        """
+    def run_encoder(
+        self, x: torch.Tensor, supervisions: Optional[Supervisions] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Run the transformer encoder.
+
         Args:
-            x: Tensor of dimension (batch_size, num_features, input_length).
-            supervisions : Supervison in lhotse format, i.e., batch['supervisions']
-
+          x:
+            The model input. Its shape is [N, T, C].
+          supervisions:
+            Supervision in lhotse format.
+            See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
+            CAUTION: It contains length information, i.e., start and number of
+            frames, before subsampling
+            It is read directly from the batch, without any sorting. It is used
+            to compute the encoder padding mask, which is used as memory key
+            padding mask for the decoder.
         Returns:
-            Tensor: Predictor tensor of dimension (input_length, batch_size, d_model).
-            Optional[Tensor]: Mask tensor of dimension (batch_size, input_length) or None.
+          Return a tuple with two tensors:
+            - The encoder output, with shape [T, N, C]
+            - encoder padding mask, with shape [N, T].
+              The mask is None if `supervisions` is None.
+              It is used as memory key padding mask in the decoder.
         """
-        x = x.permute(0, 2, 1)  # (B, F, T) -> (B, T, F)
-
         x = self.encoder_embed(x)
         x = self.encoder_pos(x)
-        x = x.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
-        mask = mask.to(x.device) if mask != None else None
-        x = self.encoder(x, src_key_padding_mask=mask)  # (T, B, F)
+        mask = mask.to(x.device) if mask is not None else None
+        x = self.encoder(x, src_key_padding_mask=mask)  # (T, N, C)
 
         return x, mask
 
-    def encoder_output(self, x: Tensor) -> Tensor:
+    def ctc_output(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Tensor of dimension (input_length, batch_size, d_model).
+          x:
+            The output tensor from the transformer encoder.
+            Its shape is [T, N, C]
 
         Returns:
-            Tensor: After log-softmax tensor of dimension (batch_size, number_of_classes, input_length).
+          Return a tensor that can be used for CTC decoding.
+          Its shape is [N, T, C]
         """
-        x = self.encoder_output_layer(x).permute(
-            1, 2, 0
-        )  # (T, B, F) ->(B, F, T)
-        x = nn.functional.log_softmax(x, dim=1)  # (B, F, T)
+        x = self.encoder_output_layer(x)
+        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
         return x
 
     def decoder_forward(
         self,
-        x: Tensor,
-        encoder_mask: Tensor,
-        supervision: Supervisions = None,
-        graph_compiler: object = None,
-        token_ids: List[int] = None,
-        sos_id: Optional[int] = None,
-        eos_id: Optional[int] = None,
-    ) -> Tensor:
+        memory: torch.Tensor,
+        memory_key_padding_mask: torch.Tensor,
+        token_ids: List[List[int]],
+        sos_id: int,
+        eos_id: int,
+    ) -> torch.Tensor:
         """
         Args:
-            x: Tensor of dimension (input_length, batch_size, d_model).
-            encoder_mask: Mask tensor of dimension (batch_size, input_length)
-            supervision: Supervison in lhotse format, get from batch['supervisions']
-            graph_compiler: use graph_compiler.L_inv (Its labels are words, while its aux_labels are phones)
-                            , graph_compiler.words and graph_compiler.oov
-            sos_id: sos token id
-            eos_id: eos token id
+          memory:
+            It's the output of the encoder with shape [T, N, C]
+          memory_key_padding_mask:
+            The padding mask from the encoder.
+          token_ids:
+            A list-of-list IDs. Each sublist contains IDs for an utterance.
+            The IDs can be either phone IDs or word piece IDs.
+          sos_id:
+            sos token id
+          eos_id:
+            eos token id
 
         Returns:
-            Tensor: Decoder loss.
+            A scalar, the **sum** of label smoothing loss over utterances
+            in the batch without any normalization.
         """
-        if supervision is not None and graph_compiler is not None:
-            batch_text = get_normal_transcripts(
-                supervision, graph_compiler.lexicon.words, graph_compiler.oov
-            )
-            ys_in_pad, ys_out_pad = add_sos_eos(
-                batch_text, graph_compiler.L_inv, sos_id, eos_id,
-            )
-        elif token_ids is not None:
-            _sos = torch.tensor([sos_id])
-            _eos = torch.tensor([eos_id])
-            ys_in = [
-                torch.cat([_sos, torch.tensor(y)], dim=0) for y in token_ids
-            ]
-            ys_out = [
-                torch.cat([torch.tensor(y), _eos], dim=0) for y in token_ids
-            ]
-            ys_in_pad = pad_list(ys_in, eos_id)
-            ys_out_pad = pad_list(ys_out, -1)
+        ys_in = add_sos(token_ids, sos_id=sos_id)
+        ys_in = [torch.tensor(y) for y in ys_in]
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
 
-        else:
-            raise ValueError("Invalid input for decoder self attetion")
+        ys_out = add_eos(token_ids, eos_id=eos_id)
+        ys_out = [torch.tensor(y) for y in ys_out]
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
 
-        ys_in_pad = ys_in_pad.to(x.device)
-        ys_out_pad = ys_out_pad.to(x.device)
+        device = memory.device
+        ys_in_pad = ys_in_pad.to(device)
+        ys_out_pad = ys_out_pad.to(device)
 
         tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            x.device
+            device
         )
 
+        # TODO: Use eos_id as ignore_id.
+        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
 
-        tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
+        tgt = self.decoder_embed(ys_in_pad)  # (N, T) -> (N, T, C)
         tgt = self.decoder_pos(tgt)
-        tgt = tgt.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
+        tgt = tgt.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         pred_pad = self.decoder(
             tgt=tgt,
-            memory=x,
+            memory=memory,
             tgt_mask=tgt_mask,
             tgt_key_padding_mask=tgt_key_padding_mask,
-            memory_key_padding_mask=encoder_mask,
-        )  # (T, B, F)
-        pred_pad = pred_pad.permute(1, 0, 2)  # (T, B, F) -> (B, T, F)
-        pred_pad = self.decoder_output_layer(pred_pad)  # (B, T, F)
+            memory_key_padding_mask=memory_key_padding_mask,
+        )  # (T, N, C)
+        pred_pad = pred_pad.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
+        pred_pad = self.decoder_output_layer(pred_pad)  # (N, T, C)
 
         decoder_loss = self.decoder_criterion(pred_pad, ys_out_pad)
 
@@ -255,44 +297,50 @@ class Transformer(nn.Module):
 
     def decoder_nll(
         self,
-        x: Tensor,
-        encoder_mask: Tensor,
+        memory: torch.Tensor,
+        memory_key_padding_mask: torch.Tensor,
         token_ids: List[List[int]],
         sos_id: int,
         eos_id: int,
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """
         Args:
-            x: encoder-output, Tensor of dimension (input_length, batch_size, d_model).
-            encoder_mask: Mask tensor of dimension (batch_size, input_length)
-            token_ids: n-best list extracted from lattice before rescore
-
+          memory:
+            It's the output of the encoder with shape [T, N, C]
+          memory_key_padding_mask:
+            The padding mask from the encoder.
+          token_ids:
+            A list-of-list IDs (e.g., word piece IDs).
+            Each sublist represents an utterance.
+          sos_id:
+            The token ID for SOS.
+          eos_id:
+            The token ID for EOS.
         Returns:
-            Tensor: negative log-likelihood.
+            A 2-D tensor of shape (len(token_ids), max_token_length)
+            representing the cross entropy loss (i.e., negative log-likelihood).
         """
-        # The common part between this fuction and decoder_forward could be
-        # extracted as a seperated function.
-        if token_ids is not None:
-            _sos = torch.tensor([sos_id])
-            _eos = torch.tensor([eos_id])
-            ys_in = [
-                torch.cat([_sos, torch.tensor(y)], dim=0) for y in token_ids
-            ]
-            ys_out = [
-                torch.cat([torch.tensor(y), _eos], dim=0) for y in token_ids
-            ]
-            ys_in_pad = pad_list(ys_in, eos_id)
-            ys_out_pad = pad_list(ys_out, -1)
-        else:
-            raise ValueError("Invalid input for decoder self attetion")
+        # The common part between this function and decoder_forward could be
+        # extracted as a separate function.
 
-        ys_in_pad = ys_in_pad.to(x.device, dtype=torch.int64)
-        ys_out_pad = ys_out_pad.to(x.device, dtype=torch.int64)
+        ys_in = add_sos(token_ids, sos_id=sos_id)
+        ys_in = [torch.tensor(y) for y in ys_in]
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
+
+        ys_out = add_eos(token_ids, eos_id=eos_id)
+        ys_out = [torch.tensor(y) for y in ys_out]
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
+
+        device = memory.device
+        ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
+        ys_out_pad = ys_out_pad.to(device, dtype=torch.int64)
 
         tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            x.device
+            device
         )
 
+        # TODO: Use eos_id as ignore_id.
+        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
 
         tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
@@ -300,10 +348,10 @@ class Transformer(nn.Module):
         tgt = tgt.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
         pred_pad = self.decoder(
             tgt=tgt,
-            memory=x,
+            memory=memory,
             tgt_mask=tgt_mask,
             tgt_key_padding_mask=tgt_key_padding_mask,
-            memory_key_padding_mask=encoder_mask,
+            memory_key_padding_mask=memory_key_padding_mask,
         )  # (T, B, F)
         pred_pad = pred_pad.permute(1, 0, 2)  # (T, B, F) -> (B, T, F)
         pred_pad = self.decoder_output_layer(pred_pad)  # (B, T, F)
@@ -322,16 +370,24 @@ class Transformer(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
     """
-    Modified from torch.nn.TransformerEncoderLayer. Add support of normalize_before,
+    Modified from torch.nn.TransformerEncoderLayer.
+    Add support of normalize_before,
     i.e., use layer_norm before the first block.
 
     Args:
-        d_model: the number of expected features in the input (required).
-        nhead: the number of heads in the multiheadattention models (required).
-        dim_feedforward: the dimension of the feedforward network model (default=2048).
-        dropout: the dropout value (default=0.1).
-        activation: the activation function of intermediate layer, relu or gelu (default=relu).
-        normalize_before: whether to use layer_norm before the first block.
+      d_model:
+        the number of expected features in the input (required).
+      nhead:
+        the number of heads in the multiheadattention models (required).
+      dim_feedforward:
+        the dimension of the feedforward network model (default=2048).
+      dropout:
+        the dropout value (default=0.1).
+      activation:
+        the activation function of intermediate layer, relu or
+        gelu (default=relu).
+      normalize_before:
+        whether to use layer_norm before the first block.
 
     Examples::
         >>> encoder_layer = TransformerEncoderLayer(d_model=512, nhead=8)
@@ -371,23 +427,24 @@ class TransformerEncoderLayer(nn.Module):
 
     def forward(
         self,
-        src: Tensor,
-        src_mask: Optional[Tensor] = None,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
+        src: torch.Tensor,
+        src_mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Pass the input through the encoder layer.
 
         Args:
             src: the sequence to the encoder layer (required).
             src_mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional)
 
         Shape:
             src: (S, N, E).
             src_mask: (S, S).
             src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
+            S is the source sequence length, T is the target sequence length,
+            N is the batch size, E is the feature number
         """
         residual = src
         if self.normalize_before:
@@ -415,15 +472,22 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
     """
-    Modified from torch.nn.TransformerDecoderLayer. Add support of normalize_before,
+    Modified from torch.nn.TransformerDecoderLayer.
+    Add support of normalize_before,
     i.e., use layer_norm before the first block.
 
     Args:
-        d_model: the number of expected features in the input (required).
-        nhead: the number of heads in the multiheadattention models (required).
-        dim_feedforward: the dimension of the feedforward network model (default=2048).
-        dropout: the dropout value (default=0.1).
-        activation: the activation function of intermediate layer, relu or gelu (default=relu).
+      d_model:
+        the number of expected features in the input (required).
+      nhead:
+        the number of heads in the multiheadattention models (required).
+      dim_feedforward:
+        the dimension of the feedforward network model (default=2048).
+      dropout:
+        the dropout value (default=0.1).
+      activation:
+        the activation function of intermediate layer, relu or
+        gelu (default=relu).
 
     Examples::
         >>> decoder_layer = nn.TransformerDecoderLayer(d_model=512, nhead=8)
@@ -467,22 +531,28 @@ class TransformerDecoderLayer(nn.Module):
 
     def forward(
         self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_key_padding_mask: Optional[Tensor] = None,
-        memory_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
+        tgt: torch.Tensor,
+        memory: torch.Tensor,
+        tgt_mask: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+        tgt_key_padding_mask: Optional[torch.Tensor] = None,
+        memory_key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """Pass the inputs (and mask) through the decoder layer.
 
         Args:
-            tgt: the sequence to the decoder layer (required).
-            memory: the sequence from the last layer of the encoder (required).
-            tgt_mask: the mask for the tgt sequence (optional).
-            memory_mask: the mask for the memory sequence (optional).
-            tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
-            memory_key_padding_mask: the mask for the memory keys per batch (optional).
+          tgt:
+            the sequence to the decoder layer (required).
+          memory:
+            the sequence from the last layer of the encoder (required).
+          tgt_mask:
+            the mask for the tgt sequence (optional).
+          memory_mask:
+            the mask for the memory sequence (optional).
+          tgt_key_padding_mask:
+            the mask for the tgt keys per batch (optional).
+          memory_key_padding_mask:
+            the mask for the memory keys per batch (optional).
 
         Shape:
             tgt: (T, N, E).
@@ -491,7 +561,8 @@ class TransformerDecoderLayer(nn.Module):
             memory_mask: (T, S).
             tgt_key_padding_mask: (N, T).
             memory_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
+            S is the source sequence length, T is the target sequence length,
+            N is the batch size, E is the feature number
         """
         residual = tgt
         if self.normalize_before:
@@ -542,164 +613,55 @@ def _get_activation_fn(activation: str):
     )
 
 
-class Conv2dSubsampling(nn.Module):
-    """Convolutional 2D subsampling (to 1/4 length).
-        Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/subsampling.py
-
-    Args:
-        idim: Input dimension.
-        odim: Output dimension.
-
-    """
-
-    def __init__(self, idim: int, odim: int) -> None:
-        """Construct a Conv2dSubsampling object."""
-        super(Conv2dSubsampling, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels=1, out_channels=odim, kernel_size=3, stride=2
-            ),
-            nn.ReLU(),
-            nn.Conv2d(
-                in_channels=odim, out_channels=odim, kernel_size=3, stride=2
-            ),
-            nn.ReLU(),
-        )
-        self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Subsample x.
-
-        Args:
-            x: Input tensor of dimension (batch_size, input_length, num_features). (#batch, time, idim).
-
-        Returns:
-            torch.Tensor: Subsampled tensor of dimension (batch_size, input_length, d_model).
-                where time' = time // 4.
-
-        """
-        x = x.unsqueeze(1)  # (b, c, t, f)
-        x = self.conv(x)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        return x
-
-
-class VggSubsampling(nn.Module):
-    """Trying to follow the setup described here https://arxiv.org/pdf/1910.09799.pdf
-       This paper is not 100% explicit so I am guessing to some extent,
-       and trying to compare with other VGG implementations.
-
-    Args:
-        idim: Input dimension.
-        odim: Output dimension.
-
-    """
-
-    def __init__(self, idim: int, odim: int) -> None:
-        """Construct a VggSubsampling object.   This uses 2 VGG blocks with 2
-        Conv2d layers each, subsampling its input by a factor of 4 in the
-        time dimensions.
-
-        Args:
-          idim:  Number of features at input, e.g. 40 or 80 for MFCC
-                 (will be treated as the image height).
-          odim:  Output dimension (number of features), e.g. 256
-        """
-        super(VggSubsampling, self).__init__()
-
-        cur_channels = 1
-        layers = []
-        block_dims = [32, 64]
-
-        # The decision to use padding=1 for the 1st convolution, then padding=0
-        # for the 2nd and for the max-pooling, and ceil_mode=True, was driven by
-        # a back-compatibility concern so that the number of frames at the
-        # output would be equal to:
-        #  (((T-1)//2)-1)//2.
-        # We can consider changing this by using padding=1 on the 2nd convolution,
-        # so the num-frames at the output would be T//4.
-        for block_dim in block_dims:
-            layers.append(
-                torch.nn.Conv2d(
-                    in_channels=cur_channels,
-                    out_channels=block_dim,
-                    kernel_size=3,
-                    padding=1,
-                    stride=1,
-                )
-            )
-            layers.append(torch.nn.ReLU())
-            layers.append(
-                torch.nn.Conv2d(
-                    in_channels=block_dim,
-                    out_channels=block_dim,
-                    kernel_size=3,
-                    padding=0,
-                    stride=1,
-                )
-            )
-            layers.append(
-                torch.nn.MaxPool2d(
-                    kernel_size=2, stride=2, padding=0, ceil_mode=True
-                )
-            )
-            cur_channels = block_dim
-
-        self.layers = nn.Sequential(*layers)
-
-        self.out = nn.Linear(
-            block_dims[-1] * (((idim - 1) // 2 - 1) // 2), odim
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Subsample x.
-
-        Args:
-            x: Input tensor of dimension (batch_size, input_length, num_features). (#batch, time, idim).
-
-        Returns:
-           torch.Tensor: Subsampled tensor of dimension (batch_size, input_length', d_model).
-              where input_length' == (((input_length - 1) // 2) - 1) // 2
-
-        """
-        x = x.unsqueeze(1)  # (b, c, t, f)
-        x = self.layers(x)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        return x
-
-
 class PositionalEncoding(nn.Module):
+    """This class implements the positional encoding
+    proposed in the following paper:
+
+    - Attention Is All You Need: https://arxiv.org/pdf/1706.03762.pdf
+
+        PE(pos, 2i) = sin(pos / (10000^(2i/d_modle))
+        PE(pos, 2i+1) = cos(pos / (10000^(2i/d_modle))
+
+    Note::
+
+      1 / (10000^(2i/d_model)) = exp(-log(10000^(2i/d_model)))
+                               = exp(-1* 2i / d_model * log(100000))
+                               = exp(2i * -(log(10000) / d_model))
     """
-    Positional encoding.
 
-    Args:
-        d_model: Embedding dimension.
-        dropout: Dropout rate.
-        max_len: Maximum input length.
-
-    """
-
-    def __init__(
-        self, d_model: int, dropout: float = 0.1, max_len: int = 5000
-    ) -> None:
-        """Construct an PositionalEncoding object."""
-        super(PositionalEncoding, self).__init__()
+    def __init__(self, d_model: int, dropout: float = 0.1) -> None:
+        """
+        Args:
+          d_model:
+            Embedding dimension.
+          dropout:
+            Dropout probability to be applied to the output of this module.
+        """
+        super().__init__()
         self.d_model = d_model
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
         self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
-    def extend_pe(self, x: Tensor) -> None:
-        """Reset the positional encodings."""
+    def extend_pe(self, x: torch.Tensor) -> None:
+        """Extend the time t in the positional encoding if required.
+
+        The shape of `self.pe` is [1, T1, d_model]. The shape of the input x
+        is [N, T, d_model]. If T > T1, then we change the shape of self.pe
+        to [N, T, d_model]. Otherwise, nothing is done.
+
+        Args:
+          x:
+            It is a tensor of shape [N, T, C].
+        Returns:
+          Return None.
+        """
         if self.pe is not None:
             if self.pe.size(1) >= x.size(1):
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        pe = torch.zeros(x.size(1), self.d_model)
+        pe = torch.zeros(x.size(1), self.d_model, dtype=torch.float32)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32)
@@ -708,34 +670,44 @@ class PositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
+        # Now pe is of shape [1, T, d_model], where T is x.size(1)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Add positional encoding.
 
         Args:
-            x: Input tensor of dimention (batch_size, input_length, d_model).
+          x:
+            Its shape is [N, T, C]
 
         Returns:
-            torch.Tensor: Encoded tensor of dimention (batch_size, input_length, d_model).
-
+          Return a tensor of shape [N, T, C]
         """
         self.extend_pe(x)
-        x = x * self.xscale + self.pe[:, : x.size(1)]
+        x = x * self.xscale + self.pe[:, : x.size(1), :]
         return self.dropout(x)
 
 
 class Noam(object):
     """
-    Implements Noam optimizer. Proposed in "Attention Is All You Need", https://arxiv.org/pdf/1706.03762.pdf
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/optimizer.py
+    Implements Noam optimizer.
+
+    Proposed in
+    "Attention Is All You Need", https://arxiv.org/pdf/1706.03762.pdf
+
+    Modified from
+    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/optimizer.py  # noqa
 
     Args:
-        params (iterable): iterable of parameters to optimize or dicts defining parameter groups
-        model_size: attention dimension of the transformer model
-        factor: learning rate factor
-        warm_step: warmup steps
+      params:
+        iterable of parameters to optimize or dicts defining parameter groups
+      model_size:
+        attention dimension of the transformer model
+      factor:
+        learning rate factor
+      warm_step:
+        warmup steps
     """
 
     def __init__(
@@ -808,7 +780,8 @@ class LabelSmoothingLoss(nn.Module):
     """
     Label-smoothing loss. KL-divergence between q_{smoothed ground truth prob.}(w)
     and p_{prob. computed by model}(w) is minimized.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py
+    Modified from
+    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py  # noqa
 
     Args:
         size: the number of class
@@ -837,19 +810,23 @@ class LabelSmoothingLoss(nn.Module):
         self.true_dist = None
         self.normalize_length = normalize_length
 
-    def forward(self, x: Tensor, target: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         Compute loss between x and target.
 
         Args:
-            x: prediction of dimention (batch_size, input_length, number_of_classes).
-            target: target masked with self.padding_id of dimention (batch_size, input_length).
+          x:
+            prediction of dimension
+            (batch_size, input_length, number_of_classes).
+          target:
+            target masked with self.padding_id of
+            dimension (batch_size, input_length).
 
         Returns:
-            torch.Tensor: scalar float value
+          A scalar tensor containing the loss without normalization.
         """
         assert x.size(2) == self.size
-        batch_size = x.size(0)
+        #  batch_size = x.size(0)
         x = x.view(-1, self.size)
         target = target.view(-1)
         with torch.no_grad():
@@ -867,12 +844,23 @@ class LabelSmoothingLoss(nn.Module):
 
 def encoder_padding_mask(
     max_len: int, supervisions: Optional[Supervisions] = None
-) -> Optional[Tensor]:
-    """Make mask tensor containing indices of padded part.
+) -> Optional[torch.Tensor]:
+    """Make mask tensor containing indexes of padded part.
+
+    TODO::
+      This function **assumes** that the model uses
+      a subsampling factor of 4. We should remove that
+      assumption later.
 
     Args:
-        max_len: maximum length of input features
-        supervisions : Supervison in lhotse format, i.e., batch['supervisions']
+      max_len:
+        Maximum length of input features.
+        CAUTION: It is the length after subsampling.
+      supervisions:
+        Supervision in lhotse format.
+        See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
+        (CAUTION: It contains length information, i.e., start and number of
+         frames, before subsampling)
 
     Returns:
         Tensor: Mask tensor of dimension (batch_size, input_length), True denote the masked indices.
@@ -912,59 +900,44 @@ def encoder_padding_mask(
     return mask
 
 
-def decoder_padding_mask(ys_pad: Tensor, ignore_id: int = -1) -> Tensor:
-    """Generate a length mask for input. The masked position are filled with bool(True),
-        Unmasked positions are filled with bool(False).
+def decoder_padding_mask(
+    ys_pad: torch.Tensor, ignore_id: int = -1
+) -> torch.Tensor:
+    """Generate a length mask for input.
+
+    The masked position are filled with True,
+    Unmasked positions are filled with False.
 
     Args:
-        ys_pad: padded tensor of dimension (batch_size, input_length).
-        ignore_id: the ignored number (the padding number) in ys_pad
+      ys_pad:
+        padded tensor of dimension (batch_size, input_length).
+      ignore_id:
+        the ignored number (the padding number) in ys_pad
 
     Returns:
-        Tensor: a mask tensor of dimension (batch_size, input_length).
+      Tensor:
+        a bool tensor of the same shape as the input tensor.
     """
     ys_mask = ys_pad == ignore_id
     return ys_mask
 
 
-def get_normal_transcripts(
-    supervision: Supervisions, words: k2.SymbolTable, oov: str = "<UNK>"
-) -> List[List[int]]:
-    """Get normal transcripts (1 input recording has 1 transcript) from lhotse cut format.
-    Achieved by concatenate the transcripts corresponding to the same recording.
+def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
+    """Generate a square mask for the sequence. The masked positions are
+    filled with float('-inf'). Unmasked positions are filled with float(0.0).
+    The mask can be used for masked self-attention.
+
+    For instance, if sz is 3, it returns::
+
+        tensor([[0., -inf, -inf],
+                [0., 0., -inf],
+                [0., 0., 0]])
 
     Args:
-        supervision : Supervison in lhotse format, i.e., batch['supervisions']
-        words: The word symbol table.
-        oov: Out of vocabulary word.
+      sz: mask size
 
     Returns:
-        List[List[int]]: List of concatenated transcripts, length is batch_size
-    """
-
-    texts = [
-        [token if token in words else oov for token in text.split(" ")]
-        for text in supervision["text"]
-    ]
-    texts_ids = [[words[token] for token in text] for text in texts]
-
-    batch_text = [
-        [] for _ in range(int(supervision["sequence_idx"].max().item()) + 1)
-    ]
-    for sequence_idx, text in zip(supervision["sequence_idx"], texts_ids):
-        batch_text[sequence_idx] = batch_text[sequence_idx] + text
-    return batch_text
-
-
-def generate_square_subsequent_mask(sz: int) -> Tensor:
-    """Generate a square mask for the sequence. The masked positions are filled with float('-inf').
-        Unmasked positions are filled with float(0.0).
-
-    Args:
-        sz: mask size
-
-    Returns:
-        Tensor: a square mask of dimension (sz, sz)
+      A square mask of dimension (sz, sz)
     """
     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
     mask = (
@@ -975,121 +948,41 @@ def generate_square_subsequent_mask(sz: int) -> Tensor:
     return mask
 
 
-def add_sos_eos(
-    ys: List[List[int]],
-    lexicon: k2.Fsa,
-    sos_id: int,
-    eos_id: int,
-    ignore_id: int = -1,
-) -> Tuple[Tensor, Tensor]:
-    """Add <sos> and <eos> labels.
+def add_sos(token_ids: List[List[int]], sos_id: int) -> List[List[int]]:
+    """Prepend sos_id to each utterance.
 
     Args:
-        ys: batch of unpadded target sequences
-        lexicon: Its labels are words, while its aux_labels are phones.
-        sos_id: index of <sos>
-        eos_id: index of <eos>
-        ignore_id: index of padding
+      token_ids:
+        A list-of-list of token IDs. Each sublist contains
+        token IDs (e.g., word piece IDs) of an utterance.
+      sos_id:
+        The ID of the SOS token.
 
-    Returns:
-        Tensor: Input of transformer decoder. Padded tensor of dimention (batch_size, max_length).
-        Tensor: Output of transformer decoder. padded tensor of dimention (batch_size, max_length).
+    Return:
+      Return a new list-of-list, where each sublist starts
+      with SOS ID.
     """
-
-    _sos = torch.tensor([sos_id])
-    _eos = torch.tensor([eos_id])
-    ys = get_hierarchical_targets(ys, lexicon)
-    ys_in = [torch.cat([_sos, y], dim=0) for y in ys]
-    ys_out = [torch.cat([y, _eos], dim=0) for y in ys]
-    return pad_list(ys_in, eos), pad_list(ys_out, ignore_id)
+    ans = []
+    for utt in token_ids:
+        ans.append([sos_id] + utt)
+    return ans
 
 
-def pad_list(ys: List[Tensor], pad_value: float) -> Tensor:
-    """Perform padding for the list of tensors.
+def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
+    """Append eos_id to each utterance.
 
     Args:
-        ys: List of tensors. len(ys) = batch_size.
-        pad_value: Value for padding.
+      token_ids:
+        A list-of-list of token IDs. Each sublist contains
+        token IDs (e.g., word piece IDs) of an utterance.
+      eos_id:
+        The ID of the EOS token.
 
-    Returns:
-        Tensor: Padded tensor (batch_size, max_length, `*`).
-
-    Examples:
-        >>> x = [torch.ones(4), torch.ones(2), torch.ones(1)]
-        >>> x
-        [tensor([1., 1., 1., 1.]), tensor([1., 1.]), tensor([1.])]
-        >>> pad_list(x, 0)
-        tensor([[1., 1., 1., 1.],
-                [1., 1., 0., 0.],
-                [1., 0., 0., 0.]])
-
+    Return:
+      Return a new list-of-list, where each sublist ends
+      with EOS ID.
     """
-    n_batch = len(ys)
-    max_len = max(x.size(0) for x in ys)
-    pad = ys[0].new_full((n_batch, max_len, *ys[0].size()[1:]), pad_value)
-
-    for i in range(n_batch):
-        pad[i, : ys[i].size(0)] = ys[i]
-
-    return pad
-
-
-def get_hierarchical_targets(
-    ys: List[List[int]], lexicon: k2.Fsa
-) -> List[Tensor]:
-    """Get hierarchical transcripts (i.e., phone level transcripts) from transcripts (i.e., word level transcripts).
-
-    Args:
-        ys: Word level transcripts.
-        lexicon: Its labels are words, while its aux_labels are phones.
-
-    Returns:
-        List[Tensor]: Phone level transcripts.
-
-    """
-
-    if lexicon is None:
-        return ys
-    else:
-        L_inv = lexicon
-
-    n_batch = len(ys)
-    device = L_inv.device
-
-    transcripts = k2.create_fsa_vec(
-        [k2.linear_fsa(x, device=device) for x in ys]
-    )
-    transcripts_with_self_loops = k2.add_epsilon_self_loops(transcripts)
-
-    transcripts_lexicon = k2.intersect(
-        L_inv, transcripts_with_self_loops, treat_epsilons_specially=False
-    )
-    # Don't call invert_() above because we want to return phone IDs,
-    # which is the `aux_labels` of transcripts_lexicon
-    transcripts_lexicon = k2.remove_epsilon(transcripts_lexicon)
-    transcripts_lexicon = k2.top_sort(transcripts_lexicon)
-
-    transcripts_lexicon = k2.shortest_path(
-        transcripts_lexicon, use_double_scores=True
-    )
-
-    ys = get_texts(transcripts_lexicon)
-    ys = [torch.tensor(y) for y in ys]
-
-    return ys
-
-
-def test_transformer():
-    t = Transformer(40, 1281)
-    T = 200
-    f = torch.rand(31, 40, T)
-    g, _, _ = t(f)
-    assert g.shape == (31, 1281, (((T - 1) // 2) - 1) // 2)
-
-
-def main():
-    test_transformer()
-
-
-if __name__ == "__main__":
-    main()
+    ans = []
+    for utt in token_ids:
+        ans.append(utt + [eos_id])
+    return ans
