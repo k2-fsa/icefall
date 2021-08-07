@@ -143,7 +143,71 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Prepare G"
+  log "Stage 7: Prepare bigram P"
+  if [ ! -f data/lang_bpe/corpus.txt ]; then
+    ./local/convert_transcript_to_corpus.py \
+      --lexicon data/lang_bpe/lexicon.txt \
+      --transcript data/lang_bpe/train.txt \
+      --oov "<UNK>" \
+      > data/lang_bpe/corpus.txt
+  fi
+
+  if [ ! -f data/lang_bpe/P.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 2 \
+      -text data/lang_bpe/corpus.txt \
+      -lm data/lang_bpe/P.arpa
+  fi
+
+  # TODO: Use egs/wsj/s5/utils/lang/ngram_entropy_pruning.py
+  # from kaldi to prune P if it causes OOM later
+
+  if [ ! -f data/lang_bpe/P-no-prune.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang_bpe/tokens.txt" \
+      --disambig-symbol='#0' \
+      --max-order=2 \
+      data/lang_bpe/P.arpa > data/lang_bpe/P-no-prune.fst.txt
+  fi
+
+  thresholds=(
+    1e-6
+    1e-7
+  )
+  for threshold in ${thresholds[@]}; do
+    if [ ! -f data/lang_bpe/P-pruned.${threshold}.arpa ]; then
+      python3 ./local/ngram_entropy_pruning.py \
+        -threshold $threshold \
+        -lm data/lang_bpe/P.arpa \
+        -write-lm data/lang_bpe/P-pruned.${threshold}.arpa
+    fi
+
+    if [ ! -f data/lang_bpe/P-pruned.${threshold}.fst.txt ]; then
+      python3 -m kaldilm \
+        --read-symbol-table="data/lang_bpe/tokens.txt" \
+        --disambig-symbol='#0' \
+        --max-order=2 \
+        data/lang_bpe/P-pruned.${threshold}.arpa > data/lang_bpe/P-pruned.${threshold}.fst.txt
+    fi
+  done
+
+  if [ ! -f data/lang_bpe/P-uni.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang_bpe/tokens.txt" \
+      --disambig-symbol='#0' \
+      --max-order=1 \
+      data/lang_bpe/P.arpa > data/lang_bpe/P-uni.fst.txt
+  fi
+
+  ( cd data/lang_bpe;
+    # ln -sfv P-pruned.1e-6.fst.txt P.fst.txt
+    ln -sfv P-no-prune.fst.txt P.fst.txt
+  )
+  rm -fv data/lang_bpe/P.pt data/lang_bpe/ctc_topo_P.pt
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
@@ -167,7 +231,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   fi
 fi
 
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Compile HLG"
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Compile HLG"
   python3 ./local/compile_hlg.py
 fi

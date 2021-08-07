@@ -78,11 +78,13 @@ class Lexicon(object):
         """
         Args:
           lang_dir:
-            Path to the lang director. It is expected to contain the following
-            files:
+            Path to the lang directory. It is expected to contain the following
+            files::
+
                 - tokens.txt
                 - words.txt
                 - L.pt
+
             The above files are produced by the script `prepare.sh`. You
             should have run that before running the training code.
           disambig_pattern:

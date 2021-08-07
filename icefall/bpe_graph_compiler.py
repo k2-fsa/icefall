@@ -17,10 +17,14 @@ class BpeCtcTrainingGraphCompiler(object):
         """
         Args:
           lang_dir:
-            This directory is expected to contain the following files:
+            This directory is expected to contain the following files::
 
                 - bpe.model
                 - words.txt
+
+            The above files are produced by the script `prepare.sh`. You
+            should have run that before running the training code.
+
           device:
             It indicates CPU or CUDA.
           sos_token:
@@ -57,7 +61,9 @@ class BpeCtcTrainingGraphCompiler(object):
         return self.sp.encode(texts, out_type=int)
 
     def compile(
-        self, piece_ids: List[List[int]], modified: bool = False,
+        self,
+        piece_ids: List[List[int]],
+        modified: bool = False,
     ) -> k2.Fsa:
         """Build a ctc graph from a list-of-list piece IDs.
 
