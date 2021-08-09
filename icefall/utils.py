@@ -5,7 +5,7 @@ import subprocess
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
-from nbest import Nbest
+from icefall.nbest import Nbest
 from pathlib import Path
 from typing import Dict, Iterable, List, TextIO, Tuple, Union
 

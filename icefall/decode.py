@@ -721,3 +721,248 @@ def rescore_with_attention_decoder(
             key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}"
             ans[key] = best_path_fsa
     return ans
+
+
+def rescore_nbest_with_attention_decoder(
+    nbest: Nbest,
+    model: nn.Module,
+    memory: torch.Tensor,
+    memory_key_padding_mask: torch.Tensor,
+    sos_id: int,
+    eos_id: int,
+) -> Nbest:
+    """This function rescores an nbest list with an attention decoder. The paths
+    with rescored scores are returned as a new nbest.
+
+    Args:
+      nbest:
+        An Nbest, the nbest path of given sequences.
+        It can be the return value of :func:`generate_nbest_list`.
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `[T, N, C]`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape [N, T].
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each sequence in the lattice.
+    """
+    num_seqs = nbest.shape.Dim0()
+    token_seq = k2.RaggedInt(nbest.shape, nbest.fsas.labels().contiguous())
+
+    # Remove -1 from token_seq, there is no epsilon tokens in token_seq, we
+    # removed it when generating nbest list
+    token_seq = k2.ragged.remove_values_leq(token_seq, -1)
+
+    token_ids = k2.ragged.to_list(token_seq)
+
+    path_to_seq_map_long = token_seq.shape.row_ids(1).to(torch.long)
+    expanded_memory = memory.index_select(1, path_to_seq_map_long)
+
+    expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
+        0, path_to_seq_map_long
+    )
+
+    # TODO: pass the sos_token_id and eos_token_id via function arguments
+    nll = model.decoder_nll(
+        memory=expanded_memory,
+        memory_key_padding_mask=expanded_memory_key_padding_mask,
+        token_ids=token_ids,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
+    assert nll.ndim == 2
+    assert nll.shape[0] == num_seqs
+
+    attention_scores = torch.zeros(
+        nbest.fsas.labels().size()[0],
+        dtype=torch.float32,
+        device=nbest.device
+    )
+    start_index = 0
+    for i in range(num_seqs):
+        # Plus 1 to fill the score of final arc
+        tokens_num = len(tokens_ids[i]) + 1
+        attention_scores[start_index: start_index + tokens_num] =
+            nll[i][0: tokens_num]
+        start_index += tokens_num
+
+    fsas = nbest.fsas.clone()
+    fsas.score = attention_scores
+    return Nbest(fsas, nbest.shape.clone())
+
+
+def rescore_with_attention_decoder_v2(
+    lattice: k2.Fsa,
+    batch_idx: int,
+    dump_best_matching_feature: bool,
+    num_paths: int,
+    top_k: int,
+    model: nn.Module,
+    memory: torch.Tensor,
+    memory_key_padding_mask: torch.Tensor,
+    sos_id: int,
+    eos_id: int,
+) -> Dict[str, k2.Fsa]:
+    """This function extracts n paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest
+    score is used as the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec. It can be the return value of :func:`get_lattice`.
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `[T, N, C]`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape [N, T].
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each sequence in the lattice.
+    """
+    nbest = generate_nbest_list(lattice, num_paths)
+    # Now we have nbest with scores
+    nbest = nbest.intersect(lattice)
+
+    if dump_best_matching_feature:
+        nbest_k, nbest_q = nbest.split(k=top_k, sort=False)
+        rescored_nbest_k = rescore_nbest_with_attention_decoder(
+            nbest=nbest_k,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
+        )
+        stats_tensor = get_best_matching_stats(
+            rescored_nbest_k,
+            nbest_q,
+            max_order=3
+        )
+        rescored_nbest_q = rescore_nbest_with_attention_decoder(
+            nbest=nbest_q,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
+        # return feature & label or dump to file
+
+    nbest_topk, nbest_remain = nbest.split(k=top_k)
+
+    rescored_nbest_topk = rescore_nbest_with_attention_decoder(
+        nbest=nbest_topk,
+        model=model,
+        memory=memory,
+        memory_key_padding_mask=memory_key_padding_mask,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
+    stats_tensor = get_best_matching_stats(
+        rescored_nbest_topk,
+        nbest_remain,
+        max_order=3
+    )
+    # run rescore estimation model to get the mean and var of each token
+    mean, var = rescore_est_model(stats_tensor)
+    # calculate nbest_remain estimated score and select topk
+    nbest_remain_topk = nbest_remain.top_k(k=top_k)
+    rescored_nbest_remain_topk = rescore_nbest_with_attention_decoder(
+        nbest=nbest_remain_topk,
+        model=model,
+        memory=memory,
+        memory_key_padding_mask=memory_key_padding_mask,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
+    best_path_dict=get_best_path_from_nbests(
+        rescored_nbest_topk,
+        rescored_nbest_remain_topk,
+    )
+
+    return ans
+
+
+def generate_nbest_list(
+    lats: k2.Fsa,
+    num_paths: int,
+    aux_labels: bool = False
+) -> Nbest:
+    '''Generate an n-best list from a lattice.
+
+    Args:
+      lats:
+        The decoding lattice from the first pass after LM rescoring.
+        lats is an FsaVec. It can be the return value of
+        :func:`rescore_with_whole_lattice`
+      num_paths:
+        Size of n for n-best list. CAUTION: After removing paths
+        that represent the same word sequences, the number of paths
+        in different sequences may not be equal.
+    Return:
+      Return an Nbest object. Note the returned FSAs don't have epsilon
+      self-loops.
+    '''
+    assert len(lats.shape) == 3
+
+    # First, extract `num_paths` paths for each sequence.
+    # paths is a k2.RaggedInt with axes [seq][path][arc_pos]
+    paths = k2.random_paths(lats, num_paths=num_paths, use_double_scores=True)
+
+    # Seqs is a k2.RaggedInt sharing the same shape as `paths`.
+    # Note that it also contains 0s and -1s.
+    # The last entry in each sublist is -1.
+    # Its axes are [seq][path][word_id]
+    if aux_labels:
+        # if aux_labels enable, seqs contains word_id
+        assert hasattr(lats, "aux_labels")
+        seqs = k2.index(lats.aux_labels, paths)
+    else:
+        # CAUTION: We use `phones` instead of `tokens` here because
+        # :func:`compile_HLG` uses `phones`
+        #
+        # Note: compile_HLG is from k2-fsa/snowfall
+        assert hasattr(lats, 'phones')
+
+        assert not hasattr(lats, 'tokens')
+        lats.tokens = lats.phones
+        seqs = k2.index(lats.tokens, paths)
+
+    # Remove epsilons (0s) and -1 from word_seqs
+    seqs = k2.ragged.remove_values_leq(seqs, 0)
+
+    # unique_word_seqs is still a k2.RaggedInt with axes [seq][path][word_id].
+    # But then number of pathsin each sequence may be different.
+    unique_seqs, _, _ = k2.ragged.unique_sequences(
+        seqs, need_num_repeats=False, need_new2old_indexes=False)
+
+    seq_to_path_shape = k2.ragged.get_layer(unique_seqs.shape(), 0)
+
+    # Remove the seq axis.
+    # Now unique_word_seqs has only two axes [path][word_id]
+    unique_seqs = k2.ragged.remove_axis(unique_seqs, 0)
+
+    fsas = k2.linear_fsa(unique_seqs)
+
+    return Nbest(fsa=fsas, shape=seq_to_path_shape)
+

@@ -25,7 +25,7 @@ stop_stage=100
 #        - librispeech-vocab.txt
 #        - librispeech-lexicon.txt
 #
-#  - $do_dir/musan
+#  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
 #       http://www.openslr.org/17/
 #

@@ -100,6 +100,7 @@ def decode_one_batch(
     model: nn.Module,
     HLG: k2.Fsa,
     batch: dict,
+    batch_idx: int,
     lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
@@ -201,6 +202,7 @@ def decode_one_batch(
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "attention-decoder",
+        "attention-decoder-v2",
     ]
 
     lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
@@ -226,6 +228,23 @@ def decode_one_batch(
         best_path_dict = rescore_with_attention_decoder(
             lattice=rescored_lattice,
             num_paths=params.num_paths,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
+        )
+    elif params.method == "attention-decoder-v2":
+        # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
+        rescored_lattice = rescore_with_whole_lattice(
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+        )
+        best_path_dict = rescore_with_attention_decoder_v2(
+            lattice=rescored_lattice,
+            batch_idx=batch_idx,
+            dump_best_matching_feature=params.dump_feature,
+            num_paths=params.num_paths,
+            top_k=params.top_k,
             model=model,
             memory=memory,
             memory_key_padding_mask=memory_key_padding_mask,
@@ -295,6 +314,7 @@ def decode_dataset(
             model=model,
             HLG=HLG,
             batch=batch,
+            batch_idx,
             lexicon=lexicon,
             G=G,
             sos_id=sos_id,

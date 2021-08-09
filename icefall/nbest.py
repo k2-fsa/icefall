@@ -5,10 +5,9 @@
 # See https://github.com/k2-fsa/snowfall/issues/232 for more details
 #
 import logging
-from typing import List
+from typing import List, Tuple
 
 import torch
-import _k2
 import k2
 
 # Note: We use `utterance` and `sequence` interchangeably in the comment
@@ -19,7 +18,7 @@ class Nbest(object):
     An Nbest object contains two fields:
 
         (1) fsa, its type is k2.Fsa
-        (2) shape, its type is k2.RaggedShape (alias to _k2.RaggedShape)
+        (2) shape, its type is k2.RaggedShape
 
     The field `fsa` is an FsaVec containing a vector of **linear** FSAs.
 
@@ -29,7 +28,7 @@ class Nbest(object):
     of paths, which is also the number of FSAs in `fsa`.
     '''
 
-    def __init__(self, fsa: k2.Fsa, shape: _k2.RaggedShape) -> None:
+    def __init__(self, fsa: k2.Fsa, shape: k2.RaggedShape) -> None:
         assert len(fsa.shape) == 3, f'fsa.shape: {fsa.shape}'
         assert shape.num_axes() == 2, f'num_axes: {shape.num_axes()}'
 
@@ -85,7 +84,7 @@ class Nbest(object):
 
         return Nbest(fsa=one_best, shape=self.shape)
 
-    def total_scores(self) -> _k2.RaggedFloat:
+    def total_scores(self) -> k2.RaggedFloat:
         '''Get total scores of the FSAs in this Nbest.
 
         Note:
@@ -99,7 +98,7 @@ class Nbest(object):
                                          log_semiring=False)
         # We use single precision here since we only wrap k2.RaggedFloat.
         # If k2.RaggedDouble is wrapped, we can use double precision here.
-        return _k2.RaggedFloat(self.shape, scores.float())
+        return k2.RaggedFloat(self.shape, scores.float())
 
     def top_k(self, k: int) -> 'Nbest':
         '''Get a subset of paths in the Nbest. The resulting Nbest is regular
@@ -144,121 +143,66 @@ class Nbest(object):
         return Nbest(top_k_fsas, top_k_shape)
 
 
-def whole_lattice_rescoring(lats: k2.Fsa, G_with_epsilon_loops: k2.Fsa) -> k2.Fsa:
-    '''Rescore the 1st pass lattice with an LM.
+    def split(self, k: int, sort: bool = True) -> Tuple['Nbest', 'Nbest']:
+        '''Split the paths in the Nbest into two parts, the first part is the
+        first k paths for each sequence in the Nbest, the second part is the
+        remaining paths.
+        There may be less than k paths for the responding sequence in the part,
 
-    In general, the G in HLG used to obtain `lats` is a 3-gram LM.
-    This function replaces the 3-gram LM in `lats` with a 4-gram LM.
+        If the sort flag is true, we select the top-k paths according to the
+        total_scores of each path in descending order, If a utterance has less
+        than k paths, then the first part will have the really number of paths
+        and leaving the second part empty.
 
-    Args:
-      lats:
-        The decoding lattice from the 1st pass. We assume it is the result
-        of intersecting HLG with the network output.
-      G_with_epsilon_loops:
-        An LM. It is usually a 4-gram LM with epsilon self-loops.
-        It should be arc sorted.
-    Returns:
-      Return a new lattice rescored with a given G.
-    '''
-    assert len(lats.shape) == 3, f'{lats.shape}'
-    assert hasattr(lats, 'lm_scores')
-    assert G_with_epsilon_loops.shape == (1, None, None), \
-            f'{G_with_epsilon_loops.shape}'
+        Args:
+          k:
+            Number of paths in the first part of each utterance.
+        Returns:
+          Return a tuple of new Nbest.
+        '''
+        # indexes contains idx01's for self.shape
+        indexes = torch.arange(
+            self.shape.num_elements(), dtype=torch.int32,
+            device=self.shape.device
+        )
 
-    device = lats.device
-    lats.scores = lats.scores - lats.lm_scores
-    # Now lats contains only acoustic scores
+        if sort:
+            ragged_scores = self.total_scores()
 
-    # We will use lm_scores from the given G, so remove lats.lm_scores here
-    del lats.lm_scores
-    assert hasattr(lats, 'lm_scores') is False
+            # ragged_scores.values()[indexes] is sorted
+            indexes = k2.ragged.sort_sublist(
+                ragged_scores, descending=True, need_new2old_indexes=True
+            )
 
-    # inverted_lats has word IDs as labels.
-    # Its aux_labels are token IDs, which is a ragged tensor k2.RaggedInt
-    # if lats.aux_labels is a ragged tensor
-    inverted_lats = k2.invert(lats)
-    num_seqs = lats.shape[0]
+        ragged_indexes = k2.RaggedInt(self.shape, indexes)
 
-    b_to_a_map = torch.zeros(num_seqs, device=device, dtype=torch.int32)
+        padded_indexes = k2.ragged.pad(ragged_indexes, value=-1)
 
-    while True:
-        try:
-            rescoring_lats = k2.intersect_device(G_with_epsilon_loops,
-                                                 inverted_lats,
-                                                 b_to_a_map,
-                                                 sorted_match_a=True)
-            break
-        except RuntimeError as e:
-            logging.info(f'Caught exception:\n{e}\n')
-            # Usually, this is an OOM exception. We reduce
-            # the size of the lattice and redo k2.intersect_device()
+        # Select the idx01's of top-k paths of each utterance
+        first_indexes = padded_indexes[:, :k].flatten().contiguous()
 
-            # NOTE(fangjun): The choice of the threshold 1e-5 is arbitrary here
-            # to avoid OOM. We may need to fine tune it.
-            logging.info(f'num_arcs before: {inverted_lats.num_arcs}')
-            inverted_lats = k2.prune_on_arc_post(inverted_lats, 1e-5, True)
-            logging.info(f'num_arcs after: {inverted_lats.num_arcs}')
+        # Remove the padding elements
+        first_indexes = first_indexes[first_indexes >= 0]
 
-    rescoring_lats = k2.top_sort(k2.connect(rescoring_lats))
+        first_fsas = k2.index_fsa(self.fsa, first_indexes)
 
-    # inv_rescoring_lats has token IDs as labels
-    # and word IDs as aux_labels.
-    inv_rescoring_lats = k2.invert(rescoring_lats)
-    return inv_rescoring_lats
+        first_row_ids = k2.index(self.shape.row_ids(1), first_indexes)
+        first_shape = k2.ragged.create_ragged_shape2(row_ids=first_row_ids)
 
+        first_nbest = Nbest(first_fsas, first_shape)
 
-def generate_nbest_list(lats: k2.Fsa, num_paths: int) -> Nbest:
-    '''Generate an n-best list from a lattice.
+        # Select the idx01's of remaining paths of each utterance
+        second_indexes = padded_indexes[:, k:].flatten().contiguous()
 
-    Args:
-      lats:
-        The decoding lattice from the first pass after LM rescoring.
-        lats is an FsaVec. It can be the return value of
-        :func:`whole_lattice_rescoring`
-      num_paths:
-        Size of n for n-best list. CAUTION: After removing paths
-        that represent the same token sequences, the number of paths
-        in different sequences may not be equal.
-    Return:
-      Return an Nbest object. Note the returned FSAs don't have epsilon
-      self-loops.
-    '''
-    assert len(lats.shape) == 3
+        # Remove the padding elements
+        second_indexes = second_indexes[second_indexes >= 0]
 
-    # CAUTION: We use `phones` instead of `tokens` here because
-    # :func:`compile_HLG` uses `phones`
-    #
-    # Note: compile_HLG is from k2-fsa/snowfall
-    assert hasattr(lats, 'phones')
+        second_fsas = k2.index_fsa(self.fsa, second_indexes)
 
-    assert not hasattr(lats, 'tokens')
-    lats.tokens = lats.phones
-    # we use tokens instead of phones in the following code
+        second_row_ids = k2.index(self.shape.row_ids(1), second_indexes)
+        second_shape = k2.ragged.create_ragged_shape2(row_ids=second_row_ids)
 
-    # First, extract `num_paths` paths for each sequence.
-    # paths is a k2.RaggedInt with axes [seq][path][arc_pos]
-    paths = k2.random_paths(lats, num_paths=num_paths, use_double_scores=True)
+        second_nbest = Nbest(second_fsas, second_shape)
 
-    # token_seqs is a k2.RaggedInt sharing the same shape as `paths`
-    # but it contains token IDs. Note that it also contains 0s and -1s.
-    # The last entry in each sublist is -1.
-    # Its axes are [seq][path][token_id]
-    token_seqs = k2.index(lats.tokens, paths)
+        return first_nbest, second_nbest
 
-    # Remove epsilons (0s) and -1 from token_seqs
-    token_seqs = k2.ragged.remove_values_leq(token_seqs, 0)
-
-    # unique_token_seqs is still a k2.RaggedInt with axes [seq][path]token_id].
-    # But then number of pathsin each sequence may be different.
-    unique_token_seqs, _, _ = k2.ragged.unique_sequences(
-        token_seqs, need_num_repeats=False, need_new2old_indexes=False)
-
-    seq_to_path_shape = k2.ragged.get_layer(unique_token_seqs.shape(), 0)
-
-    # Remove the seq axis.
-    # Now unique_token_seqs has only two axes [path][token_id]
-    unique_token_seqs = k2.ragged.remove_axis(unique_token_seqs, 0)
-
-    token_fsas = k2.linear_fsa(unique_token_seqs)
-
-    return Nbest(fsa=token_fsas, shape=seq_to_path_shape)
