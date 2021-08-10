@@ -7,7 +7,6 @@
   * [Install icefall](#install-icefall)
 - [Run recipes](#run-recipes)
 
-
 ## Installation
 
 `icefall` depends on [k2][k2] for FSA operations and [lhotse][lhotse] for
@@ -32,7 +31,7 @@ git clone https://github.com/k2-fsa/k2.git
 cd k2
 mkdir build_release
 cd build_release
-cmake -DCMAKE_BUILD_TYPE=Release
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j _k2
 export PYTHONPATH=$HOME/open-source/k2/k2/python:$PYTHONPATH
 export PYTHONPATH=$HOME/open-source/k2/build_release/lib:$PYTHONPATH
@@ -40,7 +39,7 @@ export PYTHONPATH=$HOME/open-source/k2/build_release/lib:$PYTHONPATH
 
 To check that k2 is installed successfully, please run
 
-```
+```bash
 python3 -m k2.version
 ```
 
@@ -57,7 +56,7 @@ lhotse.
 `icefall` is a set of Python scripts. What you need to do is just to set
 the environment variable `PYTHONPATH`:
 
-```
+```bash
 cd $HOME/open-source
 git clone https://github.com/k2-fsa/icefall
 cd icefall
@@ -67,17 +66,16 @@ export PYTHONPATH=$HOME/open-source/icefall:$PYTHONPATHON
 
 To verify `icefall` was installed successfully, you can run:
 
-```
+```bash
 python3 -c "import icefall; print(icefall.__file__)"
 ```
 
 It should print the path to `icefall`.
 
-
 ## Run recipes
 
-Currently only the LibriSpeech recipe is provided. Please
-follow the [egs/librispeech/ASR/README.md][LibriSpeech] to run it.
+At present, only LibriSpeech recipe is provided. Please
+follow [egs/librispeech/ASR/README.md][LibriSpeech] to run it.
 
 [LibriSpeech]: egs/librispeech/ASR/README.md
 [k2-install]: https://k2.readthedocs.io/en/latest/installation/index.html#

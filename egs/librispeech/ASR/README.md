@@ -1,7 +1,7 @@
 
 ## Data preparation
 
-If you want to `./prepare.sh` to download everything for you,
+If you want to use `./prepare.sh` to download everything for you,
 you can just run
 
 ```
@@ -17,7 +17,7 @@ please run
 ./prepare.sh
 ```
 
-The script `./prepare.sh` prepare features, lexicon, LMs, etc.
+The script `./prepare.sh` prepares features, lexicon, LMs, etc.
 All generated files are saved in the folder `./data`.
 
 HINT: `./prepare.sh` support options `--stage` and `--stop-stage`.
@@ -31,7 +31,7 @@ Pre-configured parameters for training and decoding are set in the function
 `get_params()` within `tdnn_lstm_ctc/train.py`
 and `tdnn_lstm_ctc/decode.py`.
 
-Parameters that can be passed from commandlin can be found by
+Parameters that can be passed from the commandline can be found by
 
 ```
 ./tdnn_lstm_ctc/train.py --help
