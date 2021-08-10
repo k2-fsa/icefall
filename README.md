@@ -1,4 +1,13 @@
 
+# Table of Contents
+
+- [Installation](#installation)
+  * [Install k2](#install-k2)
+  * [Install lhotse](#install-lhotse)
+  * [Install icefall](#install-icefall)
+- [Run recipes](#run-recipes)
+
+
 ## Installation
 
 `icefall` depends on [k2][k2] for FSA operations and [lhotse][lhotse] for
