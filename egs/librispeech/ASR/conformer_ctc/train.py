@@ -16,6 +16,7 @@ import torch.nn as nn
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
@@ -114,7 +115,9 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
-        - valid_interval:  Run validation if batch_idx % valid_interval` is 0
+        - valid_interval:  Run validation if batch_idx % valid_interval is 0
+
+        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
 
         - beam_size: It is used in k2.ctc_loss
 
@@ -124,19 +127,20 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
+            "exp_dir": Path("conformer_ctc/exp_new"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
-            "weight_decay": 0.0,
+            "weight_decay": 1e-6,
             "subsampling_factor": 4,
             "start_epoch": 0,
-            "num_epochs": 50,
+            "num_epochs": 20,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
             "log_interval": 10,
+            "reset_interval": 200,
             "valid_interval": 3000,
             "beam_size": 10,
             "reduction": "sum",
@@ -440,6 +444,8 @@ def train_one_epoch(
     tot_att_loss = 0.0
 
     tot_frames = 0.0  # sum of frames over all batches
+    params.tot_loss = 0.0
+    params.tot_frames = 0.0
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -457,6 +463,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
+        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()
@@ -467,6 +474,9 @@ def train_one_epoch(
         tot_loss += loss_cpu
         tot_ctc_loss += ctc_loss_cpu
         tot_att_loss += att_loss_cpu
+
+        params.tot_frames += params.train_frames
+        params.tot_loss += loss_cpu
 
         tot_avg_loss = tot_loss / tot_frames
         tot_avg_ctc_loss = tot_ctc_loss / tot_frames
@@ -516,6 +526,12 @@ def train_one_epoch(
                     tot_avg_loss,
                     params.batch_idx_train,
                 )
+        if batch_idx > 0 and batch_idx % params.reset_interval == 0:
+            tot_loss = 0.0  # sum of losses over all batches
+            tot_ctc_loss = 0.0
+            tot_att_loss = 0.0
+
+            tot_frames = 0.0  # sum of frames over all batches
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             compute_validation_loss(
@@ -551,7 +567,7 @@ def train_one_epoch(
                     params.batch_idx_train,
                 )
 
-    params.train_loss = tot_loss / tot_frames
+    params.train_loss = params.tot_loss / params.tot_frames
 
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
