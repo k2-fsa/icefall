@@ -22,30 +22,6 @@ Please refer to [k2's installation documentation][k2-install] to install k2.
 If you have any issues about installing k2, please open an issue at
 <https://github.com/k2-fsa/k2/issues>.
 
-The following shows the minimal commands needed to install k2 from source:
-
-```bash
-mkdir $HOME/open-source
-cd $HOME/open-source
-git clone https://github.com/k2-fsa/k2.git
-cd k2
-mkdir build_release
-cd build_release
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j _k2
-export PYTHONPATH=$HOME/open-source/k2/k2/python:$PYTHONPATH
-export PYTHONPATH=$HOME/open-source/k2/build_release/lib:$PYTHONPATH
-```
-
-To check that k2 is installed successfully, please run
-
-```bash
-python3 -m k2.version
-```
-
-It should show the information about the environment in which
-k2 was built.
-
 ### Install lhotse
 
 Please refer to [lhotse's installation documentation][lhotse-install] to install

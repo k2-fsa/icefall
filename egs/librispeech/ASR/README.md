@@ -20,7 +20,7 @@ please run
 The script `./prepare.sh` prepares features, lexicon, LMs, etc.
 All generated files are saved in the folder `./data`.
 
-HINT: `./prepare.sh` support options `--stage` and `--stop-stage`.
+**HINT:** `./prepare.sh` supports options `--stage` and `--stop-stage`.
 
 ## TDNN-LSTM CTC training
 
@@ -31,7 +31,7 @@ Pre-configured parameters for training and decoding are set in the function
 `get_params()` within `tdnn_lstm_ctc/train.py`
 and `tdnn_lstm_ctc/decode.py`.
 
-Parameters that can be passed from the commandline can be found by
+Parameters that can be passed from the command-line can be found by
 
 ```
 ./tdnn_lstm_ctc/train.py --help
@@ -61,4 +61,4 @@ If you want to decode by averaging checkpoints `epoch-8.pt`,
 
 The folder `conformer-ctc` contains scripts for CTC training
 with conformer models. The steps of running the training and
-decoding are similar as `tdnn_lstm_ctc`.
+decoding are similar to `tdnn_lstm_ctc`.
