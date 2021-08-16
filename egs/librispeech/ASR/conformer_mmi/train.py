@@ -13,7 +13,9 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
+from tdnn_lstm_ctc.model import TdnnLstm
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
@@ -56,6 +58,26 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--use-ali-model",
+        type=str2bool,
+        default=True,
+        help="If true, we assume that you have run tdnn_lstm_ctc/train_bpe.py "
+        "and you have some checkpoints inside the directory "
+        "tdnn_lstm_ctc/exp_bpe_500 ."
+        "It will use tdnn_lstm_ctc/exp_bpe_500/epoch-{ali-model-epoch}.pt "
+        "as the pre-trained alignment model",
+    )
+    parser.add_argument(
+        "--ali-model-epoch",
+        type=int,
+        default=19,
+        help="If --use-ali-model is True, load "
+        "tdnn_lstm_ctc/exp_bpe_500/epoch-{ali-model-epoch}.pt as "
+        "the alignment model."
+        "Used only if --use-ali-model is True.",
     )
 
     # TODO: add extra arguments and support DDP training.
@@ -117,24 +139,21 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_mmi/exp"),
-            "lang_dir": Path("data/lang_bpe"),
+            "exp_dir": Path("conformer_mmi/exp_500"),
+            "lang_dir": Path("data/lang_bpe_500"),
             "feature_dim": 80,
             "weight_decay": 1e-6,
             "subsampling_factor": 4,
             "start_epoch": 0,
-            "num_epochs": 10,
+            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
             "log_interval": 10,
-            # It takes about 10 minutes (1 GPU, max_duration=200)
-            # to run a validation process.
-            # For the 100 h subset, there are  85617 batches.
-            # For the 960 h dataset, there are 843723 batches
-            "valid_interval": 8000,
+            "reset_interval": 200,
+            "valid_interval": 10,
             "use_pruned_intersect": False,
             "den_scale": 1.0,
             #
@@ -242,6 +261,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: nn.Module,
+    ali_model: Optional[nn.Module],
     batch: dict,
     graph_compiler: BpeMmiTrainingGraphCompiler,
     is_training: bool,
@@ -274,6 +294,22 @@ def compute_loss(
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
         # nnet_output is [N, T, C]
+        if ali_model is not None and params.batch_idx_train < 4000:
+            feature = feature.permute(0, 2, 1)  # [N, T, C]->[N, C, T]
+            ali_model_output = ali_model(feature)
+            # subsampling is done slightly differently, may be small length
+            # differences.
+            min_len = min(ali_model_output.shape[1], nnet_output.shape[1])
+            # scale less than one so it will be encouraged
+            # to mimic ali_model's output
+            ali_model_scale = 500.0 / (params.batch_idx_train + 500)
+
+            # Use clone() here or log-softmax backprop will fail.
+            nnet_output = nnet_output.clone()
+
+            nnet_output[:, :min_len, :] += (
+                ali_model_scale * ali_model_output[:, :min_len, :]
+            )
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -337,6 +373,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
+    ali_model: Optional[nn.Module],
     graph_compiler: BpeMmiTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -354,6 +391,7 @@ def compute_validation_loss(
         loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
+            ali_model=ali_model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=False,
@@ -394,6 +432,7 @@ def compute_validation_loss(
 def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
+    ali_model: Optional[nn.Module],
     optimizer: torch.optim.Optimizer,
     graph_compiler: BpeMmiTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
@@ -412,6 +451,9 @@ def train_one_epoch(
         It is returned by :func:`get_params`.
       model:
         The model for training.
+      ali_model:
+        The force alignment model for training. It is from
+        tdnn_lstm_ctc/train_bpe.py
       optimizer:
         The optimizer we are using.
       graph_compiler:
@@ -432,7 +474,8 @@ def train_one_epoch(
     tot_att_loss = 0.0
 
     tot_frames = 0.0  # sum of frames over all batches
-
+    params.tot_loss = 0.0
+    params.tot_frames = 0.0
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -440,6 +483,7 @@ def train_one_epoch(
         loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
+            ali_model=ali_model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=True,
@@ -450,6 +494,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
+        clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()
@@ -460,6 +505,9 @@ def train_one_epoch(
         tot_loss += loss_cpu
         tot_mmi_loss += mmi_loss_cpu
         tot_att_loss += att_loss_cpu
+
+        params.tot_frames += params.train_frames
+        params.tot_loss += loss_cpu
 
         tot_avg_loss = tot_loss / tot_frames
         tot_avg_mmi_loss = tot_mmi_loss / tot_frames
@@ -509,11 +557,18 @@ def train_one_epoch(
                     tot_avg_loss,
                     params.batch_idx_train,
                 )
+        if batch_idx > 0 and batch_idx % params.reset_interval == 0:
+            tot_loss = 0.0  # sum of losses over all batches
+            tot_mmi_loss = 0.0
+            tot_att_loss = 0.0
+
+            tot_frames = 0.0  # sum of frames over all batches
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             compute_validation_loss(
                 params=params,
                 model=model,
+                ali_model=ali_model,
                 graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
@@ -544,7 +599,7 @@ def train_one_epoch(
                     params.batch_idx_train,
                 )
 
-    params.train_loss = tot_loss / tot_frames
+    params.train_loss = params.tot_loss / params.tot_frames
 
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
@@ -624,6 +679,32 @@ def run(rank, world_size, args):
     if checkpoints:
         optimizer.load_state_dict(checkpoints["optimizer"])
 
+    if args.use_ali_model:
+        ali_model = TdnnLstm(
+            num_features=params.feature_dim,
+            num_classes=num_classes,
+            subsampling_factor=params.subsampling_factor,
+        )
+
+        ali_model_fname = Path(
+            f"tdnn_lstm_ctc/exp_bpe_500/epoch-{args.ali_model_epoch}.pt"
+        )
+        assert (
+            ali_model_fname.is_file()
+        ), f"ali model filename {ali_model_fname} does not exist!"
+
+        ali_model.load_state_dict(
+            torch.load(ali_model_fname, map_location="cpu")["model"]
+        )
+        ali_model.to(device)
+
+        ali_model.eval()
+        ali_model.requires_grad_(False)
+        logging.info(f"Use ali_model: {ali_model_fname}")
+    else:
+        ali_model = None
+        logging.info("No ali_model")
+
     librispeech = LibriSpeechAsrDataModule(args)
     train_dl = librispeech.train_dataloaders()
     valid_dl = librispeech.valid_dataloaders()
@@ -646,6 +727,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            ali_model=ali_model,
             optimizer=optimizer,
             graph_compiler=graph_compiler,
             train_dl=train_dl,

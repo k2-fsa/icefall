@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
 """
-This script compiles HLG from
+This script takes as input lang_dir and generates HLG from
 
-    - H, the ctc topology, built from tokens contained in lexicon.txt
-    - L, the lexicon, built from L_disambig.pt
+    - H, the ctc topology, built from tokens contained in lang_dir/lexicon.txt
+    - L, the lexicon, built from lang_dir/L_disambig.pt
 
         Caution: We use a lexicon that contains disambiguation symbols
 
     - G, the LM, built from data/lm/G_3_gram.fst.txt
 
-The generated HLG is saved in data/lm/HLG.pt (phone based)
-or data/lm/HLG_bpe.pt (BPE based)
+The generated HLG is saved in $lang_dir/HLG.pt
 """
+import argparse
 import logging
 from pathlib import Path
 
@@ -22,11 +22,23 @@ import torch
 from icefall.lexicon import Lexicon
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        """,
+    )
+
+    return parser.parse_args()
+
+
 def compile_HLG(lang_dir: str) -> k2.Fsa:
     """
     Args:
       lang_dir:
-        The language directory, e.g., data/lang_phone or data/lang_bpe.
+        The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
 
     Return:
       An FSA representing HLG.
@@ -104,17 +116,18 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
 
 def main():
-    for d in ["data/lang_phone", "data/lang_bpe"]:
-        d = Path(d)
-        logging.info(f"Processing {d}")
+    args = get_args()
+    lang_dir = Path(args.lang_dir)
 
-        if (d / "HLG.pt").is_file():
-            logging.info(f"{d}/HLG.pt already exists - skipping")
-            continue
+    if (lang_dir / "HLG.pt").is_file():
+        logging.info(f"{lang_dir}/HLG.pt already exists - skipping")
+        return
 
-        HLG = compile_HLG(d)
-        logging.info(f"Saving HLG.pt to {d}")
-        torch.save(HLG.as_dict(), f"{d}/HLG.pt")
+    logging.info(f"Processing {lang_dir}")
+
+    HLG = compile_HLG(lang_dir)
+    logging.info(f"Saving HLG.pt to {lang_dir}")
+    torch.save(HLG.as_dict(), f"{lang_dir}/HLG.pt")
 
 
 if __name__ == "__main__":
