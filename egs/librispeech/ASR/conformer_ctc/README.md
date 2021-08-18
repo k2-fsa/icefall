@@ -10,11 +10,8 @@ You need to prepare 4 files:
     Supported formats are those supported by `torchaudio.load()`,
     e.g., wav and flac.
 
-Also, you need to install `kaldifeat`. Please refer to
-<https://github.com/csukuangfj/kaldifeat> for installation.
 
-Once you have the above files ready and have `kaldifeat` installed,
-you can run:
+Once you have the above files ready, you can run:
 
 ```
 ./conformer_ctc/pretrained.py \
