@@ -21,6 +21,7 @@ from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
+    nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
@@ -56,6 +57,15 @@ def get_parser():
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
+
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=1.0,
+        help="The scale to be applied to `lattice.scores`."
+        "A smaller value results in more unique paths",
+    )
+
     return parser
 
 
@@ -85,10 +95,12 @@ def get_params() -> AttributeDict:
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
             #  - attention-decoder
+            #  - nbest-oracle
             #  "method": "whole-lattice-rescoring",
             "method": "attention-decoder",
+            #  "method": "nbest-oracle",
             # num_paths is used when method is "nbest", "nbest-rescoring",
-            # and attention-decoder
+            # attention-decoder, and nbest-oracle
             "num_paths": 100,
         }
     )
@@ -178,6 +190,19 @@ def decode_one_batch(
         max_active_states=params.max_active_states,
         subsampling_factor=params.subsampling_factor,
     )
+
+    if params.method == "nbest-oracle":
+        # Note: You can also pass rescored lattices to it.
+        # We choose the HLG decoded lattice for speed reasons
+        # as HLG decoding is faster and the oracle WER
+        # is slightly worse than that of rescored lattices.
+        return nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            lexicon=lexicon,
+            scale=params.scale,
+        )
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -284,7 +309,6 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_cuts = len(dl.dataset.cuts)
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -315,8 +339,7 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             logging.info(
                 f"batch {batch_idx}, cuts processed until now is "
-                f"{num_cuts}/{tot_num_cuts} "
-                f"({float(num_cuts)/tot_num_cuts*100:.6f}%)"
+                f"{num_cuts} "
             )
     return results
 
