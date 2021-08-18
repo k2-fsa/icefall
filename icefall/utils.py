@@ -411,6 +411,10 @@ def get_best_matching_stats(keys: Nbest, queries: Nbest,
     assert keys.shape.dim0() == queries.shape.dim0(), \
         f'Utterances number in keys and queries should be equal : \
          {keys.shape.dim0()} vs {queries.shape.dim0()}'
+    assert keys.fsa.device == queries.fsa.device, \
+        f'Device of keys and queries should be equal : \
+         {keys.fsa.device} vs {queries.fsa.device}'
+    device = keys.fsa.device
 
     # keys_tokens_shape [utt][path][token]
     keys_tokens_shape = k2.ragged.compose_ragged_shapes(keys.shape,
@@ -430,11 +434,13 @@ def get_best_matching_stats(keys: Nbest, queries: Nbest,
     # counts on key positions are ones
     keys_counts = k2.RaggedInt(keys_tokens_shape,
                                torch.ones(keys_token_num,
-                                          dtype=torch.int32))
+                                          dtype=torch.int32,
+                                          device=device))
     # counts on query positions are zeros
     queries_counts = k2.RaggedInt(queries_tokens_shape,
                                   torch.zeros(queries_tokens_num,
-                                              dtype=torch.int32))
+                                              dtype=torch.int32,
+                                              device=device))
     counts = k2.ragged.cat([keys_counts, queries_counts], axis=1).values()
 
     # scores on key positions are the scores inherted from nbest path
@@ -442,7 +448,8 @@ def get_best_matching_stats(keys: Nbest, queries: Nbest,
     # scores on query positions MUST be zeros
     queries_scores = k2.RaggedFloat(queries_tokens_shape,
                                     torch.zeros(queries_tokens_num,
-                                                dtype=torch.float32))
+                                                dtype=torch.float32,
+                                                device=device))
     scores = k2.ragged.cat([keys_scores, queries_scores], axis=1).values()
 
     # we didn't remove -1 labels before
@@ -450,8 +457,16 @@ def get_best_matching_stats(keys: Nbest, queries: Nbest,
     eos = -1
     max_token = torch.max(torch.max(keys.fsa.labels),
                           torch.max(queries.fsa.labels))
-    mean, var, counts_out, ngram = k2.get_best_matching_stats(tokens, scores,
-        counts, eos, min_token, max_token, max_order)
+    mean, var, counts_out, ngram = k2.get_best_matching_stats(
+        tokens.to(torch.device('cpu')), scores.to(torch.device('cpu')),
+        counts.to(torch.device('cpu')),
+        eos, min_token, max_token, max_order
+    )
+
+    mean = mean.to(device)
+    var = var.to(device)
+    counts_out = counts_out.to(device)
+    ngram = ngram.to(device)
 
     queries_init_scores = queries.fsa.scores.clone()
     # only return the stats on query positions

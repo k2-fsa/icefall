@@ -82,7 +82,10 @@ class Nbest(object):
 
         one_best = k2.remove_epsilon(one_best)
 
+        one_best = k2.top_sort(k2.connect(one_best))
+
         return Nbest(fsa=one_best, shape=self.shape)
+
 
     def total_scores(self) -> k2.RaggedFloat:
         '''Get total scores of the FSAs in this Nbest.
@@ -100,7 +103,7 @@ class Nbest(object):
         # If k2.RaggedDouble is wrapped, we can use double precision here.
         return k2.RaggedFloat(self.shape, scores.float())
 
-    def top_k(self, k: int) -> 'Nbest':
+    def top_k(self, k: int, scores: k2.RaggedFloat = None) -> 'Nbest':
         '''Get a subset of paths in the Nbest. The resulting Nbest is regular
         in that each sequence (i.e., utterance) has the same number of
         paths (k).
@@ -113,10 +116,14 @@ class Nbest(object):
         Args:
           k:
             Number of paths in each utterance.
+          scores:
+            The scores using to select top-k.
         Returns:
           Return a new Nbest with a regular shape.
         '''
-        ragged_scores = self.total_scores()
+        ragged_scores = scores
+        if ragged_scores is None:
+            ragged_scores = self.total_scores()
 
         # indexes contains idx01's for self.shape
         # ragged_scores.values()[indexes] is sorted
@@ -140,6 +147,7 @@ class Nbest(object):
 
         top_k_shape = k2.ragged.regular_ragged_shape(dim0=self.shape.dim0(),
                                                      dim1=k)
+        top_k_shape = top_k_shape.to(top_k_fsas.device)
         return Nbest(top_k_fsas, top_k_shape)
 
 
@@ -163,7 +171,7 @@ class Nbest(object):
         # indexes contains idx01's for self.shape
         indexes = torch.arange(
             self.shape.num_elements(), dtype=torch.int32,
-            device=self.shape.device
+            device=self.fsa.device
         )
 
         if sort:
@@ -176,9 +184,12 @@ class Nbest(object):
 
         ragged_indexes = k2.RaggedInt(self.shape, indexes)
 
-        padded_indexes = k2.ragged.pad(ragged_indexes, value=-1)
+        padded_indexes = k2.ragged.pad(ragged_indexes,
+                                       value=-1)
 
         # Select the idx01's of top-k paths of each utterance
+        max_num_fsa = padded_indexes.size()[1]
+
         first_indexes = padded_indexes[:, :k].flatten().contiguous()
 
         # Remove the padding elements
