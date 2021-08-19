@@ -138,7 +138,7 @@ class AsrDataModule(DataModule):
         ]
 
         train = K2SpeechRecognitionDataset(
-            cuts_train,
+            return_cuts=True,
             cut_transforms=transforms,
             input_transforms=input_transforms,
         )
@@ -171,6 +171,8 @@ class AsrDataModule(DataModule):
                 max_duration=self.args.max_duration,
                 shuffle=True,
                 num_buckets=self.args.num_buckets,
+                drop_last=True,
+                bucket_method="equal_duration",
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -184,8 +186,8 @@ class AsrDataModule(DataModule):
             train,
             sampler=train_sampler,
             batch_size=None,
-            num_workers=4,
-            persistent_workers=True,
+            num_workers=2,
+            persistent_workers=False,
         )
         return train_dl
 
