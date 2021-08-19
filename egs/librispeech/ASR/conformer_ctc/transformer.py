@@ -274,9 +274,11 @@ class Transformer(nn.Module):
             device
         )
 
-        # TODO: Use eos_id as ignore_id.
-        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
-        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
+        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        tgt_key_padding_mask[:, 0] = False
 
         tgt = self.decoder_embed(ys_in_pad)  # (N, T) -> (N, T, C)
         tgt = self.decoder_pos(tgt)
@@ -339,9 +341,11 @@ class Transformer(nn.Module):
             device
         )
 
-        # TODO: Use eos_id as ignore_id.
-        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
-        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
+        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        tgt_key_padding_mask[:, 0] = False
 
         tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
         tgt = self.decoder_pos(tgt)

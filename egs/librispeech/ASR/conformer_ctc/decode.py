@@ -284,7 +284,7 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_cuts = len(dl.dataset.cuts)
+    tot_num_batches = len(dl)
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -314,9 +314,8 @@ def decode_dataset(
 
         if batch_idx % 100 == 0:
             logging.info(
-                f"batch {batch_idx}, cuts processed until now is "
-                f"{num_cuts}/{tot_num_cuts} "
-                f"({float(num_cuts)/tot_num_cuts*100:.6f}%)"
+                f"batch {batch_idx}/{tot_num_batches}, cuts processed until now is "
+                f"{num_cuts}"
             )
     return results
 
@@ -376,7 +375,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log/log-decode")
+    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
     logging.info("Decoding started")
     logging.info(params)
 
