@@ -4,12 +4,9 @@
 import math
 from typing import Dict, List, Optional, Tuple
 
-import k2
 import torch
 import torch.nn as nn
 from subsampling import Conv2dSubsampling, VggSubsampling
-
-from icefall.utils import get_texts
 from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
