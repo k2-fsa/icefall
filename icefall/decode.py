@@ -546,6 +546,8 @@ def rescore_with_whole_lattice(
     del lattice.lm_scores
     assert hasattr(lattice, "lm_scores") is False
 
+    assert hasattr(G_with_epsilon_loops, "lm_scores")
+
     # Now, lattice.scores contains only am_scores
 
     # inv_lattice has word IDs as labels.
@@ -677,10 +679,12 @@ def rescore_with_attention_decoder(
     num_paths: int,
     model: nn.Module,
     memory: torch.Tensor,
-    memory_key_padding_mask: torch.Tensor,
+    memory_key_padding_mask: Optional[torch.Tensor],
     sos_id: int,
     eos_id: int,
     scale: float = 1.0,
+    ngram_lm_scale: Optional[float] = None,
+    attention_scale: Optional[float] = None,
 ) -> Dict[str, k2.Fsa]:
     """This function extracts n paths from the given lattice and uses
     an attention decoder to rescore them. The path with the highest
@@ -707,6 +711,10 @@ def rescore_with_attention_decoder(
       scale:
         It's the scale applied to the lattice.scores. A smaller value
         yields more unique paths.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
     Returns:
       A dict of FsaVec, whose key contains a string
       ngram_lm_scale_attention_scale and the value is the
@@ -794,11 +802,13 @@ def rescore_with_attention_decoder(
     path_to_seq_map_long = path_to_seq_map.to(torch.long)
     expanded_memory = memory.index_select(1, path_to_seq_map_long)
 
-    expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
-        0, path_to_seq_map_long
-    )
+    if memory_key_padding_mask is not None:
+        expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
+            0, path_to_seq_map_long
+        )
+    else:
+        expanded_memory_key_padding_mask = None
 
-    # TODO: pass the sos_token_id and eos_token_id via function arguments
     nll = model.decoder_nll(
         memory=expanded_memory,
         memory_key_padding_mask=expanded_memory_key_padding_mask,
@@ -813,11 +823,17 @@ def rescore_with_attention_decoder(
     assert attention_scores.ndim == 1
     assert attention_scores.numel() == num_word_seqs
 
-    ngram_lm_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-    ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    if ngram_lm_scale is None:
+        ngram_lm_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        ngram_lm_scale_list = [ngram_lm_scale]
 
-    attention_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-    attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    if attention_scale is None:
+        attention_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        attention_scale_list = [attention_scale]
 
     path_2axes = k2.ragged.remove_axis(path, 0)
 
