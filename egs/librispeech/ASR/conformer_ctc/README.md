@@ -6,7 +6,7 @@ You need to prepare 4 files:
   - a model checkpoint file, e.g., epoch-20.pt
   - HLG.pt, the decoding graph
   - words.txt, the word symbol table
-  - a sound file, whose sampling rate has to be 16 kHz
+  - a sound file, whose sampling rate has to be 16 kHz.
     Supported formats are those supported by `torchaudio.load()`,
     e.g., wav and flac.
 
@@ -43,7 +43,7 @@ If you want to transcribe multiple files at the same time, you can use:
   --HLG /path/to/HLG.pt \
   /path/to/your/sound1.wav \
   /path/to/your/sound2.wav \
-  /path/to/your/sound3.wav \
+  /path/to/your/sound3.wav
 ```
 
 **Note**: This is the fastest decoding method.
@@ -69,7 +69,7 @@ The command to run decoding with LM rescoring is:
   --ngram-lm-scale 0.8 \
   /path/to/your/sound1.wav \
   /path/to/your/sound2.wav \
-  /path/to/your/sound3.wav \
+  /path/to/your/sound3.wav
 ```
 
 ## HLG Decoding + LM rescoring + attention decoder rescoring
@@ -96,5 +96,5 @@ The command to run decoding with attention decoder rescoring is:
   --eos-id 1 \
   /path/to/your/sound1.wav \
   /path/to/your/sound2.wav \
-  /path/to/your/sound3.wav \
+  /path/to/your/sound3.wav
 ```
