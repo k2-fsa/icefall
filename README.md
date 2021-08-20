@@ -53,6 +53,13 @@ It should print the path to `icefall`.
 At present, only LibriSpeech recipe is provided. Please
 follow [egs/librispeech/ASR/README.md][LibriSpeech] to run it.
 
+## Use Pre-trained models
+
+See [egs/librispeech/ASR/conformer_ctc/README.md](egs/librispeech/ASR/conformer_ctc/README.md)
+for how to use pre-trained models.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
+
+
 [LibriSpeech]: egs/librispeech/ASR/README.md
 [k2-install]: https://k2.readthedocs.io/en/latest/installation/index.html#
 [k2]: https://github.com/k2-fsa/k2

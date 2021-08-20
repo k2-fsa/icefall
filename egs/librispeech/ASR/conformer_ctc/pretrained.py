@@ -245,11 +245,11 @@ def main():
     if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
         logging.info(f"Loading G from {params.G}")
         G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
+        G = G.to(device)
         # Add epsilon self-loops to G as we will compose
         # it with the whole lattice later
         G = k2.add_epsilon_self_loops(G)
         G = k2.arc_sort(G)
-        G = G.to(device)
         G.lm_scores = G.scores.clone()
 
     logging.info("Constructing Fbank computer")
