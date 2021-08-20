@@ -750,7 +750,7 @@ def rescore_with_attention_decoder(
     # Since k2.ragged.unique_sequences will reorder paths within a seq,
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
     # to the input path index.
-    # new2old.numel() == unique_word_seqs.tot_size(1)
+    # new2old.numel() == unique_word_seq.tot_size(1)
     unique_word_seq, num_repeats, new2old = k2.ragged.unique_sequences(
         word_seq, need_num_repeats=True, need_new2old_indexes=True
     )

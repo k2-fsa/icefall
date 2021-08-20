@@ -16,6 +16,7 @@ import torch.nn as nn
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_value_
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
@@ -145,7 +146,6 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
-            #
             "accum_grad": 1,
             "att_rate": 0.7,
             "attention_dim": 512,
@@ -463,7 +463,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
+        clip_grad_value_(model.parameters(), 5.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()

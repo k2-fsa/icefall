@@ -171,6 +171,8 @@ class AsrDataModule(DataModule):
                 max_duration=self.args.max_duration,
                 shuffle=True,
                 num_buckets=self.args.num_buckets,
+                bucket_method='equal_duration',
+                drop_last=True,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -184,8 +186,8 @@ class AsrDataModule(DataModule):
             train,
             sampler=train_sampler,
             batch_size=None,
-            num_workers=4,
-            persistent_workers=True,
+            num_workers=2,
+            persistent_workers=False,
         )
         return train_dl
 
@@ -214,7 +216,7 @@ class AsrDataModule(DataModule):
             sampler=valid_sampler,
             batch_size=None,
             num_workers=2,
-            persistent_workers=True,
+            persistent_workers=False,
         )
         return valid_dl
 
