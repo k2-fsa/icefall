@@ -1,6 +1,8 @@
 
 # How to use a pre-trained model to transcribe a sound file or multiple sound files
 
+(See the bottom of this document for the link to a colab notebook.)
+
 You need to prepare 4 files:
 
   - a model checkpoint file, e.g., epoch-20.pt
@@ -99,21 +101,24 @@ The command to run decoding with attention decoder rescoring is:
   /path/to/your/sound3.wav
 ```
 
-# Decoding with a pretrained model in action
+# Decoding with a pre-trained model in action
 
-We have uploaded a pretrained model to <https://huggingface.co/pkufool/conformer_ctc>
+We have uploaded a pre-trained model to <https://huggingface.co/pkufool/conformer_ctc>
 
-The following shows the steps about the usage of the provided pretrained model.
+The following shows the steps about the usage of the provided pre-trained model.
 
-### (1) Download the pretrained model
+### (1) Download the pre-trained model
 
 ```bash
+sudo apt-get install git-lfs
 cd /path/to/icefall/egs/librispeech/ASR
+git lfs install
 mkdir tmp
 cd tmp
 git clone https://huggingface.co/pkufool/conformer_ctc
-
 ```
+
+**CAUTION**: You have to install `git-lfst` to download the pre-trained model.
 
 You will find the following files:
 
@@ -165,7 +170,7 @@ tmp
 
   - `exp/pretrained.pt`
 
-      It contains pretrained model parameters, obtained by averaging
+      It contains pre-trained model parameters, obtained by averaging
       checkpoints from `epoch-15.pt` to `epoch-34.pt`.
       Note: We have removed optimizer `state_dict` to reduce file size.
 
@@ -337,3 +342,10 @@ YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 2021-08-20 11:20:05,805 INFO [pretrained.py:341] Decoding Done
 ```
+
+**NOTE**: We provide a colab notebook for demonstration.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
+
+Due to limited memory provided by Colab, you have to upgrade to Colab Pro to
+run `HLG decoding + LM rescoring` and `HLG decoding + LM rescoring + attention decoder rescoring`.
+Otherwise, you can only run `HLG decoding` with Colab.
