@@ -13,10 +13,10 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.nn.utils import clip_grad_value_
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
@@ -24,7 +24,6 @@ from transformer import Noam
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -61,9 +60,6 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
-    # TODO: add extra arguments and support DDP training.
-    # Currently, only single GPU training is implemented. Will add
-    # DDP training once single GPU training is finished.
     return parser
 
 
@@ -463,7 +459,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_value_(model.parameters(), 5.0)
+        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()

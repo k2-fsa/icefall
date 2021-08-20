@@ -13,11 +13,11 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -222,7 +222,7 @@ def decode_one_batch(
                 use_double_scores=params.use_double_scores,
                 scale=params.lattice_score_scale,
             )
-            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"
+            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
         hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
@@ -317,7 +317,11 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_batches = len(dl)
+
+    try:
+        num_batches = len(dl)
+    except TypeError:
+        num_batches = None
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -346,10 +350,13 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
+            if num_batches is not None:
+                batch_str = f"{batch_idx}/{num_batches}"
+            else:
+                batch_str = f"{batch_idx}"
+
             logging.info(
-                f"batch {batch_idx}/{tot_num_batches}, cuts processed until now is "
-                f"{num_cuts}"
-                f"batch {batch_idx}, cuts processed until now is {num_cuts}"
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
     return results
 
