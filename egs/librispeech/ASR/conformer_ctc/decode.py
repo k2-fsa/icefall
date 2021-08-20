@@ -21,6 +21,7 @@ from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
+    nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
@@ -56,6 +57,18 @@ def get_parser():
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
+
+    parser.add_argument(
+        "--lattice-score-scale",
+        type=float,
+        default=1.0,
+        help="The scale to be applied to `lattice.scores`."
+        "It's needed if you use any kinds of n-best based rescoring. "
+        "Currently, it is used when the decoding method is: nbest, "
+        "nbest-rescoring, attention-decoder, and nbest-oracle. "
+        "A smaller value results in more unique paths.",
+    )
+
     return parser
 
 
@@ -85,10 +98,14 @@ def get_params() -> AttributeDict:
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
             #  - attention-decoder
+            #  - nbest-oracle
+            #  "method": "nbest",
+            #  "method": "nbest-rescoring",
             #  "method": "whole-lattice-rescoring",
             "method": "attention-decoder",
+            #  "method": "nbest-oracle",
             # num_paths is used when method is "nbest", "nbest-rescoring",
-            # and attention-decoder
+            # attention-decoder, and nbest-oracle
             "num_paths": 100,
         }
     )
@@ -179,6 +196,19 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
+    if params.method == "nbest-oracle":
+        # Note: You can also pass rescored lattices to it.
+        # We choose the HLG decoded lattice for speed reasons
+        # as HLG decoding is faster and the oracle WER
+        # is slightly worse than that of rescored lattices.
+        return nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            lexicon=lexicon,
+            scale=params.lattice_score_scale,
+        )
+
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
             best_path = one_best_decoding(
@@ -190,8 +220,9 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
+                scale=params.lattice_score_scale,
             )
-            key = f"no_rescore-{params.num_paths}"
+            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"
 
         hyps = get_texts(best_path)
         hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
@@ -212,6 +243,7 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
+            scale=params.lattice_score_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
@@ -231,6 +263,7 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
+            scale=params.lattice_score_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
