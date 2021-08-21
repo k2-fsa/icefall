@@ -46,6 +46,7 @@ def main(out_dir: str):
         "4-gram.arpa.gz",
         "librispeech-vocab.txt",
         "librispeech-lexicon.txt",
+        "librispeech-lm-norm.txt.gz"
     )
 
     for f in tqdm(files_to_download, desc="Downloading LibriSpeech LM files"):
