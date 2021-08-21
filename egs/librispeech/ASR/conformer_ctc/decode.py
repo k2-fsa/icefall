@@ -321,7 +321,7 @@ def decode_dataset(
     try:
         num_batches = len(dl)
     except TypeError:
-        num_batches = None
+        num_batches = "?"
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -350,10 +350,7 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
-            if num_batches is not None:
-                batch_str = f"{batch_idx}/{num_batches}"
-            else:
-                batch_str = f"{batch_idx}"
+            batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"

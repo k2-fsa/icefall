@@ -14,7 +14,6 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.dataloading import LhotseDataLoader
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from torch.utils.data import DataLoader
 
@@ -87,7 +86,7 @@ class LibriSpeechAsrDataModule(DataModule):
         group.add_argument(
             "--concatenate-cuts",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, utterances (cuts) will be concatenated "
             "to minimize the amount of padding.",
         )
@@ -199,8 +198,7 @@ class LibriSpeechAsrDataModule(DataModule):
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80)),
-                    num_workers=self.args.num_workers_inner,
+                    Fbank(FbankConfig(num_mel_bins=80))
                 ),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
@@ -225,19 +223,12 @@ class LibriSpeechAsrDataModule(DataModule):
             )
         logging.info("About to create train dataloader")
 
-        #  train_dl = DataLoader(
-        #      train,
-        #      sampler=train_sampler,
-        #      batch_size=None,
-        #      num_workers=2,
-        #      persistent_workers=False,
-        #  )
-
-        train_dl = LhotseDataLoader(
+        train_dl = DataLoader(
             train,
             sampler=train_sampler,
-            num_workers=self.args.num_workers,
-            prefetch_factor=5,
+            batch_size=None,
+            num_workers=2,
+            persistent_workers=False,
         )
 
         return train_dl
@@ -274,18 +265,12 @@ class LibriSpeechAsrDataModule(DataModule):
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
-        #  valid_dl = DataLoader(
-        #      validate,
-        #      sampler=valid_sampler,
-        #      batch_size=None,
-        #      num_workers=2,
-        #      persistent_workers=False,
-        #  )
-
-        valid_dl = LhotseDataLoader(
+        valid_dl = DataLoader(
             validate,
             sampler=valid_sampler,
+            batch_size=None,
             num_workers=2,
+            persistent_workers=False,
         )
 
         return valid_dl
@@ -301,20 +286,19 @@ class LibriSpeechAsrDataModule(DataModule):
             logging.debug("About to create test dataset")
             test = K2SpeechRecognitionDataset(
                 input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80), num_workers=4)
-                    if self.args.on_the_fly_feats
-                    else PrecomputedFeatures()
-                ),
+                    Fbank(FbankConfig(num_mel_bins=80))
+                )
+                if self.args.on_the_fly_feats
+                else PrecomputedFeatures(),
                 return_cuts=self.args.return_cuts,
             )
             sampler = SingleCutSampler(
                 cuts_test, max_duration=self.args.max_duration
             )
             logging.debug("About to create test dataloader")
-            #  test_dl = DataLoader(
-            #      test, batch_size=None, sampler=sampler, num_workers=1
-            #  )
-            test_dl = LhotseDataLoader(test, sampler=sampler, num_workers=2)
+            test_dl = DataLoader(
+                test, batch_size=None, sampler=sampler, num_workers=1
+            )
             test_loaders.append(test_dl)
 
         if is_list:
