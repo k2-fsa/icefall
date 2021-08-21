@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# This is just at the very beginning ...
-
 import argparse
 import logging
 from pathlib import Path
@@ -14,16 +12,16 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
+from asr_datamodule import LibriSpeechAsrDataModule
 from lhotse.utils import fix_random_seed
 from model import TdnnLstm
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.nn.utils import clip_grad_value_
+from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
@@ -61,9 +59,6 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
-    # TODO: add extra arguments and support DDP training.
-    # Currently, only single GPU training is implemented. Will add
-    # DDP training once single GPU training is finished.
     return parser
 
 
@@ -406,7 +401,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_value_(model.parameters(), 5.0)
+        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()

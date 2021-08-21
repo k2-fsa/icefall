@@ -91,7 +91,7 @@ def load_checkpoint(
     checkpoint.pop("model")
 
     def load(name, obj):
-        s = checkpoint[name]
+        s = checkpoint.get(name, None)
         if obj and s:
             obj.load_state_dict(s)
             checkpoint.pop(name)
