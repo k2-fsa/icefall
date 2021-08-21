@@ -137,15 +137,6 @@ class LibriSpeechAsrDataModule(DataModule):
             "collect the batches.",
         )
 
-        group.add_argument(
-            "--num-workers-inner",
-            type=int,
-            default=8,
-            help="The number of sub-workers (replicated for each of "
-            "training dataloader workers) that parallelize "
-            "the I/O to collect each batch.",
-        )
-
     def train_dataloaders(self) -> DataLoader:
         logging.info("About to get train cuts")
         cuts_train = self.train_cuts()
@@ -227,7 +218,7 @@ class LibriSpeechAsrDataModule(DataModule):
             train,
             sampler=train_sampler,
             batch_size=None,
-            num_workers=2,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
         )
 
