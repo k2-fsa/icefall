@@ -333,7 +333,7 @@ def main():
     logging.info(f"device: {device}")
 
     HLG = k2.Fsa.from_dict(
-        torch.load("data/lang_phone/HLG.pt", map_location="cpu")
+        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
     )
     HLG = HLG.to(device)
     assert HLG.requires_grad is False

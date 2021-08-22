@@ -496,6 +496,10 @@ def run(rank, world_size, args):
 
     yes_no = YesNoAsrDataModule(args)
     train_dl = yes_no.train_dataloaders()
+
+    # There are only 60 waves: 30 files are used for training
+    # and the remaining 30 files are used for testing.
+    # We use test data as validation.
     valid_dl = yes_no.test_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
