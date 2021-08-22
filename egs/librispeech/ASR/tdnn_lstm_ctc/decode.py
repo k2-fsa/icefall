@@ -10,10 +10,10 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from model import TdnnLstm
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -236,7 +236,11 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_cuts = len(dl.dataset.cuts)
+
+    try:
+        num_batches = len(dl)
+    except TypeError:
+        num_batches = "?"
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -263,10 +267,10 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
+            batch_str = f"{batch_idx}/{num_batches}"
+
             logging.info(
-                f"batch {batch_idx}, cuts processed until now is "
-                f"{num_cuts}/{tot_num_cuts} "
-                f"({float(num_cuts)/tot_num_cuts*100:.6f}%)"
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
     return results
 
@@ -328,7 +332,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(torch.load("data/lang_phone/HLG.pt"))
+    HLG = k2.Fsa.from_dict(
+        torch.load("data/lang_phone/HLG.pt", map_location="cpu")
+    )
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -355,7 +361,7 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt")
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
             G = k2.Fsa.from_dict(d).to(device)
 
         if params.method == "whole-lattice-rescoring":

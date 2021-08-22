@@ -13,6 +13,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -23,7 +24,6 @@ from transformer import Noam
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -60,9 +60,6 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
-    # TODO: add extra arguments and support DDP training.
-    # Currently, only single GPU training is implemented. Will add
-    # DDP training once single GPU training is finished.
     return parser
 
 
@@ -127,7 +124,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp_new"),
+            "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "weight_decay": 1e-6,
@@ -145,7 +142,6 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
-            #
             "accum_grad": 1,
             "att_rate": 0.7,
             "attention_dim": 512,

@@ -13,14 +13,15 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
+    nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
@@ -56,6 +57,18 @@ def get_parser():
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
+
+    parser.add_argument(
+        "--lattice-score-scale",
+        type=float,
+        default=1.0,
+        help="The scale to be applied to `lattice.scores`."
+        "It's needed if you use any kinds of n-best based rescoring. "
+        "Currently, it is used when the decoding method is: nbest, "
+        "nbest-rescoring, attention-decoder, and nbest-oracle. "
+        "A smaller value results in more unique paths.",
+    )
+
     return parser
 
 
@@ -85,10 +98,14 @@ def get_params() -> AttributeDict:
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
             #  - attention-decoder
+            #  - nbest-oracle
+            #  "method": "nbest",
+            #  "method": "nbest-rescoring",
             #  "method": "whole-lattice-rescoring",
             "method": "attention-decoder",
+            #  "method": "nbest-oracle",
             # num_paths is used when method is "nbest", "nbest-rescoring",
-            # and attention-decoder
+            # attention-decoder, and nbest-oracle
             "num_paths": 100,
         }
     )
@@ -179,6 +196,19 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
+    if params.method == "nbest-oracle":
+        # Note: You can also pass rescored lattices to it.
+        # We choose the HLG decoded lattice for speed reasons
+        # as HLG decoding is faster and the oracle WER
+        # is slightly worse than that of rescored lattices.
+        return nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            lexicon=lexicon,
+            scale=params.lattice_score_scale,
+        )
+
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
             best_path = one_best_decoding(
@@ -190,8 +220,9 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
+                scale=params.lattice_score_scale,
             )
-            key = f"no_rescore-{params.num_paths}"
+            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
         hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
@@ -212,6 +243,7 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
+            scale=params.lattice_score_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
@@ -231,6 +263,7 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
+            scale=params.lattice_score_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
@@ -284,7 +317,11 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_cuts = len(dl.dataset.cuts)
+
+    try:
+        num_batches = len(dl)
+    except TypeError:
+        num_batches = "?"
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -313,10 +350,10 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
+            batch_str = f"{batch_idx}/{num_batches}"
+
             logging.info(
-                f"batch {batch_idx}, cuts processed until now is "
-                f"{num_cuts}/{tot_num_cuts} "
-                f"({float(num_cuts)/tot_num_cuts*100:.6f}%)"
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
     return results
 
@@ -376,7 +413,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log/log-decode")
+    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
     logging.info("Decoding started")
     logging.info(params)
 
@@ -399,7 +436,9 @@ def main():
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt"))
+    HLG = k2.Fsa.from_dict(
+        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
+    )
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -430,7 +469,7 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt")
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
             G = k2.Fsa.from_dict(d).to(device)
 
         if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
