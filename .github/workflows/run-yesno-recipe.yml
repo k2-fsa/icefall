@@ -43,32 +43,39 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install libnsdfile and libsox
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -q -y libsndfile1-dev libsndfile1 ffmpeg
+          sudo apt install -q -y --fix-missing sox libsox-dev libsox-fmt-all
+
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip black flake8
           python3 -m pip install -U pip
-          python3 -m pip install k2==1.4.dev20210822+cpu.torch1.9.0 -f https://k2-fsa.org/nightly/
-          python3 -m pip install torchaudio==0.9.0
+          python3 -m pip install k2==1.4.dev20210822+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
+          python3 -m pip install torchaudio==0.7.2
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse
-          git clone
 
-      - name: Download icefall
-        shell: bash
-        working-directory: ${{github.workspace}}
-        run: |
-          git clone https://github.com/k2-fsa/icefall
-          # remove the following block if the yesno recipe gets merged
-          cd icefall
-          git remote add kk https://github.com/csukuangfj/icefall
-          git fetch kk
-          git checkout yesno
+          # We are in ./icefall and there is a file: requirements.txt in it
+          python3 -m pip install -r requirements.txt
 
       - name: Run yesno recipe
         shell: bash
         working-directory: ${{github.workspace}}
         run: |
-          export PYTHONPATH=$PWD/icefall:$PYTHONPATH
-          cd icefall/egs/yesno/ASR
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+          ls -lh
+
+          # The following three lines are for macOS
+          lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+          echo "lib_path: $lib_path"
+          export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
+          ls -lh $lib_path
+
+          cd egs/yesno/ASR
           ./prepare.sh
           ./tdnn/train.py
           ./tdnn/decode.py --epoch 49
