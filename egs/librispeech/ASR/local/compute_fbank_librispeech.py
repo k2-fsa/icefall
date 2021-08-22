@@ -2,7 +2,7 @@
 
 """
 This file computes fbank features of the LibriSpeech dataset.
-Its looks for manifests in the directory data/manifests.
+It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """
@@ -53,7 +53,8 @@ def compute_fbank_librispeech():
                 continue
             logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
-                recordings=m["recordings"], supervisions=m["supervisions"],
+                recordings=m["recordings"],
+                supervisions=m["supervisions"],
             )
             if "train" in partition:
                 cut_set = (
