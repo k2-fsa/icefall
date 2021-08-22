@@ -26,7 +26,6 @@ class Conformer(Transformer):
         dropout (float): dropout rate
         cnn_module_kernel (int): Kernel size of convolution module
         normalize_before (bool): whether to use layer_norm before the first block.
-        vgg_frontend (bool): whether to use vgg frontend.
     """
 
     def __init__(
@@ -42,10 +41,7 @@ class Conformer(Transformer):
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
-        vgg_frontend: bool = False,
         is_espnet_structure: bool = False,
-        mmi_loss: bool = True,
-        use_feat_batchnorm: bool = False,
     ) -> None:
         super(Conformer, self).__init__(
             num_features=num_features,
@@ -58,9 +54,6 @@ class Conformer(Transformer):
             num_decoder_layers=num_decoder_layers,
             dropout=dropout,
             normalize_before=normalize_before,
-            vgg_frontend=vgg_frontend,
-            mmi_loss=mmi_loss,
-            use_feat_batchnorm=use_feat_batchnorm,
         )
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
