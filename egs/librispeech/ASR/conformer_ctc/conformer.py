@@ -41,7 +41,7 @@ class Conformer(Transformer):
       cnn_module_kernel (int): Kernel size of convolution module
       normalize_before (bool): whether to use layer_norm before the first block.
       vgg_frontend (bool): whether to use vgg frontend.
-    """  # noqa E501
+    """
 
     def __init__(
         self,
@@ -872,7 +872,7 @@ class ConvolutionModule(nn.Module):
         kernel_size (int): Kernerl size of conv layers.
         bias (bool): Whether to use bias in conv layers (default=True).
 
-    """  # noqa
+    """
 
     def __init__(
         self, channels: int, kernel_size: int, bias: bool = True
