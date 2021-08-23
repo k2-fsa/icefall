@@ -59,6 +59,13 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=50,
+        help="Number of epochs to train.",
+    )
+
     return parser
 
 
