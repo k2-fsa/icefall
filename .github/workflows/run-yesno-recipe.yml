@@ -74,8 +74,5 @@ jobs:
           cd egs/yesno/ASR
           ./prepare.sh
           python3 ./tdnn/train.py
-          python3 ./tdnn/decode.py --avg 2
-          python3 ./tdnn/decode.py --avg 3
-          python3 ./tdnn/decode.py --avg 4
-          python3 ./tdnn/decode.py --avg 5
+          python3 ./tdnn/decode.py
           # TODO: Check that the WER is less than some value
