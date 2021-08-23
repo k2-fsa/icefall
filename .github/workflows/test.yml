@@ -50,7 +50,9 @@ jobs:
           python3 -m pip install --upgrade pip pytest kaldialign torch==${{ matrix.torch }}
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
 
-          pip install lhotse
+          git clone https://github.com/lhotse-speech/lhotse
+          cd lhotse
+          python setup.py install
 
 
       - name: Run tests
