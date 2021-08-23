@@ -48,10 +48,22 @@ python3 -c "import icefall; print(icefall.__file__)"
 
 It should print the path to `icefall`.
 
-## Run recipes
+## Recipes
 
-At present, only LibriSpeech recipe is provided. Please
-follow [egs/librispeech/ASR/README.md][LibriSpeech] to run it.
+At present, two recipes are provided:
+
+  - [LibriSpeech][LibriSpeech]
+  - [yesno][yesno] [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
+
+### Yesno
+
+For the yesno recipe, training with 50 epochs takes less than 2 minutes using **CPU**.
+
+The WER is
+
+```
+[test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
+```
 
 ## Use Pre-trained models
 
@@ -60,6 +72,7 @@ for how to use pre-trained models.
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
 
 
+[yesno]: egs/yesno/ASR/README.md
 [LibriSpeech]: egs/librispeech/ASR/README.md
 [k2-install]: https://k2.readthedocs.io/en/latest/installation/index.html#
 [k2]: https://github.com/k2-fsa/k2

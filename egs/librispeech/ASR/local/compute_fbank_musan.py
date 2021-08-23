@@ -18,7 +18,7 @@
 
 """
 This file computes fbank features of the musan dataset.
-Its looks for manifests in the directory data/manifests.
+It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """

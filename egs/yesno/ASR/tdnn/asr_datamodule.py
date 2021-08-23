@@ -1,4 +1,5 @@
 # Copyright      2021  Piotr Żelasko
+#                2021  Xiaomi Corp.        (authors: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -13,19 +14,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 import argparse
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
     BucketingSampler,
     CutConcatenate,
-    CutMix,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -38,10 +36,10 @@ from icefall.dataset.datamodule import DataModule
 from icefall.utils import str2bool
 
 
-class LibriSpeechAsrDataModule(DataModule):
+class YesNoAsrDataModule(DataModule):
     """
     DataModule for k2 ASR experiments.
-    It assumes there is always one train and valid dataloader,
+    It assumes there is always one train dataloader,
     but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
     and test-other).
 
@@ -52,8 +50,6 @@ class LibriSpeechAsrDataModule(DataModule):
     - cut concatenation,
     - augmentation,
     - on-the-fly feature extraction
-
-    This class should be derived for specific corpora used in ASR tasks.
     """
 
     @classmethod
@@ -67,22 +63,15 @@ class LibriSpeechAsrDataModule(DataModule):
             "augmentations, etc.",
         )
         group.add_argument(
-            "--full-libri",
-            type=str2bool,
-            default=True,
-            help="When enabled, use 960h LibriSpeech. "
-            "Otherwise, use 100h subset.",
-        )
-        group.add_argument(
             "--feature-dir",
             type=Path,
             default=Path("data/fbank"),
-            help="Path to directory with train/valid/test cuts.",
+            help="Path to directory with train/test cuts.",
         )
         group.add_argument(
             "--max-duration",
             type=int,
-            default=500.0,
+            default=30.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
@@ -96,7 +85,7 @@ class LibriSpeechAsrDataModule(DataModule):
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=30,
+            default=10,
             help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -158,11 +147,8 @@ class LibriSpeechAsrDataModule(DataModule):
         logging.info("About to get train cuts")
         cuts_train = self.train_cuts()
 
-        logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(self.args.feature_dir / "cuts_musan.json.gz")
-
         logging.info("About to create train dataset")
-        transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
+        transforms = []
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "
@@ -206,7 +192,7 @@ class LibriSpeechAsrDataModule(DataModule):
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
+                    Fbank(FbankConfig(num_mel_bins=23))
                 ),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
@@ -241,114 +227,34 @@ class LibriSpeechAsrDataModule(DataModule):
 
         return train_dl
 
-    def valid_dataloaders(self) -> DataLoader:
-        logging.info("About to get dev cuts")
-        cuts_valid = self.valid_cuts()
+    def test_dataloaders(self) -> DataLoader:
+        logging.info("About to get test cuts")
+        cuts_test = self.test_cuts()
 
-        transforms = []
-        if self.args.concatenate_cuts:
-            transforms = [
-                CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
-                )
-            ] + transforms
-
-        logging.info("About to create dev dataset")
-        if self.args.on_the_fly_feats:
-            validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
-                return_cuts=self.args.return_cuts,
-            )
-        else:
-            validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                return_cuts=self.args.return_cuts,
-            )
-        valid_sampler = SingleCutSampler(
-            cuts_valid,
-            max_duration=self.args.max_duration,
-            shuffle=False,
+        logging.debug("About to create test dataset")
+        test = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=23)))
+            if self.args.on_the_fly_feats
+            else PrecomputedFeatures(),
+            return_cuts=self.args.return_cuts,
         )
-        logging.info("About to create dev dataloader")
-        valid_dl = DataLoader(
-            validate,
-            sampler=valid_sampler,
-            batch_size=None,
-            num_workers=2,
-            persistent_workers=False,
+        sampler = SingleCutSampler(
+            cuts_test, max_duration=self.args.max_duration
         )
-
-        return valid_dl
-
-    def test_dataloaders(self) -> Union[DataLoader, List[DataLoader]]:
-        cuts = self.test_cuts()
-        is_list = isinstance(cuts, list)
-        test_loaders = []
-        if not is_list:
-            cuts = [cuts]
-
-        for cuts_test in cuts:
-            logging.debug("About to create test dataset")
-            test = K2SpeechRecognitionDataset(
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                )
-                if self.args.on_the_fly_feats
-                else PrecomputedFeatures(),
-                return_cuts=self.args.return_cuts,
-            )
-            sampler = SingleCutSampler(
-                cuts_test, max_duration=self.args.max_duration
-            )
-            logging.debug("About to create test dataloader")
-            test_dl = DataLoader(
-                test, batch_size=None, sampler=sampler, num_workers=1
-            )
-            test_loaders.append(test_dl)
-
-        if is_list:
-            return test_loaders
-        else:
-            return test_loaders[0]
+        logging.debug("About to create test dataloader")
+        test_dl = DataLoader(
+            test, batch_size=None, sampler=sampler, num_workers=1
+        )
+        return test_dl
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(
-            self.args.feature_dir / "cuts_train-clean-100.json.gz"
-        )
-        if self.args.full_libri:
-            cuts_train = (
-                cuts_train
-                + load_manifest(
-                    self.args.feature_dir / "cuts_train-clean-360.json.gz"
-                )
-                + load_manifest(
-                    self.args.feature_dir / "cuts_train-other-500.json.gz"
-                )
-            )
+        cuts_train = load_manifest(self.args.feature_dir / "cuts_train.json.gz")
         return cuts_train
 
     @lru_cache()
-    def valid_cuts(self) -> CutSet:
-        logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(
-            self.args.feature_dir / "cuts_dev-clean.json.gz"
-        ) + load_manifest(self.args.feature_dir / "cuts_dev-other.json.gz")
-        return cuts_valid
-
-    @lru_cache()
     def test_cuts(self) -> List[CutSet]:
-        test_sets = ["test-clean", "test-other"]
-        cuts = []
-        for test_set in test_sets:
-            logging.debug("About to get test cuts")
-            cuts.append(
-                load_manifest(
-                    self.args.feature_dir / f"cuts_{test_set}.json.gz"
-                )
-            )
-        return cuts
+        logging.info("About to get test cuts")
+        cuts_test = load_manifest(self.args.feature_dir / "cuts_test.json.gz")
+        return cuts_test
