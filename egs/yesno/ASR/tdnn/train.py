@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 
 import argparse
 import logging
@@ -28,12 +12,11 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import YesNoAsrDataModule
 from lhotse.utils import fix_random_seed
-from model import TdnnLstm
+from model import Tdnn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
-from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import load_checkpoint
@@ -41,12 +24,7 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 
 def get_parser():
@@ -73,6 +51,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=15,
+        help="Number of epochs to train.",
     )
 
     return parser
@@ -137,21 +122,19 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_lstm_ctc/exp"),
+            "exp_dir": Path("tdnn/exp"),
             "lang_dir": Path("data/lang_phone"),
-            "lr": 1e-3,
-            "feature_dim": 80,
-            "weight_decay": 5e-4,
-            "subsampling_factor": 3,
+            "lr": 1e-2,
+            "feature_dim": 23,
+            "weight_decay": 1e-6,
             "start_epoch": 0,
-            "num_epochs": 10,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
             "log_interval": 10,
-            "valid_interval": 1000,
+            "valid_interval": 10,
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
@@ -262,7 +245,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of TdnnLstm in our case.
+        The model for training. It is an instance of Tdnn in our case.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -278,7 +261,6 @@ def compute_loss(
     device = graph_compiler.device
     feature = batch["inputs"]
     # at entry, feature is [N, T, C]
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
     assert feature.ndim == 3
     feature = feature.to(device)
 
@@ -290,15 +272,19 @@ def compute_loss(
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
     supervisions = batch["supervisions"]
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=params.subsampling_factor
+    texts = supervisions["text"]
+
+    batch_size = nnet_output.shape[0]
+    supervision_segments = torch.tensor(
+        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
+        dtype=torch.int32,
     )
+
     decoding_graph = graph_compiler.compile(texts)
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
         supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
     )
 
     loss = k2.ctc_loss(
@@ -493,10 +479,9 @@ def run(rank, world_size, args):
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
 
-    model = TdnnLstm(
+    model = Tdnn(
         num_features=params.feature_dim,
         num_classes=max_phone_id + 1,  # +1 for the blank symbol
-        subsampling_factor=params.subsampling_factor,
     )
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
@@ -505,33 +490,27 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = optim.AdamW(
+    optimizer = optim.SGD(
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,
     )
-    scheduler = StepLR(optimizer, step_size=8, gamma=0.1)
 
     if checkpoints:
         optimizer.load_state_dict(checkpoints["optimizer"])
-        scheduler.load_state_dict(checkpoints["scheduler"])
 
-    librispeech = LibriSpeechAsrDataModule(args)
-    train_dl = librispeech.train_dataloaders()
-    valid_dl = librispeech.valid_dataloaders()
+    yes_no = YesNoAsrDataModule(args)
+    train_dl = yes_no.train_dataloaders()
+
+    # There are only 60 waves: 30 files are used for training
+    # and the remaining 30 files are used for testing.
+    # We use test data as validation.
+    valid_dl = yes_no.test_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)
 
-        if epoch > params.start_epoch:
-            logging.info(f"epoch {epoch}, lr: {scheduler.get_last_lr()[0]}")
-
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/lr",
-                scheduler.get_last_lr()[0],
-                params.batch_idx_train,
-            )
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         params.cur_epoch = epoch
@@ -547,13 +526,11 @@ def run(rank, world_size, args):
             world_size=world_size,
         )
 
-        scheduler.step()
-
         save_checkpoint(
             params=params,
             model=model,
             optimizer=optimizer,
-            scheduler=scheduler,
+            scheduler=None,
             rank=rank,
         )
 
@@ -565,7 +542,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    YesNoAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     world_size = args.world_size

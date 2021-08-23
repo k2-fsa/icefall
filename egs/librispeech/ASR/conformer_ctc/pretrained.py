@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import argparse
 import logging
@@ -59,7 +75,7 @@ def get_parser():
             decoding lattice and then use 1best to decode the
             rescored lattice.
             We call it HLG decoding + n-gram LM rescoring.
-        (3) attention-decoder - Extract n paths from he rescored
+        (3) attention-decoder - Extract n paths from the rescored
             lattice and use the transformer attention decoder for
             rescoring.
             We call it HLG decoding + n-gram LM rescoring + attention
@@ -245,9 +261,9 @@ def main():
     if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
         logging.info(f"Loading G from {params.G}")
         G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
-        G = G.to(device)
         # Add epsilon self-loops to G as we will compose
         # it with the whole lattice later
+        G = G.to(device)
         G = k2.add_epsilon_self_loops(G)
         G = k2.arc_sort(G)
         G.lm_scores = G.scores.clone()
@@ -268,7 +284,7 @@ def main():
     )
     waves = [w.to(device) for w in waves]
 
-    logging.info(f"Decoding started")
+    logging.info("Decoding started")
     features = fbank(waves)
 
     features = pad_sequence(
@@ -338,7 +354,7 @@ def main():
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
-    logging.info(f"Decoding Done")
+    logging.info("Decoding Done")
 
 
 if __name__ == "__main__":

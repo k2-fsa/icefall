@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 
 """
 This script takes as input lang_dir and generates HLG from
@@ -24,7 +8,7 @@ This script takes as input lang_dir and generates HLG from
 
         Caution: We use a lexicon that contains disambiguation symbols
 
-    - G, the LM, built from data/lm/G_3_gram.fst.txt
+    - G, the LM, built from data/lm/G.fst.txt
 
 The generated HLG is saved in $lang_dir/HLG.pt
 """
@@ -65,15 +49,9 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     H = k2.ctc_topo(max_token_id)
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
-    if Path("data/lm/G_3_gram.pt").is_file():
-        logging.info("Loading pre-compiled G_3_gram")
-        d = torch.load("data/lm/G_3_gram.pt")
-        G = k2.Fsa.from_dict(d)
-    else:
-        logging.info("Loading G_3_gram.fst.txt")
-        with open("data/lm/G_3_gram.fst.txt") as f:
-            G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
+    logging.info("Loading G.fst.txt")
+    with open("data/lm/G.fst.txt") as f:
+        G = k2.Fsa.from_openfst(f.read(), acceptor=False)
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
