@@ -32,7 +32,7 @@ jobs:
         os: [ubuntu-18.04, macos-10.15]
         python-version: [3.6, 3.7, 3.8, 3.9]
         torch: ["1.8.1"]
-        k2-version: ["1.2.dev20210724"]
+        k2-version: ["1.4.dev20210822"]
       fail-fast: false
 
     steps:
@@ -47,15 +47,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest kaldialign torch==${{ matrix.torch }}
+          python3 -m pip install --upgrade pip pytest
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           # icefall requirements
           pip install -r requirements.txt
-
-          git clone https://github.com/lhotse-speech/lhotse
-          cd lhotse
-          python setup.py install
-
 
       - name: Run tests
         if: startsWith(matrix.os, 'ubuntu')
