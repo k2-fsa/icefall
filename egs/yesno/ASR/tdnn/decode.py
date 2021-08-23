@@ -3,9 +3,8 @@
 
 import argparse
 import logging
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import k2
 import torch
@@ -14,13 +13,7 @@ from asr_datamodule import YesNoAsrDataModule
 from model import Tdnn
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.decode import (
-    get_lattice,
-    nbest_decoding,
-    one_best_decoding,
-    rescore_with_n_best_list,
-    rescore_with_whole_lattice,
-)
+from icefall.decode import get_lattice, one_best_decoding
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -243,7 +236,7 @@ def save_results(
     # ref/hyp pairs.
     errs_filename = exp_dir / f"errs-{test_set_name}.txt"
     with open(errs_filename, "w") as f:
-        wer = write_error_stats(f, f"{test_set_name}", results)
+        write_error_stats(f, f"{test_set_name}", results)
 
     logging.info("Wrote detailed error stats to {}".format(errs_filename))
 

@@ -17,8 +17,9 @@ from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
 
-# Torch's multithreaded behavior needs to be disabled or it wastes a lot of CPU and
-# slow things down.  Do this outside of main() in case it needs to take effect
+# Torch's multithreaded behavior needs to be disabled or it wastes a
+# lot of CPU and slow things down.
+# Do this outside of main() in case it needs to take effect
 # even when we are not invoking the main (e.g. when spawning subprocesses).
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
