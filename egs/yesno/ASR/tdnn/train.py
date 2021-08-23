@@ -24,12 +24,7 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 
 def get_parser():
@@ -61,7 +56,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=50,
+        default=15,
         help="Number of epochs to train.",
     )
 
@@ -129,11 +124,10 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("tdnn/exp"),
             "lang_dir": Path("data/lang_phone"),
-            "lr": 1e-3,
+            "lr": 1e-2,
             "feature_dim": 23,
             "weight_decay": 1e-6,
             "start_epoch": 0,
-            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -278,9 +272,14 @@ def compute_loss(
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
     supervisions = batch["supervisions"]
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=1
+    texts = supervisions["text"]
+
+    batch_size = nnet_output.shape[0]
+    supervision_segments = torch.tensor(
+        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
+        dtype=torch.int32,
     )
+
     decoding_graph = graph_compiler.compile(texts)
 
     dense_fsa_vec = k2.DenseFsaVec(
@@ -491,7 +490,7 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = optim.AdamW(
+    optimizer = optim.SGD(
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,
