@@ -70,7 +70,8 @@ def compute_fbank_librispeech():
                 continue
             logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
-                recordings=m["recordings"], supervisions=m["supervisions"],
+                recordings=m["recordings"],
+                supervisions=m["supervisions"],
             )
             if "train" in partition:
                 cut_set = (

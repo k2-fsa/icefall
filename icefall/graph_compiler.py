@@ -25,7 +25,10 @@ from icefall.lexicon import Lexicon
 
 class CtcTrainingGraphCompiler(object):
     def __init__(
-        self, lexicon: Lexicon, device: torch.device, oov: str = "<UNK>",
+        self,
+        lexicon: Lexicon,
+        device: torch.device,
+        oov: str = "<UNK>",
     ):
         """
         Args:

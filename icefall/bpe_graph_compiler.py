@@ -74,7 +74,9 @@ class BpeCtcTrainingGraphCompiler(object):
         return self.sp.encode(texts, out_type=int)
 
     def compile(
-        self, piece_ids: List[List[int]], modified: bool = False,
+        self,
+        piece_ids: List[List[int]],
+        modified: bool = False,
     ) -> k2.Fsa:
         """Build a ctc graph from a list-of-list piece IDs.
 
