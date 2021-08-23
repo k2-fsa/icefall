@@ -3,18 +3,21 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to icefall's documentation!
-===================================
+.. image:: _static/logo.png
+    :alt: icefall logo
+    :width: 100px
+    :align: center
+    :target: https://github.com/k2-fsa/icefall
+
+icefall
+=======
+
+Documentation for `icefall <https://github.com/k2-fsa/icefall>`, containing
+speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   installation/index
+   recipes/index
