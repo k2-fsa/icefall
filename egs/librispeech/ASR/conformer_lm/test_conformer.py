@@ -6,6 +6,7 @@ import torch
 from conformer import (
     TransformerDecoderRelPos,
     MaskedLmConformer,
+    MaskedLmConformerEncoderLayer,
     RelPositionMultiheadAttention,
     RelPositionalEncoding,
     generate_square_subsequent_mask,
@@ -27,9 +28,26 @@ def test_rel_position_multihead_attention():
     x = torch.randn(N, T, C)
     #pos_emb = torch.randn(1, 2*T-1, C)
     x, pos_enc = pos_emb_module(x)
-    print("pos_enc.shape=", pos_enc.shape)
     x = x.transpose(0, 1)  # (T, N, C)
     attn_output, attn_output_weights = rel_pos_multihead_attn(x, x, x, pos_enc)
+
+
+def test_masked_lm_conformer_encoder_layer():
+    # Also tests RelPositionalEncoding
+    embed_dim = 256
+    num_heads = 4
+    T = 25
+    N = 4
+    C = 256
+    pos_emb_module = RelPositionalEncoding(C, dropout_rate=0.0)
+    encoder_layer = MaskedLmConformerEncoderLayer(embed_dim, num_heads)
+
+
+    x = torch.randn(N, T, C)
+    x, pos_enc = pos_emb_module(x)
+    x = x.transpose(0, 1)  # (T, N, C)
+    key_padding_mask = (torch.randn(N, T) > 0.0)  # (N, T)
+    y = encoder_layer(x, pos_enc, key_padding_mask=key_padding_mask)
 
 
 def test_transformer():

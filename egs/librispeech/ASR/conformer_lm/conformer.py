@@ -757,8 +757,10 @@ class MaskedConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
-        x = self.activation(self.norm(x))
-
+        x = x.transpose(1, 2)  # (batch, time, channel)
+        x = self.norm(x)       # LayerNorm requires channel be last dim.
+        x = x.transpose(1, 2)  # (batch, channel, time)
+        x = self.activation(x)
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
         return x.permute(2, 0, 1)  # (time, batch, channel)
@@ -807,7 +809,7 @@ class MaskedLmConformerEncoderLayer(nn.Module):
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
     ) -> None:
-        super(ConformerEncoderLayer, self).__init__()
+        super(MaskedLmConformerEncoderLayer, self).__init__()
         self.self_attn = RelPositionMultiheadAttention(
             d_model, nhead, dropout=0.0
         )
