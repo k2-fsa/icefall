@@ -32,7 +32,6 @@ class Conformer(Transformer):
         self,
         num_features: int,
         num_classes: int,
-        subsampling_factor: int = 4,
         d_model: int = 256,
         nhead: int = 4,
         dim_feedforward: int = 2048,
