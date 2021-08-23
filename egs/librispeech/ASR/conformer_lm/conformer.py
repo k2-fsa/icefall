@@ -52,8 +52,8 @@ class MaskedLmConformer(nn.Module):
         # self.embed is the embedding used for both the encoder and decoder.
         self.embed_scale = d_model ** 0.5
         self.embed = nn.Embedding(
-            num_embeddings=self.decoder_num_class, embedding_dim=d_model,
-            _weight=torch.randn(self.decoder_num_class, d_model) * (1 / self.embed_scale)
+            num_embeddings=self.num_classes, embedding_dim=d_model,
+            _weight=torch.randn(self.num_classes, d_model) * (1 / self.embed_scale)
         )
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
@@ -69,9 +69,8 @@ class MaskedLmConformer(nn.Module):
                                                 norm=nn.LayerNorm(d_model))
 
         if num_decoder_layers > 0:
-            self.decoder_num_class = self.num_classes
 
-            decoder_layer = TransformerDecoderLayerRelPos(
+            decoder_layer = RelPosTransformerDecoderLayer(
                 d_model=d_model,
                 nhead=nhead,
                 dim_feedforward=dim_feedforward,
@@ -82,14 +81,14 @@ class MaskedLmConformer(nn.Module):
             self.src_linear = torch.nn.Linear(d_model, d_model)
 
             decoder_norm = nn.LayerNorm(d_model)
-            self.decoder = TransformerDecoderRelPos(
+            self.decoder = RelPosTransformerDecoder(
                 decoder_layer=decoder_layer,
                 num_layers=num_decoder_layers,
                 norm=decoder_norm,
             )
 
             self.decoder_output_layer = torch.nn.Linear(
-                d_model, self.decoder_num_class
+                d_model, self.num_classes
             )
 
 
@@ -112,8 +111,8 @@ class MaskedLmConformer(nn.Module):
 
 
         Returns:
-          Returns (encoded, pos_emb), where:
-            `encoded` is a Tensor containing the encoded data; it is of shape (N, T, C)
+          Returns (memory, pos_emb), where:
+            `memory` is a Tensor containing the encoded data; it is of shape (N, T, C)
                 where C is the embedding_dim.
             `pos_emb` is a Tensor containing the relative positional encoding, of
                       shape (1, 2*T-1, C)
@@ -164,7 +163,7 @@ class MaskedLmConformer(nn.Module):
         """
         (T, N, C) = memory.shape
 
-        tgt_mask = generate_square_subsequent_mask(T, memory.device)
+        attn_mask = generate_square_subsequent_mask(T, memory.device)
 
         x = self.embed(src_symbols) * self.embed_scale # (N, T) -> (N, T, C)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
@@ -178,18 +177,17 @@ class MaskedLmConformer(nn.Module):
             x,
             pos_emb,
             memory=memory,
-            tgt_mask=tgt_mask,
-            tgt_key_padding_mask=key_padding_mask,
-            memory_key_padding_mask=key_padding_mask,
-        )  # (T, N, C)
+            attn_mask=attn_mask,
+            key_padding_mask=key_padding_mask)
+        # (T, N, C)
 
         pred = pred.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
         pred = self.decoder_output_layer(pred)  # (N, T, C)
 
         # nll: negative log-likelihood
         nll = torch.nn.functional.cross_entropy(
-            pred.view(-1, self.decoder_num_class),
-            tgt_symbols.view(-1),
+            pred.view(-1, self.num_classes),
+            tgt_symbols.reshape(-1),
             reduction="none",
         )
         nll = nll.view(N, T)
@@ -198,19 +196,19 @@ class MaskedLmConformer(nn.Module):
 
 
 
-class TransformerDecoderRelPos(nn.Module):
-    r"""TransformerDecoderRelPos is a stack of N decoder layers.
+class RelPosTransformerDecoder(nn.Module):
+    r"""RelPosTransformerDecoder is a stack of N decoder layers.
       This is modified from nn.TransformerDecoder to support relative positional
       encoding.
 
     Args:
-        decoder_layer: an instance of the TransformerDecoderLayerRelPos() class (required).
+        decoder_layer: an instance of the RelPosTransformerDecoderLayer() class (required).
         num_layers: the number of sub-decoder-layers in the decoder (required).
         norm: the layer normalization component (optional).
 
     Examples::
-        >>> decoder_layer = nn.TransformerDecoderLayerRelPos(d_model=512, nhead=8)
-        >>> transformer_decoder = nn.TransformerDecoderRelPos(decoder_layer, num_layers=6)
+        >>> decoder_layer = nn.RelPosTransformerDecoderLayer(d_model=512, nhead=8)
+        >>> transformer_decoder = nn.RelPosTransformerDecoder(decoder_layer, num_layers=6)
         >>> memory = torch.rand(10, 32, 512)
         >>> tgt = torch.rand(20, 32, 512)
         >>> pos_enc = torch.rand()
@@ -219,7 +217,7 @@ class TransformerDecoderRelPos(nn.Module):
     __constants__ = ['norm']
 
     def __init__(self, decoder_layer, num_layers, norm=None):
-        super(TransformerDecoderRelPos, self).__init__()
+        super(RelPosTransformerDecoder, self).__init__()
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
@@ -257,7 +255,7 @@ class TransformerDecoderRelPos(nn.Module):
         return x
 
 
-class TransformerDecoderLayerRelPos(nn.Module):
+class RelPosTransformerDecoderLayer(nn.Module):
     """
     Modified from torch.nn.TransformerDecoderLayer.
     Add it to use normalize_before (hardcoded to True), i.e. use layer_norm before the first block;
@@ -278,7 +276,7 @@ class TransformerDecoderLayerRelPos(nn.Module):
         gelu (default=relu).
 
     Examples::
-        >>> decoder_layer = nn.TransformerDecoderLayerRelPos(d_model=512, nhead=8)
+        >>> decoder_layer = nn.RelPosTransformerDecoderLayer(d_model=512, nhead=8)
         >>> memory = torch.rand(10, 32, 512)
         >>> tgt = torch.rand(20, 32, 512)
         >>> pos_emb = torch.rand(1, 20*2+1, 512)
@@ -293,7 +291,7 @@ class TransformerDecoderLayerRelPos(nn.Module):
         dropout: float = 0.1,
         activation: str = "relu",
     ) -> None:
-        super(TransformerDecoderLayerRelPos, self).__init__()
+        super(RelPosTransformerDecoderLayer, self).__init__()
         self.self_attn = RelPositionMultiheadAttention(d_model, nhead, dropout=0.0)
         self.src_attn = RelPositionMultiheadAttention(d_model, nhead, dropout=0.0)
         # Implementation of Feedforward model
@@ -314,7 +312,7 @@ class TransformerDecoderLayerRelPos(nn.Module):
     def __setstate__(self, state):
         if "activation" not in state:
             state["activation"] = nn.functional.relu
-        super(TransformerDecoderLayerRelPos, self).__setstate__(state)
+        super(RelPosTransformerDecoderLayer, self).__setstate__(state)
 
     def forward(
         self,

@@ -3,9 +3,10 @@
 #  python3 -m pytest test_conformer.py
 
 import torch
+import dataset  # from .
 from conformer import (
-    TransformerDecoderRelPos,
-    TransformerDecoderLayerRelPos,
+    RelPosTransformerDecoder,
+    RelPosTransformerDecoderLayer,
     MaskedLmConformer,
     MaskedLmConformerEncoder,
     MaskedLmConformerEncoderLayer,
@@ -80,7 +81,7 @@ def test_transformer_decoder_layer_rel_pos():
     N = 4
     C = 256
     pos_emb_module = RelPositionalEncoding(C, dropout_rate=0.0)
-    decoder_layer = TransformerDecoderLayerRelPos(embed_dim, num_heads)
+    decoder_layer = RelPosTransformerDecoderLayer(embed_dim, num_heads)
 
 
     x = torch.randn(N, T, C)
@@ -100,10 +101,9 @@ def test_transformer_decoder_rel_pos():
     N = 4
     C = 256
     pos_emb_module = RelPositionalEncoding(C, dropout_rate=0.0)
-    decoder_layer = TransformerDecoderLayerRelPos(embed_dim, num_heads)
+    decoder_layer = RelPosTransformerDecoderLayer(embed_dim, num_heads)
     decoder_norm = torch.nn.LayerNorm(embed_dim)
-    decoder = TransformerDecoderRelPos(decoder_layer, num_layers=6, norm=decoder_norm)
-
+    decoder = RelPosTransformerDecoder(decoder_layer, num_layers=6, norm=decoder_norm)
 
     x = torch.randn(N, T, C)
     x, pos_emb = pos_emb_module(x)
@@ -114,18 +114,30 @@ def test_transformer_decoder_rel_pos():
     y = decoder(x, pos_emb, memory, attn_mask=attn_mask, key_padding_mask=key_padding_mask)
 
 
-def test_transformer():
-    return
-    num_features = 40
+def test_masked_lm_conformer():
+
     num_classes = 87
-    model = Transformer(num_features=num_features, num_classes=num_classes)
+    d_model = 256
+
+    model = MaskedLmConformer(num_classes,d_model)
+
 
     N = 31
 
-    for T in range(7, 30):
-        x = torch.rand(N, T, num_features)
-        y, _, _ = model(x)
-        assert y.shape == (N, (((T - 1) // 2) - 1) // 2, num_classes)
+
+    (masked_src_symbols, src_symbols,
+     tgt_symbols, src_key_padding_mask,
+     tgt_weights) = dataset.collate_fn(sentences=[ list(range(10, 20)), list(range(30, 45)), list(range(50,68))], bos_sym=1, eos_sym=2,
+                                       blank_sym=0)
+
+    # test forward() of MaskedLmConformer
+    memory, pos_emb = model(masked_src_symbols, src_key_padding_mask)
+    nll = model.decoder_nll(memory, pos_emb, src_symbols, tgt_symbols,
+                            src_key_padding_mask)
+    print("nll = ", nll)
+    loss = (nll * tgt_weights).sum()
+    print("loss = ", loss)
+
 
 
 def test_generate_square_subsequent_mask():

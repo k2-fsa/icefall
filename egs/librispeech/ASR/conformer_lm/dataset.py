@@ -297,7 +297,7 @@ def collate_fn(sentences: List[List[int]],
               Will be reflected in the returned tgt_weights tensor.
 
     Returns a tuple (masked_src_symbols, src_symbols,
-                     tgt_symbols, src_attn_mask,
+                     tgt_symbols, src_key_padding_mask,
                      tgt_weights),
          all with 2 axes and the same shape: (num_sent, seq_len).
          Their dtypes will be, respectively,
@@ -315,7 +315,7 @@ def collate_fn(sentences: List[List[int]],
          tgt_symbols: The original sentences, with eos_symbol appended, and then
                     padded with blank to the same length as masked_symbols and
                     src_symbols.
-         src_attn_mask:  Masking tensor for masked_src_symbols and src_symbols, to
+         src_key_padding_mask:  Masking tensor for masked_src_symbols and src_symbols, to
                     account for all the sentence lengths not being identical
                     (makes each sentence's processing independent of seq_len).
                     Tensor of Bool of shape (num_sent, seq_len), with True
@@ -368,17 +368,17 @@ def collate_fn(sentences: List[List[int]],
     src_symbols = torch.tensor(srcs, dtype=torch.int64)
     masked_src_symbols = torch.tensor(srcs_masked, dtype=torch.int64)
     tgt_symbols = torch.tensor(tgts, dtype=torch.int64)
-    src_attn_mask = torch.tensor(attn_masks, dtype=torch.bool)
+    src_key_padding_mask = torch.tensor(attn_masks, dtype=torch.bool)
     tgt_weights = torch.tensor(weights, dtype=torch.float)
 
-    attn_mask_sum = torch.sum(torch.logical_not(src_attn_mask), dim=0).tolist()
+    attn_mask_sum = torch.sum(torch.logical_not(src_key_padding_mask), dim=0).tolist()
     while attn_mask_sum[-1] == 0:  # Remove always-masked positions at the endof the lists.
         attn_mask_sum.pop()
     if len(attn_mask_sum) < seq_len:
         seq_len = len(attn_mask_sum)
         (src_symbols, masked_src_symbols,
-         tgt_symbols, src_attn_mask, tgt_weights) = (src_symbols[:,:seq_len], masked_src_symbols[:,:seq_len],
-                                                     tgt_symbols[:,:seq_len], src_attn_mask[:,:seq_len],
+         tgt_symbols, src_key_padding_mask, tgt_weights) = (src_symbols[:,:seq_len], masked_src_symbols[:,:seq_len],
+                                                     tgt_symbols[:,:seq_len], src_key_padding_mask[:,:seq_len],
                                                      tgt_weights[:,:seq_len])
 
     if randomize_proportion > 0.0:
@@ -409,9 +409,9 @@ def collate_fn(sentences: List[List[int]],
         check_collated_tensors(sentences, bos_sym, eos_sym, blank_sym,
                                unmasked_weight,
                                masked_src_symbols, src_symbols,
-                               tgt_symbols, src_attn_mask, tgt_weights)
+                               tgt_symbols, src_key_padding_mask, tgt_weights)
     return (masked_src_symbols, src_symbols,
-            tgt_symbols, src_attn_mask, tgt_weights)
+            tgt_symbols, src_key_padding_mask, tgt_weights)
 
 
 
@@ -421,20 +421,20 @@ def check_collated_tensors(sentences: List[List[int]],
                            blank_sym: int,
                            unmasked_weight: float,
                            masked_src_symbols, src_symbols,
-                           tgt_symbols, src_attn_mask,
+                           tgt_symbols, src_key_padding_mask,
                            tgt_weights):
     """
     This function checks the output of collate_fn, consider it test code.  Please see
     the documentation of collate_fn to understand the args.
     """
-    for t in src_symbols, tgt_symbols, src_attn_mask, tgt_weights:
+    for t in src_symbols, tgt_symbols, src_key_padding_mask, tgt_weights:
         assert t.shape == masked_src_symbols.shape
 
     tot_positions = src_symbols.numel()
 
-    masked_src_symbols, src_symbols, tgt_symbols, src_attn_mask, tgt_weights = (
+    masked_src_symbols, src_symbols, tgt_symbols, src_key_padding_mask, tgt_weights = (
         masked_src_symbols.tolist(), src_symbols.tolist(), tgt_symbols.tolist(),
-        src_attn_mask.tolist(), tgt_weights.tolist())
+        src_key_padding_mask.tolist(), tgt_weights.tolist())
     assert len(sentences) == len(masked_src_symbols)
 
     tot_masked_positions = 0
@@ -451,7 +451,7 @@ def check_collated_tensors(sentences: List[List[int]],
         if sentences[i] != reconstructed_sent:
             print(f"Error: sentence {i}={sentences[i]} differs from {reconstructed_sent}")
         (masked_src, src, tgt, src_mask, weights) = (masked_src_symbols[i], src_symbols[i],
-                                                     tgt_symbols[i], src_attn_mask[i], tgt_weights[i])
+                                                     tgt_symbols[i], src_key_padding_mask[i], tgt_weights[i])
 
         assert src[0] == masked_src[0] == bos_sym
         for j in range(len(masked_src)):
