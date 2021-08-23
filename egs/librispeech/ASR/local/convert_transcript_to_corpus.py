@@ -32,10 +32,9 @@ Then the output is
     SPN z o o w o r l d SPN
 """
 
-from pathlib import Path
-from typing import Dict
-
 import argparse
+from pathlib import Path
+from typing import Dict, List
 
 from icefall.lexicon import read_lexicon
 

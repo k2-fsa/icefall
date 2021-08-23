@@ -161,7 +161,7 @@ def get_params() -> AttributeDict:
             "att_rate": 0,
             "attention_dim": 512,
             "nhead": 8,
-            "num_decoder_layers": 6,
+            "num_decoder_layers": 0,
             "is_espnet_structure": True,
             "use_feat_batchnorm": True,
             "lr_factor": 5.0,
