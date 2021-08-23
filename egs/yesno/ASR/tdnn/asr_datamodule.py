@@ -27,7 +27,6 @@ from lhotse.dataset import (
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
-    SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from torch.utils.data import DataLoader
@@ -163,18 +162,8 @@ class YesNoAsrDataModule(DataModule):
                 )
             ] + transforms
 
-        input_transforms = [
-            SpecAugment(
-                num_frame_masks=2,
-                features_mask_size=27,
-                num_feature_masks=2,
-                frames_mask_size=100,
-            )
-        ]
-
         train = K2SpeechRecognitionDataset(
             cut_transforms=transforms,
-            input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
         )
 
@@ -194,7 +183,6 @@ class YesNoAsrDataModule(DataModule):
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=23))
                 ),
-                input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
 

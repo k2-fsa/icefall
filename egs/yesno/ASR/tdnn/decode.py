@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=4,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",

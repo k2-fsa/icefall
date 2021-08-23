@@ -61,7 +61,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=50,
+        default=10,
         help="Number of epochs to train.",
     )
 
@@ -129,11 +129,10 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("tdnn/exp"),
             "lang_dir": Path("data/lang_phone"),
-            "lr": 1e-3,
+            "lr": 1e-1,
             "feature_dim": 23,
             "weight_decay": 1e-6,
             "start_epoch": 0,
-            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -491,7 +490,7 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = optim.AdamW(
+    optimizer = optim.SGD(
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,
