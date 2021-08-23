@@ -79,6 +79,11 @@ jobs:
 
           cd egs/yesno/ASR
           ./prepare.sh
-          python3 ./tdnn/train.py --num-epochs 60
-          python3 ./tdnn/decode.py --epoch 59
+          python3 ./tdnn/train.py --num-epochs 100
+          python3 ./tdnn/decode.py --epoch 99
+          python3 ./tdnn/decode.py --epoch 95
+          python3 ./tdnn/decode.py --epoch 90
+          python3 ./tdnn/decode.py --epoch 80
+          python3 ./tdnn/decode.py --epoch 70
+          python3 ./tdnn/decode.py --epoch 60
           # TODO: Check that the WER is less than some value
