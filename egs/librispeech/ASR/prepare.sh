@@ -113,14 +113,60 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  mkdir -p data/lang_phone
+  lang_dir=data/lang_phone
+  mkdir -p $lang_dir
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
     cat - $dl_dir/lm/librispeech-lexicon.txt |
-    sort | uniq > data/lang_phone/lexicon.txt
+    sort | uniq > $lang_dir/lexicon.txt
 
-  if [ ! -f data/lang_phone/L_disambig.pt ]; then
-    ./local/prepare_lang.py
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir
+  fi
+
+  # Train a bigram P for MMI training
+  if [ ! -f $lang_dir/train.txt ]; then
+    log "Generate data to train phone based bigram P"
+    files=$(
+      find -L "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
+      find -L "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
+      find -L "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+    )
+    for f in ${files[@]}; do
+      cat $f | cut -d " " -f 2-
+    done > $lang_dir/train.txt
+  fi
+
+  if [ ! -f $lang_dir/train_with_sil.txt ]; then
+    ./local/add_silence_to_transcript.py \
+      --transcript $lang_dir/train.txt \
+      --sil-word "!SIL" \
+      --sil-prob 0.5 \
+      --seed 20210823 \
+      > $lang_dir/train_with_sil.txt
+  fi
+
+  if [ ! -f $lang_dir/corpus.txt ]; then
+    ./local/convert_transcript_to_corpus.py \
+      --lexicon $lang_dir/lexicon.txt \
+      --transcript $lang_dir/train_with_sil.txt \
+      --oov "<UNK>" \
+      > $lang_dir/corpus.txt
+  fi
+
+  if [ ! -f $lang_dir/P.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 2 \
+      -text $lang_dir/corpus.txt \
+      -lm $lang_dir/P.arpa
+  fi
+
+  if [ ! -f $lang_dir/P.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_dir/tokens.txt" \
+      --disambig-symbol='#0' \
+      --max-order=2 \
+      $lang_dir/P.arpa > $lang_dir/P.fst.txt
   fi
 fi
 

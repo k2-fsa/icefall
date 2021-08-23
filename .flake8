@@ -8,4 +8,6 @@ per-file-ignores =
 
 exclude =
   .git,
-  **/data/**
+  **/data/**,
+  icefall/shared/make_kn_lm.py,
+  egs/librispeech/ASR/conformer_mmi_phone/embedding.py

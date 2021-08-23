@@ -32,7 +32,10 @@ consisting of words and tokens (i.e., phones) and does the following:
         lexicon = k2.Fsa.from_dict(d)
 
 5. Generate L_disambig.pt, in k2 format.
+
+The generated files are saved into `lang_dir`.
 """
+import argparse
 import math
 from collections import defaultdict
 from pathlib import Path
@@ -44,6 +47,19 @@ import torch
 from icefall.lexicon import read_lexicon, write_lexicon
 
 Lexicon = List[Tuple[str, List[str]]]
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        It should contain a file lexicon.txt
+        """,
+    )
+
+    return parser.parse_args()
 
 
 def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
@@ -315,8 +331,10 @@ def lexicon_to_fst(
 
 
 def main():
-    out_dir = Path("data/lang_phone")
-    lexicon_filename = out_dir / "lexicon.txt"
+    args = get_args()
+    lang_dir = Path(args.lang_dir)
+
+    lexicon_filename = lang_dir / "lexicon.txt"
     sil_token = "SIL"
     sil_prob = 0.5
 
@@ -344,9 +362,9 @@ def main():
     token2id = generate_id_map(tokens)
     word2id = generate_id_map(words)
 
-    write_mapping(out_dir / "tokens.txt", token2id)
-    write_mapping(out_dir / "words.txt", word2id)
-    write_lexicon(out_dir / "lexicon_disambig.txt", lexicon_disambig)
+    write_mapping(lang_dir / "tokens.txt", token2id)
+    write_mapping(lang_dir / "words.txt", word2id)
+    write_lexicon(lang_dir / "lexicon_disambig.txt", lexicon_disambig)
 
     L = lexicon_to_fst(
         lexicon,
@@ -364,17 +382,8 @@ def main():
         sil_prob=sil_prob,
         need_self_loops=True,
     )
-    torch.save(L.as_dict(), out_dir / "L.pt")
-    torch.save(L_disambig.as_dict(), out_dir / "L_disambig.pt")
-
-    if False:
-        # Just for debugging, will remove it
-        L.labels_sym = k2.SymbolTable.from_file(out_dir / "tokens.txt")
-        L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
-        L_disambig.labels_sym = L.labels_sym
-        L_disambig.aux_labels_sym = L.aux_labels_sym
-        L.draw(out_dir / "L.png", title="L")
-        L_disambig.draw(out_dir / "L_disambig.png", title="L_disambig")
+    torch.save(L.as_dict(), lang_dir / "L.pt")
+    torch.save(L_disambig.as_dict(), lang_dir / "L_disambig.pt")
 
 
 if __name__ == "__main__":
