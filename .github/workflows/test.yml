@@ -47,15 +47,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest kaldialign
+          python3 -m pip install --upgrade pip pytest kaldialign torch==${{ matrix.torch }}
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
 
-          # Don't use: pip install lhotse
-          # since it installs a version of PyTorch that is not predictable
-          git clone --depth 1 https://github.com/lhotse-speech/lhotse
-          cd lhotse
-          sed -i.bak "/torch/d" requirements.txt
-          pip install -r ./requirements.txt
+          pip install lhotse
 
 
       - name: Run tests
