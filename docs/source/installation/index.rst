@@ -310,7 +310,7 @@ The correct fix is:
   .6.1 tensorboard-plugin-wit-1.8.0 urllib3-1.26.6 werkzeug-2.0.1
 
 
-Test your Installation
+Test Your Installation
 ----------------------
 
 To test that your installation is successful, let us run
