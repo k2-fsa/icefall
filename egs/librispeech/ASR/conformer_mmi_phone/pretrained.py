@@ -268,7 +268,7 @@ def main():
     )
     waves = [w.to(device) for w in waves]
 
-    logging.info(f"Decoding started")
+    logging.info("Decoding started")
     features = fbank(waves)
 
     features = pad_sequence(
@@ -338,7 +338,7 @@ def main():
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
-    logging.info(f"Decoding Done")
+    logging.info("Decoding Done")
 
 
 if __name__ == "__main__":
