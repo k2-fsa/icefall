@@ -3,7 +3,8 @@ import torch.distributed as dist
 import k2
 import _k2
 import sentencepiece as spm
-from typing import Optional, List, Tuple
+from pathlib import Path
+from typing import Optional, List, Tuple, Union
 
 
 
@@ -36,7 +37,7 @@ class LmDataset(torch.utils.data.Dataset):
         return k2.index(self.words, sentence).values().tolist()
 
 
-def load_train_test_lm_dataset(archive_fn: str,
+def load_train_test_lm_dataset(archive_fn: Union[str,Path],
                                test_proportion: float = 0.025) -> Tuple[LmDataset, LmDataset]:
     """
     returns (train_lm_dataset, test_lm_dataset)
