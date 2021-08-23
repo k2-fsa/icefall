@@ -10,7 +10,7 @@ This page shows you how to run the ``yesno`` recipe.
 
 .. HINT::
 
-  You **don't** need a **GPU** to run this reciped. It can be run on a **CPU**.
+  You **don't** need a **GPU** to run this recipe. It can be run on a **CPU**.
   The training time takes less than 30 **seconds** and you will get
   the following WER::
 
