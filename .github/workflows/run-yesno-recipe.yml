@@ -29,7 +29,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
+        # os: [ubuntu-18.04, macos-10.15]
+        # TODO: enable macOS for CPU testing
+        os: [ubuntu-18.04]
         python-version: [3.8]
       fail-fast: false
 
@@ -77,6 +79,6 @@ jobs:
 
           cd egs/yesno/ASR
           ./prepare.sh
-          ./tdnn/train.py
-          ./tdnn/decode.py --epoch 49
+          python3 ./tdnn/train.py --num-epochs 60
+          python3 ./tdnn/decode.py --epoch 59
           # TODO: Check that the WER is less than some value
