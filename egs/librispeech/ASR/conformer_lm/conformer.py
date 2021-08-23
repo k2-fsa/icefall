@@ -1,6 +1,7 @@
 # Copyright (c) 2021 University of Chinese Academy of Sciences (author: Han Zhu)
 # Apache 2.0
 
+import copy
 import math
 from typing import Dict, List, Optional, Tuple
 
@@ -910,7 +911,7 @@ class MaskedLmConformerEncoderLayer(nn.Module):
 
 
 def _get_clones(module, N):
-    return ModuleList([copy.deepcopy(module) for i in range(N)])
+    return torch.nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
 class MaskedLmConformerEncoder(nn.Module):
     r"""MaskedLmConformerEncoder is a stack of N encoder layers, modified from
