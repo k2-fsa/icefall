@@ -103,7 +103,7 @@ The command to run decoding with attention decoder rescoring is:
 
 # Decoding with a pre-trained model in action
 
-We have uploaded a pre-trained model to <https://huggingface.co/pkufool/conformer_ctc>
+We have uploaded a pre-trained model to <https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc>
 
 The following shows the steps about the usage of the provided pre-trained model.
 
@@ -115,16 +115,16 @@ cd /path/to/icefall/egs/librispeech/ASR
 git lfs install
 mkdir tmp
 cd tmp
-git clone https://huggingface.co/pkufool/conformer_ctc
+git clone https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc
 ```
 
-**CAUTION**: You have to install `git-lfst` to download the pre-trained model.
+**CAUTION**: You have to install `git-lfs` to download the pre-trained model.
 
 You will find the following files:
 
 ```
 tmp
-`-- conformer_ctc
+`-- icefall_asr_librispeech_conformer_ctc
     |-- README.md
     |-- data
     |   |-- lang_bpe
@@ -185,9 +185,9 @@ tmp
 The information of the test sound files is listed below:
 
 ```
-$ soxi tmp/conformer_ctc/test_wavs/*.flac
+$ soxi tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/*.flac
 
-Input File     : 'tmp/conformer_ctc/test_wavs/1089-134686-0001.flac'
+Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac'
 Channels       : 1
 Sample Rate    : 16000
 Precision      : 16-bit
@@ -196,7 +196,7 @@ File Size      : 116k
 Bit Rate       : 140k
 Sample Encoding: 16-bit FLAC
 
-Input File     : 'tmp/conformer_ctc/test_wavs/1221-135766-0001.flac'
+Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac'
 Channels       : 1
 Sample Rate    : 16000
 Precision      : 16-bit
@@ -205,7 +205,7 @@ File Size      : 343k
 Bit Rate       : 164k
 Sample Encoding: 16-bit FLAC
 
-Input File     : 'tmp/conformer_ctc/test_wavs/1221-135766-0002.flac'
+Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac'
 Channels       : 1
 Sample Rate    : 16000
 Precision      : 16-bit
@@ -223,12 +223,12 @@ Total Duration of 3 files: 00:00:28.16
 cd /path/to/icefall/egs/librispeech/ASR
 
 ./conformer_ctc/pretrained.py \
-  --checkpoint ./tmp/conformer_ctc/exp/pretraind.pt \
-  --words-file ./tmp/conformer_ctc/data/lang_bpe/words.txt \
-  --HLG ./tmp/conformer_ctc/data/lang_bpe/HLG.pt \
-  ./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac
+  --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+  --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+  --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
 ```
 
 The output is given below:
@@ -236,20 +236,20 @@ The output is given below:
 ```
 2021-08-20 11:03:05,712 INFO [pretrained.py:217] device: cuda:0
 2021-08-20 11:03:05,712 INFO [pretrained.py:219] Creating model
-2021-08-20 11:03:11,345 INFO [pretrained.py:238] Loading HLG from ./tmp/conformer_ctc/data/lang_bpe/HLG.pt
+2021-08-20 11:03:11,345 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
 2021-08-20 11:03:18,442 INFO [pretrained.py:255] Constructing Fbank computer
-2021-08-20 11:03:18,444 INFO [pretrained.py:265] Reading sound files: ['./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0002.flac']
+2021-08-20 11:03:18,444 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
 2021-08-20 11:03:18,507 INFO [pretrained.py:271] Decoding started
 2021-08-20 11:03:18,795 INFO [pretrained.py:300] Use HLG decoding
 2021-08-20 11:03:19,149 INFO [pretrained.py:339]
-./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
 AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
 GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
 BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
 YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
@@ -260,15 +260,15 @@ YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 ```bash
 ./conformer_ctc/pretrained.py \
-  --checkpoint ./tmp/conformer_ctc/exp/pretraind.pt \
-  --words-file ./tmp/conformer_ctc/data/lang_bpe/words.txt \
-  --HLG ./tmp/conformer_ctc/data/lang_bpe/HLG.pt \
+  --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+  --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+  --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
   --method whole-lattice-rescoring \
-  --G ./tmp/conformer_ctc/data/lm/G_4_gram.pt \
+  --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
   --ngram-lm-scale 0.8 \
-  ./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
 ```
 
 The output is:
@@ -276,21 +276,21 @@ The output is:
 ```
 2021-08-20 11:12:17,565 INFO [pretrained.py:217] device: cuda:0
 2021-08-20 11:12:17,565 INFO [pretrained.py:219] Creating model
-2021-08-20 11:12:23,728 INFO [pretrained.py:238] Loading HLG from ./tmp/conformer_ctc/data/lang_bpe/HLG.pt
-2021-08-20 11:12:30,035 INFO [pretrained.py:246] Loading G from ./tmp/conformer_ctc/data/lm/G_4_gram.pt
+2021-08-20 11:12:23,728 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+2021-08-20 11:12:30,035 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
 2021-08-20 11:13:10,779 INFO [pretrained.py:255] Constructing Fbank computer
-2021-08-20 11:13:10,787 INFO [pretrained.py:265] Reading sound files: ['./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0002.flac']
+2021-08-20 11:13:10,787 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
 2021-08-20 11:13:10,798 INFO [pretrained.py:271] Decoding started
 2021-08-20 11:13:11,085 INFO [pretrained.py:305] Use HLG decoding + LM rescoring
 2021-08-20 11:13:11,736 INFO [pretrained.py:339]
-./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
 AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
 GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
 BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
 YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
@@ -301,20 +301,20 @@ YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 ```bash
 ./conformer_ctc/pretrained.py \
-  --checkpoint ./tmp/conformer_ctc/exp/pretraind.pt \
-  --words-file ./tmp/conformer_ctc/data/lang_bpe/words.txt \
-  --HLG ./tmp/conformer_ctc/data/lang_bpe/HLG.pt \
+  --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+  --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+  --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
   --method attention-decoder \
-  --G ./tmp/conformer_ctc/data/lm/G_4_gram.pt \
+  --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
   --ngram-lm-scale 1.3 \
   --attention-decoder-scale 1.2 \
   --lattice-score-scale 0.5 \
   --num-paths 100 \
   --sos-id 1 \
   --eos-id 1 \
-  ./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac \
-  ./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
 ```
 
 The output is:
@@ -322,21 +322,21 @@ The output is:
 ```
 2021-08-20 11:19:11,397 INFO [pretrained.py:217] device: cuda:0
 2021-08-20 11:19:11,397 INFO [pretrained.py:219] Creating model
-2021-08-20 11:19:17,354 INFO [pretrained.py:238] Loading HLG from ./tmp/conformer_ctc/data/lang_bpe/HLG.pt
-2021-08-20 11:19:24,615 INFO [pretrained.py:246] Loading G from ./tmp/conformer_ctc/data/lm/G_4_gram.pt
+2021-08-20 11:19:17,354 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+2021-08-20 11:19:24,615 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
 2021-08-20 11:20:04,576 INFO [pretrained.py:255] Constructing Fbank computer
-2021-08-20 11:20:04,584 INFO [pretrained.py:265] Reading sound files: ['./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/conformer_ctc/test_wavs/1221-135766-0002.flac']
+2021-08-20 11:20:04,584 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
 2021-08-20 11:20:04,595 INFO [pretrained.py:271] Decoding started
 2021-08-20 11:20:04,854 INFO [pretrained.py:313] Use HLG + LM rescoring + attention decoder rescoring
 2021-08-20 11:20:05,805 INFO [pretrained.py:339]
-./tmp/conformer_ctc/test_wavs/1089-134686-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
 AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0001.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
 GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
 BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-./tmp/conformer_ctc/test_wavs/1221-135766-0002.flac:
+./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
 YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
