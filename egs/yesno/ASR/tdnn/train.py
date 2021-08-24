@@ -60,6 +60,16 @@ def get_parser():
         help="Number of epochs to train.",
     )
 
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
+        tdnn/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
     return parser
 
 
@@ -91,8 +101,6 @@ def get_params() -> AttributeDict:
 
         - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
                         and continue training from that checkpoint.
-
-        - num_epochs:  Number of epochs to train.
 
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
@@ -420,6 +428,19 @@ def train_one_epoch(
                 f"batch size: {batch_size}"
             )
 
+            if tb_writer is not None:
+                tb_writer.add_scalar(
+                    "train/current_loss",
+                    loss_cpu / params.train_frames,
+                    params.batch_idx_train,
+                )
+
+                tb_writer.add_scalar(
+                    "train/tot_avg_loss",
+                    tot_avg_loss,
+                    params.batch_idx_train,
+                )
+
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             compute_validation_loss(
                 params=params,
@@ -434,6 +455,12 @@ def train_one_epoch(
                 f" best valid loss: {params.best_valid_loss:.4f} "
                 f"best valid epoch: {params.best_valid_epoch}"
             )
+            if tb_writer is not None:
+                tb_writer.add_scalar(
+                    "train/valid_loss",
+                    params.valid_loss,
+                    params.batch_idx_train,
+                )
 
     params.train_loss = tot_loss / tot_frames
 
