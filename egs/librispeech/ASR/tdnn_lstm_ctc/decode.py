@@ -43,6 +43,7 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     write_error_stats,
+    str2bool,
 )
 
 

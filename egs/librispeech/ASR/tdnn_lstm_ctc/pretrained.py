@@ -219,7 +219,7 @@ def main():
         features, batch_first=True, padding_value=math.log(1e-10)
     )
     features = features.permute(0, 2, 1)  # now features is [N, C, T]
-    
+
     with torch.no_grad():
         nnet_output = model(features)
         # nnet_output is [N, T, C]
