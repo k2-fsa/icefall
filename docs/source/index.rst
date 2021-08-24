@@ -3,16 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. image:: _static/logo.png
-    :alt: icefall logo
-    :width: 100px
-    :align: center
-    :target: https://github.com/k2-fsa/icefall
-
 icefall
 =======
 
-Documentation for `icefall <https://github.com/k2-fsa/icefall>`, containing
+.. image:: _static/logo.png
+    :alt: icefall logo
+    :width: 168px
+    :align: center
+    :target: https://github.com/k2-fsa/icefall
+
+
+Documentation for `icefall <https://github.com/k2-fsa/icefall>`_, containing
 speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
 
 .. toctree::

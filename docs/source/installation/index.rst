@@ -464,6 +464,6 @@ The decoding log is:
   2021-08-23 19:35:30,573 INFO [decode.py:236] Wrote detailed error stats to tdnn/exp/errs-test_set.txt
   2021-08-23 19:35:30,573 INFO [decode.py:299] Done!
 
-Congratulations! You have successfully setup the environment and have run the first recipe in icefall.
+**Congratulations!** You have successfully setup the environment and have run the first recipe in ``icefall``.
 
-Have fun with icefall!
+Have fun with ``icefall``!
