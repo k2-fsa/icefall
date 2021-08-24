@@ -330,9 +330,9 @@ Colab notebook
 
 We do provide a colab notebook for decoding with pre-trained model.
 
-|librispeech-tdnn_lstm_ctc colab notebook|
+|librispeech tdnn_lstm_ctc colab notebook|
 
-.. |librispeech-tdnn_lstm_ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |librispeech tdnn_lstm_ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
    :target: https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd
 
 
