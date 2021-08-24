@@ -21,7 +21,7 @@ class MaskedLmConformer(nn.Module):
         d_model: int = 256,
         nhead: int = 4,
         dim_feedforward: int = 2048,
-        num_encoder_layers: int = 12,
+        num_encoder_layers: int = 6,
         num_decoder_layers: int = 6,
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,

@@ -317,7 +317,7 @@ def compute_validation_loss(
             break
         batch = tuple(x.to(device) for x in batch)
 
-        # `batch` is actually a tuple.. we'll unpack it later.
+
         loss = compute_loss(model, batch, is_training=False)
         num_frames = batch[4].sum()
 
@@ -390,17 +390,23 @@ def train_one_epoch(
         params.batch_idx_train += 1
         batch = tuple(x.to(device) for x in batch)
 
-        loss = compute_loss(
-            model=model,
+        try:
+            loss = compute_loss(
+                model=model,
             batch=batch,
-            is_training=True,
-        )
+                is_training=True,
+            )
 
-        optimizer.zero_grad()
-        loss.backward()  # We are not normalizing by the num-frames, but Adam/Madam are insensitive to the total
-                         # gradient scale so this should not matter.
-        # clip_grad_norm_(model.parameters(), 5.0, 2.0)
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            # We are not normalizing by the num-frames, but Adam/Madam are insensitive to the total
+            # gradient scale so this should not matter.
+            # clip_grad_norm_(model.parameters(), 5.0, 2.0)
+            optimizer.step()
+        except RuntimeError as e:
+            print(f"Error on batch of shape (N,T) = {batch[0].shape}")
+            raise e
+
 
         loss_cpu = loss.detach().cpu().item()
         num_frames_cpu = batch[4].sum().cpu().item()
