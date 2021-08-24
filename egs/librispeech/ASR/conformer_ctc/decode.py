@@ -83,7 +83,7 @@ def get_parser():
             - (3) nbest-rescoring. Extract n paths from the decoding lattice,
               rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
               the highest score is the decoding result.
-            - (4) whole-lattice. Rescore the decoding lattice with an n-gram LM
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an n-gram LM
               (e.g., a 4-gram LM), the best path of rescored lattice is the
               decoding result.
             - (5) attention-decoder. Extract n paths from the LM rescored lattice,
