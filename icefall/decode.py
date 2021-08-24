@@ -22,8 +22,6 @@ import kaldialign
 import torch
 import torch.nn as nn
 
-from icefall.lexicon import Lexicon
-
 
 def _get_random_paths(
     lattice: k2.Fsa,
@@ -623,7 +621,7 @@ def nbest_oracle(
     lattice: k2.Fsa,
     num_paths: int,
     ref_texts: List[str],
-    lexicon: Lexicon,
+    word_table: k2.SymbolTable,
     scale: float = 1.0,
 ) -> Dict[str, List[List[int]]]:
     """Select the best hypothesis given a lattice and a reference transcript.
@@ -644,8 +642,8 @@ def nbest_oracle(
       ref_texts:
         A list of reference transcript. Each entry contains space(s)
         separated words
-      lexicon:
-        It is used to convert word IDs to word symbols.
+      word_table:
+        It is the word symbol table.
       scale:
         It's the scale applied to the lattice.scores. A smaller value
         yields more unique paths.
@@ -680,7 +678,7 @@ def nbest_oracle(
         best_hyp_words = None
         min_error = float("inf")
         for hyp_words in hyps:
-            hyp_words = [lexicon.word_table[i] for i in hyp_words]
+            hyp_words = [word_table[i] for i in hyp_words]
             this_error = kaldialign.edit_distance(ref_words, hyp_words)["total"]
             if this_error < min_error:
                 min_error = this_error

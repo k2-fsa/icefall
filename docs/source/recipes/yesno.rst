@@ -1,7 +1,7 @@
 yesno
 =====
 
-This page shows you how to run the ``yesno`` recipe. It contains:
+This page shows you how to run the `yesno <https://www.openslr.org/1>`_ recipe. It contains:
 
   - (1) Prepare data for training
   - (2) Train a TDNN model
