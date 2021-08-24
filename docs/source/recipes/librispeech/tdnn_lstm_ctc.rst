@@ -112,7 +112,7 @@ To see available training options, you can use:
 
 .. code-block:: bash
 
-  $ ./tdnn/train.py --help
+  $ ./tdnn_lstm_ctc/train.py --help
 
 Other training options, e.g., learning rate, results dir, etc., are
 pre-configured in the function ``get_params()``
@@ -139,7 +139,7 @@ Decoded results are saved in ``tdnn_lstm_ctc/exp``.
 
 .. code-block:: bash
 
-  $ ./tdnn/decode.py --help
+  $ ./tdnn_lstm_ctc/decode.py --help
 
 shows you the available decoding options.
 
@@ -288,7 +288,7 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
 
 .. code-block:: bash
 
-  ./conformer_ctc/pretrained.py \
+  ./tdnn_lstm_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/exp/pretraind.pt \
     --words-file ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/words.txt \
     --HLG ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/HLG.pt \

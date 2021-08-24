@@ -226,7 +226,7 @@ YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 ### (3) Use HLG decoding + LM rescoring
 
 ```bash
-./conformer_ctc/pretrained.py \
+./tdnn_lstm_ctc/pretrained.py \
   --checkpoint ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/exp/pretraind.pt \
   --words-file ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/words.txt \
   --HLG ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/HLG.pt \
