@@ -144,7 +144,7 @@ def get_params() -> AttributeDict:
             "weight_decay": 5e-4,
             "subsampling_factor": 3,
             "start_epoch": 0,
-            "num_epochs": 10,
+            "num_epochs": 20,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
