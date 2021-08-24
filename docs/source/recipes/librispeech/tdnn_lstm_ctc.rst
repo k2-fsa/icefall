@@ -1,5 +1,5 @@
 TDNN-LSTM-CTC
-=====
+=============
 
 This tutorial shows you how to run a TDNN-LSTM-CTC model with the `LibriSpeech <https://www.openslr.org/12>`_ dataset.
 
@@ -34,7 +34,7 @@ For example,
 
 .. code-block:: bash
 
-  $ cd egs/yesno/ASR
+  $ cd egs/librispeech/ASR
   $ ./prepare.sh --stage 0 --stop-stage 0
 
 means to run only stage 0.
@@ -84,23 +84,6 @@ In ``tdnn_lstm_ctc/exp``, you will find the following files:
 
         $ cd tdnn_lstm_ctc/exp/tensorboard
         $ tensorboard dev upload --logdir . --description "TDNN LSTM training for librispeech with icefall"
-
-    It will print something like below:
-
-      .. code-block::
-
-        TensorFlow installation not found - running with reduced feature set.
-        Upload started and will continue reading any new data as it's added to the logdir.
-
-        To stop uploading, press Ctrl-C.
-
-        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/yKUbhb5wRmOSXYkId1z9eg/
-
-        [2021-08-23T23:49:41] Started scanning logdir.
-        [2021-08-23T23:49:42] Total uploaded: 135 scalars, 0 tensors, 0 binary objects
-        Listening for new data in logdir...
-
-    Note there is a URL in the above output, click it and you will see tensorboard page:
 
   - ``log/log-train-xxxx``
 
@@ -172,7 +155,7 @@ Some commonly used options are:
 
 .. HINT::
 
-   There are several decoding method provided in `tdnn_lstm_ctc/decode.py <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/tdnn_lstm_ctc/train.py>`_, you can change the decoding method by modifying ``method`` parameter in function ``get_params()``.
+   There are several decoding methods provided in `tdnn_lstm_ctc/decode.py <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/tdnn_lstm_ctc/train.py>`_, you can change the decoding method by modifying ``method`` parameter in function ``get_params()``.
 
 
 .. _tdnn_lstm_ctc use a pre-trained model:
@@ -328,7 +311,7 @@ The decoding output is:
 Colab notebook
 --------------
 
-We do provide a colab notebook for decoding with pre-trained model.
+We provide a colab notebook for decoding with pre-trained model.
 
 |librispeech tdnn_lstm_ctc colab notebook|
 
