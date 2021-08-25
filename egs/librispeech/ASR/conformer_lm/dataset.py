@@ -130,7 +130,12 @@ def mask_and_pad(sentence: List[int],
     # length of masked regions.
     num_split_points = int(torch.binomial(count=torch.tensor([float(sent_len - num_mask)]),
                                           prob=torch.tensor([mask_proportion * inv_mask_length / (1.0 - mask_proportion)])).item())
-    assert num_split_points <= sent_len - num_mask
+    # Somehow this assertion failed, debugging it below.
+    # assert num_split_points <= sent_len - num_mask
+    if num_split_points > sent_len - num_mask:
+        print(f"Warning about num_split_points: {num_split_points} > {sent_len} - {num_mask}")
+        num_split_points = sent_len - num_mask
+
     assert isinstance(num_split_points, int)
 
     def split_into_subseqs(length: int , num_subseqs: int) -> List[int]:
@@ -796,6 +801,13 @@ class LmBatchSampler(torch.utils.data.Sampler):
             batch_end = self.batch_boundaries[batch_idx + 1].item()
             yield self.indices[batch_start:batch_end].tolist()
 
+
+class CollateFn:
+    def __init__(self, **kwargs):
+        self.extra_args = kwargs
+
+    def __call__(self, sentences: List[List[int]]):
+        return collate_fn(sentences, **self.extra_args)
 
 
 

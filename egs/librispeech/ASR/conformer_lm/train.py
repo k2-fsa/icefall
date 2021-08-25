@@ -532,14 +532,14 @@ def run(rank, world_size, args):
 
     train,test = dataset.load_train_test_lm_dataset(params.lm_dataset)
 
-    collate_fn=(lambda x:dataset.collate_fn(x, bos_sym=params.bos_sym,
-                                            eos_sym=params.eos_sym,
-                                            blank_sym=params.blank_sym,
-                                            mask_proportion=0.15,
-                                            padding_proportion=0.15,
-                                            randomize_proportion=0.05,
-                                            inv_mask_length=0.25,
-                                            unmasked_weight=0.25))
+    collate_fn=dataset.CollateFn(bos_sym=params.bos_sym,
+                                 eos_sym=params.eos_sym,
+                                 blank_sym=params.blank_sym,
+                                 mask_proportion=0.15,
+                                 padding_proportion=0.15,
+                                 randomize_proportion=0.05,
+                                 inv_mask_length=0.25,
+                                 unmasked_weight=0.25)
 
     train_sampler = dataset.LmBatchSampler(train,
                                            symbols_per_batch=params.symbols_per_batch,
@@ -551,6 +551,7 @@ def run(rank, world_size, args):
     train_dl = torch.utils.data.DataLoader(train,
                                            batch_sampler=train_sampler,
                                            collate_fn=collate_fn)
+
     valid_dl = torch.utils.data.DataLoader(test,
                                            batch_sampler=test_sampler,
                                            collate_fn=collate_fn)
