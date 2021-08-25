@@ -78,16 +78,16 @@ def get_parser():
         Supported values are:
             - (1) 1best. Extract the best path from the decoding lattice as the
               decoding result.
-            - (2) nbest. Extract n paths from the decoding lattice; the path with
-              the highest score is the decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
             - (3) nbest-rescoring. Extract n paths from the decoding lattice,
               rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
               the highest score is the decoding result.
-            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an n-gram LM
-              (e.g., a 4-gram LM), the best path of rescored lattice is the
-              decoding result.
-            - (5) attention-decoder. Extract n paths from the LM rescored lattice,
-              the path with the highest score is the decoding result.
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+              n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
+              is the decoding result.
+            - (5) attention-decoder. Extract n paths from the LM rescored
+              lattice, the path with the highest score is the decoding result.
             - (6) nbest-oracle. Its WER is the lower bound of any n-best
               rescoring method can achieve. Useful for debugging n-best
               rescoring method.
