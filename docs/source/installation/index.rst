@@ -308,7 +308,7 @@ Data preparation
 
   $ export PYTHONPATH=/tmp/icefall:$PYTHONPATH
   $ cd /tmp/icefall
-  $ cd egs/yesno/AS
+  $ cd egs/yesno/ASR
   $ ./prepare.sh
 
 The log of running ``./prepare.sh`` is:
