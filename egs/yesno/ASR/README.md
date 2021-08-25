@@ -10,5 +10,5 @@ get the following WER:
 ```
 
 Please refer to
-<https://icefal1.readthedocs.io/en/latest/recipes/yesno.html>
+<https://icefall.readthedocs.io/en/latest/recipes/yesno.html>
 for detailed instructions.

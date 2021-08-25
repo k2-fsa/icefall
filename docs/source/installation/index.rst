@@ -202,22 +202,6 @@ The following shows an example about setting up the environment.
   valtree-3.1.0 lhotse-0.8.0.dev-2a1410b-clean lilcom-1.1.1 numpy-1.21.2 packaging-21.0 pycparser-2.20 pyparsing-2.4.7 pyyaml-5.4.1 sor
   tedcontainers-2.4.0 toolz-0.11.1 torchaudio-0.9.0 tqdm-4.62.1
 
-**NOTE**: After installing ``lhotse``, you will encounter the following error:
-
-.. code-block::
-
-  $ lhotse download --help
-  -bash: /ceph-fj/fangjun/test-icefall/bin/lhotse: python: bad interpreter: No such file or directory
-
-The correct fix is:
-
-.. code-block::
-
-  echo '#!/usr/bin/env python3' | cat - $(which lhotse) > /tmp/lhotse-bin
-  chmod +x /tmp/lhotse-bin
-  mv /tmp/lhotse-bin $(which lhotse)
-
-
 (5) Download icefall
 ~~~~~~~~~~~~~~~~~~~~
 
