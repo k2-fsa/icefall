@@ -56,7 +56,7 @@ organize your files in the following way:
   $ cd egs/foo/ASR
   $ mkdir bar
   $ cd bar
-  $ tourch README.md model.py train.py decode.py asr_datamodule.py pretrained.py
+  $ touch README.md model.py train.py decode.py asr_datamodule.py pretrained.py
 
 For instance , the ``yesno`` recipe has a ``tdnn`` model and its directory structure
 looks like the following:
