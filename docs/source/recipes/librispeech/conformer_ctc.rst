@@ -367,7 +367,7 @@ After downloading, you will have the following files:
       |   `-- lm
       |       `-- G_4_gram.pt
       |-- exp
-      |   `-- pretraind.pt
+      |   `-- pretrained.pt
       `-- test_wavs
           |-- 1089-134686-0001.flac
           |-- 1221-135766-0001.flac
@@ -475,7 +475,7 @@ The command to run HLG decoding is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
     --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
     --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
@@ -518,7 +518,7 @@ The command to run HLG decoding + LM rescoring is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
     --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
     --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     --method whole-lattice-rescoring \
@@ -566,7 +566,7 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretraind.pt \
+    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
     --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
     --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     --method attention-decoder \
