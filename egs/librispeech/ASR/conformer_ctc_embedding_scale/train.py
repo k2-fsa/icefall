@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# This is just at the very beginning ...
 
 import argparse
 import logging
@@ -60,6 +74,23 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=35,
+        help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
+        conformer_ctc/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
     return parser
 
 
@@ -88,11 +119,6 @@ def get_params() -> AttributeDict:
         - weight_decay:  The weight_decay for the optimizer.
 
         - subsampling_factor:  The subsampling factor for the model.
-
-        - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
-                        and continue training from that checkpoint.
-
-        - num_epochs:  Number of epochs to train.
 
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
@@ -124,13 +150,11 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc_embedding_scale/exp"),
+            "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "weight_decay": 1e-6,
             "subsampling_factor": 4,
-            "start_epoch": 0,
-            "num_epochs": 20,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
