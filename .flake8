@@ -4,8 +4,10 @@ statistics=true
 max-line-length = 80
 per-file-ignores =
     # line too long
-    egs/librispeech/ASR/conformer_ctc/conformer.py: E501,
+    egs/librispeech/ASR/conformer_ctc*/conformer.py: E501,
 
 exclude =
   .git,
-  **/data/**
+  **/data/**,
+  egs/librispeech/ASR/conformer_ctc_embedding_scale/embedding.py,
+  egs/librispeech/ASR/conformer_ctc_embedding_scale/madam.py
