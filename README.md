@@ -1,67 +1,61 @@
-
-# Table of Contents
-
-- [Installation](#installation)
-  * [Install k2](#install-k2)
-  * [Install lhotse](#install-lhotse)
-  * [Install icefall](#install-icefall)
-- [Run recipes](#run-recipes)
+<div align="center">
+<img src="https://raw.githubusercontent.com/k2-fsa/icefall/master/docs/source/_static/logo.png" width=168>
+</div>
 
 ## Installation
 
-`icefall` depends on [k2][k2] for FSA operations and [lhotse][lhotse] for
-data preparations. To use `icefall`, you have to install its dependencies first.
-The following subsections describe how to setup the environment.
+Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
+for installation.
 
-CAUTION: There are various ways to setup the environment. What we describe
-here is just one alternative.
+## Recipes
 
-### Install k2
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
+for more information.
 
-Please refer to [k2's installation documentation][k2-install] to install k2.
-If you have any issues about installing k2, please open an issue at
-<https://github.com/k2-fsa/k2/issues>.
+We provide two recipes at present:
 
-### Install lhotse
+  - [yesno][yesno]
+  - [LibriSpeech][librispeech]
 
-Please refer to [lhotse's installation documentation][lhotse-install] to install
-lhotse.
+### yesno
 
-### Install icefall
+This is the simplest ASR recipe in `icefall` and can be run on CPU.
+Training takes less than 30 seconds and gives you the following WER:
 
-`icefall` is a set of Python scripts. What you need to do is just to set
-the environment variable `PYTHONPATH`:
-
-```bash
-cd $HOME/open-source
-git clone https://github.com/k2-fsa/icefall
-cd icefall
-pip install -r requirements.txt
-export PYTHONPATH=$HOME/open-source/icefall:$PYTHONPATHON
 ```
-
-To verify `icefall` was installed successfully, you can run:
-
-```bash
-python3 -c "import icefall; print(icefall.__file__)"
+[test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
 ```
+We do provide a Colab notebook for this recipe.
 
-It should print the path to `icefall`.
-
-## Run recipes
-
-At present, only LibriSpeech recipe is provided. Please
-follow [egs/librispeech/ASR/README.md][LibriSpeech] to run it.
-
-## Use Pre-trained models
-
-See [egs/librispeech/ASR/conformer_ctc/README.md](egs/librispeech/ASR/conformer_ctc/README.md)
-for how to use pre-trained models.
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
-[LibriSpeech]: egs/librispeech/ASR/README.md
-[k2-install]: https://k2.readthedocs.io/en/latest/installation/index.html#
-[k2]: https://github.com/k2-fsa/k2
-[lhotse]: https://github.com/lhotse-speech/lhotse
-[lhotse-install]: https://lhotse.readthedocs.io/en/latest/getting-started.html#installation
+### LibriSpeech
+
+We provide two models for this recipe: [conformer CTC model][LibriSpeech_conformer_ctc]
+and [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc].
+
+#### Conformer CTC Model
+
+The best WER we currently have is:
+
+||test-clean|test-other|
+|--|--|--|
+|WER| 2.57% | 5.94% |
+
+We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
+
+#### TDNN LSTM CTC Model
+
+The WER for this model is:
+
+||test-clean|test-other|
+|--|--|--|
+|WER| 6.59% | 17.69% |
+
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
+
+[LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
+[LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[yesno]: egs/yesno/ASR
+[librispeech]: egs/librispeech/ASR

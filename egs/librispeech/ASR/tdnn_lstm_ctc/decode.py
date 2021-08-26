@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
 import argparse
@@ -27,6 +42,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -39,7 +55,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=9,
+        default=19,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -50,6 +66,16 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
+    )
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        tdnn/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
+        """,
     )
     return parser
 
@@ -72,7 +98,7 @@ def get_params() -> AttributeDict:
             #  - nbest
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
-            "method": "1best",
+            "method": "whole-lattice-rescoring",
             # num_paths is used when method is "nbest" and "nbest-rescoring"
             "num_paths": 30,
         }
@@ -333,7 +359,7 @@ def main():
     logging.info(f"device: {device}")
 
     HLG = k2.Fsa.from_dict(
-        torch.load("data/lang_phone/HLG.pt", map_location="cpu")
+        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
     )
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
@@ -392,6 +418,12 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
 
     model.to(device)
     model.eval()
