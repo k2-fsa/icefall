@@ -35,7 +35,7 @@ from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from madam import Moam
+from madam import Foam
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -138,7 +138,7 @@ def get_params() -> AttributeDict:
             "blank_sym": 0,
             "bos_sym": 1,
             "eos_sym": 1,
-            "start_epoch": 0,
+            "start_epoch": 3,
             "num_epochs": 20,
             "num_valid_batches": 200,
             "symbols_per_batch": 5000,
@@ -155,8 +155,7 @@ def get_params() -> AttributeDict:
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 6,
-            "lr_factor": 2.0,
-            "warm_step": 20000,
+            "max_lrate": 5.0e-04
         }
     )
 
@@ -520,11 +519,9 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Moam(
+    optimizer = Foam(
         model.parameters(),
-        model_size=params.attention_dim,
-        factor=params.lr_factor,
-        warm_step=params.warm_step,
+        max_lrate=params.max_lrate
     )
 
     if checkpoints:
