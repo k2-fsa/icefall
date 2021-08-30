@@ -852,7 +852,7 @@ class Foam(object):
                  params,
                  max_lrate: float = 5.0e-04,
                  warm_step: int = 25000,
-                 knee_factor: float = 8.0,
+                 knee_factor: float = 5.0,
                  min_target_rms: float = 0.05,
                  limit_grad_factor: float = float('inf'),
                  l2_period: int = 1) -> None:

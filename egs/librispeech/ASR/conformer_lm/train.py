@@ -132,13 +132,13 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_lm/exp_1"),
+            "exp_dir": Path("conformer_lm/exp_2"),
             "lm_dataset": Path("data/lm_training_5000/lm_data.pt"),
             "num_tokens": 5000,
             "blank_sym": 0,
             "bos_sym": 1,
             "eos_sym": 1,
-            "start_epoch": 3,
+            "start_epoch": 0,
             "num_epochs": 20,
             "num_valid_batches": 200,
             "symbols_per_batch": 5000,
@@ -155,7 +155,7 @@ def get_params() -> AttributeDict:
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 6,
-            "max_lrate": 5.0e-04
+            "max_lrate": 2.0e-04  # was 5.0e-04, then from start_epoch=9 used max_lrate=2.0e-04, then from start_epoch=11 used 1.0e-04.
         }
     )
 
