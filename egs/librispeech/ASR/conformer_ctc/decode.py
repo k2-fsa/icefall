@@ -125,8 +125,8 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            # "exp_dir": Path("exp/conformer_ctc"),
-            "exp_dir": Path("conformer_ctc/exp"),
+            "exp_dir": Path("exp/conformer_ctc"),
+            # "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
@@ -330,6 +330,7 @@ def decode_one_batch(
             rescore_est_model=rescore_est_model,
             sos_id=sos_id,
             eos_id=eos_id,
+            scale=params.lattice_score_scale,
         )
         if params.dump_best_matching_feature:
             if best_path_dict.size()[0] > 0:
@@ -612,13 +613,13 @@ def main():
     #
     test_sets = ["test-clean", "test-other"]
     for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
-        if test_set == "test-other": continue
+        # if test_set == "test-other": continue
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
             HLG=HLG,
-            word_table=word_table,
+            word_table=lexicon.word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
