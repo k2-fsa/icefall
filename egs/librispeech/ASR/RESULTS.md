@@ -43,4 +43,3 @@ We searched the lm_score_scale for best results, the scales that produced the WE
 |--|--|
 |test-clean|0.8|
 |test-other|0.9|
-

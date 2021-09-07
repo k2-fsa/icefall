@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
-import k2.ragged as k2r
 import kaldialign
 import torch
 import torch.distributed as dist
