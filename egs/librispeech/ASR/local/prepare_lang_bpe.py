@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
 
 """
-This script takes as inputs the following two files:
 
-    - data/lang_bpe/bpe.model,
-    - data/lang_bpe/words.txt
+This script takes as input `lang_dir`, which should contain::
 
-and generates the following files in the directory data/lang_bpe:
+    - lang_dir/bpe.model,
+    - lang_dir/words.txt
+
+and generates the following files in the directory `lang_dir`:
 
     - lexicon.txt
     - lexicon_disambig.txt
@@ -17,6 +34,7 @@ and generates the following files in the directory data/lang_bpe:
     - tokens.txt
 """
 
+import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -141,8 +159,22 @@ def generate_lexicon(
     return lexicon, token2id
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        It should contain the bpe.model and words.txt
+        """,
+    )
+
+    return parser.parse_args()
+
+
 def main():
-    lang_dir = Path("data/lang_bpe")
+    args = get_args()
+    lang_dir = Path(args.lang_dir)
     model_file = lang_dir / "bpe.model"
 
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
@@ -188,15 +220,6 @@ def main():
     )
     torch.save(L.as_dict(), lang_dir / "L.pt")
     torch.save(L_disambig.as_dict(), lang_dir / "L_disambig.pt")
-
-    if False:
-        # Just for debugging, will remove it
-        L.labels_sym = k2.SymbolTable.from_file(lang_dir / "tokens.txt")
-        L.aux_labels_sym = k2.SymbolTable.from_file(lang_dir / "words.txt")
-        L_disambig.labels_sym = L.labels_sym
-        L_disambig.aux_labels_sym = L.aux_labels_sym
-        L.draw(lang_dir / "L.svg", title="L")
-        L_disambig.draw(lang_dir / "L_disambig.svg", title="L_disambig")
 
 
 if __name__ == "__main__":

@@ -1,15 +1,26 @@
-# Copyright (c) 2021 University of Chinese Academy of Sciences (author: Han Zhu)
-# Apache 2.0
+# Copyright    2021 University of Chinese Academy of Sciences (author: Han Zhu)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import math
 from typing import Dict, List, Optional, Tuple
 
-import k2
 import torch
 import torch.nn as nn
 from subsampling import Conv2dSubsampling, VggSubsampling
-
-from icefall.utils import get_texts
 from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
@@ -274,9 +285,11 @@ class Transformer(nn.Module):
             device
         )
 
-        # TODO: Use eos_id as ignore_id.
-        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
-        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
+        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        tgt_key_padding_mask[:, 0] = False
 
         tgt = self.decoder_embed(ys_in_pad)  # (N, T) -> (N, T, C)
         tgt = self.decoder_pos(tgt)
@@ -339,9 +352,11 @@ class Transformer(nn.Module):
             device
         )
 
-        # TODO: Use eos_id as ignore_id.
-        #  tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
-        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad)
+        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        tgt_key_padding_mask[:, 0] = False
 
         tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
         tgt = self.decoder_pos(tgt)
@@ -778,7 +793,8 @@ class Noam(object):
 
 class LabelSmoothingLoss(nn.Module):
     """
-    Label-smoothing loss. KL-divergence between q_{smoothed ground truth prob.}(w)
+    Label-smoothing loss. KL-divergence between
+    q_{smoothed ground truth prob.}(w)
     and p_{prob. computed by model}(w) is minimized.
     Modified from
     https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py  # noqa
@@ -863,7 +879,8 @@ def encoder_padding_mask(
          frames, before subsampling)
 
     Returns:
-        Tensor: Mask tensor of dimension (batch_size, input_length), True denote the masked indices.
+        Tensor: Mask tensor of dimension (batch_size, input_length),
+        True denote the masked indices.
     """
     if supervisions is None:
         return None

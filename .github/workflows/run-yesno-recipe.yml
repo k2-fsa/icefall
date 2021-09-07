@@ -1,0 +1,78 @@
+# Copyright      2021  Fangjun Kuang (csukuangfj@gmail.com)
+
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: run-yesno-recipe
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  run-yesno-recipe:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # os: [ubuntu-18.04, macos-10.15]
+        # TODO: enable macOS for CPU testing
+        os: [ubuntu-18.04]
+        python-version: [3.8]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install libnsdfile and libsox
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -q -y libsndfile1-dev libsndfile1 ffmpeg
+          sudo apt install -q -y --fix-missing sox libsox-dev libsox-fmt-all
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip black flake8
+          python3 -m pip install -U pip
+          python3 -m pip install k2==1.4.dev20210822+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
+          python3 -m pip install torchaudio==0.7.2
+          python3 -m pip install git+https://github.com/lhotse-speech/lhotse
+
+          # We are in ./icefall and there is a file: requirements.txt in it
+          python3 -m pip install -r requirements.txt
+
+      - name: Run yesno recipe
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+
+          cd egs/yesno/ASR
+          ./prepare.sh
+          python3 ./tdnn/train.py
+          python3 ./tdnn/decode.py
+          # TODO: Check that the WER is less than some value

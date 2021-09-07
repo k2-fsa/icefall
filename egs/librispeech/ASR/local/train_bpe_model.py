@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-"""
-This script takes as input "data/lang/bpe/train.txt"
-and generates "data/lang/bpe/bep.model".
-"""
 
 # You can install sentencepiece via:
 #
@@ -14,17 +25,41 @@ and generates "data/lang/bpe/bep.model".
 #
 # Please install a version >=0.1.96
 
+import argparse
 import shutil
 from pathlib import Path
 
 import sentencepiece as spm
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        It should contain the training corpus: train.txt.
+        The generated bpe.model is saved to this directory.
+        """,
+    )
+    parser.add_argument(
+        "--vocab-size",
+        type=int,
+        help="Vocabulary size for BPE training",
+    )
+
+    return parser.parse_args()
+
+
 def main():
+    args = get_args()
+    vocab_size = args.vocab_size
+    lang_dir = Path(args.lang_dir)
+
     model_type = "unigram"
-    vocab_size = 5000
-    model_prefix = f"data/lang_bpe/{model_type}_{vocab_size}"
-    train_text = "data/lang_bpe/train.txt"
+
+    model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
+    train_text = f"{lang_dir}/train.txt"
     character_coverage = 1.0
     input_sentence_size = 100000000
 
@@ -49,10 +84,7 @@ def main():
             eos_id=-1,
         )
 
-    sp = spm.SentencePieceProcessor(model_file=str(model_file))
-    vocab_size = sp.vocab_size()
-
-    shutil.copyfile(model_file, "data/lang_bpe/bpe.model")
+    shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
 
 
 if __name__ == "__main__":

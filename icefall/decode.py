@@ -1,8 +1,25 @@
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import os
 from typing import Dict, List, Optional, Tuple, Union
 
 import k2
+import kaldialign
 import torch
 import torch.nn as nn
 
@@ -10,6 +27,36 @@ from .nbest import Nbest
 from .utils import get_best_matching_stats
 
 from .score_estimator import ScoreEstimator
+
+def _get_random_paths(
+    lattice: k2.Fsa,
+    num_paths: int,
+    use_double_scores: bool = True,
+    scale: float = 1.0,
+):
+    """
+    Args:
+      lattice:
+        The decoding lattice, returned by :func:`get_lattice`.
+      num_paths:
+        It specifies the size `n` in n-best. Note: Paths are selected randomly
+        and those containing identical word sequences are remove dand only one
+        of them is kept.
+      use_double_scores:
+        True to use double precision floating point in the computation.
+        False to use single precision.
+      scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
+    Returns:
+      Return a k2.RaggedInt with 3 axes [seq][path][arc_pos]
+    """
+    saved_scores = lattice.scores.clone()
+    lattice.scores *= scale
+    path = k2.random_paths(lattice, num_paths=num_paths, use_double_scores=True)
+    lattice.scores = saved_scores
+    return path
+
 
 def _intersect_device(
     a_fsas: k2.Fsa,
@@ -134,7 +181,10 @@ def one_best_decoding(
 
 
 def nbest_decoding(
-    lattice: k2.Fsa, num_paths: int, use_double_scores: bool = True
+    lattice: k2.Fsa,
+    num_paths: int,
+    use_double_scores: bool = True,
+    scale: float = 1.0,
 ) -> k2.Fsa:
     """It implements something like CTC prefix beam search using n-best lists.
 
@@ -157,12 +207,18 @@ def nbest_decoding(
       use_double_scores:
         True to use double precision floating point in the computation.
         False to use single precision.
+      scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
     Returns:
       An FsaVec containing linear FSAs.
     """
-    # First, extract `num_paths` paths for each sequence.
-    # path is a k2.RaggedInt with axes [seq][path][arc_pos]
-    path = k2.random_paths(lattice, num_paths=num_paths, use_double_scores=True)
+    path = _get_random_paths(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        scale=scale,
+    )
 
     # word_seq is a k2.RaggedInt sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
@@ -325,7 +381,11 @@ def compute_am_and_lm_scores(
 
 
 def rescore_with_n_best_list(
-    lattice: k2.Fsa, G: k2.Fsa, num_paths: int, lm_scale_list: List[float]
+    lattice: k2.Fsa,
+    G: k2.Fsa,
+    num_paths: int,
+    lm_scale_list: List[float],
+    scale: float = 1.0,
 ) -> Dict[str, k2.Fsa]:
     """Decode using n-best list with LM rescoring.
 
@@ -347,6 +407,9 @@ def rescore_with_n_best_list(
         It is the size `n` in `n-best` list.
       lm_scale_list:
         A list containing lm_scale values.
+      scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
     Returns:
       A dict of FsaVec, whose key is an lm_scale and the value is the
       best decoding path for each sequence in the lattice.
@@ -361,9 +424,12 @@ def rescore_with_n_best_list(
     assert G.device == device
     assert hasattr(G, "aux_labels") is False
 
-    # First, extract `num_paths` paths for each sequence.
-    # path is a k2.RaggedInt with axes [seq][path][arc_pos]
-    path = k2.random_paths(lattice, num_paths=num_paths, use_double_scores=True)
+    path = _get_random_paths(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=True,
+        scale=scale,
+    )
 
     # word_seq is a k2.RaggedInt sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
@@ -381,7 +447,7 @@ def rescore_with_n_best_list(
     #
     # num_repeats is also a k2.RaggedInt with 2 axes containing the
     # multiplicities of each path.
-    # num_repeats.num_elements() == unique_word_seqs.num_elements()
+    # num_repeats.num_elements() == unique_word_seqs.tot_size(1)
     #
     # Since k2.ragged.unique_sequences will reorder paths within a seq,
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
@@ -499,6 +565,8 @@ def rescore_with_whole_lattice(
     del lattice.lm_scores
     assert hasattr(lattice, "lm_scores") is False
 
+    assert hasattr(G_with_epsilon_loops, "lm_scores")
+
     # Now, lattice.scores contains only am_scores
 
     # inv_lattice has word IDs as labels.
@@ -554,14 +622,88 @@ def rescore_with_whole_lattice(
     return ans
 
 
+def nbest_oracle(
+    lattice: k2.Fsa,
+    num_paths: int,
+    ref_texts: List[str],
+    word_table: k2.SymbolTable,
+    scale: float = 1.0,
+) -> Dict[str, List[List[int]]]:
+    """Select the best hypothesis given a lattice and a reference transcript.
+
+    The basic idea is to extract n paths from the given lattice, unique them,
+    and select the one that has the minimum edit distance with the corresponding
+    reference transcript as the decoding output.
+
+    The decoding result returned from this function is the best result that
+    we can obtain using n-best decoding with all kinds of rescoring techniques.
+
+    Args:
+      lattice:
+        An FsaVec. It can be the return value of :func:`get_lattice`.
+        Note: We assume its aux_labels contain word IDs.
+      num_paths:
+        The size of `n` in n-best.
+      ref_texts:
+        A list of reference transcript. Each entry contains space(s)
+        separated words
+      word_table:
+        It is the word symbol table.
+      scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
+    Return:
+      Return a dict. Its key contains the information about the parameters
+      when calling this function, while its value contains the decoding output.
+      `len(ans_dict) == len(ref_texts)`
+    """
+    path = _get_random_paths(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=True,
+        scale=scale,
+    )
+
+    word_seq = k2.index(lattice.aux_labels, path)
+    word_seq = k2.ragged.remove_values_leq(word_seq, 0)
+    unique_word_seq, _, _ = k2.ragged.unique_sequences(
+        word_seq, need_num_repeats=False, need_new2old_indexes=False
+    )
+    unique_word_ids = k2.ragged.to_list(unique_word_seq)
+    assert len(unique_word_ids) == len(ref_texts)
+    # unique_word_ids[i] contains all hypotheses of the i-th utterance
+
+    results = []
+    for hyps, ref in zip(unique_word_ids, ref_texts):
+        # Note hyps is a list-of-list ints
+        # Each sublist contains a hypothesis
+        ref_words = ref.strip().split()
+        # CAUTION: We don't convert ref_words to ref_words_ids
+        # since there may exist OOV words in ref_words
+        best_hyp_words = None
+        min_error = float("inf")
+        for hyp_words in hyps:
+            hyp_words = [word_table[i] for i in hyp_words]
+            this_error = kaldialign.edit_distance(ref_words, hyp_words)["total"]
+            if this_error < min_error:
+                min_error = this_error
+                best_hyp_words = hyp_words
+        results.append(best_hyp_words)
+
+    return {f"nbest_{num_paths}_scale_{scale}_oracle": results}
+
+
 def rescore_with_attention_decoder(
     lattice: k2.Fsa,
     num_paths: int,
     model: nn.Module,
     memory: torch.Tensor,
-    memory_key_padding_mask: torch.Tensor,
+    memory_key_padding_mask: Optional[torch.Tensor],
     sos_id: int,
     eos_id: int,
+    scale: float = 1.0,
+    ngram_lm_scale: Optional[float] = None,
+    attention_scale: Optional[float] = None,
 ) -> Dict[str, k2.Fsa]:
     """This function extracts n paths from the given lattice and uses
     an attention decoder to rescore them. The path with the highest
@@ -585,6 +727,13 @@ def rescore_with_attention_decoder(
         The token ID for SOS.
       eos_id:
         The token ID for EOS.
+      scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
     Returns:
       A dict of FsaVec, whose key contains a string
       ngram_lm_scale_attention_scale and the value is the
@@ -592,7 +741,12 @@ def rescore_with_attention_decoder(
     """
     # First, extract `num_paths` paths for each sequence.
     # path is a k2.RaggedInt with axes [seq][path][arc_pos]
-    path = k2.random_paths(lattice, num_paths=num_paths, use_double_scores=True)
+    path = _get_random_paths(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=True,
+        scale=scale,
+    )
 
     # word_seq is a k2.RaggedInt sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
@@ -610,12 +764,12 @@ def rescore_with_attention_decoder(
     #
     # num_repeats is also a k2.RaggedInt with 2 axes containing the
     # multiplicities of each path.
-    # num_repeats.num_elements() == unique_word_seqs.num_elements()
+    # num_repeats.num_elements() == unique_word_seqs.tot_size(1)
     #
     # Since k2.ragged.unique_sequences will reorder paths within a seq,
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
     # to the input path index.
-    # new2old.numel() == unique_word_seqs.tot_size(1)
+    # new2old.numel() == unique_word_seq.tot_size(1)
     unique_word_seq, num_repeats, new2old = k2.ragged.unique_sequences(
         word_seq, need_num_repeats=True, need_new2old_indexes=True
     )
@@ -667,11 +821,13 @@ def rescore_with_attention_decoder(
     path_to_seq_map_long = path_to_seq_map.to(torch.long)
     expanded_memory = memory.index_select(1, path_to_seq_map_long)
 
-    expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
-        0, path_to_seq_map_long
-    )
+    if memory_key_padding_mask is not None:
+        expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
+            0, path_to_seq_map_long
+        )
+    else:
+        expanded_memory_key_padding_mask = None
 
-    # TODO: pass the sos_token_id and eos_token_id via function arguments
     nll = model.decoder_nll(
         memory=expanded_memory,
         memory_key_padding_mask=expanded_memory_key_padding_mask,
@@ -686,11 +842,17 @@ def rescore_with_attention_decoder(
     assert attention_scores.ndim == 1
     assert attention_scores.numel() == num_word_seqs
 
-    ngram_lm_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-    ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    if ngram_lm_scale is None:
+        ngram_lm_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        ngram_lm_scale_list = [ngram_lm_scale]
 
-    attention_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-    attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    if attention_scale is None:
+        attention_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        attention_scale_list = [attention_scale]
 
     path_2axes = k2.ragged.remove_axis(path, 0)
 
