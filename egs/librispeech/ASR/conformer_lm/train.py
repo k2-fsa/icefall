@@ -35,7 +35,7 @@ from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from madam import Foam
+from madam import Gloam
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -133,7 +133,8 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             # exp_3, vs. exp_2, is using 5e-04 not 2d-04 as max learning rate.
-            "exp_dir": Path("conformer_lm/exp_3"),
+            # exp_4, vs. exp_3, is using the Gloam optimizer with
+            "exp_dir": Path("conformer_lm/exp_4"),
             "lm_dataset": Path("data/lm_training_5000/lm_data.pt"),
             "num_tokens": 5000,
             "blank_sym": 0,
@@ -520,9 +521,13 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Foam(
+    # Caution: don't forget to do optimizer.set_epoch() with Gloam!
+    # Don't remove this warning!
+    optimizer = Gloam(
         model.parameters(),
-        max_lrate=params.max_lrate
+        max_lrate=params.max_lrate,
+        first_decrease_epoch=2,
+        decay_per_epoch=0.85
     )
 
     if checkpoints:
@@ -556,6 +561,8 @@ def run(rank, world_size, args):
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_sampler.set_epoch(epoch)
+        optimizer.set_epoch(epoch)  # Caution: this is specific to the Gloam
+                                    # optimizer.
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
