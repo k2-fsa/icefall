@@ -60,7 +60,7 @@ def test_get_texts_ragged():
         4
     """
     )
-    fsa1.aux_labels = k2.RaggedInt("[ [1 3 0 2] [] [4 0 1] [-1]]")
+    fsa1.aux_labels = k2.RaggedTensor("[ [1 3 0 2] [] [4 0 1] [-1]]")
 
     fsa2 = k2.Fsa.from_str(
         """
@@ -70,7 +70,7 @@ def test_get_texts_ragged():
         3
     """
     )
-    fsa2.aux_labels = k2.RaggedInt("[[3 0 5 0 8] [0 9 7 0] [-1]]")
+    fsa2.aux_labels = k2.RaggedTensor("[[3 0 5 0 8] [0 9 7 0] [-1]]")
     fsas = k2.Fsa.from_fsas([fsa1, fsa2])
     texts = get_texts(fsas)
     assert texts == [[1, 3, 2, 4, 1], [3, 5, 8, 9, 7]]

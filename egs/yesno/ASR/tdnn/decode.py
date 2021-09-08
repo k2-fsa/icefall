@@ -296,6 +296,7 @@ def main():
         torch.save(
             {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
         )
+        return
 
     model.to(device)
     model.eval()
