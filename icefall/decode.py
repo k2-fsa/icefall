@@ -878,7 +878,7 @@ def rescore_with_attention_decoder(
 
             best_path_indexes = k2.index_select(new2old, argmax_indexes)
 
-            # best_path is a k2.RaggedInt with 2 axes [path][arc_pos]
+            # best_path is a k2.RaggedTensor with 2 axes [path][arc_pos]
             best_path, _ = path_2axes.index(
                 indexes=best_path_indexes, axis=0, need_value_indexes=False
             )

@@ -219,6 +219,28 @@ def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
     return aux_labels.tolist()
 
 
+def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
+    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+    Returns:
+      Returns a list of lists of int, containing the token sequences we
+      decoded. For `ans[i]`, its length equals to the number of frames
+      after subsampling of the i-th utterance in the batch.
+    """
+    # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
+    label_shape = best_paths.arcs.shape().remove_axis(1)
+    # label_shape has axes [fsa][arc]
+    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
+    labels = labels.remove_values_eq(-1)
+    return labels.tolist()
+
+
 def store_transcripts(
     filename: Pathlike, texts: Iterable[Tuple[str, str]]
 ) -> None:
