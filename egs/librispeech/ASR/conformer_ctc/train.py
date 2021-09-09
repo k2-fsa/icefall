@@ -150,7 +150,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp_gloam_2e-4_0.85"),
+            "exp_dir": Path("conformer_ctc/exp_gloam_5e-4_0.85"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -173,7 +173,7 @@ def get_params() -> AttributeDict:
             "is_espnet_structure": True,
             "mmi_loss": False,
             "use_feat_batchnorm": True,
-            "max_lrate": 2.0e-04,
+            "max_lrate": 5.0e-04,
             "first_decay_epoch": 1,
             "decay_per_epoch": 0.85,
             "warm_step": 40000,
