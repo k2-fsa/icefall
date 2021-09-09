@@ -82,14 +82,14 @@ class LibriSpeechAsrDataModule(DataModule):
         group.add_argument(
             "--max-duration",
             type=int,
-            default=500.0,
+            default=200.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )

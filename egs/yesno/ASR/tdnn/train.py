@@ -24,12 +24,7 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 
 def get_parser():
@@ -61,8 +56,18 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=50,
+        default=15,
         help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
+        tdnn/exp/epoch-{start_epoch-1}.pt
+        """,
     )
 
     return parser
@@ -97,8 +102,6 @@ def get_params() -> AttributeDict:
         - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
                         and continue training from that checkpoint.
 
-        - num_epochs:  Number of epochs to train.
-
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
                            updated during the training.
@@ -129,11 +132,10 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("tdnn/exp"),
             "lang_dir": Path("data/lang_phone"),
-            "lr": 1e-3,
+            "lr": 1e-2,
             "feature_dim": 23,
             "weight_decay": 1e-6,
             "start_epoch": 0,
-            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -278,9 +280,14 @@ def compute_loss(
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
     supervisions = batch["supervisions"]
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=1
+    texts = supervisions["text"]
+
+    batch_size = nnet_output.shape[0]
+    supervision_segments = torch.tensor(
+        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
+        dtype=torch.int32,
     )
+
     decoding_graph = graph_compiler.compile(texts)
 
     dense_fsa_vec = k2.DenseFsaVec(
@@ -421,6 +428,19 @@ def train_one_epoch(
                 f"batch size: {batch_size}"
             )
 
+            if tb_writer is not None:
+                tb_writer.add_scalar(
+                    "train/current_loss",
+                    loss_cpu / params.train_frames,
+                    params.batch_idx_train,
+                )
+
+                tb_writer.add_scalar(
+                    "train/tot_avg_loss",
+                    tot_avg_loss,
+                    params.batch_idx_train,
+                )
+
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             compute_validation_loss(
                 params=params,
@@ -435,6 +455,12 @@ def train_one_epoch(
                 f" best valid loss: {params.best_valid_loss:.4f} "
                 f"best valid epoch: {params.best_valid_epoch}"
             )
+            if tb_writer is not None:
+                tb_writer.add_scalar(
+                    "train/valid_loss",
+                    params.valid_loss,
+                    params.batch_idx_train,
+                )
 
     params.train_loss = tot_loss / tot_frames
 
@@ -491,7 +517,7 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = optim.AdamW(
+    optimizer = optim.SGD(
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,

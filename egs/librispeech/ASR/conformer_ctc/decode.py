@@ -45,6 +45,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -57,28 +58,74 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=9,
+        default=34,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=1,
+        default=20,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
 
     parser.add_argument(
+        "--method",
+        type=str,
+        default="attention-decoder",
+        help="""Decoding method.
+        Supported values are:
+            - (1) 1best. Extract the best path from the decoding lattice as the
+              decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
+            - (3) nbest-rescoring. Extract n paths from the decoding lattice,
+              rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
+              the highest score is the decoding result.
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+              n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
+              is the decoding result.
+            - (5) attention-decoder. Extract n paths from the LM rescored
+              lattice, the path with the highest score is the decoding result.
+            - (6) nbest-oracle. Its WER is the lower bound of any n-best
+              rescoring method can achieve. Useful for debugging n-best
+              rescoring method.
+        """,
+    )
+
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=100,
+        help="""Number of paths for n-best based decoding method.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
+        """,
+    )
+
+    parser.add_argument(
         "--lattice-score-scale",
         type=float,
         default=1.0,
-        help="The scale to be applied to `lattice.scores`."
-        "It's needed if you use any kinds of n-best based rescoring. "
-        "Currently, it is used when the decoding method is: nbest, "
-        "nbest-rescoring, attention-decoder, and nbest-oracle. "
-        "A smaller value results in more unique paths.",
+        help="""The scale to be applied to `lattice.scores`.
+        It's needed if you use any kinds of n-best based rescoring.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
+        A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
+        """,
     )
 
     return parser
@@ -104,21 +151,6 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            # Possible values for method:
-            #  - 1best
-            #  - nbest
-            #  - nbest-rescoring
-            #  - whole-lattice-rescoring
-            #  - attention-decoder
-            #  - nbest-oracle
-            #  "method": "nbest",
-            #  "method": "nbest-rescoring",
-            #  "method": "whole-lattice-rescoring",
-            "method": "attention-decoder",
-            #  "method": "nbest-oracle",
-            # num_paths is used when method is "nbest", "nbest-rescoring",
-            # attention-decoder, and nbest-oracle
-            "num_paths": 100,
         }
     )
     return params
@@ -129,7 +161,7 @@ def decode_one_batch(
     model: nn.Module,
     HLG: k2.Fsa,
     batch: dict,
-    lexicon: Lexicon,
+    word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
@@ -163,8 +195,8 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      lexicon:
-        It contains word symbol table.
+      word_table:
+        The word symbol table.
       sos_id:
         The token ID of the SOS.
       eos_id:
@@ -217,7 +249,7 @@ def decode_one_batch(
             lattice=lattice,
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
-            lexicon=lexicon,
+            word_table=word_table,
             scale=params.lattice_score_scale,
         )
 
@@ -237,7 +269,7 @@ def decode_one_batch(
             key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
-        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.method in [
@@ -283,7 +315,7 @@ def decode_one_batch(
     ans = dict()
     for lm_scale_str, best_path in best_path_dict.items():
         hyps = get_texts(best_path)
-        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
         ans[lm_scale_str] = hyps
     return ans
 
@@ -293,7 +325,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     HLG: k2.Fsa,
-    lexicon: Lexicon,
+    word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
@@ -309,8 +341,8 @@ def decode_dataset(
         The neural model.
       HLG:
         The decoding graph.
-      lexicon:
-        It contains word symbol table.
+      word_table:
+        It is the word symbol table.
       sos_id:
         The token ID for SOS.
       eos_id:
@@ -344,7 +376,7 @@ def decode_dataset(
             model=model,
             HLG=HLG,
             batch=batch,
-            lexicon=lexicon,
+            word_table=word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
@@ -521,6 +553,13 @@ def main():
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
 
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
+
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
@@ -540,7 +579,7 @@ def main():
             params=params,
             model=model,
             HLG=HLG,
-            lexicon=lexicon,
+            word_table=lexicon.word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,

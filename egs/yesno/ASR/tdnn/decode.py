@@ -20,6 +20,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -32,17 +33,28 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=9,
+        default=14,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=2,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        tdnn/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
+        """,
     )
     return parser
 
@@ -104,16 +116,11 @@ def decode_one_batch(
     nnet_output = model(feature)
     # nnet_output is [N, T, C]
 
-    supervisions = batch["supervisions"]
-
-    supervision_segments = torch.stack(
-        (
-            supervisions["sequence_idx"],
-            supervisions["start_frame"],
-            supervisions["num_frames"],
-        ),
-        1,
-    ).to(torch.int32)
+    batch_size = nnet_output.shape[0]
+    supervision_segments = torch.tensor(
+        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
+        dtype=torch.int32,
+    )
 
     lattice = get_lattice(
         nnet_output=nnet_output,
@@ -283,6 +290,13 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
 
     model.to(device)
     model.eval()

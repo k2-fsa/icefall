@@ -1,15 +1,14 @@
 ## Yesno recipe
 
-You can run the recipe with **CPU**.
+This is the simplest ASR recipe in `icefall`.
 
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
-
-The above Colab notebook finishes the training using **CPU**
-within two minutes (50 epochs in total).
-
-The WER is
+It can be run on CPU and takes less than 30 seconds to
+get the following WER:
 
 ```
 [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
 ```
+
+Please refer to
+<https://icefall.readthedocs.io/en/latest/recipes/yesno.html>
+for detailed instructions.

@@ -56,7 +56,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip black flake8
           python3 -m pip install -U pip
-          python3 -m pip install k2==1.4.dev20210822+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
+          python3 -m pip install k2==1.7.dev20210908+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
           python3 -m pip install torchaudio==0.7.2
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse
 
@@ -69,21 +69,10 @@ jobs:
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
           echo $PYTHONPATH
-          ls -lh
 
-          # The following three lines are for macOS
-          lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-          echo "lib_path: $lib_path"
-          export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
-          ls -lh $lib_path
 
           cd egs/yesno/ASR
           ./prepare.sh
-          python3 ./tdnn/train.py --num-epochs 100
-          python3 ./tdnn/decode.py --epoch 99
-          python3 ./tdnn/decode.py --epoch 95
-          python3 ./tdnn/decode.py --epoch 90
-          python3 ./tdnn/decode.py --epoch 80
-          python3 ./tdnn/decode.py --epoch 70
-          python3 ./tdnn/decode.py --epoch 60
+          python3 ./tdnn/train.py
+          python3 ./tdnn/decode.py
           # TODO: Check that the WER is less than some value

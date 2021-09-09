@@ -74,6 +74,23 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=35,
+        help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
+        conformer_ctc/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
     return parser
 
 
@@ -102,11 +119,6 @@ def get_params() -> AttributeDict:
         - weight_decay:  The weight_decay for the optimizer.
 
         - subsampling_factor:  The subsampling factor for the model.
-
-        - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
-                        and continue training from that checkpoint.
-
-        - num_epochs:  Number of epochs to train.
 
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
@@ -143,8 +155,6 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "weight_decay": 1e-6,
             "subsampling_factor": 4,
-            "start_epoch": 0,
-            "num_epochs": 20,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
