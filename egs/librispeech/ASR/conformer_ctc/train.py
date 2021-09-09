@@ -33,7 +33,7 @@ from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
+from madam import Gloam
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
@@ -150,10 +150,9 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
+            "exp_dir": Path("conformer_ctc/exp_gloam_2e-4_0.85"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
-            "weight_decay": 1e-6,
             "subsampling_factor": 4,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
@@ -174,8 +173,10 @@ def get_params() -> AttributeDict:
             "is_espnet_structure": True,
             "mmi_loss": False,
             "use_feat_batchnorm": True,
-            "lr_factor": 5.0,
-            "warm_step": 80000,
+            "max_lrate": 2.0e-04,
+            "first_decay_epoch": 1,
+            "decay_per_epoch": 0.85,
+            "warm_step": 40000,
         }
     )
 
@@ -296,74 +297,82 @@ def compute_loss(
         function enables autograd during computation; when it is False, it
         disables autograd.
     """
-    device = graph_compiler.device
-    feature = batch["inputs"]
-    # at entry, feature is [N, T, C]
-    assert feature.ndim == 3
-    feature = feature.to(device)
+    try:
+        device = graph_compiler.device
+        feature = batch["inputs"]
+        # at entry, feature is [N, T, C]
+        assert feature.ndim == 3
+        feature = feature.to(device)
 
-    supervisions = batch["supervisions"]
-    with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is [N, T, C]
+        supervisions = batch["supervisions"]
 
-    # NOTE: We need `encode_supervisions` to sort sequences with
-    # different duration in decreasing order, required by
-    # `k2.intersect_dense` called in `k2.ctc_loss`
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=params.subsampling_factor
-    )
-
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
-
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
-
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
-    )
-
-    if params.att_rate != 0.0:
         with torch.set_grad_enabled(is_training):
-            if hasattr(model, "module"):
-                att_loss = model.module.decoder_forward(
-                    encoder_memory,
-                    memory_mask,
-                    token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
-                )
-            else:
-                att_loss = model.decoder_forward(
-                    encoder_memory,
-                    memory_mask,
-                    token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
-                )
-        loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
-    else:
-        loss = ctc_loss
-        att_loss = torch.tensor([0])
+            nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
+            # nnet_output is [N, T, C]
 
-    # train_frames and valid_frames are used for printing.
-    if is_training:
-        params.train_frames = supervision_segments[:, 2].sum().item()
-    else:
-        params.valid_frames = supervision_segments[:, 2].sum().item()
+        # NOTE: We need `encode_supervisions` to sort sequences with
+        # different duration in decreasing order, required by
+        # `k2.intersect_dense` called in `k2.ctc_loss`
+        supervision_segments, texts = encode_supervisions(
+            supervisions, subsampling_factor=params.subsampling_factor
+        )
 
-    assert loss.requires_grad == is_training
+        token_ids = graph_compiler.texts_to_ids(texts)
 
-    return loss, ctc_loss.detach(), att_loss.detach()
+        decoding_graph = graph_compiler.compile(token_ids)
+
+        dense_fsa_vec = k2.DenseFsaVec(
+            nnet_output,
+            supervision_segments,
+            allow_truncate=params.subsampling_factor - 1,
+        )
+
+        ctc_loss = k2.ctc_loss(
+            decoding_graph=decoding_graph,
+            dense_fsa_vec=dense_fsa_vec,
+            output_beam=params.beam_size,
+            reduction=params.reduction,
+            use_double_scores=params.use_double_scores,
+        )
+
+        if params.att_rate != 0.0:
+            with torch.set_grad_enabled(is_training):
+                if hasattr(model, "module"):
+                    att_loss = model.module.decoder_forward(
+                        encoder_memory,
+                        memory_mask,
+                        token_ids=token_ids,
+                        sos_id=graph_compiler.sos_id,
+                        eos_id=graph_compiler.eos_id,
+                    )
+                else:
+                    att_loss = model.decoder_forward(
+                        encoder_memory,
+                        memory_mask,
+                        token_ids=token_ids,
+                        sos_id=graph_compiler.sos_id,
+                        eos_id=graph_compiler.eos_id,
+                    )
+                loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
+        else:
+            loss = ctc_loss
+            att_loss = torch.tensor([0])
+
+        # train_frames and valid_frames are used for printing.
+        if is_training:
+            params.train_frames = supervision_segments[:, 2].sum().item()
+        else:
+            params.valid_frames = supervision_segments[:, 2].sum().item()
+
+        assert loss.requires_grad == is_training
+
+        return loss, ctc_loss.detach(), att_loss.detach()
+    except RuntimeError as e:
+        print(f"Runtime error.  feature.shape = {feature.shape}, supervisions = {supervisions}")
+        raise e
+
+
+
 
 
 def compute_validation_loss(
@@ -657,12 +666,13 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Noam(
+    # Remember: with Gloam, you need to cal set_epoch() on every epoch.
+    optimizer = Gloam(
         model.parameters(),
-        model_size=params.attention_dim,
-        factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
+        max_lrate=params.max_lrate,
+        first_decay_epoch=params.first_decay_epoch,
+        decay_per_epoch=params.decay_per_epoch,
     )
 
     if checkpoints:
@@ -673,6 +683,7 @@ def run(rank, world_size, args):
     valid_dl = librispeech.valid_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        optimizer.set_epoch(epoch) # specific to Gloam
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate
