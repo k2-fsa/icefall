@@ -134,7 +134,9 @@ def get_params() -> AttributeDict:
         {
             # exp_3, vs. exp_2, is using 5e-04 not 2d-04 as max learning rate.
             # exp_4, vs. exp_3, is using the Gloam optimizer with
-            "exp_dir": Path("conformer_lm/exp_4"),
+            # in exp_5, vs. exp_4, we change Gloam to have a 1/sqrt(t) factor
+            #      as well as the exponential part.
+            "exp_dir": Path("conformer_lm/exp_5"),
             "lm_dataset": Path("data/lm_training_5000/lm_data.pt"),
             "num_tokens": 5000,
             "blank_sym": 0,
@@ -526,7 +528,7 @@ def run(rank, world_size, args):
     optimizer = Gloam(
         model.parameters(),
         max_lrate=params.max_lrate,
-        first_decrease_epoch=2,
+        first_decrease_epoch=1,
         decay_per_epoch=0.85
     )
 
