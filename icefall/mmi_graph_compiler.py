@@ -130,6 +130,11 @@ class MmiTrainingGraphCompiler(object):
             transcript_fsa_with_self_loops,
             treat_epsilons_specially=False,
         )
+
+        # CAUTION: Due to the presence of P,
+        # the resulting `num` may not be connected
+        num = k2.connect(num)
+
         num = k2.arc_sort(num)
 
         ctc_topo_P_vec = k2.create_fsa_vec([self.ctc_topo_P])
@@ -160,7 +165,7 @@ class MmiTrainingGraphCompiler(object):
         word_ids_list = []
         for text in texts:
             word_ids = []
-            for word in text.split(" "):
+            for word in text.split():
                 if word in self.lexicon.word_table:
                     word_ids.append(self.lexicon.word_table[word])
                 else:

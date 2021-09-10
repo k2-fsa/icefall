@@ -95,7 +95,7 @@ class Lexicon(object):
         """
         Args:
           lang_dir:
-            Path to the lang director. It is expected to contain the following
+            Path to the lang directory. It is expected to contain the following
             files:
                 - tokens.txt
                 - words.txt

@@ -116,16 +116,18 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
 
-  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+  echo '<UNK> SPN' |
     cat - $dl_dir/lm/librispeech-lexicon.txt |
     sort | uniq > $lang_dir/lexicon.txt
+
+  ./local/generate_unique_lexicon.py --lang-dir $lang_dir
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     ./local/prepare_lang.py --lang-dir $lang_dir
   fi
 
   # Train a bigram P for MMI training
-  if [ ! -f $lang_dir/train.txt ]; then
+  if [ ! -f $lang_dir/transcript_words.txt ]; then
     log "Generate data to train phone based bigram P"
     files=$(
       find -L "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
@@ -134,30 +136,21 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     )
     for f in ${files[@]}; do
       cat $f | cut -d " " -f 2-
-    done > $lang_dir/train.txt
+    done > $lang_dir/transcript_words.txt
   fi
 
-  if [ ! -f $lang_dir/train_with_sil.txt ]; then
-    ./local/add_silence_to_transcript.py \
-      --transcript $lang_dir/train.txt \
-      --sil-word "!SIL" \
-      --sil-prob 0.5 \
-      --seed 20210823 \
-      > $lang_dir/train_with_sil.txt
-  fi
-
-  if [ ! -f $lang_dir/corpus.txt ]; then
-    ./local/convert_transcript_to_corpus.py \
-      --lexicon $lang_dir/lexicon.txt \
-      --transcript $lang_dir/train_with_sil.txt \
+  if [ ! -f $lang_dir/transcript_tokens.txt ]; then
+    ./local/convert_transcript_words_to_tokens.py \
+      --lexicon $lang_dir/uniq_lexicon.txt \
+      --transcript $lang_dir/transcript_words.txt \
       --oov "<UNK>" \
-      > $lang_dir/corpus.txt
+      > $lang_dir/transcript_tokens.txt
   fi
 
   if [ ! -f $lang_dir/P.arpa ]; then
     ./shared/make_kn_lm.py \
       -ngram-order 2 \
-      -text $lang_dir/corpus.txt \
+      -text $lang_dir/transcript_tokens.txt \
       -lm $lang_dir/P.arpa
   fi
 
@@ -180,7 +173,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     # so that the two can share G.pt later.
     cp data/lang_phone/words.txt $lang_dir
 
-    if [ ! -f $lang_dir/train.txt ]; then
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
       log "Generate data for BPE training"
       files=$(
         find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
@@ -189,7 +182,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       )
       for f in ${files[@]}; do
         cat $f | cut -d " " -f 2-
-      done > $lang_dir/train.txt
+      done > $lang_dir/transcript_words.txt
     fi
 
     ./local/train_bpe_model.py \
@@ -204,7 +197,7 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Prepare G"
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
   mkdir -p data/lm
@@ -237,4 +230,4 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   done
 fi
 
-cd data && ln -sfv lang_bpe_5000 lang_bpe
+# cd data && ln -sfv lang_bpe_5000 lang_bpe

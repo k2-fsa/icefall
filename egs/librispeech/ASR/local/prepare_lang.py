@@ -17,8 +17,9 @@
 
 
 """
-This script takes as input a lexicon file "data/lang_phone/lexicon.txt"
-consisting of words and tokens (i.e., phones) and does the following:
+This script takes as input a `lang_dir`, which is expected to contain
+a lexicon file "lexicon.txt" consisting of words and tokens (i.e., phones)
+and does the following:
 
 1. Add disambiguation symbols to the lexicon and generate lexicon_disambig.txt
 
@@ -36,10 +37,11 @@ consisting of words and tokens (i.e., phones) and does the following:
 The generated files are saved into `lang_dir`.
 """
 import argparse
-import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+from icefall.utils import str2bool
 
 import k2
 import torch
@@ -55,7 +57,22 @@ def get_args():
         "--lang-dir",
         type=str,
         help="""Input and output directory.
-        It should contain a file lexicon.txt
+        It should contain a file lexicon.txt.
+        Generated files by this script are saved into this directory.
+        """,
+    )
+
+    parser.add_argument(
+        "--debug",
+        type=str2bool,
+        default=False,
+        help="""True for debugging, which will generate
+        a visualization of the lexicon FST.
+
+        Caution: If your lexicon contains hundreds of thousands
+        of lines, please set it to False!
+
+        See "local/test_prepare_lang.sh" for usage.
         """,
     )
 
@@ -84,6 +101,10 @@ def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
 
 def get_tokens(lexicon: Lexicon) -> List[str]:
     """Get tokens from a lexicon.
+
+    If pronunciations are phones, then tokens are phones.
+    If pronunciations are word pieces, then tokens are word pieces.
+
 
     Args:
       lexicon:
@@ -208,6 +229,9 @@ def add_self_loops(
     The input label of a self-loop is `disambig_token`, while the output
     label is `disambig_word`.
 
+    Caution:
+      Don't be confused with :func:`k2.add_epsilon_self_loops`.
+
     Args:
       arcs:
         A list-of-list. The sublist contains
@@ -237,12 +261,9 @@ def lexicon_to_fst(
     lexicon: Lexicon,
     token2id: Dict[str, int],
     word2id: Dict[str, int],
-    sil_token: str = "SIL",
-    sil_prob: float = 0.5,
     need_self_loops: bool = False,
 ) -> k2.Fsa:
-    """Convert a lexicon to an FST (in k2 format) with optional silence at
-    the beginning and end of each word.
+    """Convert a lexicon to an FST (in k2 format).
 
     Args:
       lexicon:
@@ -251,11 +272,6 @@ def lexicon_to_fst(
         A dict mapping tokens to IDs.
       word2id:
         A dict mapping words to IDs.
-      sil_token:
-        The silence token.
-      sil_prob:
-        The probability for adding a silence at the beginning and end
-        of the word.
       need_self_loops:
         If True, add self-loop to states with non-epsilon output symbols
         on at least one arc out of the state. The input label for this
@@ -263,50 +279,43 @@ def lexicon_to_fst(
     Returns:
       Return an instance of `k2.Fsa` representing the given lexicon.
     """
-    assert sil_prob > 0.0 and sil_prob < 1.0
-    # CAUTION: we use score, i.e, negative cost.
-    sil_score = math.log(sil_prob)
-    no_sil_score = math.log(1.0 - sil_prob)
+    loop_state = 0  # words enter and leave from here
+    next_state = 1  # the next un-allocated state, will be incremented as we go
 
-    start_state = 0
-    loop_state = 1  # words enter and leave from here
-    sil_state = 2  # words terminate here when followed by silence; this state
-    # has a silence transition to loop_state.
-    next_state = 3  # the next un-allocated state, will be incremented as we go.
     arcs = []
 
-    assert token2id["<eps>"] == 0
+    if "<blk>" in token2id:
+        # For BPE based lexicon
+        # The blank symbol <blk> is defined in local/train_bpe_model.py
+        assert token2id["<blk>"] == 0
+    else:
+        # For phone based lexicon in the CTC topo,
+        # 0 on the left side (i.e., as label) indicates a blank.
+        # 0 on the right side (i.e., as aux_label) represents an epsilon
+        assert token2id["<eps>"] == 0
+
     assert word2id["<eps>"] == 0
 
     eps = 0
 
-    sil_token = token2id[sil_token]
-
-    arcs.append([start_state, loop_state, eps, eps, no_sil_score])
-    arcs.append([start_state, sil_state, eps, eps, sil_score])
-    arcs.append([sil_state, loop_state, sil_token, eps, 0])
-
-    for word, tokens in lexicon:
-        assert len(tokens) > 0, f"{word} has no pronunciations"
+    for word, pieces in lexicon:
+        assert len(pieces) > 0, f"{word} has no pronunciations"
         cur_state = loop_state
 
         word = word2id[word]
-        tokens = [token2id[i] for i in tokens]
+        pieces = [token2id[i] for i in pieces]
 
-        for i in range(len(tokens) - 1):
+        for i in range(len(pieces) - 1):
             w = word if i == 0 else eps
-            arcs.append([cur_state, next_state, tokens[i], w, 0])
+            arcs.append([cur_state, next_state, pieces[i], w, 0])
 
             cur_state = next_state
             next_state += 1
 
-        # now for the last token of this word
-        # It has two out-going arcs, one to the loop state,
-        # the other one to the sil_state.
-        i = len(tokens) - 1
+        # now for the last piece of this word
+        i = len(pieces) - 1
         w = word if i == 0 else eps
-        arcs.append([cur_state, loop_state, tokens[i], w, no_sil_score])
-        arcs.append([cur_state, sil_state, tokens[i], w, sil_score])
+        arcs.append([cur_state, loop_state, pieces[i], w, 0])
 
     if need_self_loops:
         disambig_token = token2id["#0"]
@@ -335,8 +344,6 @@ def main():
     lang_dir = Path(args.lang_dir)
 
     lexicon_filename = lang_dir / "lexicon.txt"
-    sil_token = "SIL"
-    sil_prob = 0.5
 
     lexicon = read_lexicon(lexicon_filename)
     tokens = get_tokens(lexicon)
@@ -370,20 +377,28 @@ def main():
         lexicon,
         token2id=token2id,
         word2id=word2id,
-        sil_token=sil_token,
-        sil_prob=sil_prob,
     )
 
     L_disambig = lexicon_to_fst(
         lexicon_disambig,
         token2id=token2id,
         word2id=word2id,
-        sil_token=sil_token,
-        sil_prob=sil_prob,
         need_self_loops=True,
     )
     torch.save(L.as_dict(), lang_dir / "L.pt")
     torch.save(L_disambig.as_dict(), lang_dir / "L_disambig.pt")
+
+    if args.debug:
+        labels_sym = k2.SymbolTable.from_file(lang_dir / "tokens.txt")
+        aux_labels_sym = k2.SymbolTable.from_file(lang_dir / "words.txt")
+
+        L.labels_sym = labels_sym
+        L.aux_labels_sym = aux_labels_sym
+        L.draw(f"{lang_dir / 'L.svg'}", title="L.pt")
+
+        L_disambig.labels_sym = labels_sym
+        L_disambig.aux_labels_sym = aux_labels_sym
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
 
 
 if __name__ == "__main__":

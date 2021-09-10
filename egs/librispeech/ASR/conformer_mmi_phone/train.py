@@ -61,29 +61,6 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
-    parser.add_argument(
-        "--use-ali-model",
-        type=str2bool,
-        default=False,
-        help="If true, we assume that you have run tdnn_lstm_ctc/train_bpe.py "
-        "and you have some checkpoints inside the directory "
-        "tdnn_lstm_ctc/exp_bpe_500 ."
-        "It will use tdnn_lstm_ctc/exp_bpe_500/epoch-{ali-model-epoch}.pt "
-        "as the pre-trained alignment model",
-    )
-    parser.add_argument(
-        "--ali-model-epoch",
-        type=int,
-        default=19,
-        help="If --use-ali-model is True, load "
-        "tdnn_lstm_ctc/exp_bpe_500/epoch-{ali-model-epoch}.pt as "
-        "the alignment model."
-        "Used only if --use-ali-model is True.",
-    )
-
-    # TODO: add extra arguments and support DDP training.
-    # Currently, only single GPU training is implemented. Will add
-    # DDP training once single GPU training is finished.
     return parser
 
 
@@ -158,7 +135,7 @@ def get_params() -> AttributeDict:
             "use_pruned_intersect": False,
             "den_scale": 1.0,
             #
-            "att_rate": 0,
+            "att_rate": 0,  # If not zero, use attention decoder
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 0,
@@ -166,7 +143,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "lr_factor": 5.0,
             "warm_step": 80000,
-            #  "warm_step": 10000,
         }
     )
 
@@ -260,10 +236,9 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
-def compute_loss_impl(
+def compute_loss(
     params: AttributeDict,
     model: nn.Module,
-    ali_model: Optional[nn.Module],
     batch: dict,
     graph_compiler: MmiTrainingGraphCompiler,
     is_training: bool,
@@ -296,22 +271,6 @@ def compute_loss_impl(
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
         # nnet_output is [N, T, C]
-        if ali_model is not None and params.batch_idx_train < 4000:
-            feature = feature.permute(0, 2, 1)  # [N, T, C]->[N, C, T]
-            ali_model_output = ali_model(feature)
-            # subsampling is done slightly differently, may be small length
-            # differences.
-            min_len = min(ali_model_output.shape[1], nnet_output.shape[1])
-            # scale less than one so it will be encouraged
-            # to mimic ali_model's output
-            ali_model_scale = 500.0 / (params.batch_idx_train + 500)
-
-            # Use clone() here or log-softmax backprop will fail.
-            nnet_output = nnet_output.clone()
-
-            nnet_output[:, :min_len, :] += (
-                ali_model_scale * ali_model_output[:, :min_len, :]
-            )
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -374,58 +333,9 @@ def compute_loss_impl(
     return loss, mmi_loss.detach(), att_loss.detach()
 
 
-def compute_loss(
-    params: AttributeDict,
-    model: nn.Module,
-    ali_model: Optional[nn.Module],
-    batch: dict,
-    graph_compiler: MmiTrainingGraphCompiler,
-    is_training: bool,
-):
-    try:
-        return compute_loss_impl(
-            params=params,
-            model=model,
-            ali_model=ali_model,
-            batch=batch,
-            graph_compiler=graph_compiler,
-            is_training=is_training,
-        )
-    except RuntimeError as ex:
-        if "out of memory" not in str(ex):
-            raise ex
-
-        logging.exception(ex)
-        s = f"\nCaught exception: {str(ex)}\n"
-        total_duration = 0.0
-        max_cut_duration = 0.0
-        for cut in batch["supervisions"]["cut"]:
-            s += f" id: {cut.id}, duration: {cut.duration} seconds\n"
-            total_duration += cut.duration
-            max_cut_duration = max(max_cut_duration, cut.duration)
-        s += f" total duration: {total_duration:.3f} s\n"
-        s += f" max duration: {max_cut_duration:.3f} s \n"
-        logging.info(s)
-
-    torch.cuda.empty_cache()
-
-    gc.collect()
-
-    # See https://github.com/pytorch/pytorch/issues/18853#issuecomment-583779161
-    return compute_loss_impl(
-        params=params,
-        model=model,
-        ali_model=ali_model,
-        batch=params.saved_batch,
-        graph_compiler=graph_compiler,
-        is_training=is_training,
-    )
-
-
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
-    ali_model: Optional[nn.Module],
     graph_compiler: MmiTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -443,7 +353,6 @@ def compute_validation_loss(
         loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
-            ali_model=ali_model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=False,
@@ -484,7 +393,6 @@ def compute_validation_loss(
 def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
-    ali_model: Optional[nn.Module],
     optimizer: torch.optim.Optimizer,
     graph_compiler: MmiTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
@@ -503,9 +411,6 @@ def train_one_epoch(
         It is returned by :func:`get_params`.
       model:
         The model for training.
-      ali_model:
-        The force alignment model for training. It is from
-        tdnn_lstm_ctc/train_bpe.py
       optimizer:
         The optimizer we are using.
       graph_compiler:
@@ -529,18 +434,12 @@ def train_one_epoch(
     params.tot_loss = 0.0
     params.tot_frames = 0.0
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx == 0:
-            logging.info("save a batch for OOM handling")
-            # Use this batch to replace the batch that's causing OOM
-            params.saved_batch = batch
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
         loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
-            ali_model=ali_model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=True,
@@ -632,7 +531,6 @@ def train_one_epoch(
             compute_validation_loss(
                 params=params,
                 model=model,
-                ali_model=ali_model,
                 graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
@@ -668,9 +566,6 @@ def train_one_epoch(
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
-
-    if "saved_batch" in params:
-        del params["saved_batch"]
 
 
 def run(rank, world_size, args):
@@ -745,35 +640,6 @@ def run(rank, world_size, args):
     if checkpoints and checkpoints["optimizer"]:
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    assert args.use_ali_model is False
-    if args.use_ali_model:
-        ali_model = TdnnLstm(
-            num_features=params.feature_dim,
-            num_classes=num_classes,
-            subsampling_factor=params.subsampling_factor,
-        )
-
-        # TODO: add an option to switch among
-        # bpe_500, bpe_1000, and bpe_5000
-        ali_model_fname = Path(
-            f"tdnn_lstm_ctc/exp_bpe_500/epoch-{args.ali_model_epoch}.pt"
-        )
-        assert (
-            ali_model_fname.is_file()
-        ), f"ali model filename {ali_model_fname} does not exist!"
-
-        ali_model.load_state_dict(
-            torch.load(ali_model_fname, map_location="cpu")["model"]
-        )
-        ali_model.to(device)
-
-        ali_model.eval()
-        ali_model.requires_grad_(False)
-        logging.info(f"Use ali_model: {ali_model_fname}")
-    else:
-        ali_model = None
-        logging.info("No ali_model")
-
     librispeech = LibriSpeechAsrDataModule(args)
     train_dl = librispeech.train_dataloaders()
     valid_dl = librispeech.valid_dataloaders()
@@ -796,7 +662,6 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
-            ali_model=ali_model,
             optimizer=optimizer,
             graph_compiler=graph_compiler,
             train_dl=train_dl,
