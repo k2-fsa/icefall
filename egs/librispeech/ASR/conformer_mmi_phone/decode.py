@@ -27,7 +27,6 @@ from icefall.decode import (
     rescore_with_whole_lattice,
 )
 from icefall.lexicon import Lexicon
-from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -416,11 +415,6 @@ def main():
         device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
-
-    graph_compiler = MmiTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-    )
 
     HLG = k2.Fsa.from_dict(
         torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")

@@ -22,10 +22,10 @@ You can run this file in one of the two ways:
     (2) cd icefall; ./test/test_mmi_graph_compiler.py
 """
 
+import copy
 import os
 import shutil
 import sys
-import copy
 from pathlib import Path
 
 import k2
@@ -35,7 +35,6 @@ from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 TMP_DIR = "/tmp/icefall-test-mmi-graph-compiler"
 USING_PYTEST = "pytest" in sys.modules
 ICEFALL_DIR = Path(__file__).resolve().parent.parent
-print(ICEFALL_DIR)
 
 
 def generate_test_data():
