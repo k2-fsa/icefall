@@ -28,7 +28,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from conformer import DiscreteBottleneckConformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -150,7 +150,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp_gloam_5e-4_0.85"),
+            "exp_dir": Path("conformer_ctc_bn/exp_gloam_5e-4_0.85_discrete8"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -647,7 +647,7 @@ def run(rank, world_size, args):
     )
 
     logging.info("About to create model")
-    model = Conformer(
+    model = DiscreteBottleneckConformer(
         num_features=params.feature_dim,
         nhead=params.nhead,
         d_model=params.attention_dim,
