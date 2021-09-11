@@ -11,6 +11,7 @@ def _compute_mmi_loss_exact_optimized(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
+    output_beam: float,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -79,7 +80,7 @@ def _compute_mmi_loss_exact_optimized(
     num_den_lats = k2.intersect_dense(
         num_den_reordered_graphs,
         dense_fsa_vec,
-        output_beam=8.0,
+        output_beam=output_beam,
         a_to_b_map=a_to_b_map,
     )
 
@@ -99,6 +100,7 @@ def _compute_mmi_loss_exact_non_optimized(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
+    output_beam: float,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -112,9 +114,12 @@ def _compute_mmi_loss_exact_non_optimized(
     """
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=True)
 
-    # TODO: pass output_beam as function argument
-    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=8.0)
-    den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, output_beam=8.0)
+    num_lats = k2.intersect_dense(
+        num_graphs, dense_fsa_vec, output_beam=output_beam
+    )
+    den_lats = k2.intersect_dense(
+        den_graphs, dense_fsa_vec, output_beam=output_beam
+    )
 
     num_tot_scores = num_lats.get_tot_scores(
         log_semiring=True, use_double_scores=True
@@ -134,6 +139,7 @@ def _compute_mmi_loss_pruned(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
+    output_beam: float,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -148,7 +154,9 @@ def _compute_mmi_loss_pruned(
     """
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=False)
 
-    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=10.0)
+    num_lats = k2.intersect_dense(
+        num_graphs, dense_fsa_vec, output_beam=output_beam
+    )
 
     # the values for search_beam/output_beam/min_active_states/max_active_states
     # are not tuned. You may want to tune them.
@@ -156,7 +164,7 @@ def _compute_mmi_loss_pruned(
         den_graphs,
         dense_fsa_vec,
         search_beam=20.0,
-        output_beam=8.0,
+        output_beam=output_beam,
         min_active_states=30,
         max_active_states=10000,
     )
@@ -185,13 +193,15 @@ class LFMMILoss(nn.Module):
     def __init__(
         self,
         graph_compiler: MmiTrainingGraphCompiler,
+        output_beam: float,
         use_pruned_intersect: bool = False,
         den_scale: float = 1.0,
     ):
         super().__init__()
         self.graph_compiler = graph_compiler
-        self.den_scale = den_scale
+        self.output_beam = output_beam
         self.use_pruned_intersect = use_pruned_intersect
+        self.den_scale = den_scale
 
     def forward(
         self,
@@ -218,5 +228,6 @@ class LFMMILoss(nn.Module):
             dense_fsa_vec=dense_fsa_vec,
             texts=texts,
             graph_compiler=self.graph_compiler,
+            output_beam=self.output_beam,
             den_scale=self.den_scale,
         )

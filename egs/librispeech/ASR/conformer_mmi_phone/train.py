@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import argparse
 import logging
@@ -59,6 +75,23 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=50,
+        help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from this epoch.
+        If it is positive, it will load checkpoint from
+        conformer_ctc/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
     return parser
 
 
@@ -88,11 +121,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
-                        and continue training from that checkpoint.
-
-        - num_epochs:  Number of epochs to train.
-
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
                            updated during the training.
@@ -120,8 +148,6 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "weight_decay": 1e-6,
             "subsampling_factor": 4,
-            "start_epoch": 0,
-            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -130,13 +156,14 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
+            "beam_size": 10,
             "use_pruned_intersect": False,
             "den_scale": 1.0,
             #
-            "att_rate": 0,  # If not zero, use attention decoder
+            "att_rate": 0.7,  # If not zero, use attention decoder
             "attention_dim": 512,
             "nhead": 8,
-            "num_decoder_layers": 0,
+            "num_decoder_layers": 6,
             "is_espnet_structure": True,
             "use_feat_batchnorm": True,
             "lr_factor": 5.0,
@@ -288,15 +315,14 @@ def compute_loss(
 
     loss_fn = LFMMILoss(
         graph_compiler=graph_compiler,
+        output_beam=params.beam_size,
         den_scale=params.den_scale,
         use_pruned_intersect=params.use_pruned_intersect,
     )
 
     mmi_loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
 
-    assert params.att_rate == 0
     if params.att_rate != 0.0:
-        # TODO: not working
         token_ids = graph_compiler.texts_to_ids(texts)
         with torch.set_grad_enabled(is_training):
             if hasattr(model, "module"):
@@ -304,16 +330,16 @@ def compute_loss(
                     encoder_memory,
                     memory_mask,
                     token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
+                    sos_id=params.sos_id,
+                    eos_id=params.eos_id,
                 )
             else:
                 att_loss = model.decoder_forward(
                     encoder_memory,
                     memory_mask,
                     token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
+                    sos_id=params.sos_id,
+                    eos_id=params.eos_id,
                 )
         loss = (1.0 - params.att_rate) * mmi_loss + params.att_rate * att_loss
     else:
@@ -587,7 +613,6 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
-    logging.info(params)
 
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
@@ -617,11 +642,18 @@ def run(rank, world_size, args):
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
+        is_bpe=False,
         is_espnet_structure=params.is_espnet_structure,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
+    assert model.decoder_num_class == num_classes + 1
+
+    params.sos_id = num_classes
+    params.eos_id = num_classes
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
+
+    logging.info(params)
 
     model.to(device)
     if world_size > 1:

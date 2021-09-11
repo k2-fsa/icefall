@@ -85,7 +85,7 @@ def get_parser():
         "--start-epoch",
         type=int,
         default=0,
-        help="""Resume training from from this epoch.
+        help="""Resume training from this epoch.
         If it is positive, it will load checkpoint from
         conformer_ctc/exp/epoch-{start_epoch-1}.pt
         """,

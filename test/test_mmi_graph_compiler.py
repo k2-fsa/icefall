@@ -155,6 +155,12 @@ def mmi_graph_compiler_test():
     )
     den_graphs[2].draw(f"{TMP_DIR}/den_cat_zoo.svg", title="den_cat_zoo")
 
+    texts = ["cat at cat", "ac at ca"]
+    token_ids = graph_compiler.texts_to_ids(texts)
+    #                      c  a  t  a  t  c  a  t    a  c  a  t  SPN
+    expected_token_ids = [[3, 2, 4, 2, 4, 3, 2, 4], [2, 3, 2, 4, 1]]
+    assert token_ids == expected_token_ids
+
 
 def test_main():
     generate_test_data()

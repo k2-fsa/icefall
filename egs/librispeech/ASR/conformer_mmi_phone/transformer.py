@@ -42,7 +42,7 @@ class Transformer(nn.Module):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        mmi_loss: bool = True,
+        is_bpe: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
         """
@@ -71,7 +71,9 @@ class Transformer(nn.Module):
             If True, use pre-layer norm; False to use post-layer norm.
           vgg_frontend:
             True to use vgg style frontend for subsampling.
-          mmi_loss:
+          is_bpe:
+            True if the modeling unit is word pieces which has already included
+            SOS/EOS IDs.
           use_feat_batchnorm:
             True to use batchnorm for the input layer.
         """
@@ -123,7 +125,7 @@ class Transformer(nn.Module):
         )
 
         if num_decoder_layers > 0:
-            if mmi_loss:
+            if is_bpe is False:
                 self.decoder_num_class = (
                     self.num_classes + 1
                 )  # +1 for the sos/eos symbol

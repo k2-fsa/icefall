@@ -57,7 +57,7 @@ class Conformer(Transformer):
         normalize_before: bool = True,
         vgg_frontend: bool = False,
         is_espnet_structure: bool = False,
-        mmi_loss: bool = True,
+        is_bpe: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
         super(Conformer, self).__init__(
@@ -72,7 +72,7 @@ class Conformer(Transformer):
             dropout=dropout,
             normalize_before=normalize_before,
             vgg_frontend=vgg_frontend,
-            mmi_loss=mmi_loss,
+            is_bpe=is_bpe,
             use_feat_batchnorm=use_feat_batchnorm,
         )
 
