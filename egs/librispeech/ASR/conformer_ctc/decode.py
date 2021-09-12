@@ -45,6 +45,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -78,16 +79,16 @@ def get_parser():
         Supported values are:
             - (1) 1best. Extract the best path from the decoding lattice as the
               decoding result.
-            - (2) nbest. Extract n paths from the decoding lattice; the path with
-              the highest score is the decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
             - (3) nbest-rescoring. Extract n paths from the decoding lattice,
               rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
               the highest score is the decoding result.
-            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an n-gram LM
-              (e.g., a 4-gram LM), the best path of rescored lattice is the
-              decoding result.
-            - (5) attention-decoder. Extract n paths from the LM rescored lattice,
-              the path with the highest score is the decoding result.
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+              n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
+              is the decoding result.
+            - (5) attention-decoder. Extract n paths from the LM rescored
+              lattice, the path with the highest score is the decoding result.
             - (6) nbest-oracle. Its WER is the lower bound of any n-best
               rescoring method can achieve. Useful for debugging n-best
               rescoring method.
@@ -113,6 +114,17 @@ def get_parser():
         Used only when "method" is one of the following values:
         nbest, nbest-rescoring, attention-decoder, and nbest-oracle
         A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
         """,
     )
 
@@ -540,6 +552,13 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
 
     model.to(device)
     model.eval()

@@ -84,8 +84,8 @@ def _intersect_device(
     for start, end in splits:
         indexes = torch.arange(start, end).to(b_to_a_map)
 
-        fsas = k2.index(b_fsas, indexes)
-        b_to_a = k2.index(b_to_a_map, indexes)
+        fsas = k2.index_fsa(b_fsas, indexes)
+        b_to_a = k2.index_select(b_to_a_map, indexes)
         path_lattice = k2.intersect_device(
             a_fsas, fsas, b_to_a_map=b_to_a, sorted_match_a=sorted_match_a
         )
@@ -215,18 +215,16 @@ def nbest_decoding(
         scale=scale,
     )
 
-    # word_seq is a k2.RaggedInt sharing the same shape as `path`
+    # word_seq is a k2.RaggedTensor sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
     # The last entry in each sublist is -1.
-    word_seq = k2.index(lattice.aux_labels, path)
-    # Note: the above operation supports also the case when
-    # lattice.aux_labels is a ragged tensor. In that case,
-    # `remove_axis=True` is used inside the pybind11 binding code,
-    # so the resulting `word_seq` still has 3 axes, like `path`.
-    # The 3 axes are [seq][path][word_id]
+    if isinstance(lattice.aux_labels, torch.Tensor):
+        word_seq = k2.ragged.index(lattice.aux_labels, path)
+    else:
+        word_seq = lattice.aux_labels.index(path, remove_axis=True)
 
     # Remove 0 (epsilon) and -1 from word_seq
-    word_seq = k2.ragged.remove_values_leq(word_seq, 0)
+    word_seq = word_seq.remove_values_leq(0)
 
     # Remove sequences with identical word sequences.
     #
@@ -234,12 +232,12 @@ def nbest_decoding(
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
     # to the input path index.
     # new2old.numel() == unique_word_seqs.tot_size(1)
-    unique_word_seq, _, new2old = k2.ragged.unique_sequences(
-        word_seq, need_num_repeats=False, need_new2old_indexes=True
+    unique_word_seq, _, new2old = word_seq.unique(
+        need_num_repeats=False, need_new2old_indexes=True
     )
     # Note: unique_word_seq still has the same axes as word_seq
 
-    seq_to_path_shape = k2.ragged.get_layer(unique_word_seq.shape(), 0)
+    seq_to_path_shape = unique_word_seq.shape.get_layer(0)
 
     # path_to_seq_map is a 1-D torch.Tensor.
     # path_to_seq_map[i] is the seq to which the i-th path belongs
@@ -247,7 +245,7 @@ def nbest_decoding(
 
     # Remove the seq axis.
     # Now unique_word_seq has only two axes [path][word]
-    unique_word_seq = k2.ragged.remove_axis(unique_word_seq, 0)
+    unique_word_seq = unique_word_seq.remove_axis(0)
 
     # word_fsa is an FsaVec with axes [path][state][arc]
     word_fsa = k2.linear_fsa(unique_word_seq)
@@ -275,35 +273,35 @@ def nbest_decoding(
         use_double_scores=use_double_scores, log_semiring=False
     )
 
-    # RaggedFloat currently supports float32 only.
-    # If Ragged<double> is wrapped, we can use k2.RaggedDouble here
-    ragged_tot_scores = k2.RaggedFloat(
-        seq_to_path_shape, tot_scores.to(torch.float32)
-    )
+    ragged_tot_scores = k2.RaggedTensor(seq_to_path_shape, tot_scores)
 
-    argmax_indexes = k2.ragged.argmax_per_sublist(ragged_tot_scores)
+    argmax_indexes = ragged_tot_scores.argmax()
 
     # Since we invoked `k2.ragged.unique_sequences`, which reorders
     # the index from `path`, we use `new2old` here to convert argmax_indexes
     # to the indexes into `path`.
     #
     # Use k2.index here since argmax_indexes' dtype is torch.int32
-    best_path_indexes = k2.index(new2old, argmax_indexes)
+    best_path_indexes = k2.index_select(new2old, argmax_indexes)
 
-    path_2axes = k2.ragged.remove_axis(path, 0)
+    path_2axes = path.remove_axis(0)
 
-    # best_path is a k2.RaggedInt with 2 axes [path][arc_pos]
-    best_path = k2.index(path_2axes, best_path_indexes)
+    # best_path is a k2.RaggedTensor with 2 axes [path][arc_pos]
+    best_path, _ = path_2axes.index(
+        indexes=best_path_indexes, axis=0, need_value_indexes=False
+    )
 
-    # labels is a k2.RaggedInt with 2 axes [path][token_id]
+    # labels is a k2.RaggedTensor with 2 axes [path][token_id]
     # Note that it contains -1s.
-    labels = k2.index(lattice.labels.contiguous(), best_path)
+    labels = k2.ragged.index(lattice.labels.contiguous(), best_path)
 
-    labels = k2.ragged.remove_values_eq(labels, -1)
+    labels = labels.remove_values_eq(-1)
 
-    # lattice.aux_labels is a k2.RaggedInt tensor with 2 axes, so
-    # aux_labels is also a k2.RaggedInt with 2 axes
-    aux_labels = k2.index(lattice.aux_labels, best_path.values())
+    # lattice.aux_labels is a k2.RaggedTensor with 2 axes, so
+    # aux_labels is also a k2.RaggedTensor with 2 axes
+    aux_labels, _ = lattice.aux_labels.index(
+        indexes=best_path.data, axis=0, need_value_indexes=False
+    )
 
     best_path_fsa = k2.linear_fsa(labels)
     best_path_fsa.aux_labels = aux_labels
@@ -426,33 +424,36 @@ def rescore_with_n_best_list(
         scale=scale,
     )
 
-    # word_seq is a k2.RaggedInt sharing the same shape as `path`
+    # word_seq is a k2.RaggedTensor sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
     # The last entry in each sublist is -1.
-    word_seq = k2.index(lattice.aux_labels, path)
+    if isinstance(lattice.aux_labels, torch.Tensor):
+        word_seq = k2.ragged.index(lattice.aux_labels, path)
+    else:
+        word_seq = lattice.aux_labels.index(path, remove_axis=True)
 
     # Remove epsilons and -1 from word_seq
-    word_seq = k2.ragged.remove_values_leq(word_seq, 0)
+    word_seq = word_seq.remove_values_leq(0)
 
     # Remove paths that has identical word sequences.
     #
-    # unique_word_seq is still a k2.RaggedInt with 3 axes [seq][path][word]
+    # unique_word_seq is still a k2.RaggedTensor with 3 axes [seq][path][word]
     # except that there are no repeated paths with the same word_seq
     # within a sequence.
     #
-    # num_repeats is also a k2.RaggedInt with 2 axes containing the
+    # num_repeats is also a k2.RaggedTensor with 2 axes containing the
     # multiplicities of each path.
-    # num_repeats.num_elements() == unique_word_seqs.tot_size(1)
+    # num_repeats.numel() == unique_word_seqs.tot_size(1)
     #
     # Since k2.ragged.unique_sequences will reorder paths within a seq,
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
     # to the input path index.
     # new2old.numel() == unique_word_seqs.tot_size(1)
-    unique_word_seq, num_repeats, new2old = k2.ragged.unique_sequences(
-        word_seq, need_num_repeats=True, need_new2old_indexes=True
+    unique_word_seq, num_repeats, new2old = word_seq.unique(
+        need_num_repeats=True, need_new2old_indexes=True
     )
 
-    seq_to_path_shape = k2.ragged.get_layer(unique_word_seq.shape(), 0)
+    seq_to_path_shape = unique_word_seq.shape.get_layer(0)
 
     # path_to_seq_map is a 1-D torch.Tensor.
     # path_to_seq_map[i] is the seq to which the i-th path
@@ -461,7 +462,7 @@ def rescore_with_n_best_list(
 
     # Remove the seq axis.
     # Now unique_word_seq has only two axes [path][word]
-    unique_word_seq = k2.ragged.remove_axis(unique_word_seq, 0)
+    unique_word_seq = unique_word_seq.remove_axis(0)
 
     # word_fsa is an FsaVec with axes [path][state][arc]
     word_fsa = k2.linear_fsa(unique_word_seq)
@@ -485,39 +486,42 @@ def rescore_with_n_best_list(
         use_double_scores=True, log_semiring=False
     )
 
-    path_2axes = k2.ragged.remove_axis(path, 0)
+    path_2axes = path.remove_axis(0)
 
     ans = dict()
     for lm_scale in lm_scale_list:
         tot_scores = am_scores / lm_scale + lm_scores
 
-        # Remember that we used `k2.ragged.unique_sequences` to remove repeated
+        # Remember that we used `k2.RaggedTensor.unique` to remove repeated
         # paths to avoid redundant computation in `k2.intersect_device`.
         # Now we use `num_repeats` to correct the scores for each path.
         #
         # NOTE(fangjun): It is commented out as it leads to a worse WER
         # tot_scores = tot_scores * num_repeats.values()
 
-        ragged_tot_scores = k2.RaggedFloat(
-            seq_to_path_shape, tot_scores.to(torch.float32)
-        )
-        argmax_indexes = k2.ragged.argmax_per_sublist(ragged_tot_scores)
+        ragged_tot_scores = k2.RaggedTensor(seq_to_path_shape, tot_scores)
+        argmax_indexes = ragged_tot_scores.argmax()
 
         # Use k2.index here since argmax_indexes' dtype is torch.int32
-        best_path_indexes = k2.index(new2old, argmax_indexes)
+        best_path_indexes = k2.index_select(new2old, argmax_indexes)
 
         # best_path is a k2.RaggedInt with 2 axes [path][arc_pos]
-        best_path = k2.index(path_2axes, best_path_indexes)
+        best_path, _ = path_2axes.index(
+            indexes=best_path_indexes, axis=0, need_value_indexes=False
+        )
 
-        # labels is a k2.RaggedInt with 2 axes [path][phone_id]
+        # labels is a k2.RaggedTensor with 2 axes [path][phone_id]
         # Note that it contains -1s.
-        labels = k2.index(lattice.labels.contiguous(), best_path)
+        labels = k2.ragged.index(lattice.labels.contiguous(), best_path)
 
-        labels = k2.ragged.remove_values_eq(labels, -1)
+        labels = labels.remove_values_eq(-1)
 
-        # lattice.aux_labels is a k2.RaggedInt tensor with 2 axes, so
-        # aux_labels is also a k2.RaggedInt with 2 axes
-        aux_labels = k2.index(lattice.aux_labels, best_path.values())
+        # lattice.aux_labels is a k2.RaggedTensor tensor with 2 axes, so
+        # aux_labels is also a k2.RaggedTensor with 2 axes
+
+        aux_labels, _ = lattice.aux_labels.index(
+            indexes=best_path.data, axis=0, need_value_indexes=False
+        )
 
         best_path_fsa = k2.linear_fsa(labels)
         best_path_fsa.aux_labels = aux_labels
@@ -659,12 +663,16 @@ def nbest_oracle(
         scale=scale,
     )
 
-    word_seq = k2.index(lattice.aux_labels, path)
-    word_seq = k2.ragged.remove_values_leq(word_seq, 0)
-    unique_word_seq, _, _ = k2.ragged.unique_sequences(
-        word_seq, need_num_repeats=False, need_new2old_indexes=False
+    if isinstance(lattice.aux_labels, torch.Tensor):
+        word_seq = k2.ragged.index(lattice.aux_labels, path)
+    else:
+        word_seq = lattice.aux_labels.index(path, remove_axis=True)
+
+    word_seq = word_seq.remove_values_leq(0)
+    unique_word_seq, _, _ = word_seq.unique(
+        need_num_repeats=False, need_new2old_indexes=False
     )
-    unique_word_ids = k2.ragged.to_list(unique_word_seq)
+    unique_word_ids = unique_word_seq.tolist()
     assert len(unique_word_ids) == len(ref_texts)
     # unique_word_ids[i] contains all hypotheses of the i-th utterance
 
@@ -743,33 +751,36 @@ def rescore_with_attention_decoder(
         scale=scale,
     )
 
-    # word_seq is a k2.RaggedInt sharing the same shape as `path`
+    # word_seq is a k2.RaggedTensor sharing the same shape as `path`
     # but it contains word IDs. Note that it also contains 0s and -1s.
     # The last entry in each sublist is -1.
-    word_seq = k2.index(lattice.aux_labels, path)
+    if isinstance(lattice.aux_labels, torch.Tensor):
+        word_seq = k2.ragged.index(lattice.aux_labels, path)
+    else:
+        word_seq = lattice.aux_labels.index(path, remove_axis=True)
 
     # Remove epsilons and -1 from word_seq
-    word_seq = k2.ragged.remove_values_leq(word_seq, 0)
+    word_seq = word_seq.remove_values_leq(0)
 
     # Remove paths that has identical word sequences.
     #
-    # unique_word_seq is still a k2.RaggedInt with 3 axes [seq][path][word]
+    # unique_word_seq is still a k2.RaggedTensor with 3 axes [seq][path][word]
     # except that there are no repeated paths with the same word_seq
     # within a sequence.
     #
-    # num_repeats is also a k2.RaggedInt with 2 axes containing the
+    # num_repeats is also a k2.RaggedTensor with 2 axes containing the
     # multiplicities of each path.
-    # num_repeats.num_elements() == unique_word_seqs.tot_size(1)
+    # num_repeats.numel() == unique_word_seqs.tot_size(1)
     #
     # Since k2.ragged.unique_sequences will reorder paths within a seq,
     # `new2old` is a 1-D torch.Tensor mapping from the output path index
     # to the input path index.
     # new2old.numel() == unique_word_seq.tot_size(1)
-    unique_word_seq, num_repeats, new2old = k2.ragged.unique_sequences(
-        word_seq, need_num_repeats=True, need_new2old_indexes=True
+    unique_word_seq, num_repeats, new2old = word_seq.unique(
+        need_num_repeats=True, need_new2old_indexes=True
     )
 
-    seq_to_path_shape = k2.ragged.get_layer(unique_word_seq.shape(), 0)
+    seq_to_path_shape = unique_word_seq.shape.get_layer(0)
 
     # path_to_seq_map is a 1-D torch.Tensor.
     # path_to_seq_map[i] is the seq to which the i-th path
@@ -778,7 +789,7 @@ def rescore_with_attention_decoder(
 
     # Remove the seq axis.
     # Now unique_word_seq has only two axes [path][word]
-    unique_word_seq = k2.ragged.remove_axis(unique_word_seq, 0)
+    unique_word_seq = unique_word_seq.remove_axis(0)
 
     # word_fsa is an FsaVec with axes [path][state][arc]
     word_fsa = k2.linear_fsa(unique_word_seq)
@@ -796,20 +807,23 @@ def rescore_with_attention_decoder(
 
     # CAUTION: The "tokens" attribute is set in the file
     # local/compile_hlg.py
-    token_seq = k2.index(lattice.tokens, path)
+    if isinstance(lattice.tokens, torch.Tensor):
+        token_seq = k2.ragged.index(lattice.tokens, path)
+    else:
+        token_seq = lattice.tokens.index(path, remove_axis=True)
 
     # Remove epsilons and -1 from token_seq
-    token_seq = k2.ragged.remove_values_leq(token_seq, 0)
+    token_seq = token_seq.remove_values_leq(0)
 
     # Remove the seq axis.
-    token_seq = k2.ragged.remove_axis(token_seq, 0)
+    token_seq = token_seq.remove_axis(0)
 
-    token_seq, _ = k2.ragged.index(
-        token_seq, indexes=new2old, axis=0, need_value_indexes=False
+    token_seq, _ = token_seq.index(
+        indexes=new2old, axis=0, need_value_indexes=False
     )
 
     # Now word in unique_word_seq has its corresponding token IDs.
-    token_ids = k2.ragged.to_list(token_seq)
+    token_ids = token_seq.tolist()
 
     num_word_seqs = new2old.numel()
 
@@ -849,7 +863,7 @@ def rescore_with_attention_decoder(
     else:
         attention_scale_list = [attention_scale]
 
-    path_2axes = k2.ragged.remove_axis(path, 0)
+    path_2axes = path.remove_axis(0)
 
     ans = dict()
     for n_scale in ngram_lm_scale_list:
@@ -859,23 +873,28 @@ def rescore_with_attention_decoder(
                 + n_scale * ngram_lm_scores
                 + a_scale * attention_scores
             )
-            ragged_tot_scores = k2.RaggedFloat(seq_to_path_shape, tot_scores)
-            argmax_indexes = k2.ragged.argmax_per_sublist(ragged_tot_scores)
+            ragged_tot_scores = k2.RaggedTensor(seq_to_path_shape, tot_scores)
+            argmax_indexes = ragged_tot_scores.argmax()
 
-            best_path_indexes = k2.index(new2old, argmax_indexes)
+            best_path_indexes = k2.index_select(new2old, argmax_indexes)
 
             # best_path is a k2.RaggedInt with 2 axes [path][arc_pos]
-            best_path = k2.index(path_2axes, best_path_indexes)
+            best_path, _ = path_2axes.index(
+                indexes=best_path_indexes, axis=0, need_value_indexes=False
+            )
 
-            # labels is a k2.RaggedInt with 2 axes [path][token_id]
+            # labels is a k2.RaggedTensor with 2 axes [path][token_id]
             # Note that it contains -1s.
-            labels = k2.index(lattice.labels.contiguous(), best_path)
+            labels = k2.ragged.index(lattice.labels.contiguous(), best_path)
 
-            labels = k2.ragged.remove_values_eq(labels, -1)
+            labels = labels.remove_values_eq(-1)
 
-            # lattice.aux_labels is a k2.RaggedInt tensor with 2 axes, so
-            # aux_labels is also a k2.RaggedInt with 2 axes
-            aux_labels = k2.index(lattice.aux_labels, best_path.values())
+            if isinstance(lattice.aux_labels, torch.Tensor):
+                aux_labels = k2.index_select(lattice.aux_labels, best_path.data)
+            else:
+                aux_labels, _ = lattice.aux_labels.index(
+                    indexes=best_path.data, axis=0, need_value_indexes=False
+                )
 
             best_path_fsa = k2.linear_fsa(labels)
             best_path_fsa.aux_labels = aux_labels

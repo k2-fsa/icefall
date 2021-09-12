@@ -7,6 +7,7 @@ Installation
 - |device|
 - |python_versions|
 - |torch_versions|
+- |k2_versions|
 
 .. |os| image:: ./images/os-Linux_macOS-ff69b4.svg
   :alt: Supported operating systems
@@ -20,7 +21,10 @@ Installation
 .. |torch_versions| image:: ./images/torch-1.6.0_1.7.0_1.7.1_1.8.0_1.8.1_1.9.0-green.svg
   :alt: Supported PyTorch versions
 
-icefall depends on `k2 <https://github.com/k2-fsa/k2>`_ and
+.. |k2_versions| image:: ./images/k2-v-1.7.svg
+  :alt: Supported k2 versions
+
+``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
 We recommend you to install ``k2`` first, as ``k2`` is bound to
@@ -32,12 +36,16 @@ installs its dependency PyTorch, which can be reused by ``lhotse``.
 --------------
 
 Please refer to `<https://k2.readthedocs.io/en/latest/installation/index.html>`_
-to install `k2`.
+to install ``k2``.
+
+.. CAUTION::
+
+  You need to install ``k2`` with a version at least **v1.7**.
 
 .. HINT::
 
   If you have already installed PyTorch and don't want to replace it,
-  please install a version of k2 that is compiled against the version
+  please install a version of ``k2`` that is compiled against the version
   of PyTorch you are using.
 
 (2) Install lhotse
@@ -50,10 +58,15 @@ to install ``lhotse``.
 
   Install ``lhotse`` also installs its dependency `torchaudio <https://github.com/pytorch/audio>`_.
 
+.. CAUTION::
+
+  If you have installed ``torchaudio``, please consider uninstalling it before
+  installing ``lhotse``. Otherwise, it may update your already installed PyTorch.
+
 (3) Download icefall
 --------------------
 
-icefall is a collection of Python scripts, so you don't need to install it
+``icefall`` is a collection of Python scripts, so you don't need to install it
 and we don't provide a ``setup.py`` to install it.
 
 What you need is to download it and set the environment variable ``PYTHONPATH``
@@ -201,22 +214,6 @@ The following shows an example about setting up the environment.
   Successfully installed SoundFile-0.10.3.post1 audioread-2.1.9 cffi-1.14.6 click-8.0.1 cytoolz-0.11.0 dataclasses-0.6 h5py-3.4.0 inter
   valtree-3.1.0 lhotse-0.8.0.dev-2a1410b-clean lilcom-1.1.1 numpy-1.21.2 packaging-21.0 pycparser-2.20 pyparsing-2.4.7 pyyaml-5.4.1 sor
   tedcontainers-2.4.0 toolz-0.11.1 torchaudio-0.9.0 tqdm-4.62.1
-
-**NOTE**: After installing ``lhotse``, you will encounter the following error:
-
-.. code-block::
-
-  $ lhotse download --help
-  -bash: /ceph-fj/fangjun/test-icefall/bin/lhotse: python: bad interpreter: No such file or directory
-
-The correct fix is:
-
-.. code-block::
-
-  echo '#!/usr/bin/env python3' | cat - $(which lhotse) > /tmp/lhotse-bin
-  chmod +x /tmp/lhotse-bin
-  mv /tmp/lhotse-bin $(which lhotse)
-
 
 (5) Download icefall
 ~~~~~~~~~~~~~~~~~~~~
@@ -383,7 +380,7 @@ Now let us run the training part:
 
 .. CAUTION::
 
-  We use ``export CUDA_VISIBLE_DEVICES=""`` so that icefall uses CPU
+  We use ``export CUDA_VISIBLE_DEVICES=""`` so that ``icefall`` uses CPU
   even if there are GPUs available.
 
 The training log is given below:

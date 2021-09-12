@@ -303,7 +303,7 @@ The commonly used options are:
 
   - ``--lattice-score-scale``
 
-    It is used to scaled down lattice scores so that we can more unique
+    It is used to scale down lattice scores so that there are more unique
     paths for rescoring.
 
   - ``--max-duration``
@@ -314,7 +314,7 @@ The commonly used options are:
 Pre-trained Model
 -----------------
 
-We have uploaded the pre-trained model to
+We have uploaded a pre-trained model to
 `<https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc>`_.
 
 We describe how to use the pre-trained model to transcribe a sound file or
@@ -324,7 +324,7 @@ Install kaldifeat
 ~~~~~~~~~~~~~~~~~
 
 `kaldifeat <https://github.com/csukuangfj/kaldifeat>`_ is used to
-extract features for a single sound file or multiple soundfiles
+extract features for a single sound file or multiple sound files
 at the same time.
 
 Please refer to `<https://github.com/csukuangfj/kaldifeat>`_ for installation.
@@ -397,7 +397,7 @@ After downloading, you will have the following files:
 
   - ``data/lm/G_4_gram.pt``
 
-      It is a 4-gram LM, useful for LM rescoring.
+      It is a 4-gram LM, used for n-gram LM rescoring.
 
   - ``exp/pretrained.pt``
 
@@ -556,7 +556,7 @@ Its output is:
 HLG decoding + LM rescoring + attention decoder rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It uses an n-gram LM to rescore the decoding lattice, extracts 
+It uses an n-gram LM to rescore the decoding lattice, extracts
 n paths from the rescored lattice, recores the extracted paths with
 an attention decoder. The path with the highest score is the decoding result.
 

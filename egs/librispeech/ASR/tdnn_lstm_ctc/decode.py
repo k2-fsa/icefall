@@ -42,8 +42,8 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
-    write_error_stats,
     str2bool,
+    write_error_stats,
 )
 
 
@@ -98,9 +98,11 @@ def get_params() -> AttributeDict:
             #  - nbest
             #  - nbest-rescoring
             #  - whole-lattice-rescoring
-            "method": "1best",
+            "method": "whole-lattice-rescoring",
+            #  "method": "1best",
+            #  "method": "nbest",
             # num_paths is used when method is "nbest" and "nbest-rescoring"
-            "num_paths": 30,
+            "num_paths": 100,
         }
     )
     return params
@@ -424,6 +426,7 @@ def main():
         torch.save(
             {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
         )
+        return
 
     model.to(device)
     model.eval()

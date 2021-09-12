@@ -32,7 +32,8 @@ jobs:
         os: [ubuntu-18.04, macos-10.15]
         python-version: [3.6, 3.7, 3.8, 3.9]
         torch: ["1.8.1"]
-        k2-version: ["1.4.dev20210822"]
+        k2-version: ["1.7.dev20210908"]
+
       fail-fast: false
 
     steps:
