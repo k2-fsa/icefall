@@ -95,7 +95,7 @@ def get_params() -> AttributeDict:
             # Possible values for method:
             #  - 1best
             #  - nbest
-            "method": "nbest",
+            "method": "1best",
             # num_paths is used when method is "nbest"
             "num_paths": 30,
         }
@@ -274,8 +274,11 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
+        results_tmp = []
+        for res in results:
+            results_tmp.append((list("".join(res[0])), list("".join(res[1]))))
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results)
+            wer = write_error_stats(f, f"{test_set_name}-{key}", results_tmp)
             test_set_wers[key] = wer
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))

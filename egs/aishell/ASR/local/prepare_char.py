@@ -124,7 +124,7 @@ def lexicon_to_fst_no_sil(
 
 
 def contain_oov(token_sym_table: Dict[str, int], tokens: List[str]) -> bool:
-    """Return if all the tokens are in token symbol table.
+    """Check if all the given tokens are in token symbol table.
 
     Args:
       token_sym_table:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -77,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=35,
+        default=50,
         help="Number of epochs to train.",
     )
 
@@ -111,19 +112,6 @@ def get_params() -> AttributeDict:
         - lang_dir: It contains language related input files such as
                     "lexicon.txt"
 
-        - lr: It specifies the initial learning rate
-
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
-        - weight_decay:  The weight_decay for the optimizer.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - best_train_loss: Best training loss so far. It is used to select
-                           the model that has the lowest training loss. It is
-                           updated during the training.
-
         - best_valid_loss: Best validation loss so far. It is used to select
                            the model that has the lowest validation loss. It is
                            updated during the training.
@@ -138,23 +126,45 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
-        - valid_interval:  Run validation if batch_idx % valid_interval is 0
-
         - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+
+        - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
         - beam_size: It is used in k2.ctc_loss
 
         - reduction: It is used in k2.ctc_loss
 
         - use_double_scores: It is used in k2.ctc_loss
+
+        - att_rate: The proportion of label smoothing loss, final loss will be
+                    (1 - att_rate) * ctc_loss + att_rate * label_smoothing_loss
+
+        - subsampling_factor:  The subsampling factor for the model.
+
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
+
+        - attention_dim: Attention dimension.
+
+        - nhead: Number of heads in multi-head attention.
+                 Must satisfy attention_dim // nhead == 0.
+
+        - num_encoder_layers: Number of attention encoder layers.
+
+        - num_decoder_layers: Number of attention decoder layers.
+
+        - use_feat_batchnorm: Whether to do normalization in the input layer.
+
+        - weight_decay:  The weight_decay for the optimizer.
+
+        - lr_factor: The lr_factor for the optimizer.
+
+        - warm_step: The warm_step for the optimizer.
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp_char"),
+            "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_char"),
-            "feature_dim": 80,
-            "weight_decay": 1e-6,
-            "subsampling_factor": 4,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -163,18 +173,21 @@ def get_params() -> AttributeDict:
             "log_interval": 10,
             "reset_interval": 200,
             "valid_interval": 3000,
+            # parameters for k2.ctc_loss
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
-            "accum_grad": 1,
             "att_rate": 0.7,
+            # parameters for conformer
+            "subsampling_factor": 4,
+            "feature_dim": 80,
             "attention_dim": 512,
             "nhead": 4,
-            "num_decoder_layers": 6,
             "num_encoder_layers": 12,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
+            "num_decoder_layers": 6,
             "use_feat_batchnorm": True,
+            # parameters for Noam
+            "weight_decay": 1e-5,
             "lr_factor": 5.0,
             "warm_step": 36000,
         }
@@ -648,8 +661,6 @@ def run(rank, world_size, args):
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 

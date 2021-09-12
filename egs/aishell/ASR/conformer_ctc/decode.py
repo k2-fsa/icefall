@@ -57,7 +57,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=34,
+        default=49,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -101,7 +101,7 @@ def get_parser():
     parser.add_argument(
         "--lattice-score-scale",
         type=float,
-        default=1.0,
+        default=0.5,
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
@@ -116,19 +116,19 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp_char"),
+            "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_char"),
             "lm_dir": Path("data/lm"),
+            # parameters for conformer
+            "subsampling_factor": 4,
             "feature_dim": 80,
             "nhead": 4,
             "attention_dim": 512,
-            "subsampling_factor": 4,
             "num_encoder_layers": 12,
             "num_decoder_layers": 6,
             "vgg_frontend": False,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
             "use_feat_batchnorm": True,
+            # parameters for decoder
             "search_beam": 20,
             "output_beam": 7,
             "min_active_states": 30,
@@ -364,9 +364,12 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
+        results_tmp = []
+        for res in results:
+            results_tmp.append((list("".join(res[0])), list("".join(res[1]))))
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=enable_log
+                f, f"{test_set_name}-{key}", results_tmp, enable_log=enable_log
             )
             test_set_wers[key] = wer
 
@@ -440,8 +443,6 @@ def main():
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=params.vgg_frontend,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 

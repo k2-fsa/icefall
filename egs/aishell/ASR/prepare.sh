@@ -3,7 +3,7 @@
 set -eou pipefail
 
 nj=15
-stage=6
+stage=-1
 stop_stage=10
 
 # We assume dl_dir (download dir) contains the following
@@ -11,7 +11,7 @@ stop_stage=10
 # by this script automatically.
 #
 #  - $dl_dir/aishell
-#      You can data_aishell, resource_aishell inside it.
+#      You can find data_aishell, resource_aishell inside it.
 #      You can download them from https://www.openslr.org/33
 #
 #  - $dl_dir/lm
@@ -27,6 +27,7 @@ stop_stage=10
 #     - music
 #     - noise
 #     - speech
+
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
