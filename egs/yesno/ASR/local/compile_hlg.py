@@ -80,14 +80,14 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     LG.labels[LG.labels >= first_token_disambig_id] = 0
 
-    assert isinstance(LG.aux_labels, k2.RaggedInt)
-    LG.aux_labels.values()[LG.aux_labels.values() >= first_word_disambig_id] = 0
+    assert isinstance(LG.aux_labels, k2.RaggedTensor)
+    LG.aux_labels.data[LG.aux_labels.data >= first_word_disambig_id] = 0
 
     LG = k2.remove_epsilon(LG)
     logging.info(f"LG shape after k2.remove_epsilon: {LG.shape}")
 
     LG = k2.connect(LG)
-    LG.aux_labels = k2.ragged.remove_values_eq(LG.aux_labels, 0)
+    LG.aux_labels = LG.aux_labels.remove_values_eq(0)
 
     logging.info("Arc sorting LG")
     LG = k2.arc_sort(LG)

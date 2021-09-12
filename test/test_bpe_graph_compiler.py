@@ -16,9 +16,10 @@
 # limitations under the License.
 
 
+from pathlib import Path
+
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.lexicon import BpeLexicon
-from pathlib import Path
 
 
 def test():

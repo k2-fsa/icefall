@@ -21,6 +21,32 @@ To get more unique paths, we scaled the lattice.scores with 0.5 (see https://git
 |test-clean|1.3|1.2|
 |test-other|1.2|1.1|
 
+You can use the following commands to reproduce our results:
+
+```bash
+git clone https://github.com/k2-fsa/icefall
+cd icefall
+
+# It was using ef233486, you may not need to switch to it
+# git checkout ef233486
+
+cd egs/librispeech/ASR
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+python conformer_ctc/train.py --bucketing-sampler True \
+                              --concatenate-cuts False \
+                              --max-duration 200 \
+                              --full-libri True \
+                              --world-size 4
+
+python conformer_ctc/decode.py --lattice-score-scale 0.5 \
+                               --epoch 34 \
+                               --avg 20 \
+                               --method attention-decoder \
+                               --max-duration 20 \
+                               --num-paths 100
+```
 
 ### LibriSpeech training results (Tdnn-Lstm)
 #### 2021-08-24
@@ -43,4 +69,3 @@ We searched the lm_score_scale for best results, the scales that produced the WE
 |--|--|
 |test-clean|0.8|
 |test-other|0.9|
-
