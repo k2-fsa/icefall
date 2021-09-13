@@ -108,7 +108,7 @@ def get_parser():
     parser.add_argument(
         "--lattice-score-scale",
         type=float,
-        default=1.0,
+        default=0.5,
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
@@ -278,7 +278,8 @@ def decode_one_batch(
         "attention-decoder",
     ]
 
-    lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
