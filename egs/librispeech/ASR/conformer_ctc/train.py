@@ -139,7 +139,8 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the input features.
+        - use_feat_batchnorm: Whether to do batch normalization for the
+                              input features.
 
         - attention_dim: Hidden dim for multi-head attention model.
 

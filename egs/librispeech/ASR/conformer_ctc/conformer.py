@@ -452,7 +452,6 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self._reset_parameters()
 
-
     def _reset_parameters(self) -> None:
         nn.init.xavier_uniform_(self.in_proj.weight)
         nn.init.constant_(self.in_proj.bias, 0.0)
@@ -681,7 +680,6 @@ class RelPositionMultiheadAttention(nn.Module):
             if _b is not None:
                 _b = _b[_start:]
             v = nn.functional.linear(value, _w, _b)
-
 
         if attn_mask is not None:
             assert (
