@@ -39,6 +39,7 @@ from icefall.decode import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -103,6 +104,7 @@ def get_params() -> AttributeDict:
             #  "method": "nbest",
             # num_paths is used when method is "nbest" and "nbest-rescoring"
             "num_paths": 100,
+            "env_info": get_env_info(),
         }
     )
     return params

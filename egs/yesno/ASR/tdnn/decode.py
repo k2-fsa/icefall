@@ -17,6 +17,7 @@ from icefall.decode import get_lattice, one_best_decoding
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -256,6 +257,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
 
     setup_logger(f"{params.exp_dir}/log/log-decode")
     logging.info("Decoding started")

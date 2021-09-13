@@ -38,14 +38,16 @@ python conformer_ctc/train.py --bucketing-sampler True \
                               --concatenate-cuts False \
                               --max-duration 200 \
                               --full-libri True \
-                              --world-size 4
+                              --world-size 4 \
+                              --lang-dir data/lang_bpe_5000
 
 python conformer_ctc/decode.py --lattice-score-scale 0.5 \
                                --epoch 34 \
                                --avg 20 \
                                --method attention-decoder \
                                --max-duration 20 \
-                               --num-paths 100
+                               --num-paths 100 \
+                               --lang-dir data/lang_bpe_5000
 ```
 
 ### LibriSpeech training results (Tdnn-Lstm)

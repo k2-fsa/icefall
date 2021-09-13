@@ -44,6 +44,7 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     encode_supervisions,
+    get_env_info,
     setup_logger,
     str2bool,
 )
@@ -168,6 +169,7 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
 

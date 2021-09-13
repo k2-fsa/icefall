@@ -20,7 +20,12 @@ import k2
 import pytest
 import torch
 
-from icefall.utils import AttributeDict, encode_supervisions, get_texts
+from icefall.utils import (
+    AttributeDict,
+    encode_supervisions,
+    get_env_info,
+    get_texts,
+)
 
 
 @pytest.fixture
@@ -108,3 +113,8 @@ def test_attribute_dict():
     assert s["b"] == 20
     s.c = 100
     assert s["c"] == 100
+
+
+def test_get_env_info():
+    s = get_env_info()
+    print(s)

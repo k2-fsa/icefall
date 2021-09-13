@@ -43,6 +43,7 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     encode_supervisions,
+    get_env_info,
     setup_logger,
     str2bool,
 )
@@ -72,6 +73,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe_5000",
+        help="lang directory",
     )
 
     parser.add_argument(
@@ -107,9 +115,6 @@ def get_params() -> AttributeDict:
 
         - exp_dir: It specifies the directory where all training related
                    files, e.g., checkpoints, log, etc, are saved
-
-        - lang_dir: It contains language related input files such as
-                    "lexicon.txt"
 
         - lr: It specifies the initial learning rate
 
@@ -151,7 +156,6 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "exp_dir": Path("conformer_ctc/exp"),
-            "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "weight_decay": 1e-6,
             "subsampling_factor": 4,
@@ -160,7 +164,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
             "beam_size": 10,
@@ -176,6 +180,7 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "lr_factor": 5.0,
             "warm_step": 80000,
+            "env_info": get_env_info(),
         }
     )
 

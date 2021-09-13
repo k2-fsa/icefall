@@ -34,7 +34,7 @@ from icefall.decode import (
     rescore_with_attention_decoder,
     rescore_with_whole_lattice,
 )
-from icefall.utils import AttributeDict, get_texts
+from icefall.utils import AttributeDict, get_env_info, get_texts
 
 
 def get_parser():
@@ -224,6 +224,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
     logging.info(f"{params}")
 
     device = torch.device("cpu")
