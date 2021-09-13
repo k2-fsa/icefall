@@ -45,6 +45,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -107,6 +108,17 @@ def get_parser():
         Used only when "method" is one of the following values:
         nbest, attention-decoder, and nbest-oracle
         A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
         """,
     )
 
@@ -364,12 +376,13 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
-        results_tmp = []
+        # we compute CER for aishell dataset.
+        results_char = []
         for res in results:
-            results_tmp.append((list("".join(res[0])), list("".join(res[1]))))
+            results_char.append((list("".join(res[0])), list("".join(res[1]))))
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results_tmp, enable_log=enable_log
+                f, f"{test_set_name}-{key}", results_char, enable_log=enable_log
             )
             test_set_wers[key] = wer
 
@@ -379,13 +392,13 @@ def save_results(
             )
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
+    errs_info = params.exp_dir / f"cer-summary-{test_set_name}.txt"
     with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
+        print("settings\tCER", file=f)
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, CER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
@@ -456,6 +469,13 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
 
     model.to(device)
     model.eval()

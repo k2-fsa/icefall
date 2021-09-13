@@ -67,6 +67,26 @@ def get_parser():
         "'--epoch'. ",
     )
     parser.add_argument(
+        "--method",
+        type=str,
+        default="1best",
+        help="""Decoding method.
+        Supported values are:
+            - (1) 1best. Extract the best path from the decoding lattice as the
+              decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
+        """,
+    )
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=30,
+        help="""Number of paths for n-best based decoding method.
+        Used only when "method" is nbest.
+        """,
+    )
+    parser.add_argument(
         "--export",
         type=str2bool,
         default=False,
@@ -82,22 +102,18 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_lstm_ctc/exp_lr1e-4/"),
+            "exp_dir": Path("tdnn_lstm_ctc/exp/"),
             "lang_dir": Path("data/lang_phone"),
             "lm_dir": Path("data/lm"),
-            "feature_dim": 80,
+            # parameters for tdnn_lstm_ctc
             "subsampling_factor": 3,
+            "feature_dim": 80,
+            # parameters for decoding
             "search_beam": 20,
-            "output_beam": 5,
+            "output_beam": 7,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            # Possible values for method:
-            #  - 1best
-            #  - nbest
-            "method": "1best",
-            # num_paths is used when method is "nbest"
-            "num_paths": 30,
         }
     )
     return params
@@ -274,23 +290,24 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
-        results_tmp = []
+        # We compute CER for aishell dataset.
+        results_char = []
         for res in results:
-            results_tmp.append((list("".join(res[0])), list("".join(res[1]))))
+            results_char.append((list("".join(res[0])), list("".join(res[1]))))
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results_tmp)
+            wer = write_error_stats(f, f"{test_set_name}-{key}", results_char)
             test_set_wers[key] = wer
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
+    errs_info = params.exp_dir / f"cer-summary-{test_set_name}.txt"
     with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
+        print("settings\tCER", file=f)
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, CER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
