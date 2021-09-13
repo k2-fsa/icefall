@@ -202,7 +202,8 @@ class Nbest(object):
             path_lattice, use_double_scores=use_double_scores
         )
 
-        one_best = k2.remove_epsilon(one_best)
+        one_best = k2.invert(one_best)
+        # Now one_best has token IDs as labels and word IDs as aux_labels
 
         return Nbest(fsa=one_best, shape=self.shape)
 
