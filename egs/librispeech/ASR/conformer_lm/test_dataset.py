@@ -9,8 +9,6 @@ import torch.distributed as dist
 def local_collate_fn(sentences):
     return dataset.collate_fn(sentences, bos_sym=1, eos_sym=1, blank_sym=0, debug=True)
 
-x = _k2.RaggedInt('[[1]]')  # make sure library initialized?
-
 if __name__ == '__main__':
 
     #mp.set_start_method('spawn')

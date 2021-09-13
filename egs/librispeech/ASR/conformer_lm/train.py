@@ -136,13 +136,14 @@ def get_params() -> AttributeDict:
             # exp_4, vs. exp_3, is using the Gloam optimizer with
             # in exp_5, vs. exp_4, we change Gloam to have a 1/sqrt(t) factor
             #      as well as the exponential part.
-            "exp_dir": Path("conformer_lm/exp_5"),
+            # exp_6, we change the decay from 0.85 to 0.9.
+            "exp_dir": Path("conformer_lm/exp_6"),
             "lm_dataset": Path("data/lm_training_5000/lm_data.pt"),
             "num_tokens": 5000,
             "blank_sym": 0,
             "bos_sym": 1,
             "eos_sym": 1,
-            "start_epoch": 0,
+            "start_epoch": 2,
             "num_epochs": 20,
             "num_valid_batches": 200,
             "symbols_per_batch": 5000,
@@ -529,7 +530,7 @@ def run(rank, world_size, args):
         model.parameters(),
         max_lrate=params.max_lrate,
         first_decrease_epoch=1,
-        decay_per_epoch=0.85
+        decay_per_epoch=0.9
     )
 
     if checkpoints:

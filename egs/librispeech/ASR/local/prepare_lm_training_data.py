@@ -82,8 +82,8 @@ def main():
             sentences.append([ word2index[w] for w in line_words])
 
     output = dict()
-    output['words' ] = k2.ragged.create_ragged2(words2bpe)
-    output['data'] = k2.ragged.create_ragged2(sentences)
+    output['words' ] = k2.ragged.RaggedTensor(words2bpe)
+    output['data'] = k2.ragged.RaggedTensor(sentences)
 
     torch.save(output, args.lm_archive)
     print(f"Saved to {args.lm_archive}")
