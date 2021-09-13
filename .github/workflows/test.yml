@@ -53,6 +53,20 @@ jobs:
           # icefall requirements
           pip install -r requirements.txt
 
+      - name: Install graphviz
+        if: startsWith(matrix.os, 'ubuntu')
+        shell: bash
+        run: |
+          python3 -m pip install -qq graphviz
+          sudo apt-get -qq install graphviz
+
+      - name: Install graphviz
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          python3 -m pip install -qq graphviz
+          brew install -q graphviz
+
       - name: Run tests
         if: startsWith(matrix.os, 'ubuntu')
         run: |
