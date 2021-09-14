@@ -32,13 +32,12 @@ from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
     get_lattice,
-    nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
-from icefall.decode2 import nbest_decoding
+from icefall.decode2 import nbest_decoding, nbest_oracle
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -245,13 +244,17 @@ def decode_one_batch(
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
         # is slightly worse than that of rescored lattices.
-        return nbest_oracle(
+        best_path = nbest_oracle(
             lattice=lattice,
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
             word_table=word_table,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
+            oov="<UNK>",
         )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        return {"nbest-orcale": hyps}
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -264,7 +267,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                scale=params.lattice_score_scale,
+                lattice_score_scale=params.lattice_score_scale,
             )
             key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
