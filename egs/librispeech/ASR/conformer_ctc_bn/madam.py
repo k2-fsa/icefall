@@ -929,6 +929,7 @@ class Foam(object):
         """Return state_dict."""
         return {
             "_step": self._step,
+            "optimizer": self.optimizer.state_dict(),
         }
 
     def load_state_dict(self, state_dict):
@@ -1049,6 +1050,7 @@ class Gloam(object):
     def state_dict(self):
         """Return state_dict."""
         return {
+            "optimizer": self.optimizer.state_dict(),
             "_step": self._step,
             "_epoch": self._epoch,
         }
