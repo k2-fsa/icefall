@@ -56,7 +56,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip black flake8
           python3 -m pip install -U pip
-          python3 -m pip install k2==1.7.dev20210908+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
+          python3 -m pip install k2==1.7.dev20210914+cpu.torch1.7.1 -f https://k2-fsa.org/nightly/
           python3 -m pip install torchaudio==0.7.2
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse
 
