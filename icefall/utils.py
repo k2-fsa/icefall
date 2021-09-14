@@ -207,7 +207,7 @@ def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
         # remove the states and arcs axes.
         aux_shape = aux_shape.remove_axis(1)
         aux_shape = aux_shape.remove_axis(1)
-        aux_labels = k2.RaggedTensor(aux_shape, aux_labels.data)
+        aux_labels = k2.RaggedTensor(aux_shape, aux_labels.values)
     else:
         # remove axis corresponding to states.
         aux_shape = best_paths.arcs.shape().remove_axis(1)
