@@ -32,13 +32,13 @@ from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
     get_lattice,
-    nbest_decoding,
     nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
+from icefall.decode2 import nbest_decoding
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -371,6 +371,8 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        if batch_idx > 20:
+            break
 
         hyps_dict = decode_one_batch(
             params=params,
