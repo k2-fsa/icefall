@@ -46,6 +46,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install libnsdfile and libsox
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -q -y libsndfile1-dev libsndfile1 ffmpeg
+          sudo apt install -q -y --fix-missing sox libsox-dev libsox-fmt-all
+
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip pytest
