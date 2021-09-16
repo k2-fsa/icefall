@@ -35,7 +35,7 @@ installs its dependency PyTorch, which can be reused by ``lhotse``.
 (1) Install k2
 --------------
 
-Please refer to `<https://k2.readthedocs.io/en/latest/installation/index.html>`_
+Please refer to `<https://k2-fsa.github.io/k2/installation/index.html>`_
 to install ``k2``.
 
 .. CAUTION::
