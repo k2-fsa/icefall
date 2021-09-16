@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                  Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -143,15 +144,35 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
+        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
+
+        - subsampling_factor:  The subsampling factor for the model.
+
+        - use_feat_batchnorm: Whether to do batch normalization for the
+                              input features.
+
+        - attention_dim: Hidden dim for multi-head attention model.
+
+        - head: Number of heads of multi-head attention model.
+
+        - num_decoder_layers: Number of decoder layer of transformer decoder.
 
         - beam_size: It is used in k2.ctc_loss
 
         - reduction: It is used in k2.ctc_loss
 
         - use_double_scores: It is used in k2.ctc_loss
+
+        - weight_decay:  The weight_decay for the optimizer.
+
+        - lr_factor: The lr_factor for Noam optimizer.
+
+        - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
         {
@@ -167,17 +188,20 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
-            "accum_grad": 1,
-            "att_rate": 0.7,
+            # parameters for conformer
+            "feature_dim": 80,
+            "subsampling_factor": 4,
+            "use_feat_batchnorm": True,
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 6,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
-            "use_feat_batchnorm": True,
+            # parameters for loss
+            "beam_size": 10,
+            "reduction": "sum",
+            "use_double_scores": True,
+            "att_rate": 0.7,
+            # parameters for Noam
+            "weight_decay": 1e-6,
             "lr_factor": 5.0,
             "warm_step": 80000,
             "env_info": get_env_info(),
@@ -651,8 +675,6 @@ def run(rank, world_size, args):
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 

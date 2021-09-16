@@ -144,15 +144,15 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("conformer_ctc/exp"),
             "lm_dir": Path("data/lm"),
+            # parameters for conformer
+            "subsampling_factor": 4,
+            "vgg_frontend": False,
+            "use_feat_batchnorm": True,
             "feature_dim": 80,
             "nhead": 8,
             "attention_dim": 512,
-            "subsampling_factor": 4,
             "num_decoder_layers": 6,
-            "vgg_frontend": False,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
-            "use_feat_batchnorm": True,
+            # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
@@ -546,8 +546,6 @@ def main():
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=params.vgg_frontend,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 

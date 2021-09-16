@@ -45,7 +45,7 @@ For example,
 
 .. code-block:: bash
 
-  $ cd egs/yesno/ASR
+  $ cd egs/librispeech/ASR
   $ ./prepare.sh --stage 0 --stop-stage 0
 
 means to run only stage 0.
@@ -171,7 +171,7 @@ The following options are used quite often:
 Pre-configured options
 ~~~~~~~~~~~~~~~~~~~~~~
 
-There are some training options, e.g., learning rate,
+There are some training options, e.g., weight decay,
 number of warmup steps, results dir, etc,
 that are not passed from the commandline.
 They are pre-configured by the function ``get_params()`` in
@@ -346,6 +346,10 @@ The following commands describe how to download the pre-trained model:
 
   You have to use ``git lfs`` to download the pre-trained model.
 
+.. CAUTION::
+
+  In order to use this pre-trained model, your k2 version has to be v1.7 or later.
+
 After downloading, you will have the following files:
 
 .. code-block:: bash
@@ -409,9 +413,9 @@ After downloading, you will have the following files:
 
       It contains some test sound files from LibriSpeech ``test-clean`` dataset.
 
-  - `test_waves/trans.txt`
+  - ``test_waves/trans.txt``
 
-      It contains the reference transcripts for the sound files in `test_waves/`.
+      It contains the reference transcripts for the sound files in ``test_waves/``.
 
 The information of the test sound files is listed below:
 

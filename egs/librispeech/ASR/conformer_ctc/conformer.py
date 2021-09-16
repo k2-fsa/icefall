@@ -56,8 +56,6 @@ class Conformer(Transformer):
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        is_espnet_structure: bool = False,
-        mmi_loss: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
         super(Conformer, self).__init__(
@@ -72,7 +70,6 @@ class Conformer(Transformer):
             dropout=dropout,
             normalize_before=normalize_before,
             vgg_frontend=vgg_frontend,
-            mmi_loss=mmi_loss,
             use_feat_batchnorm=use_feat_batchnorm,
         )
 
@@ -85,12 +82,10 @@ class Conformer(Transformer):
             dropout,
             cnn_module_kernel,
             normalize_before,
-            is_espnet_structure,
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
         self.normalize_before = normalize_before
-        self.is_espnet_structure = is_espnet_structure
-        if self.normalize_before and self.is_espnet_structure:
+        if self.normalize_before:
             self.after_norm = nn.LayerNorm(d_model)
         else:
             # Note: TorchScript detects that self.after_norm could be used inside forward()
@@ -125,7 +120,7 @@ class Conformer(Transformer):
             mask = mask.to(x.device)
         x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, B, F)
 
-        if self.normalize_before and self.is_espnet_structure:
+        if self.normalize_before:
             x = self.after_norm(x)
 
         return x, mask
@@ -159,11 +154,10 @@ class ConformerEncoderLayer(nn.Module):
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
-        is_espnet_structure: bool = False,
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
         self.self_attn = RelPositionMultiheadAttention(
-            d_model, nhead, dropout=0.0, is_espnet_structure=is_espnet_structure
+            d_model, nhead, dropout=0.0
         )
 
         self.feed_forward = nn.Sequential(
@@ -436,7 +430,6 @@ class RelPositionMultiheadAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         dropout: float = 0.0,
-        is_espnet_structure: bool = False,
     ) -> None:
         super(RelPositionMultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -458,8 +451,6 @@ class RelPositionMultiheadAttention(nn.Module):
         self.pos_bias_v = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
 
         self._reset_parameters()
-
-        self.is_espnet_structure = is_espnet_structure
 
     def _reset_parameters(self) -> None:
         nn.init.xavier_uniform_(self.in_proj.weight)
@@ -690,9 +681,6 @@ class RelPositionMultiheadAttention(nn.Module):
                 _b = _b[_start:]
             v = nn.functional.linear(value, _w, _b)
 
-        if not self.is_espnet_structure:
-            q = q * scaling
-
         if attn_mask is not None:
             assert (
                 attn_mask.dtype == torch.float32
@@ -785,14 +773,9 @@ class RelPositionMultiheadAttention(nn.Module):
         )  # (batch, head, time1, 2*time1-1)
         matrix_bd = self.rel_shift(matrix_bd)
 
-        if not self.is_espnet_structure:
-            attn_output_weights = (
-                matrix_ac + matrix_bd
-            )  # (batch, head, time1, time2)
-        else:
-            attn_output_weights = (
-                matrix_ac + matrix_bd
-            ) * scaling  # (batch, head, time1, time2)
+        attn_output_weights = (
+            matrix_ac + matrix_bd
+        ) * scaling  # (batch, head, time1, time2)
 
         attn_output_weights = attn_output_weights.view(
             bsz * num_heads, tgt_len, -1
