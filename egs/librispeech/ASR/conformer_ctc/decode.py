@@ -42,6 +42,7 @@ from icefall.decode2 import (
     nbest_decoding,
     nbest_oracle as nbest_oracle2,
     rescore_with_n_best_list as rescore_with_n_best_list2,
+    rescore_with_whole_lattice as rescore_with_whole_lattice2,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -261,9 +262,7 @@ def decode_one_batch(
             )
             hyps = get_texts(best_path)
             hyps = [[word_table[i] for i in ids] for ids in hyps]
-            key = (
-                f"oracle_{num_paths}_lattice_score_scale_{lattice_score_scale}"
-            )
+            key = f"oracle_{num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
             return {key: hyps}
         else:
             return nbest_oracle(
@@ -322,9 +321,19 @@ def decode_one_batch(
                 scale=params.lattice_score_scale,
             )
     elif params.method == "whole-lattice-rescoring":
-        best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
-        )
+        if True:
+            # TODO: remove "else" branch
+            best_path_dict = rescore_with_whole_lattice2(
+                lattice=lattice,
+                G_with_epsilon_loops=G,
+                lm_scale_list=lm_scale_list,
+            )
+        else:
+            best_path_dict = rescore_with_whole_lattice(
+                lattice=lattice,
+                G_with_epsilon_loops=G,
+                lm_scale_list=lm_scale_list,
+            )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
@@ -345,10 +354,14 @@ def decode_one_batch(
         assert False, f"Unsupported decoding method: {params.method}"
 
     ans = dict()
-    for lm_scale_str, best_path in best_path_dict.items():
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        ans[lm_scale_str] = hyps
+    if best_path_dict is not None:
+        for lm_scale_str, best_path in best_path_dict.items():
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            ans[lm_scale_str] = hyps
+    else:
+        for lm_scale in lm_scale_list:
+            ans[lm_scale_str] = [[] * lattice.shape[0]]
     return ans
 
 
