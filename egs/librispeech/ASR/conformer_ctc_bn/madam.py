@@ -1052,6 +1052,7 @@ class Gloam(object):
         return {
             "optimizer": self.optimizer.state_dict(),
             "_step": self._step,
+            "_rate": self._rate,
             "_epoch": self._epoch,
         }
 

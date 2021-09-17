@@ -15,6 +15,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Note: changed straight_through_scale from 0.333 to 1.0 on epoch 15, which seemed
+# to make it train slightly faster, based on comparison of valid prob on
+# the initial logs from epoch 15.  (best valid loss: 0.0427 -> 0.0425, on batch
+# 6000 of epoch 15.  was 0.429 last time the valid loss was printed on
+# epoch 14.
+
+
+# RESULTS (it's worse!), with:
+# python3 conformer_ctc_bn/decode.py --lattice-score-scale=0.5 --method=attention-decoder --epoch=25 --avg=10 --max-duration=30
+#
+# With sampling in test-time:
+# ngram_lm_scale_1.2_attention_scale_1.5	3.48	best for test-clean
+# ngram_lm_scale_0.9_attention_scale_1.2	8.4	best for test-other
+
+# After I modified conformer.py so that in eval mode, it uses the softmax output with no sampling:
+# ngram_lm_scale_0.9_attention_scale_1.2	3.44	best for test-clean
+# ngram_lm_scale_0.9_attention_scale_1.0	8.09	best for test-other
+
+# Vs. BASELINE:
+# evaluated with
+#  python3 conformer_ctc/decode.py --lattice-score-scale=0.5 --method=attention-decoder --epoch=23 --avg=10 --max-duration=30 &
+# (also uses foam optimizer)
+# ngram_lm_scale_1.2_attention_scale_1.2  2.8 best for test-clean
+# ngram_lm_scale_0.9_attention_scale_0.7  6.6 best for test-other
 
 import argparse
 import logging

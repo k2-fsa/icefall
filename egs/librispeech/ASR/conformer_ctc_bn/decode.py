@@ -26,7 +26,7 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from conformer import DiscreteBottleneckConformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -134,7 +134,7 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
+            "exp_dir": Path("conformer_ctc_bn/exp_gloam_5e-4_0.85_discrete8"),
             "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
@@ -142,7 +142,6 @@ def get_params() -> AttributeDict:
             "attention_dim": 512,
             "subsampling_factor": 4,
             "num_decoder_layers": 6,
-            "vgg_frontend": False,
             "is_espnet_structure": True,
             "mmi_loss": False,
             "use_feat_batchnorm": True,
@@ -529,14 +528,14 @@ def main():
     else:
         G = None
 
-    model = Conformer(
+    model = DiscreteBottleneckConformer(
         num_features=params.feature_dim,
         nhead=params.nhead,
         d_model=params.attention_dim,
         num_classes=num_classes,
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
-        vgg_frontend=params.vgg_frontend,
+        vgg_frontend=False,
         is_espnet_structure=params.is_espnet_structure,
         mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,

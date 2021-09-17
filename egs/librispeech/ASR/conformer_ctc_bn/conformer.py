@@ -190,7 +190,7 @@ class DiscreteBottleneck(nn.Module):
             tot_classes: int,
             num_groups: int,
             interp_prob: float = 1.0,
-            straight_through_scale: float = 0.333,
+            straight_through_scale: float = 1.0,
             min_prob_ratio: float = 0.1
             ):
         super(DiscreteBottleneck, self).__init__()
@@ -234,19 +234,23 @@ class DiscreteBottleneck(nn.Module):
         (S, N, tot_classes) = x.shape
         x = x.reshape(S, N, self.num_groups, self.classes_per_group)
 
-        x = torch_flow_sampling.flow_sample(x,
-                                            interp_prob=self.interp_prob,
-                                            straight_through_scale=self.straight_through_scale)
-
-        assert x.shape == (S, N, self.num_groups, self.classes_per_group)
-        x = x.reshape(S, N, tot_classes)
-
         if self.training:
+            x = torch_flow_sampling.flow_sample(x,
+                                                interp_prob=self.interp_prob,
+                                                straight_through_scale=self.straight_through_scale)
+
+            assert x.shape == (S, N, self.num_groups, self.classes_per_group)
+            x = x.reshape(S, N, tot_classes)
+
             mean_class_probs = torch.mean(x.detach(), dim=(0,1))
             self.class_probs = (self.class_probs * self.class_probs_decay +
                                 mean_class_probs * (1.0 - self.class_probs_decay))
             prob_floor = self.min_prob_ratio / self.classes_per_group
             self.class_offsets += (self.class_probs > prob_floor) * self.prob_boost
+
+        else:
+            x = torch.softmax(x, dim=-1)
+            x = x.reshape(S, N, tot_classes)
 
         x = self.linear2(x)
         x = self.norm_out(x)
