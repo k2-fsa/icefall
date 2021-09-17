@@ -32,13 +32,17 @@ from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import get_lattice
 from icefall.decode import (
-    one_best_decoding,
+    one_best_decoding,  # done
     rescore_with_attention_decoder,
-    rescore_with_n_best_list,
+    rescore_with_n_best_list,  # done
     rescore_with_whole_lattice,
-    nbest_oracle,
+    nbest_oracle,  # done
 )
-from icefall.decode2 import nbest_decoding, nbest_oracle as nbest_oracle2
+from icefall.decode2 import (
+    nbest_decoding,
+    nbest_oracle as nbest_oracle2,
+    rescore_with_n_best_list as rescore_with_n_best_list2,
+)
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -257,7 +261,10 @@ def decode_one_batch(
             )
             hyps = get_texts(best_path)
             hyps = [[word_table[i] for i in ids] for ids in hyps]
-            return {"nbest-orcale": hyps}
+            key = (
+                f"oracle_{num_paths}_lattice_score_scale_{lattice_score_scale}"
+            )
+            return {key: hyps}
         else:
             return nbest_oracle(
                 lattice=lattice,
@@ -297,13 +304,23 @@ def decode_one_batch(
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
-        best_path_dict = rescore_with_n_best_list(
-            lattice=lattice,
-            G=G,
-            num_paths=params.num_paths,
-            lm_scale_list=lm_scale_list,
-            scale=params.lattice_score_scale,
-        )
+        if True:
+            # TODO: remove the "else" branch
+            best_path_dict = rescore_with_n_best_list2(
+                lattice=lattice,
+                G=G,
+                num_paths=params.num_paths,
+                lm_scale_list=lm_scale_list,
+                lattice_score_scale=params.lattice_score_scale,
+            )
+        else:
+            best_path_dict = rescore_with_n_best_list(
+                lattice=lattice,
+                G=G,
+                num_paths=params.num_paths,
+                lm_scale_list=lm_scale_list,
+                scale=params.lattice_score_scale,
+            )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
             lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
@@ -385,7 +402,8 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        if batch_idx > 20:
+        # TODO: remove it
+        if batch_idx > 100:
             break
 
         hyps_dict = decode_one_batch(
