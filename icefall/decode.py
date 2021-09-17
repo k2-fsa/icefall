@@ -669,7 +669,7 @@ def nbest_oracle(
         word_seq = k2.ragged.index(lattice.aux_labels, path)
     else:
         word_seq = lattice.aux_labels.index(path)
-        word_seq = word_seq.remove_axis(1)
+        word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
 
     word_seq = word_seq.remove_values_leq(0)
     unique_word_seq, _, _ = word_seq.unique(

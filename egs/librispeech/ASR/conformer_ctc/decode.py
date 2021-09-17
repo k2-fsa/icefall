@@ -30,14 +30,15 @@ from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.decode import get_lattice
 from icefall.decode import (
-    get_lattice,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
+    nbest_oracle,
 )
-from icefall.decode2 import nbest_decoding, nbest_oracle
+from icefall.decode2 import nbest_decoding, nbest_oracle as nbest_oracle2
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -244,17 +245,27 @@ def decode_one_batch(
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
         # is slightly worse than that of rescored lattices.
-        best_path = nbest_oracle(
-            lattice=lattice,
-            num_paths=params.num_paths,
-            ref_texts=supervisions["text"],
-            word_table=word_table,
-            lattice_score_scale=params.lattice_score_scale,
-            oov="<UNK>",
-        )
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        return {"nbest-orcale": hyps}
+        if True:
+            # TODO: delete the `else` branch
+            best_path = nbest_oracle2(
+                lattice=lattice,
+                num_paths=params.num_paths,
+                ref_texts=supervisions["text"],
+                word_table=word_table,
+                lattice_score_scale=params.lattice_score_scale,
+                oov="<UNK>",
+            )
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            return {"nbest-orcale": hyps}
+        else:
+            return nbest_oracle(
+                lattice=lattice,
+                num_paths=params.num_paths,
+                ref_texts=supervisions["text"],
+                word_table=word_table,
+                scale=params.lattice_score_scale,
+            )
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":

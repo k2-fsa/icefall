@@ -40,7 +40,10 @@ def test_nbest_from_lattice():
     lattice = k2.Fsa.from_fsas([lattice, lattice])
 
     nbest = Nbest.from_lattice(
-        lattice=lattice, num_paths=10, use_double_scores=True, scale=0.5
+        lattice=lattice,
+        num_paths=10,
+        use_double_scores=True,
+        lattice_score_scale=0.5,
     )
     # each lattice has only 4 distinct paths that have different word sequences:
     # 10->30

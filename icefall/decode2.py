@@ -25,7 +25,8 @@ import torch
 from icefall.utils import get_texts
 
 
-# TODO(fangjun): Use Kangwei's C++ implementation that also List[List[int]]
+# TODO(fangjun): Use Kangwei's C++ implementation that also
+# supports List[List[int]]
 def levenshtein_graph(symbol_ids: List[int]) -> k2.Fsa:
     """Construct a graph to compute Levenshtein distance.
 
@@ -42,10 +43,10 @@ def levenshtein_graph(symbol_ids: List[int]) -> k2.Fsa:
     final_state = len(symbol_ids) + 1
     arcs = []
     for i in range(final_state - 1):
-        arcs.append([i, i, 0, 0, -1.01])
+        arcs.append([i, i, 0, 0, -0.5])
+        arcs.append([i, i + 1, 0, symbol_ids[i], -0.5])
         arcs.append([i, i + 1, symbol_ids[i], symbol_ids[i], 0])
-        arcs.append([i, i + 1, 0, symbol_ids[i], -1])
-    arcs.append([final_state - 1, final_state - 1, 0, 0, -1.01])
+    arcs.append([final_state - 1, final_state - 1, 0, 0, -0.5])
     arcs.append([final_state - 1, final_state, -1, -1, 0])
     arcs.append([final_state])
 
@@ -134,7 +135,8 @@ class Nbest(object):
         if isinstance(lattice.aux_labels, torch.Tensor):
             word_seq = k2.ragged.index(lattice.aux_labels, path)
         else:
-            word_seq = lattice.aux_labels.index(path, remove_axis=True)
+            word_seq = lattice.aux_labels.index(path)
+            word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
 
         # Each utterance has `num_paths` paths but some of them transduces
         # to the same word sequence, so we need to remove repeated word
@@ -170,11 +172,11 @@ class Nbest(object):
             # It has 2 axes [arc][word], so aux_labels is also a ragged tensor
             # with 2 axes [arc][word]
             aux_labels, _ = lattice.aux_labels.index(
-                indexes=kept_path.data, axis=0, need_value_indexes=False
+                indexes=kept_path.values, axis=0, need_value_indexes=False
             )
         else:
             assert isinstance(lattice.aux_labels, torch.Tensor)
-            aux_labels = k2.index_select(lattice.aux_labels, kept_path.data)
+            aux_labels = k2.index_select(lattice.aux_labels, kept_path.values)
             # aux_labels is a 1-D torch.Tensor. It also contains -1 and 0.
 
         fsa = k2.linear_fsa(labels)
