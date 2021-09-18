@@ -23,7 +23,7 @@ You can run this file in one of the two ways:
 """
 
 import k2
-from icefall.decode2 import Nbest
+from icefall.decode import Nbest
 
 
 def test_nbest_from_lattice():
