@@ -30,20 +30,14 @@ from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.decode import get_lattice
 from icefall.decode import (
-    one_best_decoding,  # done
-    rescore_with_attention_decoder,  # done
-    rescore_with_n_best_list,  # done
-    rescore_with_whole_lattice,  # done
-    nbest_oracle,  # done
-)
-from icefall.decode2 import (
+    get_lattice,
     nbest_decoding,
-    nbest_oracle as nbest_oracle2,
-    rescore_with_n_best_list as rescore_with_n_best_list2,
-    rescore_with_whole_lattice as rescore_with_whole_lattice2,
-    rescore_with_attention_decoder as rescore_with_attention_decoder2,
+    nbest_oracle,
+    one_best_decoding,
+    rescore_with_attention_decoder,
+    rescore_with_n_best_list,
+    rescore_with_whole_lattice,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -250,29 +244,19 @@ def decode_one_batch(
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
-        # is slightly worse than that of rescored lattices.
-        if True:
-            # TODO: delete the `else` branch
-            best_path = nbest_oracle2(
-                lattice=lattice,
-                num_paths=params.num_paths,
-                ref_texts=supervisions["text"],
-                word_table=word_table,
-                lattice_score_scale=params.lattice_score_scale,
-                oov="<UNK>",
-            )
-            hyps = get_texts(best_path)
-            hyps = [[word_table[i] for i in ids] for ids in hyps]
-            key = f"oracle_{num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
-            return {key: hyps}
-        else:
-            return nbest_oracle(
-                lattice=lattice,
-                num_paths=params.num_paths,
-                ref_texts=supervisions["text"],
-                word_table=word_table,
-                scale=params.lattice_score_scale,
-            )
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            word_table=word_table,
+            lattice_score_scale=params.lattice_score_scale,
+            oov="<UNK>",
+        )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -304,65 +288,39 @@ def decode_one_batch(
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
-        if True:
-            # TODO: remove the "else" branch
-            best_path_dict = rescore_with_n_best_list2(
-                lattice=lattice,
-                G=G,
-                num_paths=params.num_paths,
-                lm_scale_list=lm_scale_list,
-                lattice_score_scale=params.lattice_score_scale,
-            )
-        else:
-            best_path_dict = rescore_with_n_best_list(
-                lattice=lattice,
-                G=G,
-                num_paths=params.num_paths,
-                lm_scale_list=lm_scale_list,
-                scale=params.lattice_score_scale,
-            )
+        best_path_dict = rescore_with_n_best_list(
+            lattice=lattice,
+            G=G,
+            num_paths=params.num_paths,
+            lm_scale_list=lm_scale_list,
+            lattice_score_scale=params.lattice_score_scale,
+        )
     elif params.method == "whole-lattice-rescoring":
-        if True:
-            # TODO: remove "else" branch
-            best_path_dict = rescore_with_whole_lattice2(
-                lattice=lattice,
-                G_with_epsilon_loops=G,
-                lm_scale_list=lm_scale_list,
-            )
-        else:
-            best_path_dict = rescore_with_whole_lattice(
-                lattice=lattice,
-                G_with_epsilon_loops=G,
-                lm_scale_list=lm_scale_list,
-            )
+        best_path_dict = rescore_with_whole_lattice(
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
+        )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=None,
         )
+        # TODO: pass `lattice` instead of `rescored_lattice` to
+        # `rescore_with_attention_decoder`
 
-        if True:
-            best_path_dict = rescore_with_attention_decoder2(
-                lattice=rescored_lattice,
-                num_paths=params.num_paths,
-                model=model,
-                memory=memory,
-                memory_key_padding_mask=memory_key_padding_mask,
-                sos_id=sos_id,
-                eos_id=eos_id,
-                lattice_score_scale=params.lattice_score_scale,
-            )
-        else:
-            best_path_dict = rescore_with_attention_decoder(
-                lattice=rescored_lattice,
-                num_paths=params.num_paths,
-                model=model,
-                memory=memory,
-                memory_key_padding_mask=memory_key_padding_mask,
-                sos_id=sos_id,
-                eos_id=eos_id,
-                scale=params.lattice_score_scale,
-            )
+        best_path_dict = rescore_with_attention_decoder(
+            lattice=rescored_lattice,
+            num_paths=params.num_paths,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
+            lattice_score_scale=params.lattice_score_scale,
+        )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 

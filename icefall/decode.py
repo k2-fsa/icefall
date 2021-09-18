@@ -64,6 +64,68 @@ def _intersect_device(
     return k2.cat(ans)
 
 
+def get_lattice(
+    nnet_output: torch.Tensor,
+    HLG: k2.Fsa,
+    supervision_segments: torch.Tensor,
+    search_beam: float,
+    output_beam: float,
+    min_active_states: int,
+    max_active_states: int,
+    subsampling_factor: int = 1,
+) -> k2.Fsa:
+    """Get the decoding lattice from a decoding graph and neural
+    network output.
+    Args:
+      nnet_output:
+        It is the output of a neural model of shape `[N, T, C]`.
+      HLG:
+        An Fsa, the decoding graph. See also `compile_HLG.py`.
+      supervision_segments:
+        A 2-D **CPU** tensor of dtype `torch.int32` with 3 columns.
+        Each row contains information for a supervision segment. Column 0
+        is the `sequence_index` indicating which sequence this segment
+        comes from; column 1 specifies the `start_frame` of this segment
+        within the sequence; column 2 contains the `duration` of this
+        segment.
+      search_beam:
+        Decoding beam, e.g. 20.  Smaller is faster, larger is more exact
+        (less pruning). This is the default value; it may be modified by
+        `min_active_states` and `max_active_states`.
+      output_beam:
+         Beam to prune output, similar to lattice-beam in Kaldi.  Relative
+         to best path of output.
+      min_active_states:
+        Minimum number of FSA states that are allowed to be active on any given
+        frame for any given intersection/composition task. This is advisory,
+        in that it will try not to have fewer than this number active.
+        Set it to zero if there is no constraint.
+      max_active_states:
+        Maximum number of FSA states that are allowed to be active on any given
+        frame for any given intersection/composition task. This is advisory,
+        in that it will try not to exceed that but may not always succeed.
+        You can use a very large number if no constraint is needed.
+      subsampling_factor:
+        The subsampling factor of the model.
+    Returns:
+      A lattice containing the decoding result.
+    """
+    dense_fsa_vec = k2.DenseFsaVec(
+        nnet_output, supervision_segments, allow_truncate=subsampling_factor - 1
+    )
+
+    lattice = k2.intersect_dense_pruned(
+        HLG,
+        dense_fsa_vec,
+        search_beam=search_beam,
+        output_beam=output_beam,
+        min_active_states=min_active_states,
+        max_active_states=max_active_states,
+    )
+
+    return lattice
+
+
 # TODO(fangjun): Use Kangwei's C++ implementation that also
 # supports List[List[int]]
 def levenshtein_graph(symbol_ids: List[int]) -> k2.Fsa:
