@@ -33,9 +33,9 @@ from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import get_lattice
 from icefall.decode import (
     one_best_decoding,  # done
-    rescore_with_attention_decoder,
+    rescore_with_attention_decoder,  # done
     rescore_with_n_best_list,  # done
-    rescore_with_whole_lattice,
+    rescore_with_whole_lattice,  # done
     nbest_oracle,  # done
 )
 from icefall.decode2 import (
@@ -43,6 +43,7 @@ from icefall.decode2 import (
     nbest_oracle as nbest_oracle2,
     rescore_with_n_best_list as rescore_with_n_best_list2,
     rescore_with_whole_lattice as rescore_with_whole_lattice2,
+    rescore_with_attention_decoder as rescore_with_attention_decoder2,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -340,16 +341,28 @@ def decode_one_batch(
             lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
         )
 
-        best_path_dict = rescore_with_attention_decoder(
-            lattice=rescored_lattice,
-            num_paths=params.num_paths,
-            model=model,
-            memory=memory,
-            memory_key_padding_mask=memory_key_padding_mask,
-            sos_id=sos_id,
-            eos_id=eos_id,
-            scale=params.lattice_score_scale,
-        )
+        if True:
+            best_path_dict = rescore_with_attention_decoder2(
+                lattice=rescored_lattice,
+                num_paths=params.num_paths,
+                model=model,
+                memory=memory,
+                memory_key_padding_mask=memory_key_padding_mask,
+                sos_id=sos_id,
+                eos_id=eos_id,
+                lattice_score_scale=params.lattice_score_scale,
+            )
+        else:
+            best_path_dict = rescore_with_attention_decoder(
+                lattice=rescored_lattice,
+                num_paths=params.num_paths,
+                model=model,
+                memory=memory,
+                memory_key_padding_mask=memory_key_padding_mask,
+                sos_id=sos_id,
+                eos_id=eos_id,
+                scale=params.lattice_score_scale,
+            )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 

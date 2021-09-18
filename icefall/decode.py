@@ -857,13 +857,15 @@ def rescore_with_attention_decoder(
     assert attention_scores.numel() == num_word_seqs
 
     if ngram_lm_scale is None:
-        ngram_lm_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        ngram_lm_scale_list = [0.01, 0.05, 0.08]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
     else:
         ngram_lm_scale_list = [ngram_lm_scale]
 
     if attention_scale is None:
-        attention_scale_list = [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list = [0.01, 0.05, 0.08]
+        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
     else:
         attention_scale_list = [attention_scale]
