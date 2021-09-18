@@ -213,12 +213,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
         (

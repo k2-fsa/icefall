@@ -78,7 +78,7 @@ def get_lattice(
     network output.
     Args:
       nnet_output:
-        It is the output of a neural model of shape `[N, T, C]`.
+        It is the output of a neural model of shape `(N, T, C)`.
       HLG:
         An Fsa, the decoding graph. See also `compile_HLG.py`.
       supervision_segments:
@@ -108,10 +108,12 @@ def get_lattice(
       subsampling_factor:
         The subsampling factor of the model.
     Returns:
-      A lattice containing the decoding result.
+      An FsaVec containing the decoding result. It has axes [utt][state][arc].
     """
     dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output, supervision_segments, allow_truncate=subsampling_factor - 1
+        nnet_output,
+        supervision_segments,
+        allow_truncate=subsampling_factor - 1,
     )
 
     lattice = k2.intersect_dense_pruned(
@@ -138,6 +140,8 @@ def levenshtein_graph(symbol_ids: List[int]) -> k2.Fsa:
     Args:
       symbol_ids:
         A list of symbol IDs (excluding 0 and -1)
+    Returns:
+      Return an Fsa (with 2 axes [state][arc]).
     """
     assert 0 not in symbol_ids
     assert -1 not in symbol_ids

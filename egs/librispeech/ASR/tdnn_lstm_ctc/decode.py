@@ -190,12 +190,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
+    feature = feature.permute(0, 2, 1)  # now feature is (N, C, T)
 
     nnet_output = model(feature)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervisions = batch["supervisions"]
 
