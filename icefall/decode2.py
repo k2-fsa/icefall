@@ -14,9 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# NOTE: This file is a refactor of decode.py
-# We will delete decode.py and rename this file to decode.py
-
 import logging
 from typing import Dict, List, Optional, Union
 
@@ -38,7 +35,7 @@ def _intersect_device(
     CUDA OOM error.
 
     The arguments and return value of this function are the same as
-    k2.intersect_device.
+    :func:`k2.intersect_device`.
     """
     num_fsas = b_fsas.shape[0]
     if num_fsas <= batch_size:
@@ -107,7 +104,9 @@ class Nbest(object):
     An Nbest object contains two fields:
 
         (1) fsa. It is an FsaVec containing a vector of **linear** FSAs.
+                 Its axes are [path][state][arc]
         (2) shape. Its type is :class:`k2.RaggedShape`.
+                   Its axes are [utt][path]
 
     The field `shape` has two axes [utt][path]. `shape.dim0` contains
     the number of utterances, which is also the number of rows in the
@@ -116,11 +115,19 @@ class Nbest(object):
 
     Caution:
       Don't be confused by the name `Nbest`. The best in the name `Nbest`
-      has nothing to do with the `best scores`. The important part is
+      has nothing to do with `best scores`. The important part is
       `N` in `Nbest`, not `best`.
     """
 
     def __init__(self, fsa: k2.Fsa, shape: k2.RaggedShape) -> None:
+        """
+        Args:
+          fsa:
+            An FsaVec with axes [path][state][arc]. It is expected to contain
+            a list of **linear** FSAs.
+          shape:
+            A ragged shape with two axes [utt][path].
+        """
         assert len(fsa.shape) == 3, f"fsa.shape: {fsa.shape}"
         assert shape.num_axes == 2, f"num_axes: {shape.num_axes}"
 
@@ -135,8 +142,8 @@ class Nbest(object):
 
     def __str__(self):
         s = "Nbest("
-        s += f"num_seqs:{self.shape.dim0}, "
-        s += f"num_fsas:{self.fsa.shape[0]})"
+        s += f"Number of utterances:{self.shape.dim0}, "
+        s += f"Number of Paths:{self.fsa.shape[0]})"
         return s
 
     @staticmethod
@@ -147,6 +154,11 @@ class Nbest(object):
         lattice_score_scale: float = 0.5,
     ) -> "Nbest":
         """Construct an Nbest object by **sampling** `num_paths` from a lattice.
+
+        Each sampled path is a linear FSA.
+
+        We assume `lattice.labels` contains token IDs and `lattice.aux_labels`
+        contains word IDs.
 
         Args:
           lattice:
@@ -159,13 +171,15 @@ class Nbest(object):
             False to use single precision.
           scale:
             Scale `lattice.score` before passing it to :func:`k2.random_paths`.
-            A smaller value leads to more unique paths with the risk being not
+            A smaller value leads to more unique paths at the risk of being not
             to sample the path with the best score.
+        Returns:
+          Return an Nbest instance.
         """
         saved_scores = lattice.scores.clone()
         lattice.scores *= lattice_score_scale
         # path is a ragged tensor with dtype torch.int32.
-        # It has three axes [utt][path][arc_pos
+        # It has three axes [utt][path][arc_pos]
         path = k2.random_paths(
             lattice, num_paths=num_paths, use_double_scores=use_double_scores
         )
@@ -174,6 +188,7 @@ class Nbest(object):
         # word_seq is a k2.RaggedTensor sharing the same shape as `path`
         # but it contains word IDs. Note that it also contains 0s and -1s.
         # The last entry in each sublist is -1.
+        # It axes is [utt][path][word_id]
         if isinstance(lattice.aux_labels, torch.Tensor):
             word_seq = k2.ragged.index(lattice.aux_labels, path)
         else:
@@ -224,28 +239,28 @@ class Nbest(object):
         fsa = k2.linear_fsa(labels)
         fsa.aux_labels = aux_labels
         # Caution: fsa.scores are all 0s.
+        # `fsa` has only one extra attribute: aux_labels.
         return Nbest(fsa=fsa, shape=utt_to_path_shape)
 
     def intersect(self, lattice: k2.Fsa, use_double_scores=True) -> "Nbest":
-        """Intersect this Nbest object with a lattice and get 1-best
-        path from the resulting FsaVec.
+        """Intersect this Nbest object with a lattice, get 1-best
+        path from the resulting FsaVec, and return a new Nbest object.
 
         The purpose of this function is to attach scores to an Nbest.
-
 
         Args:
           lattice:
             An FsaVec with axes [utt][state][arc]. If it has `aux_labels`, then
             we assume its `labels` are token IDs and `aux_labels` are word IDs.
-            If it has only `labels`, we assume it `labels` are word IDs.
-
+            If it has only `labels`, we assume its `labels` are word IDs.
           use_double_scores:
             True to use double precision when computing shortest path.
             False to use single precision.
         Returns:
           Return a new Nbest. This new Nbest shares the same shape with `self`,
           while its `fsa` is the 1-best path from intersecting `self.fsa` and
-          `lattice`.
+          `lattice`. Also, its `fsa` has non-zero scores and inherits attributes
+          for `lattice`.
         """
         # Note: We view each linear FSA as a word sequence
         # and we use the passed lattice to give each word sequence a score.
@@ -308,7 +323,8 @@ class Nbest(object):
         an utterance).
 
         Hint:
-          `self.fsa.scores` contains two parts: am scores and lm scores.
+          `self.fsa.scores` contains two parts: acoustic scores (AM scores)
+          and n-gram language model scores (LM scores).
 
         Caution:
           We require that ``self.fsa`` has an attribute ``lm_scores``.
@@ -334,7 +350,8 @@ class Nbest(object):
         an utterance).
 
         Hint:
-          `self.fsa.scores` contains two parts: am scores and lm scores.
+          `self.fsa.scores` contains two parts: acoustic scores (AM scores)
+          and n-gram language model scores (LM scores).
 
         Caution:
           We require that ``self.fsa`` has an attribute ``lm_scores``.
@@ -348,9 +365,6 @@ class Nbest(object):
         # The `scores` of every arc consists of `am_scores` and `lm_scores`
         self.fsa.scores = self.fsa.lm_scores
 
-        # Caution: self.fsa.lm_scores is per arc
-        # while lm_scores in the following is per path
-        #
         lm_scores = self.fsa.get_tot_scores(
             use_double_scores=True, log_semiring=False
         )
@@ -359,17 +373,16 @@ class Nbest(object):
         return k2.RaggedTensor(self.shape, lm_scores)
 
     def tot_scores(self) -> k2.RaggedTensor:
-        """Get total scores of the FSAs in this Nbest.
+        """Get total scores of FSAs in this Nbest.
 
         Note:
-          Since FSAs in Nbest are just linear FSAs, log-semirng and tropical
-          semiring produce the same total scores.
+          Since FSAs in Nbest are just linear FSAs, log-semiring
+          and tropical semiring produce the same total scores.
 
         Returns:
           Return a ragged tensor with two axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        # Use single precision since there are only additions.
         scores = self.fsa.get_tot_scores(
             use_double_scores=True, log_semiring=False
         )
@@ -382,6 +395,25 @@ class Nbest(object):
         return k2.Fsa.from_fsas(word_levenshtein_graphs)
 
 
+def one_best_decoding(
+    lattice: k2.Fsa,
+    use_double_scores: bool = True,
+) -> k2.Fsa:
+    """Get the best path from a lattice.
+
+    Args:
+      lattice:
+        The decoding lattice returned by :func:`get_lattice`.
+      use_double_scores:
+        True to use double precision floating point in the computation.
+        False to use single precision.
+    Return:
+      An FsaVec containing linear paths.
+    """
+    best_path = k2.shortest_path(lattice, use_double_scores=use_double_scores)
+    return best_path
+
+
 def nbest_decoding(
     lattice: k2.Fsa,
     num_paths: int,
@@ -390,7 +422,7 @@ def nbest_decoding(
 ) -> k2.Fsa:
     """It implements something like CTC prefix beam search using n-best lists.
 
-    The basic idea is to first extra `num_paths` paths from the given lattice,
+    The basic idea is to first extract `num_paths` paths from the given lattice,
     build a word sequence from these paths, and compute the total scores
     of the word sequence in the tropical semiring. The one with the max score
     is used as the decoding output.
@@ -398,6 +430,10 @@ def nbest_decoding(
     Caution:
       Don't be confused by `best` in the name `n-best`. Paths are selected
       **randomly**, not by ranking their scores.
+
+    Hint:
+      This decoding method is for demonstration only and it does
+      not produce a lower WER than :func:`one_best_decoding`.
 
     Args:
       lattice:
@@ -411,10 +447,10 @@ def nbest_decoding(
         True to use double precision floating point in the computation.
         False to use single precision.
       lattice_score_scale:
-        It's the scale applied to the lattice.scores. A smaller value
-        yields more unique paths.
+        It's the scale applied to the `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
     Returns:
-      An FsaVec containing linear FSAs. It axes are [utt][state][arc].
+      An FsaVec containing **linear** FSAs. It axes are [utt][state][arc].
     """
     nbest = Nbest.from_lattice(
         lattice=lattice,
@@ -446,9 +482,9 @@ def nbest_oracle(
 ) -> Dict[str, List[List[int]]]:
     """Select the best hypothesis given a lattice and a reference transcript.
 
-    The basic idea is to extract n paths from the given lattice, unique them,
-    and select the one that has the minimum edit distance with the corresponding
-    reference transcript as the decoding output.
+    The basic idea is to extract `num_paths` paths from the given lattice,
+    unique them, and select the one that has the minimum edit distance with
+    the corresponding reference transcript as the decoding output.
 
     The decoding result returned from this function is the best result that
     we can obtain using n-best decoding with all kinds of rescoring techniques.
@@ -458,7 +494,7 @@ def nbest_oracle(
     Args:
       lattice:
         An FsaVec with axes [utt][state][arc].
-        Note: We assume its aux_labels contain word IDs.
+        Note: We assume its `aux_labels` contains word IDs.
       num_paths:
         The size of `n` in n-best.
       ref_texts:
@@ -500,6 +536,7 @@ def nbest_oracle(
             else:
                 word_ids.append(oov_id)
         word_ids_list.append(word_ids)
+
     levenshtein_graphs = [levenshtein_graph(ids) for ids in word_ids_list]
     refs = k2.Fsa.from_fsas(levenshtein_graphs).to(device)
 
@@ -536,8 +573,8 @@ def rescore_with_n_best_list(
     lattice_score_scale: float = 1.0,
     use_double_scores: bool = True,
 ) -> Dict[str, k2.Fsa]:
-    """Rescore a nbest list with an n-gram LM.
-    The path with a maximum score is used as the decoding output.
+    """Rescore an n-best list with an n-gram LM.
+    The path with the maximum score is used as the decoding output.
 
     Args:
       lattice:
@@ -605,7 +642,38 @@ def rescore_with_whole_lattice(
     lm_scale_list: Optional[List[float]] = None,
     use_double_scores: bool = True,
 ) -> Union[k2.Fsa, Dict[str, k2.Fsa]]:
-    # This is not an Nbest based coding method
+    """Intersect the lattice with an n-gram LM and use shortest path
+    to decode.
+
+    The input lattice is obtained by intersecting `HLG` with
+    a DenseFsaVec, where the `G` in `HLG` is in general a 3-gram LM.
+    The input `G_with_epsilon_loops` is usually a 4-gram LM. You can consider
+    this function as a second pass decoding. In the first pass decoding, we
+    use a small G, while we use a larger G in the second pass decoding.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc]. Its `aux_lables` are word IDs.
+        It must have an attribute `lm_scores`.
+      G_with_epsilon_loops:
+        An FsaVec containing only a single FSA. It contains epsilon self-loops.
+        It is an acceptor and its labels are word IDs.
+      lm_scale_list:
+        Optional. If none, return the intersection of `lattice` and
+        `G_with_epsilon_loops`.
+        If not None, it contains a list of values to scale LM scores.
+        For each scale, there is a corresponding decoding result contained in
+        the resulting dict.
+      use_double_scores:
+        True to use double precision in the computation.
+        False to use single precision.
+    Returns:
+      If `lm_scale_list` is None, return a new lattice which is the intersection
+      result of `lattice` and `G_with_epsilon_loops`.
+      Otherwise, return a dict whose key is an entry in `lm_scale_list` and the
+      value is the decoding result (i.e., an FsaVec containing linear FSAs).
+    """
+    # Nbest is not used in this function
     assert hasattr(lattice, "lm_scores")
     assert G_with_epsilon_loops.shape == (1, None, None)
 
@@ -619,7 +687,7 @@ def rescore_with_whole_lattice(
     # Now, lattice.scores contains only am_scores
 
     # inv_lattice has word IDs as labels.
-    # Its aux_labels are token IDs
+    # Its `aux_labels` is token IDs
     inv_lattice = k2.invert(lattice)
     num_seqs = lattice.shape[0]
 
@@ -668,7 +736,7 @@ def rescore_with_whole_lattice(
         lat.scores = am_scores + lat.lm_scores
 
         best_path = k2.shortest_path(lat, use_double_scores=use_double_scores)
-        key = f"lm_scale_{lm_scale}_yy"
+        key = f"lm_scale_{lm_scale}"
         ans[key] = best_path
     return ans
 
@@ -686,6 +754,40 @@ def rescore_with_attention_decoder(
     attention_scale: Optional[float] = None,
     use_double_scores: bool = True,
 ) -> Dict[str, k2.Fsa]:
+    """This function extracts `num_paths` paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest score is
+    the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc].
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `(T, N, C)`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape `(N, T)`.
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
+      lattice_score_scale:
+        It's the scale applied to `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
     nbest = Nbest.from_lattice(
         lattice=lattice,
         num_paths=num_paths,
