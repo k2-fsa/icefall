@@ -1867,7 +1867,7 @@ def _test_discrete_bottleneck():
                              lr=3.0e-04)
 
 
-    scale = 0.7  # determines the feature correlation..should be between 0 and 1.
+    scale = 0.3  # determines the feature correlation..should be between 0 and 1.
     #https://en.wikipedia.org/wiki/Mutual_information#Linear_correlation, -0.5 log(1 - rho^2)..
     # scale corresponds to rho^2, rho being sqrt(scale).
     mutual_information = dim * -0.5 * math.log(1.0 - scale)
@@ -1897,9 +1897,13 @@ def _test_discrete_bottleneck():
             if True:
                 sampled_reversed = ReverseGrad.apply(sampled)
                 predictor_reversed = self_predictor(sampled_reversed)
-                #predictor_reversed_shifted = torch.cat((torch.zeros(1, N, dim).to(device),
-                #                                        predictor_reversed[:-1,:,:]), dim=0)
-                predictor_reversed_shifted = predictor_reversed
+
+                if True:
+                    predictor_reversed_shifted = torch.cat((torch.zeros(1, N, dim).to(device),
+                                                            predictor_reversed[:-1,:,:]), dim=0)
+                else:
+                    # skip shifting.. want to see the effect..
+                    predictor_reversed_shifted = predictor_reversed
 
                 self_prob = b.compute_prob(predictor_reversed_shifted, sampled, softmax,
                                            reverse_grad=True)
