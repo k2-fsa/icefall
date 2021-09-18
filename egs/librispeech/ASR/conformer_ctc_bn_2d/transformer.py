@@ -914,6 +914,9 @@ def encoder_padding_mask(
     ).unsqueeze(-1)
     mask = seq_range_expand >= seq_length_expand
 
+    # Assert that in each row, i.e. each utterance, at least one frame is not
+    # masked.  Otherwise it may lead to nan's appearing in the attention computation.
+    assert torch.all(torch.sum(torch.logical_not(mask), dim=1) != 0)
     return mask
 
 
