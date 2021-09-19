@@ -186,11 +186,11 @@ class BidirectionalConformer(nn.Module):
             nhead: int = 4,
             dim_feedforward: int = 2048,
             num_trunk_encoder_layers: int = 12,
-            num_ctc_encoder_layers: int = 4,
+            num_ctc_encoder_layers: int = 2,
             num_decoder_layers: int = 6,
             num_reverse_encoder_layers: int = 4,
             num_reverse_decoder_layers: int = 4,
-            num_self_predictor_layers: int = 3,
+            num_self_predictor_layers: int = 2,
             dropout: float = 0.1,
             cnn_module_kernel: int = 31,
             is_bpe: bool = False,
@@ -537,7 +537,8 @@ class BidirectionalConformer(nn.Module):
         """
         This is the reverse decoder function, which returns the total probability of the
         labels sampled in the discrete bottleneck layer, as predicted from the
-        supervision word-sequence.
+        supervision word-sequence.  Caution: it has the opposite sign from
+        the result of decoder_forward().
 
         Args:
           positive_embed_shifted:
