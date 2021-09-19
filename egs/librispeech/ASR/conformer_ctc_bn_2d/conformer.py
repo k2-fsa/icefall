@@ -572,10 +572,7 @@ class BidirectionalConformer(nn.Module):
         tokens_padded = pad_sequence(token_ids_tensors, batch_first=True,
                                      padding_value=padding_id).to(positive_embed_shifted.device)
 
-        print("tokens_padded = ", tokens_padded)
         tokens_key_padding_mask = decoder_padding_mask(tokens_padded, ignore_id=padding_id)
-        print("tokens_key_padding_mask=", tokens_key_padding_mask)
-
 
         # Let S be the length of the longest sentence (padded)
         token_embedding = self.token_embed(tokens_padded) * self.token_embed_scale # (N, S) -> (N, S, C)
