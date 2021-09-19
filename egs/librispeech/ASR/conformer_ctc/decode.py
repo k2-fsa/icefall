@@ -18,6 +18,7 @@
 
 import argparse
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -36,10 +37,12 @@ from icefall.decode import (
     nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
+    rescore_with_attention_decoder_v2,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
 from icefall.lexicon import Lexicon
+from icefall.score_estimator import ScoreEstimator
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -134,7 +137,8 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
+            "exp_dir": Path("exp/conformer_ctc"),
+            # "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
             # parameters for conformer
@@ -151,6 +155,11 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            # top_k is used when method is "attention-decoder-v2"
+            "top_k" : 10,
+            # dump_best_matching_feature is used when method is
+            # "attention-decoder-v2" to dump feature to train a special model
+            "dump_best_matching_feature": False,
         }
     )
     return params
@@ -161,9 +170,11 @@ def decode_one_batch(
     model: nn.Module,
     HLG: k2.Fsa,
     batch: dict,
+    batch_idx: int,
     word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
+    rescore_est_model: nn.Module,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -195,12 +206,16 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      batch_idx:
+        The batch index of current batch.
       word_table:
         The word symbol table.
       sos_id:
         The token ID of the SOS.
       eos_id:
         The token ID of the EOS.
+      rescore_est_model:
+        The model to estimate rescore mean and variance, only for attention-decoder-v2
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -276,6 +291,7 @@ def decode_one_batch(
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "attention-decoder",
+        "attention-decoder-v2",
     ]
 
     lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
@@ -310,6 +326,33 @@ def decode_one_batch(
             eos_id=eos_id,
             scale=params.lattice_score_scale,
         )
+    elif params.method == "attention-decoder-v2":
+        # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
+        rescored_lattice = rescore_with_whole_lattice(
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+        )
+        best_path_dict = rescore_with_attention_decoder_v2(
+            lattice=rescored_lattice,
+            batch_idx=batch_idx,
+            dump_best_matching_feature=params.dump_best_matching_feature,
+            num_paths=params.num_paths,
+            top_k=params.top_k,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            rescore_est_model=rescore_est_model,
+            sos_id=sos_id,
+            eos_id=eos_id,
+            scale=params.lattice_score_scale,
+        )
+        if params.dump_best_matching_feature:
+            if best_path_dict.size()[0] > 0:
+                save_dir = params.exp_dir / f"rescore/feat"
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+                file_name = save_dir / f"feats-epoch-{batch_idx}.pt"
+                torch.save(best_path_dict, file_name)
+            return dict()
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 
@@ -329,6 +372,7 @@ def decode_dataset(
     word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
+    rescore_est_model: nn.Module,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[int], List[int]]]]:
     """Decode dataset.
@@ -348,6 +392,8 @@ def decode_dataset(
         The token ID for SOS.
       eos_id:
         The token ID for EOS.
+      rescore_est_model:
+        The model to estimate rescore mean and variance, only for attention-decoder-v2
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -377,10 +423,12 @@ def decode_dataset(
             model=model,
             HLG=HLG,
             batch=batch,
+            batch_idx=batch_idx,
             word_table=word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
+            rescore_est_model=rescore_est_model,
         )
 
         for lm_scale, hyps in hyps_dict.items():
@@ -494,6 +542,7 @@ def main():
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "attention-decoder",
+        "attention-decoder-v2",
     ):
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
@@ -517,7 +566,7 @@ def main():
             d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
             G = k2.Fsa.from_dict(d).to(device)
 
-        if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
+        if params.method in ["whole-lattice-rescoring", "attention-decoder", "attention-decoder-v2"]:
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)
@@ -529,6 +578,15 @@ def main():
         G.lm_scores = G.scores.clone()
     else:
         G = None
+    if params.method == "attention-decoder-v2":
+        rescore_est_model = ScoreEstimator()
+        rescore_est_model.load_state_dict(
+            torch.load(f"{params.exp_dir}/rescore/epoch-19.pt",
+            map_location="cpu")
+        )
+        rescore_est_model.to(device)
+    else:
+        rescore_est_model = None
 
     model = Conformer(
         num_features=params.feature_dim,
@@ -573,6 +631,7 @@ def main():
     #
     test_sets = ["test-clean", "test-other"]
     for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+        # if test_set == "test-other": continue
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -582,6 +641,7 @@ def main():
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
+            rescore_est_model=rescore_est_model,
         )
 
         save_results(
