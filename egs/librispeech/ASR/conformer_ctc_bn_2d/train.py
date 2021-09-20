@@ -464,7 +464,7 @@ def compute_loss(
                     # Will eventually remove this block..
                     num_frames = supervision_segments[:, 2].sum().item()
                     print(f"Self-prediction logprob = {self_prediction_logprob/num_frames}, "
-                          f"reverse-decoder logprob = {reverse_decoder_logprob/num_frames}"
+                          f"reverse-decoder logprob = {reverse_decoder_logprob/num_frames}, "
                           f"reverse_att_loss = {reverse_att_loss/num_frames}")
         else:
             reverse_att_loss = torch.tensor([0.0]).to(device)
@@ -578,7 +578,7 @@ def train_one_epoch(
             graph_compiler=graph_compiler,
             is_training=True,
         )
-        tot_loss = (tot_loss * (1 + 1 / params.reset_interval)) + loss_info  # summary stats.
+        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info  # summary stats.
 
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
