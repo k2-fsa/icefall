@@ -213,12 +213,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
         (
@@ -244,14 +244,19 @@ def decode_one_batch(
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
-        # is slightly worse than that of rescored lattices.
-        return nbest_oracle(
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
             lattice=lattice,
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
             word_table=word_table,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
+            oov="<UNK>",
         )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{params.num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -264,7 +269,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                scale=params.lattice_score_scale,
+                lattice_score_scale=params.lattice_score_scale,
             )
             key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
@@ -288,17 +293,23 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
         )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=None,
         )
+        # TODO: pass `lattice` instead of `rescored_lattice` to
+        # `rescore_with_attention_decoder`
 
         best_path_dict = rescore_with_attention_decoder(
             lattice=rescored_lattice,
@@ -308,16 +319,20 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 
     ans = dict()
-    for lm_scale_str, best_path in best_path_dict.items():
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        ans[lm_scale_str] = hyps
+    if best_path_dict is not None:
+        for lm_scale_str, best_path in best_path_dict.items():
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            ans[lm_scale_str] = hyps
+    else:
+        for lm_scale in lm_scale_list:
+            ans[lm_scale_str] = [[] * lattice.shape[0]]
     return ans
 
 

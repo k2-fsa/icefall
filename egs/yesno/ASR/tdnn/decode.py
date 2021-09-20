@@ -111,10 +111,10 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     nnet_output = model(feature)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(

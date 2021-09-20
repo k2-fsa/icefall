@@ -310,14 +310,14 @@ def compute_loss(
     """
     device = graph_compiler.device
     feature = batch["inputs"]
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is [N, T, C]
+        # nnet_output is (N, T, C)
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by

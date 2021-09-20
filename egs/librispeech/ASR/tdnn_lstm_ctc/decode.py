@@ -190,12 +190,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
+    feature = feature.permute(0, 2, 1)  # now feature is (N, C, T)
 
     nnet_output = model(feature)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervisions = batch["supervisions"]
 
@@ -229,6 +229,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
+                lattice_score_scale=params.lattice_score_scale,
             )
             key = f"no_rescore-{params.num_paths}"
         hyps = get_texts(best_path)
@@ -247,10 +248,13 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
+            lattice_score_scale=params.lattice_score_scale,
         )
     else:
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
         )
 
     ans = dict()
