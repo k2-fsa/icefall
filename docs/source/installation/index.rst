@@ -1,4 +1,4 @@
-.. _install icefall:
+9. _install icefall:
 
 Installation
 ============
@@ -21,7 +21,7 @@ Installation
 .. |torch_versions| image:: ./images/torch-1.6.0_1.7.0_1.7.1_1.8.0_1.8.1_1.9.0-green.svg
   :alt: Supported PyTorch versions
 
-.. |k2_versions| image:: ./images/k2-v-1.7.svg
+.. |k2_versions| image:: ./images/k2-v1.9-blueviolet.svg
   :alt: Supported k2 versions
 
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
@@ -40,7 +40,7 @@ to install ``k2``.
 
 .. CAUTION::
 
-  You need to install ``k2`` with a version at least **v1.7**.
+  You need to install ``k2`` with a version at least **v1.9**.
 
 .. HINT::
 
