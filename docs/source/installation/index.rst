@@ -1,4 +1,4 @@
-9. _install icefall:
+.. _install icefall:
 
 Installation
 ============
