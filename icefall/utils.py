@@ -411,3 +411,20 @@ def write_error_stats(
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
     return float(tot_err_rate)
+
+
+def is_main_process():
+    """Check if the current process is main.
+
+    - For DistributedDataParallel (DDP) mode:
+        The current is main process if its rank is 0, and its rank get from
+        os.environ["RANK"] (which already be set by DDP mode).
+    - For standard mode and others:
+        The os.environ["RANK"] is None, and
+    """
+    if os.environ.get('RANK') is None:
+        return True
+    elif os.environ.get("RANK") == "0":
+        return True
+    else:
+        return False
