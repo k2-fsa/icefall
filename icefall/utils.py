@@ -186,7 +186,9 @@ def encode_supervisions(
     return supervision_segments, texts
 
 
-def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
+def get_texts(
+    best_paths: k2.Fsa, return_ragged: bool = False
+) -> Union[List[List[int]], k2.RaggedTensor]:
     """Extract the texts (as word IDs) from the best-path FSAs.
     Args:
       best_paths:
@@ -194,6 +196,9 @@ def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
         be meaningful).
+      return_ragged:
+        True to return a ragged tensor with two axes [utt][word_id].
+        False to return a list-of-list word IDs.
     Returns:
       Returns a list of lists of int, containing the label sequences we
       decoded.
@@ -216,7 +221,10 @@ def get_texts(best_paths: k2.Fsa) -> List[List[int]]:
         aux_labels = aux_labels.remove_values_leq(0)
 
     assert aux_labels.num_axes == 2
-    return aux_labels.tolist()
+    if return_ragged:
+        return aux_labels
+    else:
+        return aux_labels.tolist()
 
 
 def store_transcripts(
