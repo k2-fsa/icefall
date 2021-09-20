@@ -945,7 +945,7 @@ class SampleAndPredict(nn.Module):
 
         if reverse_grad:
             tot_prob = reverse_gradient(tot_prob)
-            return tot_prob
+        return tot_prob
 
 
 class ConformerEncoderLayer(nn.Module):

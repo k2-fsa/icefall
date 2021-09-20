@@ -155,7 +155,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc_bn/exp_gloam_5e-4_0.85_discrete8"),
+            "exp_dir": Path("conformer_ctc_bn_2d/exp_bidirectional_1"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "subsampling_factor": 4,  # can't be changed
@@ -171,8 +171,8 @@ def get_params() -> AttributeDict:
             "reduction": "sum",
             "use_double_scores": True,
             "accum_grad": 1,
-            "att_scale": 0.4,
-            "reverse_att_scale": 0.4,  # ctc_scale == 1.0 - att_scale - reverse_att_scale
+            "att_scale": 0.7,
+            "reverse_att_scale": 0.01,  # ctc_scale == 1.0 - att_scale - reverse_att_scale
             "attention_dim": 512,
             "nhead": 8,
             "num_trunk_encoder_layers": 12,
