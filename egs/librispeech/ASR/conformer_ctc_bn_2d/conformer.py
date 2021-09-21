@@ -222,6 +222,11 @@ class BidirectionalConformer(nn.Module):
             nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
         )
 
+        self.bottleneck_ctc_encoder = ConformerEncoder(encoder_layer, num_ctc_encoder_layers)
+        self.bottleneck_ctc_output_layer = nn.Sequential(
+            nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
+        )
+
         # absolute position encoding, used by various layer types
         self.abs_pos = PositionalEncoding(d_model, dropout)
 
@@ -354,7 +359,8 @@ class BidirectionalConformer(nn.Module):
         Given the "memory" from forward(), run the sample_and_redict module.
         See documentation for forward() of class SampleAndPredict for more info.
 
-        Returns (sampled, softmax, positive_embed_shifted, negative_embed_shifted),
+        Returns (sampled, softmax, positive_embed, positive_embed_shifted,
+                 negative_embed_shifted),
         where positive_embed_shifted, for instance, is positive_embed
         shifted by one so that positive_embed_shifted[t] == positive_embed[t-1], as in:
              (T, N, E) = positive_embed.shape
@@ -368,7 +374,7 @@ class BidirectionalConformer(nn.Module):
         positive_embed_shifted = torch.cat((zeros, positive_embed[:-1,:,:]), dim=0)
         negative_embed_shifted = torch.cat((zeros, negative_embed[:-1,:,:]), dim=0)
 
-        return (sampled, softmax, positive_embed_shifted, negative_embed_shifted)
+        return (sampled, softmax, positive_embed, positive_embed_shifted, negative_embed_shifted)
 
     def decoder_forward(
         self,
@@ -451,7 +457,7 @@ class BidirectionalConformer(nn.Module):
     ) -> torch.Tensor:
         """
         Passes the output of forward() through the CTC encoder and the CTC
-        output to give the output that can be given to the CTC loss function
+        output layer to give the output that can be given to the CTC loss function
 
         Args:
           memory:
@@ -470,6 +476,38 @@ class BidirectionalConformer(nn.Module):
                              pos_emb,
                              key_padding_mask=memory_key_padding_mask)
         x = self.ctc_output_layer(x)
+        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
+        return x
+
+    def bottleneck_ctc_encoder_forward(
+            self,
+            positive_embed: torch.Tensor,
+            pos_emb: torch.Tensor,
+            memory_key_padding_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Passes the output of sample_forward() through the CTC "from-bottleneck"
+        CTC encoder and the CTC
+        output layer to give the output that can be given to the CTC loss function
+
+        Args:
+          positive_embed:
+            One of the outputs of sample_forward(), with shape (T, N, E)
+          pos_emb:
+             Relative positional embedding tensor: (N, 2*T-1, E)
+          memory_key_padding_mask:
+            The padding mask from forward(), a tensor of bool of shape (N, T)
+
+        Returns:
+            A Tensor with shape [N, T, C] where C is the number of classes
+            (e.g. number of phones or word pieces).  Contains normalized
+            log-probabilities.
+        """
+        x = self.bottleneck_ctc_encoder(positive_embed,
+                                        pos_emb,
+                                        key_padding_mask=memory_key_padding_mask)
+        x = self.bottleneck_ctc_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
         return x
