@@ -146,12 +146,20 @@ def get_env_info():
     }
 
 
-# See
-# https://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute  # noqa
 class AttributeDict(dict):
-    __slots__ = ()
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
+    def __getattr__(self, key):
+        if key in self:
+            return self[key]
+        raise AttributeError(f"No such attribute '{key}'")
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __delattr__(self, key):
+        if key in self:
+            del self[key]
+            return
+        raise AttributeError(f"No such attribute '{key}'")
 
 
 def encode_supervisions(
