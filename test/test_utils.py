@@ -108,3 +108,14 @@ def test_attribute_dict():
     assert s["b"] == 20
     s.c = 100
     assert s["c"] == 100
+    assert hasattr(s, "a")
+    assert hasattr(s, "b")
+    assert getattr(s, "a") == 10
+    del s.a
+    assert hasattr(s, "a") is False
+    setattr(s, "c", 100)
+    s.c = 100
+    try:
+        del s.a
+    except AttributeError as ex:
+        print(f"Caught exception: {ex}")
