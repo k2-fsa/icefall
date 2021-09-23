@@ -337,7 +337,7 @@ def main():
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=params.sos_id,
             eos_id=params.eos_id,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
             ngram_lm_scale=params.ngram_lm_scale,
             attention_scale=params.attention_decoder_scale,
         )

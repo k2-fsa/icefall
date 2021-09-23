@@ -98,7 +98,7 @@ class Conformer(Transformer):
         """
         Args:
           x:
-            The model input. Its shape is [N, T, C].
+            The model input. Its shape is (N, T, C).
           supervisions:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
