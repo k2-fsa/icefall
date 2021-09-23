@@ -806,7 +806,7 @@ class Moam(object):
         """Load state_dict."""
         for key, value in state_dict.items():
             if key == "optimizer":
-                self.optimizer.load_state_dict(state_dict["optimizer"])
+                self.optimizer.load_state_dict(value)
             else:
                 setattr(self, key, value)
 
@@ -1059,7 +1059,7 @@ class Gloam(object):
         """Load state_dict.  This is compatible with reading a Moam state_dict"""
         for key, value in state_dict.items():
             if key == "optimizer":
-                self.optimizer.load_state_dict(state_dict["optimizer"])
+                self.optimizer.load_state_dict(value)
             elif key == '_step':
                 self._step = value
             elif key == '_epoch':
