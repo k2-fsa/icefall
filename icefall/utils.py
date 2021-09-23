@@ -325,6 +325,51 @@ def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
     return labels.tolist()
 
 
+def save_alignments(
+    alignments: Dict[str, List[int]],
+    subsampling_factor: int,
+    filename: str,
+) -> None:
+    """Save alignments to a file.
+
+    Args:
+      alignments:
+        A dict containing alignments. Keys of the dict are utterances and
+        values are the corresponding framewise alignments after subsampling.
+      subsampling_factor:
+        The subsampling factor of the model.
+      filename:
+        Path to save the alignments.
+    Returns:
+      Return None.
+    """
+    ali_dict = {
+        "subsampling_factor": subsampling_factor,
+        "alignments": alignments,
+    }
+    torch.save(ali_dict, filename)
+
+
+def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
+    """Load alignments from a file.
+
+    Args:
+      filename:
+        Path to the file containing alignment information.
+        The file should be saved by :func:`save_alignments`.
+    Returns:
+      Return a tuple containing:
+        - subsampling_factor: The subsampling_factor used to compute
+          the alignments.
+        - alignments: A dict containing utterances and their corresponding
+          framewise alignment, after subsampling.
+    """
+    ali_dict = torch.load(filename)
+    subsampling_factor = ali_dict["subsampling_factor"]
+    alignments = ali_dict["alignments"]
+    return subsampling_factor, alignments
+
+
 def store_transcripts(
     filename: Pathlike, texts: Iterable[Tuple[str, str]]
 ) -> None:
