@@ -156,7 +156,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc_bn_2d/exp_bidirectional_delay"),
+            "exp_dir": Path("conformer_ctc_bn_2d/exp_bidirectional_delay_norecon"),
             "lang_dir": Path("data/lang_bpe"),
             "feature_dim": 80,
             "subsampling_factor": 4,  # can't be changed
@@ -175,8 +175,7 @@ def get_params() -> AttributeDict:
             "att_scale": 0.5,
             "reverse_att_scale": 0.2,
             "ctc_scale": 0.3,
-            "reconstruction_scale": 0.5,  # Scale on log of reconstruction error after discrete bottleneck.
-            "delay_scale": 2.0,    # Scale on difference between current and
+            "delay_scale": 0.1,    # Scale on difference between current and
                                    # delayed version of positive_embed.
             "delay_minibatches": 200,
             "attention_dim": 512,
@@ -476,12 +475,11 @@ def compute_loss(
                 delay_loss = compute_distance(old_positive_embed, positive_embed)
 
             num_subsampled_frames = memory.shape[0] * memory.shape[1]
-            reconstruction_loss =  (((positive_embed - memory.detach()) ** 2).sum() / num_subsampled_frames).sqrt() * num_subsampled_frames
-
 
             ctc_output = mmodel.ctc_encoder_forward(memory,
-                                                   position_embedding,
-                                                   memory_mask)
+                                                    position_embedding,
+                                                    memory_mask,
+                                                    positive_embed)
 
 
         # NOTE: We need `encode_supervisions` to sort sequences with
@@ -556,7 +554,6 @@ def compute_loss(
 
 
         loss = (params.ctc_scale * ctc_loss +
-                (params.reconstruction_scale if params.cur_epoch > 0 else 0.1 * params.reconstruction_scale) * reconstruction_loss +
                 params.att_scale * att_loss +
                 (params.reverse_att_scale if params.cur_epoch > 0 else 0.001 * params.reverse_att_scale) * reverse_att_loss)
         if params.cur_epoch > 0 and params.delay_scale > 0.0:
@@ -569,7 +566,6 @@ def compute_loss(
         # TODO: there are many GPU->CPU transfers here, maybe combine them into one.
         info['frames'] = supervision_segments[:, 2].sum().item()
         info['ctc_loss'] = ctc_loss.detach().cpu().item()
-        info['reconstruction_loss'] = reconstruction_loss.detach().cpu().item()
         if params.cur_epoch > 0 and params.delay_scale > 0.0:
             info['delay_loss'] = delay_loss.detach().cpu().item()
         if params.att_scale != 0.0:

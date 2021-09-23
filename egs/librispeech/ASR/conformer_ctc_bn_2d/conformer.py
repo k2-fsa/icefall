@@ -222,6 +222,11 @@ class BidirectionalConformer(nn.Module):
             nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
         )
 
+        self.bottleneck_ctc_encoder = ConformerEncoder(encoder_layer, num_ctc_encoder_layers)
+        self.bottleneck_ctc_output_layer = nn.Sequential(
+            nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
+        )
+
         # absolute position encoding, used by various layer types
         self.abs_pos = PositionalEncoding(d_model, dropout)
 
@@ -449,6 +454,7 @@ class BidirectionalConformer(nn.Module):
         memory: torch.Tensor,
         pos_emb: torch.Tensor,
         memory_key_padding_mask: torch.Tensor,
+        positive_embed: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Passes the output of forward() through the CTC encoder and the CTC
@@ -461,6 +467,8 @@ class BidirectionalConformer(nn.Module):
              Relative positional embedding tensor: (N, 2*T-1, E)
           memory_key_padding_mask:
             The padding mask from forward(), a tensor of bool of shape (N, T)
+          positive_embed:
+            Needed only during training, so we can train the bottleneck layer..
 
         Returns:
             A Tensor with shape [N, T, C] where C is the number of classes
@@ -473,6 +481,21 @@ class BidirectionalConformer(nn.Module):
         x = self.ctc_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
+
+        if self.training:
+            # Randomly interpolate half-and-half with the bottleneck CTC
+            # encoder, at the frame level
+            y = self.bottleneck_ctc_encoder(positive_embed,
+                                            pos_emb,
+                                            key_padding_mask=memory_key_padding_mask)
+            y = self.bottleneck_ctc_output_layer(y)
+            y = y.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+            y = nn.functional.log_softmax(y, dim=-1)  # (N, T, C)
+            (N, T, C) = y.shape
+            r = torch.rand(N, T, 1, device=y.device)
+            x = (y * r) + x - (x * r)
+
+
         return x
 
 
