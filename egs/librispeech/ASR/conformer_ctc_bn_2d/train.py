@@ -173,11 +173,11 @@ def get_params() -> AttributeDict:
             "use_double_scores": True,
             "accum_grad": 1,
             "att_scale": 0.5,
-            "reverse_att_scale": 0.2,
+            "reverse_att_scale": 0.25,
             "ctc_scale": 0.3,
-            "delay_scale": 0.1,    # Scale on difference between current and
+            "delay_scale": 2.5,    # Scale on difference between current and
                                    # delayed version of positive_embed.
-            "delay_minibatches": 200,
+            "delay_minibatches": 300,
             "attention_dim": 512,
             "nhead": 8,
             "num_trunk_encoder_layers": 12,
@@ -460,7 +460,7 @@ def compute_loss(
                 delayed_model = get_delayed_model(model, params)
                 with torch.random.fork_rng(devices=[device], enabled=True):
                     (old_memory, _, _) = delayed_model(feature, supervisions)
-                    (_, _, old_positive_embed, _, _) = delayed_model.sample_forward(old_memory)
+                    (_, old_softmax, _, _, _) = delayed_model.sample_forward(old_memory)
 
 
         with torch.set_grad_enabled(is_training):
@@ -472,7 +472,7 @@ def compute_loss(
              negative_embed_shifted) = mmodel.sample_forward(memory)
 
             if params.cur_epoch > 0 and params.delay_scale > 0.0:
-                delay_loss = compute_distance(old_positive_embed, positive_embed)
+                delay_loss = compute_distance(old_softmax, softmax)
 
             num_subsampled_frames = memory.shape[0] * memory.shape[1]
 
