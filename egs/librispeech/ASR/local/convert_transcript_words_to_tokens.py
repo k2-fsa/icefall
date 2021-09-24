@@ -8,8 +8,8 @@ for LM training with the help of a lexicon.
 If the lexicon contains phones, the resulting LM will be a phone LM; If the
 lexicon contains word pieces, the resulting LM will be a word piece LM.
 
-If a word has multiple pronunciations, the one that appears last in the lexicon
-is used.
+If a word has multiple pronunciations, the one that appears first in the lexicon
+is kept; others are removed.
 
 If the input transcript is:
 
@@ -20,8 +20,8 @@ If the input transcript is:
 and if the lexicon is
 
     <UNK> SPN
-    hello h e l l o
     hello h e l l o 2
+    hello h e l l o
     world w o r l d
     zoo z o o
 
@@ -32,10 +32,11 @@ Then the output is
     SPN z o o w o r l d SPN
 """
 
-from pathlib import Path
-from typing import Dict
-
 import argparse
+from pathlib import Path
+from typing import Dict, List
+
+from generate_unique_lexicon import filter_multiple_pronunications
 
 from icefall.lexicon import read_lexicon
 
@@ -57,7 +58,9 @@ def get_args():
     return parser.parse_args()
 
 
-def process_line(lexicon: Dict[str, str], line: str, oov_token: str) -> None:
+def process_line(
+    lexicon: Dict[str, List[str]], line: str, oov_token: str
+) -> None:
     """
     Args:
       lexicon:
@@ -86,7 +89,11 @@ def main():
     assert Path(args.transcript).is_file()
     assert len(args.oov) > 0
 
-    lexicon = dict(read_lexicon(args.lexicon))
+    # Only the first pronunciation of a word is kept
+    lexicon = filter_multiple_pronunications(read_lexicon(args.lexicon))
+
+    lexicon = dict(lexicon)
+
     assert args.oov in lexicon
 
     oov_token = lexicon[args.oov]

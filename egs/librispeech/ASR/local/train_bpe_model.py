@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 # You can install sentencepiece via:
 #
 #  pip install sentencepiece
@@ -37,10 +38,17 @@ def get_args():
         "--lang-dir",
         type=str,
         help="""Input and output directory.
-        It should contain the training corpus: train.txt.
+        It should contain the training corpus: transcript_words.txt.
         The generated bpe.model is saved to this directory.
         """,
     )
+
+    parser.add_argument(
+        "--transcript",
+        type=str,
+        help="Training transcript.",
+    )
+
     parser.add_argument(
         "--vocab-size",
         type=int,
@@ -58,7 +66,7 @@ def main():
     model_type = "unigram"
 
     model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
-    train_text = f"{lang_dir}/train.txt"
+    train_text = args.transcript
     character_coverage = 1.0
     input_sentence_size = 100000000
 

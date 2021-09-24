@@ -19,20 +19,21 @@
 from pathlib import Path
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
-from icefall.lexicon import BpeLexicon
+from icefall.lexicon import UniqLexicon
+
+ICEFALL_DIR = Path(__file__).resolve().parent.parent
 
 
 def test():
-    lang_dir = Path("data/lang/bpe")
+    lang_dir = ICEFALL_DIR / "egs/librispeech/ASR/data/lang_bpe"
     if not lang_dir.is_dir():
         return
-    # TODO: generate data for testing
 
     compiler = BpeCtcTrainingGraphCompiler(lang_dir)
     ids = compiler.texts_to_ids(["HELLO", "WORLD ZZZ"])
     compiler.compile(ids)
 
-    lexicon = BpeLexicon(lang_dir)
+    lexicon = UniqLexicon(lang_dir, uniq_filename="lexicon.txt")
     ids0 = lexicon.words_to_piece_ids(["HELLO"])
     assert ids[0] == ids0.values().tolist()
 

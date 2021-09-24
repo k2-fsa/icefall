@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
-
 # Copyright 2021 Xiaomi Corporation (Author: Liyong Guo, Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# (still working in progress)
 
 import argparse
 import logging
@@ -13,14 +25,15 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 
-from icefall.bpe_mmi_graph_compiler import BpeMmiTrainingGraphCompiler
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
+    nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
     rescore_with_n_best_list,
@@ -32,6 +45,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -44,51 +58,111 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=9,
+        default=34,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=1,
+        default=20,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
+
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="attention-decoder",
+        help="""Decoding method.
+        Supported values are:
+            - (1) 1best. Extract the best path from the decoding lattice as the
+              decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
+            - (3) nbest-rescoring. Extract n paths from the decoding lattice,
+              rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
+              the highest score is the decoding result.
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+              n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
+              is the decoding result.
+            - (5) attention-decoder. Extract n paths from the LM rescored
+              lattice, the path with the highest score is the decoding result.
+            - (6) nbest-oracle. Its WER is the lower bound of any n-best
+              rescoring method can achieve. Useful for debugging n-best
+              rescoring method.
+        """,
+    )
+
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=100,
+        help="""Number of paths for n-best based decoding method.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
+        """,
+    )
+
+    parser.add_argument(
+        "--lattice-score-scale",
+        type=float,
+        default=0.5,
+        help="""The scale to be applied to `lattice.scores`.
+        It's needed if you use any kinds of n-best based rescoring.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
+        A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_mmi/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
+        """,
+    )
+
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="conformer_mmi/exp",
+        help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe",
+        help="The lang dir",
+    )
+
     return parser
 
 
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_mmi/exp"),
-            "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
+            # parameters for conformer
+            "subsampling_factor": 4,
+            "vgg_frontend": False,
+            "use_feat_batchnorm": True,
             "feature_dim": 80,
             "nhead": 8,
             "attention_dim": 512,
-            "subsampling_factor": 4,
             "num_decoder_layers": 6,
-            "vgg_frontend": False,
-            "is_espnet_structure": True,
-            "use_feat_batchnorm": True,
+            # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            # Possible values for method:
-            #  - 1best
-            #  - nbest
-            #  - nbest-rescoring
-            #  - whole-lattice-rescoring
-            #  - attention-decoder
-            #  "method": "whole-lattice-rescoring",
-            "method": "1best",
-            # num_paths is used when method is "nbest", "nbest-rescoring",
-            # and attention-decoder
-            "num_paths": 100,
         }
     )
     return params
@@ -99,7 +173,7 @@ def decode_one_batch(
     model: nn.Module,
     HLG: k2.Fsa,
     batch: dict,
-    lexicon: Lexicon,
+    word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
@@ -133,8 +207,8 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      lexicon:
-        It contains word symbol table.
+      word_table:
+        The word symbol table.
       sos_id:
         The token ID of the SOS.
       eos_id:
@@ -151,12 +225,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
         (
@@ -178,6 +252,24 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
+    if params.method == "nbest-oracle":
+        # Note: You can also pass rescored lattices to it.
+        # We choose the HLG decoded lattice for speed reasons
+        # as HLG decoding is faster and the oracle WER
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            word_table=word_table,
+            lattice_score_scale=params.lattice_score_scale,
+            oov="<UNK>",
+        )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{params.num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        return {key: hyps}
+
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
             best_path = one_best_decoding(
@@ -189,11 +281,12 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
+                lattice_score_scale=params.lattice_score_scale,
             )
-            key = f"no_rescore-{params.num_paths}"
+            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
-        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.method in [
@@ -202,7 +295,8 @@ def decode_one_batch(
         "attention-decoder",
     ]
 
-    lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
@@ -211,16 +305,23 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
+            lattice_score_scale=params.lattice_score_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
         )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=None,
         )
+        # TODO: pass `lattice` instead of `rescored_lattice` to
+        # `rescore_with_attention_decoder`
 
         best_path_dict = rescore_with_attention_decoder(
             lattice=rescored_lattice,
@@ -230,15 +331,20 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
+            lattice_score_scale=params.lattice_score_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 
     ans = dict()
-    for lm_scale_str, best_path in best_path_dict.items():
-        hyps = get_texts(best_path)
-        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
-        ans[lm_scale_str] = hyps
+    if best_path_dict is not None:
+        for lm_scale_str, best_path in best_path_dict.items():
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            ans[lm_scale_str] = hyps
+    else:
+        for lm_scale in lm_scale_list:
+            ans[lm_scale_str] = [[] * lattice.shape[0]]
     return ans
 
 
@@ -247,7 +353,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     HLG: k2.Fsa,
-    lexicon: Lexicon,
+    word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
@@ -263,8 +369,8 @@ def decode_dataset(
         The neural model.
       HLG:
         The decoding graph.
-      lexicon:
-        It contains word symbol table.
+      word_table:
+        It is the word symbol table.
       sos_id:
         The token ID for SOS.
       eos_id:
@@ -283,7 +389,11 @@ def decode_dataset(
     results = []
 
     num_cuts = 0
-    tot_num_cuts = len(dl.dataset.cuts)
+
+    try:
+        num_batches = len(dl)
+    except TypeError:
+        num_batches = "?"
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -294,7 +404,7 @@ def decode_dataset(
             model=model,
             HLG=HLG,
             batch=batch,
-            lexicon=lexicon,
+            word_table=word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
@@ -312,10 +422,10 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
+            batch_str = f"{batch_idx}/{num_batches}"
+
             logging.info(
-                f"batch {batch_idx}, cuts processed until now is "
-                f"{num_cuts}/{tot_num_cuts} "
-                f"({float(num_cuts)/tot_num_cuts*100:.6f}%)"
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
     return results
 
@@ -374,8 +484,10 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params.exp_dir = Path(params.exp_dir)
+    params.lang_dir = Path(params.lang_dir)
 
-    setup_logger(f"{params.exp_dir}/log/log-decode")
+    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
     logging.info("Decoding started")
     logging.info(params)
 
@@ -389,7 +501,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    graph_compiler = BpeMmiTrainingGraphCompiler(
+    graph_compiler = BpeCtcTrainingGraphCompiler(
         params.lang_dir,
         device=device,
         sos_token="<sos/eos>",
@@ -398,7 +510,9 @@ def main():
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt"))
+    HLG = k2.Fsa.from_dict(
+        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
+    )
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -429,7 +543,7 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt")
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
             G = k2.Fsa.from_dict(d).to(device)
 
         if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
@@ -453,7 +567,6 @@ def main():
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=params.vgg_frontend,
-        is_espnet_structure=params.is_espnet_structure,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 
@@ -467,6 +580,13 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
 
     model.to(device)
     model.eval()
@@ -487,7 +607,7 @@ def main():
             params=params,
             model=model,
             HLG=HLG,
-            lexicon=lexicon,
+            word_table=lexicon.word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,

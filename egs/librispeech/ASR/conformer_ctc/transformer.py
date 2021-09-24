@@ -114,7 +114,10 @@ class Transformer(nn.Module):
             norm=encoder_norm,
         )
 
-        self.encoder_output_layer = nn.Linear(d_model, num_classes)
+        # TODO(fangjun): remove dropout
+        self.encoder_output_layer = nn.Sequential(
+            nn.Dropout(p=dropout), nn.Linear(d_model, num_classes)
+        )
 
         if num_decoder_layers > 0:
             self.decoder_num_class = (
@@ -325,6 +328,7 @@ class Transformer(nn.Module):
         """
         # The common part between this function and decoder_forward could be
         # extracted as a separate function.
+
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
         ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)

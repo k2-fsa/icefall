@@ -84,6 +84,69 @@ def write_lexicon(filename: str, lexicon: List[Tuple[str, List[str]]]) -> None:
             f.write(f"{word} {' '.join(tokens)}\n")
 
 
+def convert_lexicon_to_ragged(
+    filename: str, word_table: k2.SymbolTable, token_table: k2.SymbolTable
+) -> k2.RaggedTensor:
+    """Read a lexicon and convert it to a ragged tensor.
+
+    The ragged tensor has two axes: [word][token].
+
+    Caution:
+      We assume that each word has a unique pronunciation.
+
+    Args:
+      filename:
+        Filename of the lexicon. It has a format that can be read
+        by :func:`read_lexicon`.
+      word_table:
+        The word symbol table.
+      token_table:
+        The token symbol table.
+    Returns:
+      A k2 ragged tensor with two axes [word][token].
+    """
+    disambig_id = word_table["#0"]
+    # We reuse the same words.txt from the phone based lexicon
+    # so that we can share the same G.fst. Here, we have to
+    # exclude some words present only in the phone based lexicon.
+    excluded_words = ["<eps>", "!SIL", "<SPOKEN_NOISE>"]
+
+    # epsilon is not a word, but it occupies a position
+    #
+    row_splits = [0]
+    token_ids_list = []
+
+    lexicon_tmp = read_lexicon(filename)
+    lexicon = dict(lexicon_tmp)
+    if len(lexicon_tmp) != len(lexicon):
+        raise RuntimeError(
+            "It's assumed that each word has a unique pronunciation"
+        )
+
+    for i in range(disambig_id):
+        w = word_table[i]
+        if w in excluded_words:
+            row_splits.append(row_splits[-1])
+            continue
+        tokens = lexicon[w]
+        token_ids = [token_table[k] for k in tokens]
+
+        row_splits.append(row_splits[-1] + len(token_ids))
+        token_ids_list.extend(token_ids)
+
+    cached_tot_size = row_splits[-1]
+    row_splits = torch.tensor(row_splits, dtype=torch.int32)
+
+    shape = k2.ragged.create_ragged_shape2(
+        row_splits,
+        None,
+        cached_tot_size,
+    )
+    values = torch.tensor(token_ids_list, dtype=torch.int32)
+
+    return k2.RaggedTensor(shape, values)
+
+
 class Lexicon(object):
     """Phone based lexicon."""
 
@@ -96,12 +159,10 @@ class Lexicon(object):
         Args:
           lang_dir:
             Path to the lang directory. It is expected to contain the following
-            files::
-
+            files:
                 - tokens.txt
                 - words.txt
                 - L.pt
-
             The above files are produced by the script `prepare.sh`. You
             should have run that before running the training code.
           disambig_pattern:
@@ -121,7 +182,7 @@ class Lexicon(object):
             torch.save(L_inv.as_dict(), lang_dir / "Linv.pt")
 
         # We save L_inv instead of L because it will be used to intersect with
-        # transcript, both of whose labels are word IDs.
+        # transcript FSAs, both of whose labels are word IDs.
         self.L_inv = L_inv
         self.disambig_pattern = disambig_pattern
 
@@ -144,69 +205,66 @@ class Lexicon(object):
         return ans
 
 
-class BpeLexicon(Lexicon):
+class UniqLexicon(Lexicon):
     def __init__(
         self,
         lang_dir: Path,
+        uniq_filename: str = "uniq_lexicon.txt",
         disambig_pattern: str = re.compile(r"^#\d+$"),
     ):
         """
         Refer to the help information in Lexicon.__init__.
+
+        uniq_filename: It is assumed to be inside the given `lang_dir`.
+
+        Each word in the lexicon is assumed to have a unique pronunciation.
         """
+        lang_dir = Path(lang_dir)
         super().__init__(lang_dir=lang_dir, disambig_pattern=disambig_pattern)
 
-        self.ragged_lexicon = self.convert_lexicon_to_ragged(
-            lang_dir / "lexicon.txt"
+        self.ragged_lexicon = convert_lexicon_to_ragged(
+            filename=lang_dir / uniq_filename,
+            word_table=self.word_table,
+            token_table=self.token_table,
         )
+        # TODO: should we move it to a certain device ?
 
-    def convert_lexicon_to_ragged(self, filename: str) -> k2.RaggedTensor:
-        """Read a BPE lexicon from file and convert it to a
-        k2 ragged tensor.
-
-        Args:
-          filename:
-            Filename of the BPE lexicon, e.g., data/lang/bpe/lexicon.txt
-        Returns:
-          A k2 ragged tensor with two axes [word_id]
+    def texts_to_token_ids(
+        self, texts: List[str], oov: str = "<UNK>"
+    ) -> k2.RaggedTensor:
         """
-        disambig_id = self.word_table["#0"]
-        # We reuse the same words.txt from the phone based lexicon
-        # so that we can share the same G.fst. Here, we have to
-        # exclude some words present only in the phone based lexicon.
-        excluded_words = ["<eps>", "!SIL", "<SPOKEN_NOISE>"]
+        Args:
+          texts:
+            A list of transcripts. Each transcript contains space(s)
+            separated words. An example texts is::
 
-        # epsilon is not a word, but it occupies on position
-        #
-        row_splits = [0]
-        token_ids = []
+                ['HELLO k2', 'HELLO icefall']
+          oov:
+            The OOV word. If a word in `texts` is not in the lexicon, it is
+            replaced with `oov`.
+        Returns:
+          Return a ragged int tensor with 2 axes [utterance][token_id]
+        """
+        oov_id = self.word_table[oov]
 
-        lexicon = read_lexicon(filename)
-        lexicon = dict(lexicon)
+        word_ids_list = []
+        for text in texts:
+            word_ids = []
+            for word in text.split():
+                if word in self.word_table:
+                    word_ids.append(self.word_table[word])
+                else:
+                    word_ids.append(oov_id)
+            word_ids_list.append(word_ids)
+        ragged_indexes = k2.RaggedTensor(word_ids_list, dtype=torch.int32)
+        ans = self.ragged_lexicon.index(ragged_indexes)
+        ans = ans.remove_axis(ans.num_axes - 2)
+        return ans
 
-        for i in range(disambig_id):
-            w = self.word_table[i]
-            if w in excluded_words:
-                row_splits.append(row_splits[-1])
-                continue
-            pieces = lexicon[w]
-            piece_ids = [self.token_table[k] for k in pieces]
+    def words_to_token_ids(self, words: List[str]) -> k2.RaggedTensor:
+        """Convert a list of words to a ragged tensor containing token IDs.
 
-            row_splits.append(row_splits[-1] + len(piece_ids))
-            token_ids.extend(piece_ids)
-
-        cached_tot_size = row_splits[-1]
-        row_splits = torch.tensor(row_splits, dtype=torch.int32)
-
-        shape = k2.ragged.create_ragged_shape2(
-            row_splits=row_splits, cached_tot_size=cached_tot_size
-        )
-        values = torch.tensor(token_ids, dtype=torch.int32)
-
-        return k2.RaggedTensor(shape, values)
-
-    def words_to_piece_ids(self, words: List[str]) -> k2.RaggedTensor:
-        """Convert a list of words to a ragged tensor contained
-        word piece IDs.
+        We assume there are no OOVs in "words".
         """
         word_ids = [self.word_table[w] for w in words]
         word_ids = torch.tensor(word_ids, dtype=torch.int32)

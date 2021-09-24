@@ -40,9 +40,9 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  5000
-  2000
-  1000
+  # 5000
+  # 2000
+  # 1000
   500
 )
 
@@ -116,14 +116,15 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  mkdir -p data/lang_phone
+  lang_dir=data/lang_phone
+  mkdir -p $lang_dir
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
     cat - $dl_dir/lm/librispeech-lexicon.txt |
-    sort | uniq > data/lang_phone/lexicon.txt
+    sort | uniq > $lang_dir/lexicon.txt
 
-  if [ ! -f data/lang_phone/L_disambig.pt ]; then
-    ./local/prepare_lang.py
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir
   fi
 fi
 
@@ -138,7 +139,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     # so that the two can share G.pt later.
     cp data/lang_phone/words.txt $lang_dir
 
-    if [ ! -f $lang_dir/train.txt ]; then
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
       log "Generate data for BPE training"
       files=$(
         find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
@@ -147,12 +148,13 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       )
       for f in ${files[@]}; do
         cat $f | cut -d " " -f 2-
-      done > $lang_dir/train.txt
+      done > $lang_dir/transcript_words.txt
     fi
 
     ./local/train_bpe_model.py \
       --lang-dir $lang_dir \
-      --vocab-size $vocab_size
+      --vocab-size $vocab_size \
+      --transcript $lang_dir/transcript_words.txt
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
       ./local/prepare_lang_bpe.py --lang-dir $lang_dir
@@ -166,18 +168,18 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
 
-    if [ ! -f $lang_dir/corpus.txt ]; then
-      ./local/convert_transcript_to_corpus.py \
-        --lexicon data/lang_bpe/lexicon.txt \
-        --transcript data/lang_bpe/train.txt \
+    if [ ! -f $lang_dir/transcript_tokens.txt ]; then
+      ./local/convert_transcript_words_to_tokens.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --transcript $lang_dir/transcript_words.txt \
         --oov "<UNK>" \
-        > $lang_dir/corpus.txt
+        > $lang_dir/transcript_tokens.txt
     fi
 
     if [ ! -f $lang_dir/P.arpa ]; then
       ./shared/make_kn_lm.py \
         -ngram-order 2 \
-        -text $lang_dir/corpus.txt \
+        -text $lang_dir/transcript_tokens.txt \
         -lm $lang_dir/P.arpa
     fi
 
@@ -226,4 +228,4 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   done
 fi
 
-cd data && ln -sfv lang_bpe_5000 lang_bpe
+cd data && ln -sfv lang_bpe_500 lang_bpe
