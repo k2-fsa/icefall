@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 """
 This script takes as input lang_dir and generates HLG from
@@ -86,14 +102,14 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     LG.labels[LG.labels >= first_token_disambig_id] = 0
 
-    assert isinstance(LG.aux_labels, k2.RaggedInt)
-    LG.aux_labels.values()[LG.aux_labels.values() >= first_word_disambig_id] = 0
+    assert isinstance(LG.aux_labels, k2.RaggedTensor)
+    LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
 
     LG = k2.remove_epsilon(LG)
     logging.info(f"LG shape after k2.remove_epsilon: {LG.shape}")
 
     LG = k2.connect(LG)
-    LG.aux_labels = k2.ragged.remove_values_eq(LG.aux_labels, 0)
+    LG.aux_labels = LG.aux_labels.remove_values_eq(0)
 
     logging.info("Arc sorting LG")
     LG = k2.arc_sort(LG)

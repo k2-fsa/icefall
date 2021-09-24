@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import k2
 import pytest
 import torch
@@ -43,7 +60,7 @@ def test_get_texts_ragged():
         4
     """
     )
-    fsa1.aux_labels = k2.RaggedInt("[ [1 3 0 2] [] [4 0 1] [-1]]")
+    fsa1.aux_labels = k2.RaggedTensor("[ [1 3 0 2] [] [4 0 1] [-1]]")
 
     fsa2 = k2.Fsa.from_str(
         """
@@ -53,7 +70,7 @@ def test_get_texts_ragged():
         3
     """
     )
-    fsa2.aux_labels = k2.RaggedInt("[[3 0 5 0 8] [0 9 7 0] [-1]]")
+    fsa2.aux_labels = k2.RaggedTensor("[[3 0 5 0 8] [0 9 7 0] [-1]]")
     fsas = k2.Fsa.from_fsas([fsa1, fsa2])
     texts = get_texts(fsas)
     assert texts == [[1, 3, 2, 4, 1], [3, 5, 8, 9, 7]]
@@ -91,3 +108,14 @@ def test_attribute_dict():
     assert s["b"] == 20
     s.c = 100
     assert s["c"] == 100
+    assert hasattr(s, "a")
+    assert hasattr(s, "b")
+    assert getattr(s, "a") == 10
+    del s.a
+    assert hasattr(s, "a") is False
+    setattr(s, "c", 100)
+    s.c = 100
+    try:
+        del s.a
+    except AttributeError as ex:
+        print(f"Caught exception: {ex}")

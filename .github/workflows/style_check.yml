@@ -45,7 +45,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip black flake8
+          python3 -m pip install --upgrade pip black==21.6b0 flake8==3.9.2
 
       - name: Run flake8
         shell: bash

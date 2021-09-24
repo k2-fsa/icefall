@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                  Wei Kang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# This is just at the very beginning ...
 
 import argparse
 import logging
@@ -13,16 +28,17 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.dataset.librispeech import LibriSpeechAsrDataModule
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -59,9 +75,23 @@ def get_parser():
         help="Should various information be logged in tensorboard.",
     )
 
-    # TODO: add extra arguments and support DDP training.
-    # Currently, only single GPU training is implemented. Will add
-    # DDP training once single GPU training is finished.
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=35,
+        help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=0,
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
+        conformer_ctc/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
     return parser
 
 
@@ -82,20 +112,6 @@ def get_params() -> AttributeDict:
         - lang_dir: It contains language related input files such as
                     "lexicon.txt"
 
-        - lr: It specifies the initial learning rate
-
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
-        - weight_decay:  The weight_decay for the optimizer.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - start_epoch:  If it is not zero, load checkpoint `start_epoch-1`
-                        and continue training from that checkpoint.
-
-        - num_epochs:  Number of epochs to train.
-
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
                            updated during the training.
@@ -114,42 +130,62 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
-        - valid_interval:  Run validation if batch_idx % valid_interval` is 0
+        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+
+        - valid_interval:  Run validation if batch_idx % valid_interval is 0
+
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
+
+        - subsampling_factor:  The subsampling factor for the model.
+
+        - use_feat_batchnorm: Whether to do batch normalization for the
+                              input features.
+
+        - attention_dim: Hidden dim for multi-head attention model.
+
+        - head: Number of heads of multi-head attention model.
+
+        - num_decoder_layers: Number of decoder layer of transformer decoder.
 
         - beam_size: It is used in k2.ctc_loss
 
         - reduction: It is used in k2.ctc_loss
 
         - use_double_scores: It is used in k2.ctc_loss
+
+        - weight_decay:  The weight_decay for the optimizer.
+
+        - lr_factor: The lr_factor for Noam optimizer.
+
+        - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
         {
             "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
-            "feature_dim": 80,
-            "weight_decay": 0.0,
-            "subsampling_factor": 4,
-            "start_epoch": 0,
-            "num_epochs": 50,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
             "log_interval": 10,
+            "reset_interval": 200,
             "valid_interval": 3000,
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
-            #
-            "accum_grad": 1,
-            "att_rate": 0.7,
+            # parameters for conformer
+            "feature_dim": 80,
+            "subsampling_factor": 4,
+            "use_feat_batchnorm": True,
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 6,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
-            "use_feat_batchnorm": True,
+            # parameters for loss
+            "beam_size": 10,
+            "reduction": "sum",
+            "use_double_scores": True,
+            "att_rate": 0.7,
+            # parameters for Noam
+            "weight_decay": 1e-6,
             "lr_factor": 5.0,
             "warm_step": 80000,
         }
@@ -274,14 +310,14 @@ def compute_loss(
     """
     device = graph_compiler.device
     feature = batch["inputs"]
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is [N, T, C]
+        # nnet_output is (N, T, C)
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -440,6 +476,8 @@ def train_one_epoch(
     tot_att_loss = 0.0
 
     tot_frames = 0.0  # sum of frames over all batches
+    params.tot_loss = 0.0
+    params.tot_frames = 0.0
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -457,6 +495,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
+        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         loss_cpu = loss.detach().cpu().item()
@@ -467,6 +506,9 @@ def train_one_epoch(
         tot_loss += loss_cpu
         tot_ctc_loss += ctc_loss_cpu
         tot_att_loss += att_loss_cpu
+
+        params.tot_frames += params.train_frames
+        params.tot_loss += loss_cpu
 
         tot_avg_loss = tot_loss / tot_frames
         tot_avg_ctc_loss = tot_ctc_loss / tot_frames
@@ -516,6 +558,12 @@ def train_one_epoch(
                     tot_avg_loss,
                     params.batch_idx_train,
                 )
+        if batch_idx > 0 and batch_idx % params.reset_interval == 0:
+            tot_loss = 0.0  # sum of losses over all batches
+            tot_ctc_loss = 0.0
+            tot_att_loss = 0.0
+
+            tot_frames = 0.0  # sum of frames over all batches
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             compute_validation_loss(
@@ -551,7 +599,7 @@ def train_one_epoch(
                     params.batch_idx_train,
                 )
 
-    params.train_loss = tot_loss / tot_frames
+    params.train_loss = params.tot_loss / params.tot_frames
 
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
@@ -610,8 +658,6 @@ def run(rank, world_size, args):
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 

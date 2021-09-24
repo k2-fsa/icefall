@@ -1,3 +1,20 @@
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import logging
 import re
 import sys
@@ -142,7 +159,7 @@ class BpeLexicon(Lexicon):
             lang_dir / "lexicon.txt"
         )
 
-    def convert_lexicon_to_ragged(self, filename: str) -> k2.RaggedInt:
+    def convert_lexicon_to_ragged(self, filename: str) -> k2.RaggedTensor:
         """Read a BPE lexicon from file and convert it to a
         k2 ragged tensor.
 
@@ -185,19 +202,18 @@ class BpeLexicon(Lexicon):
         )
         values = torch.tensor(token_ids, dtype=torch.int32)
 
-        return k2.RaggedInt(shape, values)
+        return k2.RaggedTensor(shape, values)
 
-    def words_to_piece_ids(self, words: List[str]) -> k2.RaggedInt:
+    def words_to_piece_ids(self, words: List[str]) -> k2.RaggedTensor:
         """Convert a list of words to a ragged tensor contained
         word piece IDs.
         """
         word_ids = [self.word_table[w] for w in words]
         word_ids = torch.tensor(word_ids, dtype=torch.int32)
 
-        ragged, _ = k2.ragged.index(
-            self.ragged_lexicon,
+        ragged, _ = self.ragged_lexicon.index(
             indexes=word_ids,
-            need_value_indexes=False,
             axis=0,
+            need_value_indexes=False,
         )
         return ragged

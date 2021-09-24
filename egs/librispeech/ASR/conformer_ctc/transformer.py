@@ -1,15 +1,26 @@
-# Copyright (c) 2021 University of Chinese Academy of Sciences (author: Han Zhu)
-# Apache 2.0
+# Copyright    2021 University of Chinese Academy of Sciences (author: Han Zhu)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import math
 from typing import Dict, List, Optional, Tuple
 
-import k2
 import torch
 import torch.nn as nn
 from subsampling import Conv2dSubsampling, VggSubsampling
-
-from icefall.utils import get_texts
 from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
@@ -30,7 +41,6 @@ class Transformer(nn.Module):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        mmi_loss: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
         """
@@ -59,7 +69,6 @@ class Transformer(nn.Module):
             If True, use pre-layer norm; False to use post-layer norm.
           vgg_frontend:
             True to use vgg style frontend for subsampling.
-          mmi_loss:
           use_feat_batchnorm:
             True to use batchnorm for the input layer.
         """
@@ -74,8 +83,8 @@ class Transformer(nn.Module):
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
 
-        # self.encoder_embed converts the input of shape [N, T, num_classes]
-        # to the shape [N, T//subsampling_factor, d_model].
+        # self.encoder_embed converts the input of shape (N, T, num_classes)
+        # to the shape (N, T//subsampling_factor, d_model).
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_classes -> d_model
@@ -108,14 +117,9 @@ class Transformer(nn.Module):
         self.encoder_output_layer = nn.Linear(d_model, num_classes)
 
         if num_decoder_layers > 0:
-            if mmi_loss:
-                self.decoder_num_class = (
-                    self.num_classes + 1
-                )  # +1 for the sos/eos symbol
-            else:
-                self.decoder_num_class = (
-                    self.num_classes
-                )  # bpe model already has sos/eos symbol
+            self.decoder_num_class = (
+                self.num_classes
+            )  # bpe model already has sos/eos symbol
 
             self.decoder_embed = nn.Embedding(
                 num_embeddings=self.decoder_num_class, embedding_dim=d_model
@@ -155,7 +159,7 @@ class Transformer(nn.Module):
         """
         Args:
           x:
-            The input tensor. Its shape is [N, T, C].
+            The input tensor. Its shape is (N, T, C).
           supervision:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
@@ -164,17 +168,17 @@ class Transformer(nn.Module):
 
         Returns:
           Return a tuple containing 3 tensors:
-            - CTC output for ctc decoding. Its shape is [N, T, C]
-            - Encoder output with shape [T, N, C]. It can be used as key and
+            - CTC output for ctc decoding. Its shape is (N, T, C)
+            - Encoder output with shape (T, N, C). It can be used as key and
               value for the decoder.
             - Encoder output padding mask. It can be used as
-              memory_key_padding_mask for the decoder. Its shape is [N, T].
+              memory_key_padding_mask for the decoder. Its shape is (N, T).
               It is None if `supervision` is None.
         """
         if self.use_feat_batchnorm:
-            x = x.permute(0, 2, 1)  # [N, T, C] -> [N, C, T]
+            x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
             x = self.feat_batchnorm(x)
-            x = x.permute(0, 2, 1)  # [N, C, T] -> [N, T, C]
+            x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision
         )
@@ -188,7 +192,7 @@ class Transformer(nn.Module):
 
         Args:
           x:
-            The model input. Its shape is [N, T, C].
+            The model input. Its shape is (N, T, C).
           supervisions:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
@@ -199,8 +203,8 @@ class Transformer(nn.Module):
             padding mask for the decoder.
         Returns:
           Return a tuple with two tensors:
-            - The encoder output, with shape [T, N, C]
-            - encoder padding mask, with shape [N, T].
+            - The encoder output, with shape (T, N, C)
+            - encoder padding mask, with shape (N, T).
               The mask is None if `supervisions` is None.
               It is used as memory key padding mask in the decoder.
         """
@@ -218,11 +222,11 @@ class Transformer(nn.Module):
         Args:
           x:
             The output tensor from the transformer encoder.
-            Its shape is [T, N, C]
+            Its shape is (T, N, C)
 
         Returns:
           Return a tensor that can be used for CTC decoding.
-          Its shape is [N, T, C]
+          Its shape is (N, T, C)
         """
         x = self.encoder_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
@@ -240,7 +244,7 @@ class Transformer(nn.Module):
         """
         Args:
           memory:
-            It's the output of the encoder with shape [T, N, C]
+            It's the output of the encoder with shape (T, N, C)
           memory_key_padding_mask:
             The padding mask from the encoder.
           token_ids:
@@ -305,7 +309,7 @@ class Transformer(nn.Module):
         """
         Args:
           memory:
-            It's the output of the encoder with shape [T, N, C]
+            It's the output of the encoder with shape (T, N, C)
           memory_key_padding_mask:
             The padding mask from the encoder.
           token_ids:
@@ -338,6 +342,9 @@ class Transformer(nn.Module):
         )
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
         tgt_key_padding_mask[:, 0] = False
 
         tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
@@ -643,13 +650,13 @@ class PositionalEncoding(nn.Module):
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
 
-        The shape of `self.pe` is [1, T1, d_model]. The shape of the input x
-        is [N, T, d_model]. If T > T1, then we change the shape of self.pe
-        to [N, T, d_model]. Otherwise, nothing is done.
+        The shape of `self.pe` is (1, T1, d_model). The shape of the input x
+        is (N, T, d_model). If T > T1, then we change the shape of self.pe
+        to (N, T, d_model). Otherwise, nothing is done.
 
         Args:
           x:
-            It is a tensor of shape [N, T, C].
+            It is a tensor of shape (N, T, C).
         Returns:
           Return None.
         """
@@ -667,7 +674,7 @@ class PositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
-        # Now pe is of shape [1, T, d_model], where T is x.size(1)
+        # Now pe is of shape (1, T, d_model), where T is x.size(1)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -676,10 +683,10 @@ class PositionalEncoding(nn.Module):
 
         Args:
           x:
-            Its shape is [N, T, C]
+            Its shape is (N, T, C)
 
         Returns:
-          Return a tensor of shape [N, T, C]
+          Return a tensor of shape (N, T, C)
         """
         self.extend_pe(x)
         x = x * self.xscale + self.pe[:, : x.size(1), :]
@@ -775,7 +782,8 @@ class Noam(object):
 
 class LabelSmoothingLoss(nn.Module):
     """
-    Label-smoothing loss. KL-divergence between q_{smoothed ground truth prob.}(w)
+    Label-smoothing loss. KL-divergence between
+    q_{smoothed ground truth prob.}(w)
     and p_{prob. computed by model}(w) is minimized.
     Modified from
     https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py  # noqa
@@ -860,7 +868,8 @@ def encoder_padding_mask(
          frames, before subsampling)
 
     Returns:
-        Tensor: Mask tensor of dimension (batch_size, input_length), True denote the masked indices.
+        Tensor: Mask tensor of dimension (batch_size, input_length),
+        True denote the masked indices.
     """
     if supervisions is None:
         return None

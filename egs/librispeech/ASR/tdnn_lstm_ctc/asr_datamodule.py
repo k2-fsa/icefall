@@ -1,14 +1,33 @@
+# Copyright      2021  Piotr Żelasko
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import argparse
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Union
 
-from lhotse import Fbank, FbankConfig, load_manifest
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
     BucketingSampler,
     CutConcatenate,
     CutMix,
     K2SpeechRecognitionDataset,
+    PrecomputedFeatures,
     SingleCutSampler,
     SpecAugment,
 )
@@ -19,9 +38,9 @@ from icefall.dataset.datamodule import DataModule
 from icefall.utils import str2bool
 
 
-class AsrDataModule(DataModule):
+class LibriSpeechAsrDataModule(DataModule):
     """
-    DataModule for K2 ASR experiments.
+    DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
     but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
     and test-other).
@@ -48,6 +67,13 @@ class AsrDataModule(DataModule):
             "augmentations, etc.",
         )
         group.add_argument(
+            "--full-libri",
+            type=str2bool,
+            default=True,
+            help="When enabled, use 960h LibriSpeech. "
+            "Otherwise, use 100h subset.",
+        )
+        group.add_argument(
             "--feature-dir",
             type=Path,
             default=Path("data/fbank"),
@@ -56,14 +82,14 @@ class AsrDataModule(DataModule):
         group.add_argument(
             "--max-duration",
             type=int,
-            default=500.0,
+            default=200.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
@@ -77,7 +103,7 @@ class AsrDataModule(DataModule):
         group.add_argument(
             "--concatenate-cuts",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, utterances (cuts) will be concatenated "
             "to minimize the amount of padding.",
         )
@@ -103,6 +129,29 @@ class AsrDataModule(DataModule):
             help="When enabled, use on-the-fly cut mixing and feature "
             "extraction. Will drop existing precomputed feature manifests "
             "if available.",
+        )
+        group.add_argument(
+            "--shuffle",
+            type=str2bool,
+            default=True,
+            help="When enabled (=default), the examples will be "
+            "shuffled for each epoch.",
+        )
+        group.add_argument(
+            "--return-cuts",
+            type=str2bool,
+            default=True,
+            help="When enabled, each batch will have the "
+            "field: batch['supervisions']['cut'] with the cuts that "
+            "were used to construct it.",
+        )
+
+        group.add_argument(
+            "--num-workers",
+            type=int,
+            default=2,
+            help="The number of training dataloader workers that "
+            "collect the batches.",
         )
 
     def train_dataloaders(self) -> DataLoader:
@@ -138,9 +187,9 @@ class AsrDataModule(DataModule):
         ]
 
         train = K2SpeechRecognitionDataset(
-            cuts_train,
             cut_transforms=transforms,
             input_transforms=input_transforms,
+            return_cuts=self.args.return_cuts,
         )
 
         if self.args.on_the_fly_feats:
@@ -154,14 +203,13 @@ class AsrDataModule(DataModule):
             # to be strict (e.g. could be randomized)
             # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
             # Drop feats to be on the safe side.
-            cuts_train = cuts_train.drop_features()
             train = K2SpeechRecognitionDataset(
-                cuts=cuts_train,
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=80))
                 ),
                 input_transforms=input_transforms,
+                return_cuts=self.args.return_cuts,
             )
 
         if self.args.bucketing_sampler:
@@ -169,44 +217,60 @@ class AsrDataModule(DataModule):
             train_sampler = BucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
-                shuffle=True,
+                shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                bucket_method="equal_duration",
+                drop_last=True,
             )
         else:
             logging.info("Using SingleCutSampler.")
             train_sampler = SingleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
-                shuffle=True,
+                shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
+
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
             batch_size=None,
-            num_workers=4,
-            persistent_workers=True,
+            num_workers=self.args.num_workers,
+            persistent_workers=False,
         )
+
         return train_dl
 
     def valid_dataloaders(self) -> DataLoader:
         logging.info("About to get dev cuts")
         cuts_valid = self.valid_cuts()
 
+        transforms = []
+        if self.args.concatenate_cuts:
+            transforms = [
+                CutConcatenate(
+                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                )
+            ] + transforms
+
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            cuts_valid = cuts_valid.drop_features()
             validate = K2SpeechRecognitionDataset(
-                cuts_valid.drop_features(),
+                cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=80))
                 ),
+                return_cuts=self.args.return_cuts,
             )
         else:
-            validate = K2SpeechRecognitionDataset(cuts_valid)
+            validate = K2SpeechRecognitionDataset(
+                cut_transforms=transforms,
+                return_cuts=self.args.return_cuts,
+            )
         valid_sampler = SingleCutSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -214,8 +278,9 @@ class AsrDataModule(DataModule):
             sampler=valid_sampler,
             batch_size=None,
             num_workers=2,
-            persistent_workers=True,
+            persistent_workers=False,
         )
+
         return valid_dl
 
     def test_dataloaders(self) -> Union[DataLoader, List[DataLoader]]:
@@ -228,10 +293,12 @@ class AsrDataModule(DataModule):
         for cuts_test in cuts:
             logging.debug("About to create test dataset")
             test = K2SpeechRecognitionDataset(
-                cuts_test,
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                )
+                if self.args.on_the_fly_feats
+                else PrecomputedFeatures(),
+                return_cuts=self.args.return_cuts,
             )
             sampler = SingleCutSampler(
                 cuts_test, max_duration=self.args.max_duration
@@ -246,3 +313,42 @@ class AsrDataModule(DataModule):
             return test_loaders
         else:
             return test_loaders[0]
+
+    @lru_cache()
+    def train_cuts(self) -> CutSet:
+        logging.info("About to get train cuts")
+        cuts_train = load_manifest(
+            self.args.feature_dir / "cuts_train-clean-100.json.gz"
+        )
+        if self.args.full_libri:
+            cuts_train = (
+                cuts_train
+                + load_manifest(
+                    self.args.feature_dir / "cuts_train-clean-360.json.gz"
+                )
+                + load_manifest(
+                    self.args.feature_dir / "cuts_train-other-500.json.gz"
+                )
+            )
+        return cuts_train
+
+    @lru_cache()
+    def valid_cuts(self) -> CutSet:
+        logging.info("About to get dev cuts")
+        cuts_valid = load_manifest(
+            self.args.feature_dir / "cuts_dev-clean.json.gz"
+        ) + load_manifest(self.args.feature_dir / "cuts_dev-other.json.gz")
+        return cuts_valid
+
+    @lru_cache()
+    def test_cuts(self) -> List[CutSet]:
+        test_sets = ["test-clean", "test-other"]
+        cuts = []
+        for test_set in test_sets:
+            logging.debug("About to get test cuts")
+            cuts.append(
+                load_manifest(
+                    self.args.feature_dir / f"cuts_{test_set}.json.gz"
+                )
+            )
+        return cuts
