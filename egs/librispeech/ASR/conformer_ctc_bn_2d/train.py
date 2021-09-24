@@ -175,7 +175,7 @@ def get_params() -> AttributeDict:
             "att_scale": 0.5,
             "reverse_att_scale": 0.25,
             "ctc_scale": 0.3,
-            "delay_scale": 2.5,    # Scale on difference between current and
+            "delay_scale": 2.0,    # Scale on difference between current and
                                    # delayed version of positive_embed.
             "delay_minibatches": 300,
             "attention_dim": 512,
