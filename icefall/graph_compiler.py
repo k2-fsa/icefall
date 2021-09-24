@@ -106,7 +106,7 @@ class CtcTrainingGraphCompiler(object):
         word_ids_list = []
         for text in texts:
             word_ids = []
-            for word in text.split(" "):
+            for word in text.split():
                 if word in self.word_table:
                     word_ids.append(self.word_table[word])
                 else:

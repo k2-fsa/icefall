@@ -157,7 +157,7 @@ class BpeLexicon(Lexicon):
             lang_dir / "lexicon.txt"
         )
 
-    def convert_lexicon_to_ragged(self, filename: str) -> k2.RaggedInt:
+    def convert_lexicon_to_ragged(self, filename: str) -> k2.RaggedTensor:
         """Read a BPE lexicon from file and convert it to a
         k2 ragged tensor.
 
@@ -200,19 +200,18 @@ class BpeLexicon(Lexicon):
         )
         values = torch.tensor(token_ids, dtype=torch.int32)
 
-        return k2.RaggedInt(shape, values)
+        return k2.RaggedTensor(shape, values)
 
-    def words_to_piece_ids(self, words: List[str]) -> k2.RaggedInt:
+    def words_to_piece_ids(self, words: List[str]) -> k2.RaggedTensor:
         """Convert a list of words to a ragged tensor contained
         word piece IDs.
         """
         word_ids = [self.word_table[w] for w in words]
         word_ids = torch.tensor(word_ids, dtype=torch.int32)
 
-        ragged, _ = k2.ragged.index(
-            self.ragged_lexicon,
+        ragged, _ = self.ragged_lexicon.index(
             indexes=word_ids,
-            need_value_indexes=False,
             axis=0,
+            need_value_indexes=False,
         )
         return ragged
