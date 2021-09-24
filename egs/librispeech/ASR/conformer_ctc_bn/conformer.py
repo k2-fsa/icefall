@@ -246,7 +246,7 @@ class DiscreteBottleneck(nn.Module):
             self.class_probs = (self.class_probs * self.class_probs_decay +
                                 mean_class_probs * (1.0 - self.class_probs_decay))
             prob_floor = self.min_prob_ratio / self.classes_per_group
-            self.class_offsets += (self.class_probs > prob_floor) * self.prob_boost
+            self.class_offsets += (self.class_probs < prob_floor) * self.prob_boost
 
         else:
             x = torch.softmax(x, dim=-1)
