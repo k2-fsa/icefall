@@ -99,7 +99,7 @@ def get_params() -> AttributeDict:
     """Return a dict containing training parameters.
 
     All training related parameters that are not passed from the commandline
-    is saved in the variable `params`.
+    are saved in the variable `params`.
 
     Commandline options are merged into `params` after they are parsed, so
     you can also access them via `params`.

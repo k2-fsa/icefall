@@ -4,13 +4,13 @@ import k2
 import torch
 from torch import nn
 
-from icefall.bpe_mmi_graph_compiler import BpeMmiTrainingGraphCompiler
+from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 
 
 def _compute_mmi_loss_exact_optimized(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
-    graph_compiler: BpeMmiTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -98,7 +98,7 @@ def _compute_mmi_loss_exact_optimized(
 def _compute_mmi_loss_exact_non_optimized(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
-    graph_compiler: BpeMmiTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -133,7 +133,7 @@ def _compute_mmi_loss_exact_non_optimized(
 def _compute_mmi_loss_pruned(
     dense_fsa_vec: k2.DenseFsaVec,
     texts: List[str],
-    graph_compiler: BpeMmiTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
 ) -> torch.Tensor:
     """
@@ -184,7 +184,7 @@ class LFMMILoss(nn.Module):
 
     def __init__(
         self,
-        graph_compiler: BpeMmiTrainingGraphCompiler,
+        graph_compiler: MmiTrainingGraphCompiler,
         use_pruned_intersect: bool = False,
         den_scale: float = 1.0,
     ):

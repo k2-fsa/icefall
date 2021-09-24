@@ -15,6 +15,8 @@ class MmiTrainingGraphCompiler(object):
         uniq_filename: str = "uniq_lexicon.txt",
         device: Union[str, torch.device] = "cpu",
         oov: str = "<UNK>",
+        sos_id: int = 1,
+        eos_id: int = 1,
     ):
         """
         Args:
@@ -45,6 +47,8 @@ class MmiTrainingGraphCompiler(object):
         self.L_inv = self.lexicon.L_inv.to(self.device)
 
         self.oov_id = self.lexicon.word_table[oov]
+        self.sos_id = sos_id
+        self.eos_id = eos_id
 
         self.build_ctc_topo_P()
 
@@ -93,6 +97,7 @@ class MmiTrainingGraphCompiler(object):
         ).invert()
 
         self.ctc_topo_P = k2.arc_sort(ctc_topo_P)
+        logging.info(f"ctc_topo_P num_arcs: {self.ctc_topo_P.num_arcs}")
 
     def compile(
         self, texts: Iterable[str], replicate_den: bool = True
