@@ -76,7 +76,7 @@ def get_parser():
     parser.add_argument(
         "--ali-dir",
         type=str,
-        default="data/ali",
+        default="data/ali_500",
         help="The experiment dir",
     )
     return parser
@@ -200,11 +200,15 @@ def main():
 
     assert args.return_cuts is True
     assert args.concatenate_cuts is False
+    if args.full_libri is False:
+        print("Changing --full-libri to True")
+        args.full_libri = True
 
     params = get_params()
     params.update(vars(args))
 
     setup_logger(f"{params.exp_dir}/log/ali")
+
     logging.info("Computing alignment - started")
     logging.info(params)
 
@@ -264,8 +268,19 @@ def main():
         "train-960": train_dl,
         "valid": valid_dl,
     }
+    # For train-960, it takes about 3 hours 40 minutes, i.e., 3.67 hours to
+    # compute the alignments if you use --max-duration=500
+    #
+    # There are 960 * 3 = 2880 hours data and it takes only
+    # 3 hours 40 minutes to get the alignment.
+    # The RTF is roughly: 3.67 / 2880 = 0.0012743
     for name, dl in enabled_datasets.items():
         logging.info(f"Processing {name}")
+        if name == "train-960":
+            logging.info(
+                "It will take about 3 hours 40 minutes for {name}, "
+                "which contains 960 * 3 = 2880 hours of data"
+            )
         alignments = compute_alignments(
             model=model,
             dl=dl,
