@@ -106,7 +106,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""The scale to be applied to `lattice.scores`.
@@ -250,12 +250,12 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
             word_table=word_table,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
             oov="<UNK>",
         )
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
-        key = f"oracle_{params.num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
         return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
@@ -269,9 +269,9 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                lattice_score_scale=params.lattice_score_scale,
+                nbest_scale=params.nbest_scale,
             )
-            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
+            key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
@@ -293,7 +293,7 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
@@ -319,7 +319,7 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"

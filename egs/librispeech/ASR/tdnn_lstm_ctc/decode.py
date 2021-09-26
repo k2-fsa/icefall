@@ -97,7 +97,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""The scale to be applied to `lattice.scores`.
@@ -229,7 +229,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                lattice_score_scale=params.lattice_score_scale,
+                nbest_scale=params.nbest_scale,
             )
             key = f"no_rescore-{params.num_paths}"
         hyps = get_texts(best_path)
@@ -248,7 +248,7 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
         )
     else:
         best_path_dict = rescore_with_whole_lattice(

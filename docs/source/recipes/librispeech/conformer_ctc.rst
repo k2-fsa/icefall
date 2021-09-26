@@ -299,9 +299,9 @@ The commonly used options are:
     .. code-block::
 
       $ cd egs/librispeech/ASR
-      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --lattice-score-scale 0.5
+      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --nbest-scale 0.5
 
-  - ``--lattice-score-scale``
+  - ``--nbest-scale``
 
     It is used to scale down lattice scores so that there are more unique
     paths for rescoring.
@@ -577,7 +577,7 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
     --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 1.3 \
     --attention-decoder-scale 1.2 \
-    --lattice-score-scale 0.5 \
+    --nbest-scale 0.5 \
     --num-paths 100 \
     --sos-id 1 \
     --eos-id 1 \

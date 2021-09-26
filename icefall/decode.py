@@ -180,7 +180,7 @@ class Nbest(object):
         lattice: k2.Fsa,
         num_paths: int,
         use_double_scores: bool = True,
-        lattice_score_scale: float = 0.5,
+        nbest_scale: float = 0.5,
     ) -> "Nbest":
         """Construct an Nbest object by **sampling** `num_paths` from a lattice.
 
@@ -206,7 +206,7 @@ class Nbest(object):
           Return an Nbest instance.
         """
         saved_scores = lattice.scores.clone()
-        lattice.scores *= lattice_score_scale
+        lattice.scores *= nbest_scale
         # path is a ragged tensor with dtype torch.int32.
         # It has three axes [utt][path][arc_pos]
         path = k2.random_paths(
@@ -446,7 +446,7 @@ def nbest_decoding(
     lattice: k2.Fsa,
     num_paths: int,
     use_double_scores: bool = True,
-    lattice_score_scale: float = 1.0,
+    nbest_scale: float = 1.0,
 ) -> k2.Fsa:
     """It implements something like CTC prefix beam search using n-best lists.
 
@@ -474,7 +474,7 @@ def nbest_decoding(
       use_double_scores:
         True to use double precision floating point in the computation.
         False to use single precision.
-      lattice_score_scale:
+      nbest_scale:
         It's the scale applied to the `lattice.scores`. A smaller value
         leads to more unique paths at the risk of missing the correct path.
     Returns:
@@ -484,7 +484,7 @@ def nbest_decoding(
         lattice=lattice,
         num_paths=num_paths,
         use_double_scores=use_double_scores,
-        lattice_score_scale=lattice_score_scale,
+        nbest_scale=nbest_scale,
     )
     # nbest.fsa.scores contains 0s
 
@@ -505,7 +505,7 @@ def nbest_oracle(
     ref_texts: List[str],
     word_table: k2.SymbolTable,
     use_double_scores: bool = True,
-    lattice_score_scale: float = 0.5,
+    nbest_scale: float = 0.5,
     oov: str = "<UNK>",
 ) -> Dict[str, List[List[int]]]:
     """Select the best hypothesis given a lattice and a reference transcript.
@@ -517,7 +517,7 @@ def nbest_oracle(
     The decoding result returned from this function is the best result that
     we can obtain using n-best decoding with all kinds of rescoring techniques.
 
-    This function is useful to tune the value of `lattice_score_scale`.
+    This function is useful to tune the value of `nbest_scale`.
 
     Args:
       lattice:
@@ -533,7 +533,7 @@ def nbest_oracle(
       use_double_scores:
         True to use double precision for computation. False to use
         single precision.
-      lattice_score_scale:
+      nbest_scale:
         It's the scale applied to the lattice.scores. A smaller value
         yields more unique paths.
       oov:
@@ -549,7 +549,7 @@ def nbest_oracle(
         lattice=lattice,
         num_paths=num_paths,
         use_double_scores=use_double_scores,
-        lattice_score_scale=lattice_score_scale,
+        nbest_scale=nbest_scale,
     )
 
     hyps = nbest.build_levenshtein_graphs()
@@ -590,7 +590,7 @@ def rescore_with_n_best_list(
     G: k2.Fsa,
     num_paths: int,
     lm_scale_list: List[float],
-    lattice_score_scale: float = 1.0,
+    nbest_scale: float = 1.0,
     use_double_scores: bool = True,
 ) -> Dict[str, k2.Fsa]:
     """Rescore an n-best list with an n-gram LM.
@@ -607,7 +607,7 @@ def rescore_with_n_best_list(
         Size of nbest list.
       lm_scale_list:
         A list of float representing LM score scales.
-      lattice_score_scale:
+      nbest_scale:
         Scale to be applied to ``lattice.score`` when sampling paths
         using ``k2.random_paths``.
       use_double_scores:
@@ -631,7 +631,7 @@ def rescore_with_n_best_list(
         lattice=lattice,
         num_paths=num_paths,
         use_double_scores=use_double_scores,
-        lattice_score_scale=lattice_score_scale,
+        nbest_scale=nbest_scale,
     )
     # nbest.fsa.scores are all 0s at this point
 
@@ -769,7 +769,7 @@ def rescore_with_attention_decoder(
     memory_key_padding_mask: Optional[torch.Tensor],
     sos_id: int,
     eos_id: int,
-    lattice_score_scale: float = 1.0,
+    nbest_scale: float = 1.0,
     ngram_lm_scale: Optional[float] = None,
     attention_scale: Optional[float] = None,
     use_double_scores: bool = True,
@@ -796,7 +796,7 @@ def rescore_with_attention_decoder(
         The token ID for SOS.
       eos_id:
         The token ID for EOS.
-      lattice_score_scale:
+      nbest_scale:
         It's the scale applied to `lattice.scores`. A smaller value
         leads to more unique paths at the risk of missing the correct path.
       ngram_lm_scale:
@@ -812,7 +812,7 @@ def rescore_with_attention_decoder(
         lattice=lattice,
         num_paths=num_paths,
         use_double_scores=use_double_scores,
-        lattice_score_scale=lattice_score_scale,
+        nbest_scale=nbest_scale,
     )
     # nbest.fsa.scores are all 0s at this point
 
