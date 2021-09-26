@@ -66,7 +66,7 @@ def _intersect_device(
 
 def get_lattice(
     nnet_output: torch.Tensor,
-    HLG: k2.Fsa,
+    decoding_graph: k2.Fsa,
     supervision_segments: torch.Tensor,
     search_beam: float,
     output_beam: float,
@@ -79,8 +79,9 @@ def get_lattice(
     Args:
       nnet_output:
         It is the output of a neural model of shape `(N, T, C)`.
-      HLG:
-        An Fsa, the decoding graph. See also `compile_HLG.py`.
+      decoding_graph:
+        An Fsa, the decoding graph. It can be either an HLG
+        (see `compile_HLG.py`) or an H (see `k2.ctc_topo`).
       supervision_segments:
         A 2-D **CPU** tensor of dtype `torch.int32` with 3 columns.
         Each row contains information for a supervision segment. Column 0
@@ -117,7 +118,7 @@ def get_lattice(
     )
 
     lattice = k2.intersect_dense_pruned(
-        HLG,
+        decoding_graph,
         dense_fsa_vec,
         search_beam=search_beam,
         output_beam=output_beam,

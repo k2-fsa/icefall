@@ -146,7 +146,7 @@ def decode_one_batch(
     batch: dict,
     lexicon: Lexicon,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[List[int]]]:
+) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
 
@@ -210,7 +210,7 @@ def decode_one_batch(
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
@@ -272,7 +272,7 @@ def decode_dataset(
     HLG: k2.Fsa,
     lexicon: Lexicon,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[int], List[int]]]]:
+) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
