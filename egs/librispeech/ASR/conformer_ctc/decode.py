@@ -78,7 +78,7 @@ def get_parser():
         default="attention-decoder",
         help="""Decoding method.
         Supported values are:
-            - (0) ctc. Use CTC decoding. It uses a sentence piece
+            - (0) ctc-decoding. Use CTC decoding. It uses a sentence piece
               model, i.e., lang_dir/bpe.model, to convert word pieces to words.
               It needs neither a lexicon nor an n-gram LM.
             - (1) 1best. Extract the best path from the decoding lattice as the
