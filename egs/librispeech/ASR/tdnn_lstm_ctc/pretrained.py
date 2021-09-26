@@ -218,11 +218,11 @@ def main():
     features = pad_sequence(
         features, batch_first=True, padding_value=math.log(1e-10)
     )
-    features = features.permute(0, 2, 1)  # now features is [N, C, T]
+    features = features.permute(0, 2, 1)  # now features is (N, C, T)
 
     with torch.no_grad():
         nnet_output = model(features)
-        # nnet_output is [N, T, C]
+        # nnet_output is (N, T, C)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(

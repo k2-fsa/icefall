@@ -45,7 +45,7 @@ For example,
 
 .. code-block:: bash
 
-  $ cd egs/yesno/ASR
+  $ cd egs/librispeech/ASR
   $ ./prepare.sh --stage 0 --stop-stage 0
 
 means to run only stage 0.
@@ -171,7 +171,7 @@ The following options are used quite often:
 Pre-configured options
 ~~~~~~~~~~~~~~~~~~~~~~
 
-There are some training options, e.g., learning rate,
+There are some training options, e.g., weight decay,
 number of warmup steps, results dir, etc,
 that are not passed from the commandline.
 They are pre-configured by the function ``get_params()`` in
@@ -303,7 +303,7 @@ The commonly used options are:
 
   - ``--lattice-score-scale``
 
-    It is used to scaled down lattice scores so that we can more unique
+    It is used to scale down lattice scores so that there are more unique
     paths for rescoring.
 
   - ``--max-duration``
@@ -314,7 +314,7 @@ The commonly used options are:
 Pre-trained Model
 -----------------
 
-We have uploaded the pre-trained model to
+We have uploaded a pre-trained model to
 `<https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc>`_.
 
 We describe how to use the pre-trained model to transcribe a sound file or
@@ -324,7 +324,7 @@ Install kaldifeat
 ~~~~~~~~~~~~~~~~~
 
 `kaldifeat <https://github.com/csukuangfj/kaldifeat>`_ is used to
-extract features for a single sound file or multiple soundfiles
+extract features for a single sound file or multiple sound files
 at the same time.
 
 Please refer to `<https://github.com/csukuangfj/kaldifeat>`_ for installation.
@@ -345,6 +345,10 @@ The following commands describe how to download the pre-trained model:
 .. CAUTION::
 
   You have to use ``git lfs`` to download the pre-trained model.
+
+.. CAUTION::
+
+  In order to use this pre-trained model, your k2 version has to be v1.7 or later.
 
 After downloading, you will have the following files:
 
@@ -397,7 +401,7 @@ After downloading, you will have the following files:
 
   - ``data/lm/G_4_gram.pt``
 
-      It is a 4-gram LM, useful for LM rescoring.
+      It is a 4-gram LM, used for n-gram LM rescoring.
 
   - ``exp/pretrained.pt``
 
@@ -409,9 +413,9 @@ After downloading, you will have the following files:
 
       It contains some test sound files from LibriSpeech ``test-clean`` dataset.
 
-  - `test_waves/trans.txt`
+  - ``test_waves/trans.txt``
 
-      It contains the reference transcripts for the sound files in `test_waves/`.
+      It contains the reference transcripts for the sound files in ``test_waves/``.
 
 The information of the test sound files is listed below:
 
@@ -556,7 +560,7 @@ Its output is:
 HLG decoding + LM rescoring + attention decoder rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It uses an n-gram LM to rescore the decoding lattice, extracts 
+It uses an n-gram LM to rescore the decoding lattice, extracts
 n paths from the rescored lattice, recores the extracted paths with
 an attention decoder. The path with the highest score is the decoding result.
 

@@ -68,6 +68,47 @@ def get_parser():
         "'--epoch'. ",
     )
     parser.add_argument(
+        "--method",
+        type=str,
+        default="whole-lattice-rescoring",
+        help="""Decoding method.
+        Supported values are:
+            - (1) 1best. Extract the best path from the decoding lattice as the
+              decoding result.
+            - (2) nbest. Extract n paths from the decoding lattice; the path
+              with the highest score is the decoding result.
+            - (3) nbest-rescoring. Extract n paths from the decoding lattice,
+              rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
+              the highest score is the decoding result.
+            - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+              n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
+              is the decoding result.
+        """,
+    )
+
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=100,
+        help="""Number of paths for n-best based decoding method.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring
+        """,
+    )
+
+    parser.add_argument(
+        "--lattice-score-scale",
+        type=float,
+        default=0.5,
+        help="""The scale to be applied to `lattice.scores`.
+        It's needed if you use any kinds of n-best based rescoring.
+        Used only when "method" is one of the following values:
+        nbest, nbest-rescoring
+        A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
         "--export",
         type=str2bool,
         default=False,
@@ -93,14 +134,6 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            # Possible values for method:
-            #  - 1best
-            #  - nbest
-            #  - nbest-rescoring
-            #  - whole-lattice-rescoring
-            "method": "whole-lattice-rescoring",
-            # num_paths is used when method is "nbest" and "nbest-rescoring"
-            "num_paths": 30,
         }
     )
     return params
@@ -157,12 +190,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
-    feature = feature.permute(0, 2, 1)  # now feature is [N, C, T]
+    feature = feature.permute(0, 2, 1)  # now feature is (N, C, T)
 
     nnet_output = model(feature)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervisions = batch["supervisions"]
 
@@ -196,6 +229,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
+                lattice_score_scale=params.lattice_score_scale,
             )
             key = f"no_rescore-{params.num_paths}"
         hyps = get_texts(best_path)
@@ -204,7 +238,8 @@ def decode_one_batch(
 
     assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
 
-    lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
@@ -213,10 +248,13 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
+            lattice_score_scale=params.lattice_score_scale,
         )
     else:
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
         )
 
     ans = dict()
@@ -424,6 +462,7 @@ def main():
         torch.save(
             {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
         )
+        return
 
     model.to(device)
     model.eval()

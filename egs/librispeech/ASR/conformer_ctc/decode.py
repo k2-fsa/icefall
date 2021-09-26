@@ -45,6 +45,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -107,12 +108,23 @@ def get_parser():
     parser.add_argument(
         "--lattice-score-scale",
         type=float,
-        default=1.0,
+        default=0.5,
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
         nbest, nbest-rescoring, attention-decoder, and nbest-oracle
         A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
         """,
     )
 
@@ -125,15 +137,15 @@ def get_params() -> AttributeDict:
             "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
             "lm_dir": Path("data/lm"),
+            # parameters for conformer
+            "subsampling_factor": 4,
+            "vgg_frontend": False,
+            "use_feat_batchnorm": True,
             "feature_dim": 80,
             "nhead": 8,
             "attention_dim": 512,
-            "subsampling_factor": 4,
             "num_decoder_layers": 6,
-            "vgg_frontend": False,
-            "is_espnet_structure": True,
-            "mmi_loss": False,
-            "use_feat_batchnorm": True,
+            # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
@@ -201,12 +213,12 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
         (
@@ -232,14 +244,19 @@ def decode_one_batch(
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
-        # is slightly worse than that of rescored lattices.
-        return nbest_oracle(
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
             lattice=lattice,
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
             word_table=word_table,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
+            oov="<UNK>",
         )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{params.num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -252,7 +269,7 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                scale=params.lattice_score_scale,
+                lattice_score_scale=params.lattice_score_scale,
             )
             key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
 
@@ -266,7 +283,8 @@ def decode_one_batch(
         "attention-decoder",
     ]
 
-    lm_scale_list = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     if params.method == "nbest-rescoring":
@@ -275,17 +293,23 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=lm_scale_list,
         )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=None,
         )
+        # TODO: pass `lattice` instead of `rescored_lattice` to
+        # `rescore_with_attention_decoder`
 
         best_path_dict = rescore_with_attention_decoder(
             lattice=rescored_lattice,
@@ -295,16 +319,20 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
-            scale=params.lattice_score_scale,
+            lattice_score_scale=params.lattice_score_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 
     ans = dict()
-    for lm_scale_str, best_path in best_path_dict.items():
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        ans[lm_scale_str] = hyps
+    if best_path_dict is not None:
+        for lm_scale_str, best_path in best_path_dict.items():
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            ans[lm_scale_str] = hyps
+    else:
+        for lm_scale in lm_scale_list:
+            ans[lm_scale_str] = [[] * lattice.shape[0]]
     return ans
 
 
@@ -525,8 +553,6 @@ def main():
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=params.vgg_frontend,
-        is_espnet_structure=params.is_espnet_structure,
-        mmi_loss=params.mmi_loss,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 
@@ -540,6 +566,13 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.load_state_dict(average_checkpoints(filenames))
+
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
 
     model.to(device)
     model.eval()

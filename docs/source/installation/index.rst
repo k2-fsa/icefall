@@ -7,6 +7,7 @@ Installation
 - |device|
 - |python_versions|
 - |torch_versions|
+- |k2_versions|
 
 .. |os| image:: ./images/os-Linux_macOS-ff69b4.svg
   :alt: Supported operating systems
@@ -20,7 +21,10 @@ Installation
 .. |torch_versions| image:: ./images/torch-1.6.0_1.7.0_1.7.1_1.8.0_1.8.1_1.9.0-green.svg
   :alt: Supported PyTorch versions
 
-icefall depends on `k2 <https://github.com/k2-fsa/k2>`_ and
+.. |k2_versions| image:: ./images/k2-v1.9-blueviolet.svg
+  :alt: Supported k2 versions
+
+``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
 We recommend you to install ``k2`` first, as ``k2`` is bound to
@@ -31,13 +35,17 @@ installs its dependency PyTorch, which can be reused by ``lhotse``.
 (1) Install k2
 --------------
 
-Please refer to `<https://k2.readthedocs.io/en/latest/installation/index.html>`_
-to install `k2`.
+Please refer to `<https://k2-fsa.github.io/k2/installation/index.html>`_
+to install ``k2``.
+
+.. CAUTION::
+
+  You need to install ``k2`` with a version at least **v1.9**.
 
 .. HINT::
 
   If you have already installed PyTorch and don't want to replace it,
-  please install a version of k2 that is compiled against the version
+  please install a version of ``k2`` that is compiled against the version
   of PyTorch you are using.
 
 (2) Install lhotse
@@ -50,10 +58,15 @@ to install ``lhotse``.
 
   Install ``lhotse`` also installs its dependency `torchaudio <https://github.com/pytorch/audio>`_.
 
+.. CAUTION::
+
+  If you have installed ``torchaudio``, please consider uninstalling it before
+  installing ``lhotse``. Otherwise, it may update your already installed PyTorch.
+
 (3) Download icefall
 --------------------
 
-icefall is a collection of Python scripts, so you don't need to install it
+``icefall`` is a collection of Python scripts, so you don't need to install it
 and we don't provide a ``setup.py`` to install it.
 
 What you need is to download it and set the environment variable ``PYTHONPATH``
@@ -367,7 +380,7 @@ Now let us run the training part:
 
 .. CAUTION::
 
-  We use ``export CUDA_VISIBLE_DEVICES=""`` so that icefall uses CPU
+  We use ``export CUDA_VISIBLE_DEVICES=""`` so that ``icefall`` uses CPU
   even if there are GPUs available.
 
 The training log is given below:
