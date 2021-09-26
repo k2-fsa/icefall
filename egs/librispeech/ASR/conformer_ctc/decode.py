@@ -283,7 +283,7 @@ def decode_one_batch(
         # token_ids is a lit-of-list of IDs
         token_ids = get_texts(best_path)
 
-        # hyps is a list of str, e.g., [['xxx yyy zzz'], ...]
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(token_ids)
 
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
