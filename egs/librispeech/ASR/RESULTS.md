@@ -40,7 +40,7 @@ python conformer_ctc/train.py --bucketing-sampler True \
                               --full-libri True \
                               --world-size 4
 
-python conformer_ctc/decode.py --lattice-score-scale 0.5 \
+python conformer_ctc/decode.py --nbest-scale 0.5 \
                                --epoch 34 \
                                --avg 20 \
                                --method attention-decoder \
