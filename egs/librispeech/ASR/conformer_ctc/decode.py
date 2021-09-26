@@ -288,7 +288,7 @@ def decode_one_batch(
 
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
-        key = f"ctc-decoding"
+        key = "ctc-decoding"
         return {key: hyps}
 
     if params.method == "nbest-oracle":
