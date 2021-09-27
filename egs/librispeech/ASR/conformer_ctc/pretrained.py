@@ -125,7 +125,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""
@@ -301,7 +301,7 @@ def main():
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
@@ -336,7 +336,7 @@ def main():
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=params.sos_id,
             eos_id=params.eos_id,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
             ngram_lm_scale=params.ngram_lm_scale,
             attention_scale=params.attention_decoder_scale,
         )
