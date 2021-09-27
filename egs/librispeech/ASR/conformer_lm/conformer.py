@@ -112,7 +112,7 @@ class MaskedLmConformer(nn.Module):
 
         Returns:
           Returns (memory, pos_emb), where:
-            `memory` is a Tensor containing the encoded data; it is of shape (N, T, C)
+            `memory` is a Tensor containing the encoded data; it is of shape (T, N, C)
                 where C is the embedding_dim.
             `pos_emb` is a Tensor containing the relative positional encoding, of
                       shape (1, 2*T-1, C)
