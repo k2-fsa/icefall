@@ -173,7 +173,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_mmi/exp_500"),
+            "exp_dir": Path("conformer_mmi/exp_500_with_attention"),
             "lang_dir": Path("data/lang_bpe_500"),
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
@@ -193,10 +193,10 @@ def get_params() -> AttributeDict:
             "beam_size": 6,  # will change it to 8 after some batches (see code)
             "reduction": "sum",
             "use_double_scores": True,
-            "att_rate": 0.0,
-            "num_decoder_layers": 0,
-            #  "att_rate": 0.7,
-            #  "num_decoder_layers": 6,
+            #  "att_rate": 0.0,
+            #  "num_decoder_layers": 0,
+            "att_rate": 0.7,
+            "num_decoder_layers": 6,
             # parameters for Noam
             "weight_decay": 1e-6,
             "lr_factor": 5.0,

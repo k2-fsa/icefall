@@ -12,6 +12,7 @@ def _compute_mmi_loss_exact_optimized(
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
+    beam_size: float = 8.0,
 ) -> torch.Tensor:
     """
     The function name contains `exact`, which means it uses a version of
@@ -79,7 +80,7 @@ def _compute_mmi_loss_exact_optimized(
     num_den_lats = k2.intersect_dense(
         num_den_reordered_graphs,
         dense_fsa_vec,
-        output_beam=10.0,
+        output_beam=beam_size,
         a_to_b_map=a_to_b_map,
     )
 
@@ -100,6 +101,7 @@ def _compute_mmi_loss_exact_non_optimized(
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
+    beam_size: float = 8.0,
 ) -> torch.Tensor:
     """
     See :func:`_compute_mmi_loss_exact_optimized` for the meaning
@@ -113,8 +115,12 @@ def _compute_mmi_loss_exact_non_optimized(
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=True)
 
     # TODO: pass output_beam as function argument
-    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=10.0)
-    den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, output_beam=10.0)
+    num_lats = k2.intersect_dense(
+        num_graphs, dense_fsa_vec, output_beam=beam_size
+    )
+    den_lats = k2.intersect_dense(
+        den_graphs, dense_fsa_vec, output_beam=beam_size
+    )
 
     num_tot_scores = num_lats.get_tot_scores(
         log_semiring=True, use_double_scores=True
@@ -135,6 +141,7 @@ def _compute_mmi_loss_pruned(
     texts: List[str],
     graph_compiler: MmiTrainingGraphCompiler,
     den_scale: float = 1.0,
+    beam_size: float = 8.0,
 ) -> torch.Tensor:
     """
     See :func:`_compute_mmi_loss_exact_optimized` for the meaning
@@ -156,7 +163,7 @@ def _compute_mmi_loss_pruned(
         den_graphs,
         dense_fsa_vec,
         search_beam=20.0,
-        output_beam=8.0,
+        output_beam=beam_size,
         min_active_states=30,
         max_active_states=10000,
     )
@@ -187,11 +194,13 @@ class LFMMILoss(nn.Module):
         graph_compiler: MmiTrainingGraphCompiler,
         use_pruned_intersect: bool = False,
         den_scale: float = 1.0,
+        beam_size: float = 8.0,
     ):
         super().__init__()
         self.graph_compiler = graph_compiler
         self.den_scale = den_scale
         self.use_pruned_intersect = use_pruned_intersect
+        self.beam_size = beam_size
 
     def forward(
         self,
@@ -219,4 +228,5 @@ class LFMMILoss(nn.Module):
             texts=texts,
             graph_compiler=self.graph_compiler,
             den_scale=self.den_scale,
+            beam_size=self.beam_size,
         )
