@@ -274,11 +274,15 @@ def main():
     # There are 960 * 3 = 2880 hours data and it takes only
     # 3 hours 40 minutes to get the alignment.
     # The RTF is roughly: 3.67 / 2880 = 0.0012743
+    #
+    # At the end, you would see
+    # 2021-09-28 11:32:46,690 INFO [ali.py:188] batch 21000/?, cuts processed until now is 836270  # noqa
+    # 2021-09-28 11:33:45,084 INFO [ali.py:188] batch 21100/?, cuts processed until now is 840268  # noqa
     for name, dl in enabled_datasets.items():
         logging.info(f"Processing {name}")
         if name == "train-960":
             logging.info(
-                "It will take about 3 hours 40 minutes for {name}, "
+                f"It will take about 3 hours 40 minutes for {name}, "
                 "which contains 960 * 3 = 2880 hours of data"
             )
         alignments = compute_alignments(
