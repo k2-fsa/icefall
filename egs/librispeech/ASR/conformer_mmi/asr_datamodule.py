@@ -162,7 +162,9 @@ class LibriSpeechAsrDataModule(DataModule):
         cuts_musan = load_manifest(self.args.feature_dir / "cuts_musan.json.gz")
 
         logging.info("About to create train dataset")
-        transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
+        transforms = [
+            CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+        ]
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "

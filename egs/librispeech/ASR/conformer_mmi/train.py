@@ -21,7 +21,7 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional
+from typing import Dict, Optional
 
 import k2
 import torch
@@ -36,6 +36,11 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
+from icefall.ali import (
+    convert_alignments_to_tensor,
+    load_alignments,
+    lookup_alignments,
+)
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
@@ -90,6 +95,17 @@ def get_parser():
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
         conformer_mmi/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
+    parser.add_argument(
+        "--ali-dir",
+        type=str,
+        default="data/ali_500",
+        help="""This folder is expected to contain
+        two files, train-960.pt and valid.pt, which
+        contain framewise alignment information for
+        the training set and validation set.
         """,
     )
 
@@ -284,6 +300,7 @@ def compute_loss(
     batch: dict,
     graph_compiler: MmiTrainingGraphCompiler,
     is_training: bool,
+    ali: Optional[Dict[str, torch.Tensor]],
 ):
     """
     Compute LF-MMI loss given the model and its inputs.
@@ -304,6 +321,8 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
+      ali:
+        Precomputed alignments.
     """
     device = graph_compiler.device
     feature = batch["inputs"]
@@ -322,6 +341,30 @@ def compute_loss(
         supervision_segments, texts = encode_supervisions(
             supervisions, subsampling_factor=params.subsampling_factor
         )
+
+        if ali is not None and params.batch_idx_train < 4000:
+            cut_ids = [cut.id for cut in supervisions["cut"]]
+
+            # As encode_supervisions reorders cuts, we need
+            # also to reorder cut IDs here
+            new2old = supervision_segments[:, 0].tolist()
+            cut_ids = [cut_ids[i] for i in new2old]
+
+            # Check that new2old is just a permutation,
+            # i.e., each cut contains only one utterance
+            new2old.sort()
+            assert new2old == torch.arange(len(new2old)).tolist()
+            mask = lookup_alignments(
+                cut_ids=cut_ids,
+                alignments=ali,
+                num_classes=nnet_output.shape[2],
+            ).to(nnet_output)
+
+            min_len = min(nnet_output.shape[1], mask.shape[1])
+            ali_scale = 500.0 / (params.batch_idx_train + 500)
+
+            nnet_output = nnet_output.clone()
+            nnet_output[:, :min_len, :] += ali_scale * mask[:, :min_len, :]
 
         loss_fn = LFMMILoss(
             graph_compiler=graph_compiler,
@@ -377,6 +420,7 @@ def compute_validation_loss(
     graph_compiler: MmiTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
+    ali: Optional[Dict[str, torch.Tensor]] = None,
 ) -> None:
     """Run the validation process. The validation loss
     is saved in `params.valid_loss`.
@@ -394,6 +438,7 @@ def compute_validation_loss(
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=False,
+            ali=ali,
         )
         assert loss.requires_grad is False
         assert mmi_loss.requires_grad is False
@@ -435,6 +480,8 @@ def train_one_epoch(
     graph_compiler: MmiTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    train_ali: Optional[Dict[str, torch.Tensor]],
+    valid_ali: Optional[Dict[str, torch.Tensor]],
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
 ) -> None:
@@ -457,6 +504,10 @@ def train_one_epoch(
         Dataloader for the training dataset.
       valid_dl:
         Dataloader for the validation dataset.
+      train_ali:
+        Precomputed alignments for the training set.
+      valid_ali:
+        Precomputed alignments for the validation set.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -481,6 +532,7 @@ def train_one_epoch(
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=True,
+            ali=train_ali,
         )
 
         # NOTE: We use reduction==sum and loss is computed over utterances
@@ -565,6 +617,7 @@ def train_one_epoch(
                 graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
+                ali=valid_ali,
             )
             model.train()
             logging.info(
@@ -673,12 +726,34 @@ def run(rank, world_size, args):
     if checkpoints:
         optimizer.load_state_dict(checkpoints["optimizer"])
 
+    train_960_ali_filename = Path(params.ali_dir) / "train-960.pt"
+    if params.batch_idx_train < 4000 and train_960_ali_filename.is_file():
+        logging.info("Use pre-computed alignments")
+        subsampling_factor, train_ali = load_alignments(train_960_ali_filename)
+        assert subsampling_factor == params.subsampling_factor
+        assert len(train_ali) == 843723, f"{len(train_ali)} vs 843723"
+
+        valid_ali_filename = Path(params.ali_dir) / "valid.pt"
+        subsampling_factor, valid_ali = load_alignments(valid_ali_filename)
+        assert subsampling_factor == params.subsampling_factor
+
+        train_ali = convert_alignments_to_tensor(train_ali, device=device)
+        valid_ali = convert_alignments_to_tensor(valid_ali, device=device)
+    else:
+        logging.info("Not using alignments")
+        train_ali = None
+        valid_ali = None
+
     librispeech = LibriSpeechAsrDataModule(args)
     train_dl = librispeech.train_dataloaders()
     valid_dl = librispeech.valid_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)
+        if params.batch_idx_train > 4000 and train_ali is not None:
+            # Delete the alignments to save memory
+            train_ali = None
+            valid_ali = None
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
@@ -699,6 +774,8 @@ def run(rank, world_size, args):
             graph_compiler=graph_compiler,
             train_dl=train_dl,
             valid_dl=valid_dl,
+            train_ali=train_ali,
+            valid_ali=valid_ali,
             tb_writer=tb_writer,
             world_size=world_size,
         )
