@@ -107,9 +107,7 @@ def setup_logger(
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:
-        formatter = (
-            "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-        )
+        formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
         log_filename = f"{log_filename}-{date_time}"
 
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
@@ -236,9 +234,7 @@ def get_texts(
         return aux_labels.tolist()
 
 
-def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str]]
-) -> None:
+def store_transcripts(filename: Pathlike, texts: Iterable[Tuple[str, str]]) -> None:
     """Save predicted results and reference transcripts to a file.
 
     Args:
@@ -369,19 +365,14 @@ def write_error_stats(
             ]
             ali = list(filter(lambda x: x != [[], []], ali))
             ali = [
-                [
-                    ERR if x == [] else " ".join(x),
-                    ERR if y == [] else " ".join(y),
-                ]
+                [ERR if x == [] else " ".join(x), ERR if y == [] else " ".join(y),]
                 for x, y in ali
             ]
 
         print(
             " ".join(
                 (
-                    ref_word
-                    if ref_word == hyp_word
-                    else f"({ref_word}->{hyp_word})"
+                    ref_word if ref_word == hyp_word else f"({ref_word}->{hyp_word})"
                     for ref_word, hyp_word in ali
                 )
             ),
@@ -391,9 +382,7 @@ def write_error_stats(
     print("", file=f)
     print("SUBSTITUTIONS: count ref -> hyp", file=f)
 
-    for count, (ref, hyp) in sorted(
-        [(v, k) for k, v in subs.items()], reverse=True
-    ):
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
         print(f"{count}   {ref} -> {hyp}", file=f)
 
     print("", file=f)
@@ -407,9 +396,7 @@ def write_error_stats(
         print(f"{count}   {hyp}", file=f)
 
     print("", file=f)
-    print(
-        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
-    )
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
     for _, word, counts in sorted(
         [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
     ):
@@ -428,7 +415,7 @@ class LossRecord(collections.defaultdict):
         # makes undefined items default to int() which is zero.
         super(LossRecord, self).__init__(int)
 
-    def __add__(self, other: 'LossRecord') -> 'LossRecord':
+    def __add__(self, other: "LossRecord") -> "LossRecord":
         ans = LossRecord()
         for k, v in self.items():
             ans[k] = v
@@ -436,19 +423,19 @@ class LossRecord(collections.defaultdict):
             ans[k] = ans[k] + v
         return ans
 
-    def __mul__(self, alpha: float) -> 'LossRecord':
+    def __mul__(self, alpha: float) -> "LossRecord":
         ans = LossRecord()
         for k, v in self.items():
             ans[k] = v * alpha
         return ans
 
     def __str__(self) -> str:
-        ans = ''
+        ans = ""
         for k, v in self.norm_items():
-            norm_value = '%.4g' % v
-            ans += (str(k) + '=' + str(norm_value) + ', ')
-        frames = str(self['frames'])
-        ans += 'over ' + frames + ' frames.'
+            norm_value = "%.4g" % v
+            ans += str(k) + "=" + str(norm_value) + ", "
+        frames = str(self["frames"])
+        ans += "over " + frames + " frames."
         return ans
 
     def norm_items(self) -> List[Tuple[str, float]]:
@@ -456,10 +443,10 @@ class LossRecord(collections.defaultdict):
         Returns a list of pairs, like:
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
-        num_frames = self['frames'] if 'frames' in self else 1
+        num_frames = self["frames"] if "frames" in self else 1
         ans = []
         for k, v in self.items():
-            if k != 'frames':
+            if k != "frames":
                 norm_value = float(v) / num_frames
                 ans.append((k, norm_value))
         return ans
@@ -470,17 +457,13 @@ class LossRecord(collections.defaultdict):
         all processes get the total.
         """
         keys = sorted(self.keys())
-        s = torch.tensor([float(self[k]) for k in keys],
-                         device=device)
+        s = torch.tensor([float(self[k]) for k in keys], device=device)
         dist.all_reduce(s, op=dist.ReduceOp.SUM)
         for k, v in zip(keys, s.cpu().tolist()):
             self[k] = v
 
     def write_summary(
-        self,
-        tb_writer: SummaryWriter,
-        prefix: str,
-        batch_idx: int,
+        self, tb_writer: SummaryWriter, prefix: str, batch_idx: int,
     ) -> None:
         """Add logging information to a TensorBoard writer.
 
