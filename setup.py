@@ -4,15 +4,15 @@ from setuptools import find_packages, setup
 from pathlib import Path
 
 icefall_dir = Path(__file__).parent
-install_requires = (icefall_dir / 'requirements.txt').read_text().splitlines()
+install_requires = (icefall_dir / "requirements.txt").read_text().splitlines()
 
 setup(
-    name='icefall',
-    version='1.0',
-    python_requires='>=3.6.0',
-    description='Speech processing recipes using k2 and Lhotse.',
-    author='The k2 and Lhotse Development Team',
-    license='Apache-2.0 License',
+    name="icefall",
+    version="1.0",
+    python_requires=">=3.6.0",
+    description="Speech processing recipes using k2 and Lhotse.",
+    author="The k2 and Lhotse Development Team",
+    license="Apache-2.0 License",
     packages=find_packages(),
     install_requires=install_requires,
     classifiers=[
@@ -26,6 +26,6 @@ setup(
         "Topic :: Multimedia :: Sound/Audio :: Speech",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Typing :: Typed"
+        "Typing :: Typed",
     ],
 )
