@@ -486,8 +486,8 @@ class LossRecord(collections.defaultdict):
         
         Args:
             tb_writer: a TensorBoard writer
-            prefix: a prefix for the name of the loss, e.g. "train/valid_",
-                or "train/current_"
+            prefix: a prefix for the name of the loss, 
+                    e.g. "train/valid_", or "train/current_".
             batch_idx: The current batch index, used as the x-axis of the plot.
         """
         for k, v in self.norm_items():
