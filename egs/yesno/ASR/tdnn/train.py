@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-import collections
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple, List
