@@ -478,7 +478,8 @@ class LossRecord(collections.defaultdict):
         for k, v in zip(keys, s.cpu().tolist()):
             self[k] = v
 
-    def write_summary(self, tb_writer: SummaryWriter, prefix: str, batch_idx: int) -> None:
+    def write_summary(self, tb_writer: SummaryWriter, 
+                      prefix: str, batch_idx: int) -> None:
         """Add logging information to a TensorBoard writer.
         
         Args:
