@@ -63,7 +63,14 @@ function usage() {
   echo "On machine 2, you run:"
   echo ""
   echo "  export CUDA_VISIBLE_DEVICES=\"0,2,3\""
-  echo "  ./conformer_ctc/run-multi-node-multi-gpu.sh --master-addr 10.177.41.71 --master-port 1234 --node-rank 1 --num-nodes 3"
+  echo "  ./conformer_ctc/run-multi-node-multi-gpu.sh --master-addr 10.177.41.71 --master-port 1234 --node-rank 1 --num-nodes 2"
+  echo ""
+  echo "Note 1:"
+  echo "  You use CUDA_VISIBLE_DEVICES to decide which GPUs are used for training."
+  echo ""
+  echo "Note 2:"
+  echo "  If you use torch < 1.9.0, then every node has to use the same number of GPUs for training."
+  echo "  If you use torch >= 1.9.0, different nodes can have a different number of GPUs for training."
   exit 1
 }
 
