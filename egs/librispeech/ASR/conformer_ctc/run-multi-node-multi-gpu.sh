@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
 # This script is the entry point to start model training
 # with multi-node multi-GPU.
 #
-# Read the usage instructions for how to run this script.
+# Read the usage instructions below for how to run this script.
 
 set -e
 
@@ -19,6 +21,9 @@ master_port=1234
 # You can add more if you like
 #
 # Use ./conformer_ctc/train.py --help to see more
+#
+# If you add more parameters here, remember to append them to the
+# end of this file.
 #
 max_duration=200
 bucketing_sampler=1

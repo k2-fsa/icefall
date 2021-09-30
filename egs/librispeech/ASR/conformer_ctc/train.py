@@ -64,7 +64,11 @@ def get_parser():
         "--use-multi-node",
         type=str2bool,
         default=False,
-        help="True if using multi-node multi-GPU.",
+        help="""True if using multi-node multi-GPU.
+        You are not supposed to set it directly.
+        See ./conformer_ctc/run-multi-node-multi-gpu.sh
+        for details.
+        """,
     )
 
     parser.add_argument(
