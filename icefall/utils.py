@@ -424,22 +424,24 @@ def write_error_stats(
     return float(tot_err_rate)
 
 
-class LossRecord(collections.defaultdict):
+class MetricsTracker(collections.defaultdict):
     def __init__(self):
         # Passing the type 'int' to the base-class constructor
         # makes undefined items default to int() which is zero.
-        super(LossRecord, self).__init__(int)
+        # This class will play a role as metrics tracker.
+        # It can record many metrics, including but not limited to loss.
+        super(MetricsTracker, self).__init__(int)
 
-    def __add__(self, other: "LossRecord") -> "LossRecord":
-        ans = LossRecord()
+    def __add__(self, other: "MetricsTracker") -> "MetricsTracker":
+        ans = MetricsTracker()
         for k, v in self.items():
             ans[k] = v
         for k, v in other.items():
             ans[k] = ans[k] + v
         return ans
 
-    def __mul__(self, alpha: float) -> "LossRecord":
-        ans = LossRecord()
+    def __mul__(self, alpha: float) -> "MetricsTracker":
+        ans = MetricsTracker()
         for k, v in self.items():
             ans[k] = v * alpha
         return ans

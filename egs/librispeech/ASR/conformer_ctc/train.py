@@ -46,7 +46,7 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    LossRecord,
+    MetricsTracker,
     encode_supervisions,
     setup_logger,
     str2bool,
@@ -291,7 +291,7 @@ def compute_loss(
     batch: dict,
     graph_compiler: BpeCtcTrainingGraphCompiler,
     is_training: bool,
-) -> Tuple[Tensor, LossRecord]:
+) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
 
@@ -373,7 +373,7 @@ def compute_loss(
 
     assert loss.requires_grad == is_training
 
-    info = LossRecord()
+    info = MetricsTracker()
     info["frames"] = supervision_segments[:, 2].sum().item()
     info["ctc_loss"] = ctc_loss.detach().cpu().item()
     if params.att_rate != 0.0:
@@ -390,11 +390,11 @@ def compute_validation_loss(
     graph_compiler: BpeCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
-) -> LossRecord:
+) -> MetricsTracker:
     """Run the validation process."""
     model.eval()
 
-    tot_loss = LossRecord()
+    tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
         loss, loss_info = compute_loss(
@@ -454,7 +454,7 @@ def train_one_epoch(
     """
     model.train()
 
-    tot_loss = LossRecord()
+    tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
