@@ -292,9 +292,9 @@ The commonly used options are:
 
   - ``--method``
 
-    This specifies the decoding method. This script support seven decoding methods. As for ctc decoding, 
-    it uses a sentence piece model to convert word pieces to words. And it needs neither a lexicon
-    nor an n-gram LM.
+    This specifies the decoding method. This script support seven decoding methods. 
+    As for ctc decoding, it uses a sentence piece model to convert word pieces to words. 
+    And it needs neither a lexicon nor an n-gram LM.
     
     For example, the following command uses CTC topology for rescoring:
     
