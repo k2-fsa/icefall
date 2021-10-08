@@ -342,7 +342,7 @@ Usage:
       
 The output is given below:
 
-.. code-block::
+.. code-block:: bash
 
   2021-09-26 12:44:31,033 INFO [decode.py:537] Decoding started
   2021-09-26 12:44:31,033 INFO [decode.py:538] 
