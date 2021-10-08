@@ -327,19 +327,10 @@ The commonly used options are:
 Here are some results for reference based on CTC decoding when set vocab size as 500:
 
 Usage:
-
 .. code-block:: bash
-   $ cd egs/librispeech/ASR
-   $ ./conformer_ctc/decode.py \
-      --epoch 25 \
-      --avg 1 \
-      --max-duration 300 \
-      --bucketing-sampler 0 \
-      --full-libri 0 \
-      --exp-dir conformer_ctc/exp \
-      --lang-dir data/lang_bpe_500 \
-      --method ctc-decoding
-      
+  $ cd  
+  $ ./conformer
+  
 The output is given below:
 
 .. code-block:: bash
