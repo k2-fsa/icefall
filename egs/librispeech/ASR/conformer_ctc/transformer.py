@@ -898,6 +898,36 @@ def encoder_padding_mask(
         lengths[sequence_idx] = start_frame + num_frames
 
     lengths = [((i - 1) // 2 - 1) // 2 for i in lengths]
+    return make_pad_mask(lengths, max_len)
+
+def make_pad_mask(lengths: List[int], max_len: Optional[int] = None):
+    """Make mask tensor representing padded part.
+
+    Args:
+        lengths: (B,).
+        max_len: max_len in the batch
+
+    Returns:
+        Tensor: Mask tensor representing padded part.
+    Examples:
+        With only lengths.
+
+        >>> lengths = [5, 3, 2]
+        >>> make_pad_mask(lengths)
+        masks = [[False, False, False, False, False],
+                 [False, False, False,  True,  True],
+                 [False, False,  True,  True,  True]]
+
+        With lengths and max_len.
+        >>> lengths = [5, 3, 2]
+        >>> make_pad_mask(lengths, 6)
+        masks = [[False, False, False, False, False, True],
+                 [False, False, False,  True,  True, True],
+                 [False, False,  True,  True,  True, True]]
+    """
+    if max_len is None:
+        max_len = int(max(lengths))
+
     bs = int(len(lengths))
     seq_range = torch.arange(0, max_len, dtype=torch.int64)
     seq_range_expand = seq_range.unsqueeze(0).expand(bs, max_len)

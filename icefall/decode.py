@@ -773,6 +773,7 @@ def rescore_with_attention_decoder(
     ngram_lm_scale: Optional[float] = None,
     attention_scale: Optional[float] = None,
     use_double_scores: bool = True,
+    nnlm_evaluator=None,
 ) -> Dict[str, k2.Fsa]:
     """This function extracts `num_paths` paths from the given lattice and uses
     an attention decoder to rescore them. The path with the highest score is
@@ -854,10 +855,20 @@ def rescore_with_attention_decoder(
         sos_id=sos_id,
         eos_id=eos_id,
     )
+
     assert nll.ndim == 2
     assert nll.shape[0] == len(token_ids)
 
     attention_scores = -nll.sum(dim=1)
+
+    if nnlm_evaluator is not None:
+        aux_labels = k2.RaggedTensor(tokens_shape, nbest.fsa.aux_labels)
+        aux_labels = aux_labels.remove_values_leq(0)
+        aux_labels = aux_labels.tolist()
+        assert len(aux_labels) == len(token_ids)
+        ppl_result = nnlm_evaluator.nll(aux_labels)
+        nnlm_scores = -torch.tensor(ppl_result.nlls).to(attention_scores.device)
+        assert nnlm_scores.shape[0] == len(token_ids)
 
     if ngram_lm_scale is None:
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
@@ -881,6 +892,8 @@ def rescore_with_attention_decoder(
                 + n_scale * ngram_lm_scores.values
                 + a_scale * attention_scores
             )
+            if nnlm_evaluator is not None:
+                tot_scores = tot_scores + nnlm_scores
             ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
             max_indexes = ragged_tot_scores.argmax()
             best_path = k2.index_fsa(nbest.fsa, max_indexes)
