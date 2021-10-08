@@ -328,8 +328,17 @@ Here are some results for reference based on CTC decoding when set vocab size as
 
 Usage:
 .. code-block:: bash
-  $ cd  
-  $ ./conformer
+  $ cd
+  $ ./conformer_ctc/decode.py \
+      --epoch 25 \
+      --avg 1 \
+      --max-duration 300 \
+      --bucketing-sampler 0 \
+      --full-libri 0 \
+      --exp-dir conformer_ctc/exp \
+      --lang-dir data/lang_bpe_500 \
+      --method ctc-decoding
+      
   
 The output is given below:
 
