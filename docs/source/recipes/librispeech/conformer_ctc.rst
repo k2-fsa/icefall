@@ -292,16 +292,16 @@ The commonly used options are:
 
   - ``--method``
 
-    This specifies the decoding method. This script support seven decoding methods. 
+    This specifies the decoding method. This script supports 7 decoding methods. 
     As for ctc decoding, it uses a sentence piece model to convert word pieces to words. 
     And it needs neither a lexicon nor an n-gram LM.
     
-    For example, the following command uses CTC topology for rescoring:
+    For example, the following command uses CTC topology for decoding:
     
     .. code-block::
 
       $ cd egs/librispeech/ASR
-      $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300 --bucketing-sampler False
+      $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300
 
     And the following command uses attention decoder for rescoring:
 
@@ -319,12 +319,8 @@ The commonly used options are:
 
     It has the same meaning as the one during training. A larger
     value may cause OOM.
-    
-  - ``--bucketing-sampler``
 
-    When enabled, the batches will come from buckets of similar duration (saves padding frames). 
-
-Here are some results for reference based on CTC decoding when set vocab size as 500:
+Here are some results for CTC decoding with a vocab size of 500:
 
 Usage:
 
@@ -335,8 +331,6 @@ Usage:
       --epoch 25 \
       --avg 1 \
       --max-duration 300 \
-      --bucketing-sampler 0 \
-      --full-libri 0 \
       --exp-dir conformer_ctc/exp \
       --lang-dir data/lang_bpe_500 \
       --method ctc-decoding
