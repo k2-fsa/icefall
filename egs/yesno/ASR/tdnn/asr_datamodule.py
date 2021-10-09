@@ -230,7 +230,10 @@ class YesNoAsrDataModule(DataModule):
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
-            test, batch_size=None, sampler=sampler, num_workers=self.args.num_workers
+            test,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
         )
         return test_dl
 

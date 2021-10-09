@@ -305,7 +305,10 @@ class LibriSpeechAsrDataModule(DataModule):
             )
             logging.debug("About to create test dataloader")
             test_dl = DataLoader(
-                test, batch_size=None, sampler=sampler, num_workers=self.args.num_workers
+                test,
+                batch_size=None,
+                sampler=sampler,
+                num_workers=self.args.num_workers,
             )
             test_loaders.append(test_dl)
 
