@@ -292,9 +292,18 @@ The commonly used options are:
 
   - ``--method``
 
-    This specifies the decoding method.
+    This specifies the decoding method. This script supports 7 decoding methods. 
+    As for ctc decoding, it uses a sentence piece model to convert word pieces to words. 
+    And it needs neither a lexicon nor an n-gram LM.
+    
+    For example, the following command uses CTC topology for decoding:
+    
+    .. code-block::
 
-    The following command uses attention decoder for rescoring:
+      $ cd egs/librispeech/ASR
+      $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300
+
+    And the following command uses attention decoder for rescoring:
 
     .. code-block::
 
@@ -310,6 +319,61 @@ The commonly used options are:
 
     It has the same meaning as the one during training. A larger
     value may cause OOM.
+
+Here are some results for CTC decoding with a vocab size of 500:
+
+Usage:
+
+.. code-block:: bash
+
+  $ cd egs/librispeech/ASR
+  $ ./conformer_ctc/decode.py \
+      --epoch 25 \
+      --avg 1 \
+      --max-duration 300 \
+      --exp-dir conformer_ctc/exp \
+      --lang-dir data/lang_bpe_500 \
+      --method ctc-decoding
+      
+The output is given below:
+
+.. code-block:: bash
+
+  2021-09-26 12:44:31,033 INFO [decode.py:537] Decoding started
+  2021-09-26 12:44:31,033 INFO [decode.py:538] 
+  {'lm_dir': PosixPath('data/lm'), 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 
+  'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8,
+  'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 
+  'epoch': 25, 'avg': 1, 'method': 'ctc-decoding', 'num_paths': 100, 'nbest_scale': 0.5, 
+  'export': False, 'exp_dir': PosixPath('conformer_ctc/exp'), 'lang_dir': PosixPath('data/lang_bpe_500'), 'full_libri': False, 
+  'feature_dir': PosixPath('data/fbank'), 'max_duration': 100, 'bucketing_sampler': False, 'num_buckets': 30, 
+  'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False, 
+  'shuffle': True, 'return_cuts': True, 'num_workers': 2}
+  2021-09-26 12:44:31,406 INFO [lexicon.py:113] Loading pre-compiled data/lang_bpe_500/Linv.pt
+  2021-09-26 12:44:31,464 INFO [decode.py:548] device: cuda:0
+  2021-09-26 12:44:36,171 INFO [checkpoint.py:92] Loading checkpoint from conformer_ctc/exp/epoch-25.pt
+  2021-09-26 12:44:36,776 INFO [decode.py:652] Number of model parameters: 109226120
+  2021-09-26 12:44:37,714 INFO [decode.py:473] batch 0/206, cuts processed until now is 12
+  2021-09-26 12:45:15,944 INFO [decode.py:473] batch 100/206, cuts processed until now is 1328
+  2021-09-26 12:45:54,443 INFO [decode.py:473] batch 200/206, cuts processed until now is 2563
+  2021-09-26 12:45:56,411 INFO [decode.py:494] The transcripts are stored in conformer_ctc/exp/recogs-test-clean-ctc-decoding.txt
+  2021-09-26 12:45:56,592 INFO [utils.py:331] [test-clean-ctc-decoding] %WER 3.26% [1715 / 52576, 163 ins, 128 del, 1424 sub ]
+  2021-09-26 12:45:56,807 INFO [decode.py:506] Wrote detailed error stats to conformer_ctc/exp/errs-test-clean-ctc-decoding.txt
+  2021-09-26 12:45:56,808 INFO [decode.py:522]
+  For test-clean, WER of different settings are:
+  ctc-decoding    3.26    best for test-clean
+
+  2021-09-26 12:45:57,362 INFO [decode.py:473] batch 0/203, cuts processed until now is 15
+  2021-09-26 12:46:35,565 INFO [decode.py:473] batch 100/203, cuts processed until now is 1477
+  2021-09-26 12:47:15,106 INFO [decode.py:473] batch 200/203, cuts processed until now is 2922
+  2021-09-26 12:47:16,131 INFO [decode.py:494] The transcripts are stored in conformer_ctc/exp/recogs-test-other-ctc-decoding.txt
+  2021-09-26 12:47:16,208 INFO [utils.py:331] [test-other-ctc-decoding] %WER 8.21% [4295 / 52343, 396 ins, 315 del, 3584 sub ]
+  2021-09-26 12:47:16,432 INFO [decode.py:506] Wrote detailed error stats to conformer_ctc/exp/errs-test-other-ctc-decoding.txt
+  2021-09-26 12:47:16,432 INFO [decode.py:522]
+  For test-other, WER of different settings are:
+  ctc-decoding    8.21    best for test-other
+
+  2021-09-26 12:47:16,433 INFO [decode.py:680] Done! 
 
 Pre-trained Model
 -----------------
