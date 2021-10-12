@@ -416,7 +416,7 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
-        if batch_idx % 10 == 0:
+        if batch_idx % params.log_interval == 0:
 
             if tb_writer is not None:
                 loss_info.write_summary(
