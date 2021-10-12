@@ -43,7 +43,7 @@ def test_nbest_from_lattice():
         lattice=lattice,
         num_paths=10,
         use_double_scores=True,
-        lattice_score_scale=0.5,
+        nbest_scale=0.5,
     )
     # each lattice has only 4 distinct paths that have different word sequences:
     # 10->30
