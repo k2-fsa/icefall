@@ -528,9 +528,55 @@ displays the help information.
 
 It supports three decoding methods:
 
+  - CTC decoding
   - HLG decoding
   - HLG + n-gram LM rescoring
   - HLG + n-gram LM rescoring + attention decoder rescoring
+
+CTC decoding
+^^^^^^^^^^^^
+
+CTC decoding uses the best path of the decoding lattice as the decoding result
+without any LM or lexicon.
+
+The command to run CTC decoding is:
+
+.. code-block:: bash
+
+  $ cd egs/librispeech/ASR
+  $ ./conformer_ctc/pretrained.py \
+    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
+    --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+
+The output is given below:
+
+.. code-block::
+
+  2021-10-09 21:06:57,154 INFO [pretrained.py:253] device: cuda:0
+  2021-10-09 21:06:57,154 INFO [pretrained.py:255] Creating model
+  2021-10-09 21:07:04,234 INFO [pretrained.py:272] Constructing Fbank computer
+  2021-10-09 21:07:04,235 INFO [pretrained.py:282] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-09 21:07:04,248 INFO [pretrained.py:288] Decoding started
+  2021-10-09 21:07:05,041 INFO [pretrained.py:306] Building CTC topology
+  2021-10-09 21:07:05,334 INFO [lexicon.py:113] Loading pre-compiled tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/Linv.pt
+  2021-10-09 21:07:05,380 INFO [pretrained.py:315] Loading BPE model
+  2021-10-09 21:07:07,905 INFO [pretrained.py:330] Use CTC decoding
+  2021-10-09 21:07:07,918 INFO [pretrained.py:407] 
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED 
+  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
+
+
+  2021-10-09 21:07:07,918 INFO [pretrained.py:409] Decoding Done
 
 HLG decoding
 ^^^^^^^^^^^^
