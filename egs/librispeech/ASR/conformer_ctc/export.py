@@ -139,6 +139,7 @@ def main():
         model.load_state_dict(average_checkpoints(filenames))
 
     model.to("cpu")
+    model.eval()
 
     if params.jit:
         logging.info("Using torch.jit.script")
