@@ -57,16 +57,14 @@ def get_parser():
     parser.add_argument(
         "--words-file",
         type=str,
-        default="./tmp/icefall_asr_librispeech_conformer_ctc/ \
-        data/lang_bpe/words.txt",
+        required=True,
         help="Path to words.txt",
     )
 
     parser.add_argument(
         "--HLG",
         type=str,
-        default="./tmp/icefall_asr_librispeech_conformer_ctc/ \
-        data/lang_bpe/HLG.pt",
+        required=True,
         help="Path to HLG.pt.",
     )
 
@@ -172,8 +170,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="./tmp/icefall_asr_librispeech_conformer_ctc/ \
-        data/lang_bpe",
+        required=True,
         help="Path to lang bpe dir.",
     )
 
@@ -302,111 +299,124 @@ def main():
         dtype=torch.int32,
     )
 
-    if params.method == "ctc-decoding":
-        logging.info("Building CTC topology")
-        lexicon = Lexicon(params.lang_dir)
-        max_token_id = max(lexicon.tokens)
-        H = k2.ctc_topo(
-            max_token=max_token_id,
-            modified=False,
-            device=device,
-        )
+    try:
+        if params.method == "ctc-decoding":
+            logging.info("Building CTC topology")
+            lexicon = Lexicon(params.lang_dir)
+            max_token_id = max(lexicon.tokens)
+            H = k2.ctc_topo(
+                max_token=max_token_id,
+                modified=False,
+                device=device,
+            )
 
-        logging.info("Loading BPE model")
-        bpe_model = spm.SentencePieceProcessor()
-        bpe_model.load(str(params.lang_dir + "/bpe.model"))
+            logging.info("Loading BPE model")
+            bpe_model = spm.SentencePieceProcessor()
+            bpe_model.load(str(params.lang_dir + "/bpe.model"))
 
-        lattice = get_lattice(
-            nnet_output=nnet_output,
-            decoding_graph=H,
-            supervision_segments=supervision_segments,
-            search_beam=params.search_beam,
-            output_beam=params.output_beam,
-            min_active_states=params.min_active_states,
-            max_active_states=params.max_active_states,
-            subsampling_factor=params.subsampling_factor,
-        )
+            lattice = get_lattice(
+                nnet_output=nnet_output,
+                decoding_graph=H,
+                supervision_segments=supervision_segments,
+                search_beam=params.search_beam,
+                output_beam=params.output_beam,
+                min_active_states=params.min_active_states,
+                max_active_states=params.max_active_states,
+                subsampling_factor=params.subsampling_factor,
+            )
 
-        logging.info("Use CTC decoding")
-        best_path = one_best_decoding(
-            lattice=lattice, use_double_scores=params.use_double_scores
-        )
-        token_ids = get_texts(best_path)
-        hyps = bpe_model.decode(token_ids)
-        hyps = [s.split() for s in hyps]
-
-    else:
-        logging.info(f"Loading HLG from {params.HLG}")
-        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
-        HLG = HLG.to(device)
-        if not hasattr(HLG, "lm_scores"):
-            # For whole-lattice-rescoring and attention-decoder
-            HLG.lm_scores = HLG.scores.clone()
-
-        if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
-            logging.info(f"Loading G from {params.G}")
-            G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
-            # Add epsilon self-loops to G as we will compose
-            # it with the whole lattice later
-            G = G.to(device)
-            G = k2.add_epsilon_self_loops(G)
-            G = k2.arc_sort(G)
-            G.lm_scores = G.scores.clone()
-
-        lattice = get_lattice(
-            nnet_output=nnet_output,
-            decoding_graph=HLG,
-            supervision_segments=supervision_segments,
-            search_beam=params.search_beam,
-            output_beam=params.output_beam,
-            min_active_states=params.min_active_states,
-            max_active_states=params.max_active_states,
-            subsampling_factor=params.subsampling_factor,
-        )
-
-        if params.method == "1best":
-            logging.info("Use HLG decoding")
+            logging.info("Use CTC decoding")
             best_path = one_best_decoding(
                 lattice=lattice, use_double_scores=params.use_double_scores
             )
-        elif params.method == "whole-lattice-rescoring":
-            logging.info("Use HLG decoding + LM rescoring")
-            best_path_dict = rescore_with_whole_lattice(
-                lattice=lattice,
-                G_with_epsilon_loops=G,
-                lm_scale_list=[params.ngram_lm_scale],
-            )
-            best_path = next(iter(best_path_dict.values()))
-        elif params.method == "attention-decoder":
-            logging.info("Use HLG + LM rescoring + attention decoder rescoring")
-            rescored_lattice = rescore_with_whole_lattice(
-                lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
-            )
-            best_path_dict = rescore_with_attention_decoder(
-                lattice=rescored_lattice,
-                num_paths=params.num_paths,
-                model=model,
-                memory=memory,
-                memory_key_padding_mask=memory_key_padding_mask,
-                sos_id=params.sos_id,
-                eos_id=params.eos_id,
-                nbest_scale=params.nbest_scale,
-                ngram_lm_scale=params.ngram_lm_scale,
-                attention_scale=params.attention_decoder_scale,
-            )
-            best_path = next(iter(best_path_dict.values()))
+            token_ids = get_texts(best_path)
+            hyps = bpe_model.decode(token_ids)
+            hyps = [s.split() for s in hyps]
 
-        hyps = get_texts(best_path)
-        word_sym_table = k2.SymbolTable.from_file(params.words_file)
-        hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+        if params.method in [
+            "1best",
+            "whole-lattice-rescoring",
+            "attention-decoder",
+        ]:
+            logging.info(f"Loading HLG from {params.HLG}")
+            HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+            HLG = HLG.to(device)
+            if not hasattr(HLG, "lm_scores"):
+                # For whole-lattice-rescoring and attention-decoder
+                HLG.lm_scores = HLG.scores.clone()
 
-    s = "\n"
-    for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
-        s += f"{filename}:\n{words}\n\n"
-    logging.info(s)
+            if params.method in [
+                "whole-lattice-rescoring",
+                "attention-decoder",
+            ]:
+                logging.info(f"Loading G from {params.G}")
+                G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
+                # Add epsilon self-loops to G as we will compose
+                # it with the whole lattice later
+                G = G.to(device)
+                G = k2.add_epsilon_self_loops(G)
+                G = k2.arc_sort(G)
+                G.lm_scores = G.scores.clone()
 
-    logging.info("Decoding Done")
+            lattice = get_lattice(
+                nnet_output=nnet_output,
+                decoding_graph=HLG,
+                supervision_segments=supervision_segments,
+                search_beam=params.search_beam,
+                output_beam=params.output_beam,
+                min_active_states=params.min_active_states,
+                max_active_states=params.max_active_states,
+                subsampling_factor=params.subsampling_factor,
+            )
+
+            if params.method == "1best":
+                logging.info("Use HLG decoding")
+                best_path = one_best_decoding(
+                    lattice=lattice, use_double_scores=params.use_double_scores
+                )
+            elif params.method == "whole-lattice-rescoring":
+                logging.info("Use HLG decoding + LM rescoring")
+                best_path_dict = rescore_with_whole_lattice(
+                    lattice=lattice,
+                    G_with_epsilon_loops=G,
+                    lm_scale_list=[params.ngram_lm_scale],
+                )
+                best_path = next(iter(best_path_dict.values()))
+            elif params.method == "attention-decoder":
+                logging.info(
+                    "Use HLG + LM rescoring + attention decoder rescoring"
+                )
+                rescored_lattice = rescore_with_whole_lattice(
+                    lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None
+                )
+                best_path_dict = rescore_with_attention_decoder(
+                    lattice=rescored_lattice,
+                    num_paths=params.num_paths,
+                    model=model,
+                    memory=memory,
+                    memory_key_padding_mask=memory_key_padding_mask,
+                    sos_id=params.sos_id,
+                    eos_id=params.eos_id,
+                    nbest_scale=params.nbest_scale,
+                    ngram_lm_scale=params.ngram_lm_scale,
+                    attention_scale=params.attention_decoder_scale,
+                )
+                best_path = next(iter(best_path_dict.values()))
+
+            hyps = get_texts(best_path)
+            word_sym_table = k2.SymbolTable.from_file(params.words_file)
+            hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+
+        s = "\n"
+        for filename, hyp in zip(params.sound_files, hyps):
+            words = " ".join(hyp)
+            s += f"{filename}:\n{words}\n\n"
+        logging.info(s)
+
+        logging.info("Decoding Done")
+
+    except Exception:
+        raise ValueError("Please use a supported decoding method.")
 
 
 if __name__ == "__main__":

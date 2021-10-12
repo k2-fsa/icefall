@@ -448,7 +448,7 @@ After downloading, you will have the following files:
 **File descriptions**:
   - ``data/lang_bpe/Linv.pt``
 
-      It is the lexicon file.
+      It is the lexicon file, with word IDs as labels and token IDs as aux_labels.
 
   - ``data/lang_bpe/HLG.pt``
 
@@ -530,7 +530,7 @@ Usage
 
 displays the help information.
 
-It supports three decoding methods:
+It supports 4 decoding methods:
 
   - CTC decoding
   - HLG decoding
