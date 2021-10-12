@@ -20,6 +20,7 @@ In this tutorial, you will learn:
   - (2) How to start the training, either with a single GPU or multiple GPUs
   - (3) How to do decoding after training, with n-gram LM rescoring and attention decoder rescoring
   - (4) How to use a pre-trained model, provided by us
+  - (5) How to deploy your trained model in C++, without Python dependencies
 
 Data preparation
 ----------------
@@ -292,12 +293,12 @@ The commonly used options are:
 
   - ``--method``
 
-    This specifies the decoding method. This script supports 7 decoding methods. 
-    As for ctc decoding, it uses a sentence piece model to convert word pieces to words. 
+    This specifies the decoding method. This script supports 7 decoding methods.
+    As for ctc decoding, it uses a sentence piece model to convert word pieces to words.
     And it needs neither a lexicon nor an n-gram LM.
-    
+
     For example, the following command uses CTC topology for decoding:
-    
+
     .. code-block::
 
       $ cd egs/librispeech/ASR
@@ -334,20 +335,20 @@ Usage:
       --exp-dir conformer_ctc/exp \
       --lang-dir data/lang_bpe_500 \
       --method ctc-decoding
-      
+
 The output is given below:
 
 .. code-block:: bash
 
   2021-09-26 12:44:31,033 INFO [decode.py:537] Decoding started
-  2021-09-26 12:44:31,033 INFO [decode.py:538] 
-  {'lm_dir': PosixPath('data/lm'), 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 
+  2021-09-26 12:44:31,033 INFO [decode.py:538]
+  {'lm_dir': PosixPath('data/lm'), 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True,
   'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8,
-  'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 
-  'epoch': 25, 'avg': 1, 'method': 'ctc-decoding', 'num_paths': 100, 'nbest_scale': 0.5, 
-  'export': False, 'exp_dir': PosixPath('conformer_ctc/exp'), 'lang_dir': PosixPath('data/lang_bpe_500'), 'full_libri': False, 
-  'feature_dir': PosixPath('data/fbank'), 'max_duration': 100, 'bucketing_sampler': False, 'num_buckets': 30, 
-  'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False, 
+  'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True,
+  'epoch': 25, 'avg': 1, 'method': 'ctc-decoding', 'num_paths': 100, 'nbest_scale': 0.5,
+  'export': False, 'exp_dir': PosixPath('conformer_ctc/exp'), 'lang_dir': PosixPath('data/lang_bpe_500'), 'full_libri': False,
+  'feature_dir': PosixPath('data/fbank'), 'max_duration': 100, 'bucketing_sampler': False, 'num_buckets': 30,
+  'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False,
   'shuffle': True, 'return_cuts': True, 'num_workers': 2}
   2021-09-26 12:44:31,406 INFO [lexicon.py:113] Loading pre-compiled data/lang_bpe_500/Linv.pt
   2021-09-26 12:44:31,464 INFO [decode.py:548] device: cuda:0
@@ -373,7 +374,7 @@ The output is given below:
   For test-other, WER of different settings are:
   ctc-decoding    8.21    best for test-other
 
-  2021-09-26 12:47:16,433 INFO [decode.py:680] Done! 
+  2021-09-26 12:47:16,433 INFO [decode.py:680] Done!
 
 Pre-trained Model
 -----------------
@@ -693,3 +694,119 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
 
 **Congratulations!** You have finished the librispeech ASR recipe with
 conformer CTC models in ``icefall``.
+
+If you want to deploy your trained model in C++, please read the following section.
+
+Deployment with C++
+-------------------
+
+This section describes how to deploy your trained model in C++, without
+Python dependencies.
+
+We assume you have run ``./prepare.sh`` and have the following directories available:
+
+.. code-block:: bash
+
+    data
+    |-- lang_bpe
+
+Also, we assume your checkpoints are saved in ``conformer_ctc/exp``.
+
+If you know that averaging 20 checkpoints starting from ``epoch-30.pt`` yields the
+lowest WER, you can run the following commands
+
+.. code-block::
+
+  $ cd egs/librispeech/ASR
+  $ ./conformer_ctc/export.py \
+      --epoch 30 \
+      --avg 20 \
+      --jit 1 \
+      --lang-dir data/lang_bpe \
+      --exp-dir conformer_ctc/exp
+
+to get a torch scripted model saved in ``conformer_ctc/exp/cpu_jit.pt``.
+
+Now you have all needed files ready. Let us compile k2 from source:
+
+.. code-block:: bash
+
+  $ cd $HOME
+  $ git clone https://github.com/k2-fsa/k2
+  $ cd k2
+  $ git checkout v2.0-pre
+
+.. CAUTION::
+
+  You have to switch to the branch ``v2.0-pre``!
+
+.. code-block:: bash
+
+  $ mkdir build-release
+  $ cd build-release
+  $ cmake -DCMAKE_BUILD_TYPE=Release ..
+  $ make -j decode
+  # You will find an executable: `./bin/decode`
+
+Now you are ready to go!
+
+To view the usage of ``./bin/decode``, run:
+
+.. code-block::
+
+  $ ./bin/decode
+
+It will show you the following message:
+
+.. code-block::
+
+  Please provide --jit_pt
+
+    (1) CTC decoding
+      ./bin/decode \
+        --use_ctc_decoding true \
+        --jit_pt <path to exported torch script pt file> \
+        --bpe_model <path to pretrained BPE model> \
+        /path/to/foo.wav \
+        /path/to/bar.wav \
+        <more wave files if any>
+    (2) HLG decoding
+      ./bin/decode \
+        --use_ctc_decoding false \
+        --jit_pt <path to exported torch script pt file> \
+        --hlg <path to HLG.pt> \
+        --word-table <path to words.txt> \
+        /path/to/foo.wav \
+        /path/to/bar.wav \
+        <more wave files if any>
+
+     --use_gpu false to use CPU
+     --use_gpu true to use GPU
+
+``./bin/decode`` supports two types of decoding at present: CTC decoding and HLG decoding.
+
+CTC decoding
+^^^^^^^^^^^^
+
+You need to provide:
+
+  - ``--jit_pt``, this is the file generated by ``conformer_ctc/export.py``. You can find it
+    in ``conformer_ctc/exp/cpu_jit.pt``.
+  - ``--bpe_model``, this is a sentence piece model generated by ``prepare.sh``. You can find
+    it in ``data/lang_bpe/bpe.model``.
+
+
+HLG decoding
+^^^^^^^^^^^^
+
+You need to provide:
+
+  - ``--jit_pt``, this is the same file as in CTC decoding.
+  - ``--hlg``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/HLG.pt``.
+  - ``--word-table``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/words.txt``.
+
+We do provide a Colab notebook, showing you how to run a torch scripted model in C++.
+Please see |librispeech asr conformer ctc torch script colab notebook|
+
+.. |librispeech asr conformer ctc torch script colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/drive/1BIGLWzS36isskMXHKcqC9ysN6pspYXs_?usp=sharing

@@ -236,6 +236,7 @@ class Transformer(nn.Module):
         x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
         return x
 
+    @torch.jit.export
     def decoder_forward(
         self,
         memory: torch.Tensor,
@@ -264,11 +265,15 @@ class Transformer(nn.Module):
         """
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device)
@@ -301,6 +306,7 @@ class Transformer(nn.Module):
 
         return decoder_loss
 
+    @torch.jit.export
     def decoder_nll(
         self,
         memory: torch.Tensor,
@@ -331,11 +337,15 @@ class Transformer(nn.Module):
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
@@ -649,7 +659,8 @@ class PositionalEncoding(nn.Module):
         self.d_model = d_model
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
-        self.pe = None
+        # not doing: self.pe = None because of errors thrown by torchscript
+        self.pe = torch.zeros(0, self.d_model, dtype=torch.float32)
 
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
@@ -666,8 +677,7 @@ class PositionalEncoding(nn.Module):
         """
         if self.pe is not None:
             if self.pe.size(1) >= x.size(1):
-                if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         pe = torch.zeros(x.size(1), self.d_model, dtype=torch.float32)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
@@ -972,10 +982,7 @@ def add_sos(token_ids: List[List[int]], sos_id: int) -> List[List[int]]:
       Return a new list-of-list, where each sublist starts
       with SOS ID.
     """
-    ans = []
-    for utt in token_ids:
-        ans.append([sos_id] + utt)
-    return ans
+    return [[sos_id] + utt for utt in token_ids]
 
 
 def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
@@ -992,7 +999,4 @@ def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
       Return a new list-of-list, where each sublist ends
       with EOS ID.
     """
-    ans = []
-    for utt in token_ids:
-        ans.append(utt + [eos_id])
-    return ans
+    return [utt + [eos_id] for utt in token_ids]
