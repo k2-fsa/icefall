@@ -551,6 +551,7 @@ The command to run CTC decoding is:
   $ ./conformer_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
     --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    --method ctc-decoding \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
@@ -559,28 +560,27 @@ The output is given below:
 
 .. code-block::
 
-  2021-10-09 21:06:57,154 INFO [pretrained.py:253] device: cuda:0
-  2021-10-09 21:06:57,154 INFO [pretrained.py:255] Creating model
-  2021-10-09 21:07:04,234 INFO [pretrained.py:272] Constructing Fbank computer
-  2021-10-09 21:07:04,235 INFO [pretrained.py:282] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-10-09 21:07:04,248 INFO [pretrained.py:288] Decoding started
-  2021-10-09 21:07:05,041 INFO [pretrained.py:306] Building CTC topology
-  2021-10-09 21:07:05,334 INFO [lexicon.py:113] Loading pre-compiled tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/Linv.pt
-  2021-10-09 21:07:05,380 INFO [pretrained.py:315] Loading BPE model
-  2021-10-09 21:07:07,905 INFO [pretrained.py:330] Use CTC decoding
-  2021-10-09 21:07:07,918 INFO [pretrained.py:407] 
+  2021-10-13 11:21:50,896 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:21:50,896 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:21:56,669 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:21:56,670 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:21:56,683 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:21:57,341 INFO [pretrained.py:290] Building CTC topology
+  2021-10-13 11:21:57,625 INFO [lexicon.py:113] Loading pre-compiled tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/Linv.pt
+  2021-10-13 11:21:57,679 INFO [pretrained.py:299] Loading BPE model
+  2021-10-13 11:22:00,076 INFO [pretrained.py:314] Use CTC decoding
+  2021-10-13 11:22:00,087 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
-  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED 
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
   BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-
-  2021-10-09 21:07:07,918 INFO [pretrained.py:409] Decoding Done
+  2021-10-13 11:22:00,087 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding
 ^^^^^^^^^^^^
@@ -603,14 +603,14 @@ The output is given below:
 
 .. code-block::
 
-  2021-08-20 11:03:05,712 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:03:05,712 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:03:11,345 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:03:18,442 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:03:18,444 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:03:18,507 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:03:18,795 INFO [pretrained.py:300] Use HLG decoding
-  2021-08-20 11:03:19,149 INFO [pretrained.py:339]
+  2021-10-13 11:25:19,458 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:25:19,458 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:25:25,342 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:25:25,343 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:25:25,356 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:25:26,026 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:25:33,735 INFO [pretrained.py:359] Use HLG decoding
+  2021-10-13 11:25:34,013 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -621,7 +621,7 @@ The output is given below:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:03:19,149 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:25:34,014 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding + LM rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -648,15 +648,15 @@ Its output is:
 
 .. code-block::
 
-  2021-08-20 11:12:17,565 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:12:17,565 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:12:23,728 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:12:30,035 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-08-20 11:13:10,779 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:13:10,787 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:13:10,798 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:13:11,085 INFO [pretrained.py:305] Use HLG decoding + LM rescoring
-  2021-08-20 11:13:11,736 INFO [pretrained.py:339]
+  2021-10-13 11:28:19,129 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:28:19,129 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:28:23,531 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:28:23,532 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:28:23,544 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:28:24,141 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:28:30,752 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
+  2021-10-13 11:28:48,308 INFO [pretrained.py:364] Use HLG decoding + LM rescoring
+  2021-10-13 11:28:48,815 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -667,7 +667,7 @@ Its output is:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:13:11,737 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:28:48,815 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding + LM rescoring + attention decoder rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -700,15 +700,15 @@ The output is below:
 
 .. code-block::
 
-  2021-08-20 11:19:11,397 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:19:11,397 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:19:17,354 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:19:24,615 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-08-20 11:20:04,576 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:20:04,584 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:20:04,595 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:20:04,854 INFO [pretrained.py:313] Use HLG + LM rescoring + attention decoder rescoring
-  2021-08-20 11:20:05,805 INFO [pretrained.py:339]
+  2021-10-13 11:29:50,106 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:29:50,106 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:29:56,063 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:29:56,063 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:29:56,077 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:29:56,770 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:30:04,023 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
+  2021-10-13 11:30:18,163 INFO [pretrained.py:372] Use HLG + LM rescoring + attention decoder rescoring
+  2021-10-13 11:30:19,367 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -719,7 +719,7 @@ The output is below:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:20:05,805 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:30:19,367 INFO [pretrained.py:402] Decoding Done
 
 Colab notebook
 --------------
