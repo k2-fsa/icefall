@@ -20,7 +20,6 @@
 import argparse
 import logging
 import math
-from pathlib import Path
 from typing import List
 
 import k2
@@ -57,19 +56,25 @@ def get_parser():
     parser.add_argument(
         "--words-file",
         type=str,
-        help="Path to words.txt " "Used only when method is not ctc-decoding",
+        help="""Path to words.txt.
+        Used only when method is not ctc-decoding.
+        """,
     )
 
     parser.add_argument(
         "--HLG",
         type=str,
-        help="Path to HLG.pt. " "Used only when method is not ctc-decoding",
+        help="""Path to HLG.pt.
+        Used only when method is not ctc-decoding.
+        """,
     )
 
     parser.add_argument(
         "--bpe-model",
         type=str,
-        help="Path to bpe.model. " "Used only when method is ctc-decoding.",
+        help="""Path to bpe.model.
+        Used only when method is ctc-decoding.
+        """,
     )
 
     parser.add_argument(
@@ -298,9 +303,6 @@ def main():
 
     if params.method == "ctc-decoding":
         logging.info("Use CTC decoding")
-        if not Path(params.bpe_model).exists():
-            raise ValueError(f"The path to {params.bpe_model} doesn't exist!")
-
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(params.bpe_model)
         max_token_id = bpe_model.get_piece_size() - 1
@@ -333,11 +335,6 @@ def main():
         "whole-lattice-rescoring",
         "attention-decoder",
     ]:
-        if not Path(params.HLG).exists():
-            raise ValueError(f"The path to {params.HLG} doesn't exist!")
-        if not Path(params.words_file).exists():
-            raise ValueError(f"The path to {params.words_file} doesn't exist!")
-
         logging.info(f"Loading HLG from {params.HLG}")
         HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
         HLG = HLG.to(device)

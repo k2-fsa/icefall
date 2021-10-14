@@ -429,7 +429,6 @@ After downloading, you will have the following files:
       |-- README.md
       |-- data
       |   |-- lang_bpe
-      |   |   |-- Linv.pt
       |   |   |-- HLG.pt
       |   |   |-- bpe.model
       |   |   |-- tokens.txt
@@ -447,10 +446,6 @@ After downloading, you will have the following files:
   6 directories, 11 files
 
 **File descriptions**:
-  - ``data/lang_bpe/Linv.pt``
-
-      It is the lexicon file, with word IDs as labels and token IDs as aux_labels.
-
   - ``data/lang_bpe/HLG.pt``
 
       It is the decoding graph.
