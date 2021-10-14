@@ -226,7 +226,13 @@ def main():
     args = parser.parse_args()
 
     params = get_params()
+    if args.method != "attention-decoder":
+        # to save memory as the attention decoder
+        # will not be used
+        params.num_decoder_layers = 0
+
     params.update(vars(args))
+
     logging.info(f"{params}")
 
     device = torch.device("cpu")
@@ -248,7 +254,7 @@ def main():
     )
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
+    model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
 
