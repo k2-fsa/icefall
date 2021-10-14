@@ -53,6 +53,7 @@ jobs:
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
 
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse
+          python3 -m pip install kaldifeat
           # We are in ./icefall and there is a file: requirements.txt in it
           pip install -r requirements.txt
 
