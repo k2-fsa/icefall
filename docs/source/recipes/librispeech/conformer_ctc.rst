@@ -551,7 +551,7 @@ The command to run CTC decoding is:
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    --bpe-model ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/bpe.model \
     --method ctc-decoding \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
@@ -595,7 +595,8 @@ The command to run HLG decoding is:
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
     ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
@@ -637,7 +638,8 @@ The command to run HLG decoding + LM rescoring is:
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     --method whole-lattice-rescoring \
     --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 0.8 \
@@ -684,7 +686,8 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
     --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --lang-dir ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe \
+    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
+    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
     --method attention-decoder \
     --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 1.3 \
