@@ -191,5 +191,3 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     ./local/compile_hlg.py --lang-dir $lang_dir
   done
 fi
-
-cd data && ln -sfv lang_bpe_5000 lang_bpe
