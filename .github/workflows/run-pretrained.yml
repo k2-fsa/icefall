@@ -85,7 +85,7 @@ jobs:
           ./conformer_ctc/pretrained.py \
             --num-classes 500 \
             --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500 \
+            --bpe-model ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/bpe.model \
             --method ctc-decoding \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
@@ -99,7 +99,8 @@ jobs:
           ./conformer_ctc/pretrained.py \
             --num-classes 500 \
             --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500 \
+            --words-file ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/words.txt \
+            --HLG ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/HLG.pt \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0002.flac

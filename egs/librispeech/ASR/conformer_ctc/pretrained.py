@@ -319,7 +319,7 @@ def main():
         logging.info("Use CTC decoding")
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(params.bpe_model)
-        max_token_id = bpe_model.get_piece_size() - 1
+        max_token_id = params.num_classes - 1
 
         H = k2.ctc_topo(
             max_token=max_token_id,
