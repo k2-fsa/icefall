@@ -72,9 +72,10 @@ jobs:
           cd tmp
           git lfs install
           git clone https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc
+          cd ..
           tree tmp
           soxi tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/*.flac
-          ls -lh icefall_asr_librispeech_conformer_ctc/*/*
+          ls -lh tmp/icefall_asr_librispeech_conformer_ctc/*/*
 
       - name: Run CTC decoding
         shell: bash
