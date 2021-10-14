@@ -660,7 +660,7 @@ class PositionalEncoding(nn.Module):
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
         # not doing: self.pe = None because of errors thrown by torchscript
-        self.pe = torch.zeros(0, self.d_model, dtype=torch.float32)
+        self.pe = torch.zeros(0, 0, dtype=torch.float32)
 
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
