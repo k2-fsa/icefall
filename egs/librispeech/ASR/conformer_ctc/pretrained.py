@@ -36,7 +36,6 @@ from icefall.decode import (
     rescore_with_attention_decoder,
     rescore_with_whole_lattice,
 )
-from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, get_texts
 
 
@@ -55,10 +54,27 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--words-file",
         type=str,
-        required=True,
-        help="Path to lang dir.",
+        help="""Path to words.txt.
+        Used only when method is not ctc-decoding.
+        """,
+    )
+
+    parser.add_argument(
+        "--HLG",
+        type=str,
+        help="""Path to HLG.pt.
+        Used only when method is not ctc-decoding.
+        """,
+    )
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        help="""Path to bpe.model.
+        Used only when method is ctc-decoding.
+        """,
     )
 
     parser.add_argument(
@@ -301,16 +317,15 @@ def main():
 
     if params.method == "ctc-decoding":
         logging.info("Use CTC decoding")
-        lexicon = Lexicon(params.lang_dir)
-        max_token_id = max(lexicon.tokens)
+        bpe_model = spm.SentencePieceProcessor()
+        bpe_model.load(params.bpe_model)
+        max_token_id = bpe_model.get_piece_size() - 1
+
         H = k2.ctc_topo(
             max_token=max_token_id,
             modified=False,
             device=device,
         )
-
-        bpe_model = spm.SentencePieceProcessor()
-        bpe_model.load(params.lang_dir + "/bpe.model")
 
         lattice = get_lattice(
             nnet_output=nnet_output,
@@ -334,10 +349,8 @@ def main():
         "whole-lattice-rescoring",
         "attention-decoder",
     ]:
-        logging.info(f"Loading HLG from {params.lang_dir}/HLG.pt")
-        HLG = k2.Fsa.from_dict(
-            torch.load(params.lang_dir + "/HLG.pt", map_location="cpu")
-        )
+        logging.info(f"Loading HLG from {params.HLG}")
+        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
         HLG = HLG.to(device)
         if not hasattr(HLG, "lm_scores"):
             # For whole-lattice-rescoring and attention-decoder
@@ -400,9 +413,7 @@ def main():
             best_path = next(iter(best_path_dict.values()))
 
         hyps = get_texts(best_path)
-        word_sym_table = k2.SymbolTable.from_file(
-            params.lang_dir + "/words.txt"
-        )
+        word_sym_table = k2.SymbolTable.from_file(params.words_file)
         hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
     else:
         raise ValueError(f"Unsupported decoding method: {params.method}")
