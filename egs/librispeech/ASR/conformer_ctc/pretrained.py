@@ -57,19 +57,22 @@ def get_parser():
     parser.add_argument(
         "--words-file",
         type=str,
-        help="Path to words.txt",
+        help="Path to words.txt "
+        "Used only when method is not ctc-decoding",
     )
 
     parser.add_argument(
         "--HLG",
         type=str,
-        help="Path to HLG.pt.",
+        help="Path to HLG.pt. "
+        "Used only when method is not ctc-decoding",
     )
 
     parser.add_argument(
         "--bpe-model",
         type=str,
-        help="Path to bpe.model.",
+        help="Path to bpe.model. "
+        "Used only when method is ctc-decoding.",
     )
 
     parser.add_argument(
