@@ -167,6 +167,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-classes",
+        type=int,
+        default=5000,
+        help="""
+        Vocab size in the BPE model.
+        """,
+    )
+
+    parser.add_argument(
         "--eos-id",
         type=int,
         default=1,
@@ -199,7 +208,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "feature_dim": 80,
             "nhead": 8,
-            "num_classes": 5000,
             "attention_dim": 512,
             "num_decoder_layers": 6,
             # parameters for decoding
@@ -242,7 +250,13 @@ def main():
     args = parser.parse_args()
 
     params = get_params()
+    if args.method != "attention-decoder":
+        # to save memory as the attention decoder
+        # will not be used
+        params.num_decoder_layers = 0
+
     params.update(vars(args))
+
     logging.info(f"{params}")
 
     device = torch.device("cpu")
@@ -264,7 +278,7 @@ def main():
     )
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
+    model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
 
@@ -305,7 +319,7 @@ def main():
         logging.info("Use CTC decoding")
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(params.bpe_model)
-        max_token_id = bpe_model.get_piece_size() - 1
+        max_token_id = params.num_classes - 1
 
         H = k2.ctc_topo(
             max_token=max_token_id,
