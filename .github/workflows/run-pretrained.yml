@@ -82,6 +82,7 @@ jobs:
       - name: Run CTC decoding
         shell: bash
         run: |
+          export PYTHONPATH=$PWD:PYTHONPATH
           cd egs/librispeech/ASR
           ./conformer_ctc/pretrained.py \
             --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
@@ -94,6 +95,7 @@ jobs:
       - name: Run HLG decoding
         shell: bash
         run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
           cd egs/librispeech/ASR
           ./conformer_ctc/pretrained.py \
             --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
@@ -101,5 +103,3 @@ jobs:
             ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
             ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
             ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
-
-
