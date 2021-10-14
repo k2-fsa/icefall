@@ -151,6 +151,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-classes",
+        type=int,
+        default=5000,
+        help="""
+        Vocab size in the BPE model.
+        """,
+    )
+
+    parser.add_argument(
         "--eos-id",
         type=int,
         default=1,
@@ -183,7 +192,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "feature_dim": 80,
             "nhead": 8,
-            "num_classes": 5000,
             "attention_dim": 512,
             "num_decoder_layers": 6,
             # parameters for decoding

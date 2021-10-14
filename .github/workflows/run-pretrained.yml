@@ -85,6 +85,7 @@ jobs:
           export PYTHONPATH=$PWD:PYTHONPATH
           cd egs/librispeech/ASR
           ./conformer_ctc/pretrained.py \
+            --num-classes 500 \
             --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
             --lang-dir ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500 \
             --method ctc-decoding \
@@ -98,6 +99,7 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           cd egs/librispeech/ASR
           ./conformer_ctc/pretrained.py \
+            --num-classes 500 \
             --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
             --lang-dir ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500 \
             ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
