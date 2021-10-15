@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang
-#                                                  Mingshuang Luo)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,15 +20,13 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional, Tuple
-
+from typing import Optional
 
 import k2
 import torch
+import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch import Tensor
-
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
@@ -39,14 +35,14 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
+from icefall.mmi import LFMMILoss
+from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
-    MetricsTracker,
     encode_supervisions,
     setup_logger,
     str2bool,
@@ -82,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=35,
+        default=50,
         help="Number of epochs to train.",
     )
 
@@ -93,26 +89,6 @@ def get_parser():
         help="""Resume training from this epoch.
         If it is positive, it will load checkpoint from
         conformer_ctc/exp/epoch-{start_epoch-1}.pt
-        """,
-    )
-
-    parser.add_argument(
-        "--exp-dir",
-        type=str,
-        default="conformer_ctc/exp",
-        help="""The experiment dir.
-        It specifies the directory where all training related
-        files, e.g., checkpoints, log, etc, are saved
-        """,
-    )
-
-    parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lang_bpe",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
         """,
     )
 
@@ -129,6 +105,21 @@ def get_params() -> AttributeDict:
     you can also access them via `params`.
 
     Explanation of options saved in `params`:
+
+        - exp_dir: It specifies the directory where all training related
+                   files, e.g., checkpoints, log, etc, are saved
+
+        - lang_dir: It contains language related input files such as
+                    "lexicon.txt"
+
+        - lr: It specifies the initial learning rate
+
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
+
+        - weight_decay:  The weight_decay for the optimizer.
+
+        - subsampling_factor:  The subsampling factor for the model.
 
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
@@ -148,60 +139,33 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
-        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
-
-        - valid_interval:  Run validation if batch_idx % valid_interval is 0
-
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
-
-        - attention_dim: Hidden dim for multi-head attention model.
-
-        - head: Number of heads of multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - beam_size: It is used in k2.ctc_loss
-
-        - reduction: It is used in k2.ctc_loss
-
-        - use_double_scores: It is used in k2.ctc_loss
-
-        - weight_decay:  The weight_decay for the optimizer.
-
-        - lr_factor: The lr_factor for Noam optimizer.
-
-        - warm_step: The warm_step for Noam optimizer.
+        - valid_interval:  Run validation if batch_idx % valid_interval` is 0
     """
     params = AttributeDict(
         {
+            "exp_dir": Path("conformer_mmi_phone/exp"),
+            "lang_dir": Path("data/lang_phone"),
+            "feature_dim": 80,
+            "weight_decay": 1e-6,
+            "subsampling_factor": 4,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
-            # parameters for conformer
-            "feature_dim": 80,
-            "subsampling_factor": 4,
-            "use_feat_batchnorm": True,
+            "beam_size": 10,
+            "use_pruned_intersect": False,
+            "den_scale": 1.0,
+            #
+            "att_rate": 0.7,  # If not zero, use attention decoder
             "attention_dim": 512,
             "nhead": 8,
             "num_decoder_layers": 6,
-            # parameters for loss
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
-            "att_rate": 0.7,
-            # parameters for Noam
-            "weight_decay": 1e-6,
+            "is_espnet_structure": True,
+            "use_feat_batchnorm": True,
             "lr_factor": 5.0,
             "warm_step": 80000,
         }
@@ -301,11 +265,11 @@ def compute_loss(
     params: AttributeDict,
     model: nn.Module,
     batch: dict,
-    graph_compiler: BpeCtcTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     is_training: bool,
-) -> Tuple[Tensor, MetricsTracker]:
+):
     """
-    Compute CTC loss given the model and its inputs.
+    Compute MMI loss given the model and its inputs.
 
     Args:
       params:
@@ -316,9 +280,7 @@ def compute_loss(
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
       graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
+        It is used to build num_graphs and den_graphs.
       is_training:
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
@@ -326,25 +288,24 @@ def compute_loss(
     """
     device = graph_compiler.device
     feature = batch["inputs"]
-    # at entry, feature is (N, T, C)
+    # at entry, feature is [N, T, C]
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is (N, T, C)
+        # nnet_output is [N, T, C]
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
-    # `k2.intersect_dense` called in `k2.ctc_loss`
+    # `k2.intersect_dense` called in LFMMILoss
+    #
+    # TODO: If params.use_pruned_intersect is True, there is no
+    # need to call encode_supervisions
     supervision_segments, texts = encode_supervisions(
         supervisions, subsampling_factor=params.subsampling_factor
     )
-
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -352,64 +313,68 @@ def compute_loss(
         allow_truncate=params.subsampling_factor - 1,
     )
 
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
+    loss_fn = LFMMILoss(
+        graph_compiler=graph_compiler,
         output_beam=params.beam_size,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
+        den_scale=params.den_scale,
+        use_pruned_intersect=params.use_pruned_intersect,
     )
 
+    mmi_loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
+
     if params.att_rate != 0.0:
+        token_ids = graph_compiler.texts_to_ids(texts)
         with torch.set_grad_enabled(is_training):
             if hasattr(model, "module"):
                 att_loss = model.module.decoder_forward(
                     encoder_memory,
                     memory_mask,
                     token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
+                    sos_id=params.sos_id,
+                    eos_id=params.eos_id,
                 )
             else:
                 att_loss = model.decoder_forward(
                     encoder_memory,
                     memory_mask,
                     token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
+                    sos_id=params.sos_id,
+                    eos_id=params.eos_id,
                 )
-        loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
+        loss = (1.0 - params.att_rate) * mmi_loss + params.att_rate * att_loss
     else:
-        loss = ctc_loss
+        loss = mmi_loss
         att_loss = torch.tensor([0])
+
+    # train_frames and valid_frames are used for printing.
+    if is_training:
+        params.train_frames = supervision_segments[:, 2].sum().item()
+    else:
+        params.valid_frames = supervision_segments[:, 2].sum().item()
 
     assert loss.requires_grad == is_training
 
-    info = MetricsTracker()
-    info["frames"] = supervision_segments[:, 2].sum().item()
-    info["ctc_loss"] = ctc_loss.detach().cpu().item()
-    if params.att_rate != 0.0:
-        info["att_loss"] = att_loss.detach().cpu().item()
-
-    info["loss"] = loss.detach().cpu().item()
-
-    return loss, info
+    return loss, mmi_loss.detach(), att_loss.detach()
 
 
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
-    graph_compiler: BpeCtcTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
-) -> MetricsTracker:
-    """Run the validation process."""
+) -> None:
+    """Run the validation process. The validation loss
+    is saved in `params.valid_loss`.
+    """
     model.eval()
 
-    tot_loss = MetricsTracker()
-
+    tot_loss = 0.0
+    tot_mmi_loss = 0.0
+    tot_att_loss = 0.0
+    tot_frames = 0.0
     for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
+        loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
             batch=batch,
@@ -417,24 +382,43 @@ def compute_validation_loss(
             is_training=False,
         )
         assert loss.requires_grad is False
-        tot_loss = tot_loss + loss_info
+        assert mmi_loss.requires_grad is False
+        assert att_loss.requires_grad is False
+
+        loss_cpu = loss.detach().cpu().item()
+        tot_loss += loss_cpu
+
+        tot_mmi_loss += mmi_loss.detach().cpu().item()
+        tot_att_loss += att_loss.detach().cpu().item()
+
+        tot_frames += params.valid_frames
 
     if world_size > 1:
-        tot_loss.reduce(loss.device)
+        s = torch.tensor(
+            [tot_loss, tot_mmi_loss, tot_att_loss, tot_frames],
+            device=loss.device,
+        )
+        dist.all_reduce(s, op=dist.ReduceOp.SUM)
+        s = s.cpu().tolist()
+        tot_loss = s[0]
+        tot_mmi_loss = s[1]
+        tot_att_loss = s[2]
+        tot_frames = s[3]
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if loss_value < params.best_valid_loss:
+    params.valid_loss = tot_loss / tot_frames
+    params.valid_mmi_loss = tot_mmi_loss / tot_frames
+    params.valid_att_loss = tot_att_loss / tot_frames
+
+    if params.valid_loss < params.best_valid_loss:
         params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
-
-    return tot_loss
+        params.best_valid_loss = params.valid_loss
 
 
 def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: BpeCtcTrainingGraphCompiler,
+    graph_compiler: MmiTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
@@ -466,50 +450,109 @@ def train_one_epoch(
     """
     model.train()
 
-    tot_loss = MetricsTracker()
+    tot_loss = 0.0  # sum of losses over all batches
+    tot_mmi_loss = 0.0
+    tot_att_loss = 0.0
 
+    tot_frames = 0.0  # sum of frames over all batches
+    params.tot_loss = 0.0
+    params.tot_frames = 0.0
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        loss, loss_info = compute_loss(
+        loss, mmi_loss, att_loss = compute_loss(
             params=params,
             model=model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=True,
         )
-        # summary stats
-        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
+        clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2.0)
         optimizer.step()
 
+        loss_cpu = loss.detach().cpu().item()
+        mmi_loss_cpu = mmi_loss.detach().cpu().item()
+        att_loss_cpu = att_loss.detach().cpu().item()
+
+        tot_frames += params.train_frames
+        tot_loss += loss_cpu
+        tot_mmi_loss += mmi_loss_cpu
+        tot_att_loss += att_loss_cpu
+
+        params.tot_frames += params.train_frames
+        params.tot_loss += loss_cpu
+
+        tot_avg_loss = tot_loss / tot_frames
+        tot_avg_mmi_loss = tot_mmi_loss / tot_frames
+        tot_avg_att_loss = tot_att_loss / tot_frames
+
         if batch_idx % params.log_interval == 0:
+            total_duration = 0.0
+            max_cut_duration = 0.0
+            for cut in batch["supervisions"]["cut"]:
+                total_duration += cut.duration
+                max_cut_duration = max(max_cut_duration, cut.duration)
             logging.info(
-                f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}"
+                f"Epoch {params.cur_epoch}, batch {batch_idx}, "
+                f"batch avg mmi loss {mmi_loss_cpu/params.train_frames:.4f}, "
+                f"batch avg att loss {att_loss_cpu/params.train_frames:.4f}, "
+                f"batch avg loss {loss_cpu/params.train_frames:.4f}, "
+                f"total avg mmi loss: {tot_avg_mmi_loss:.4f}, "
+                f"total avg att loss: {tot_avg_att_loss:.4f}, "
+                f"total avg loss: {tot_avg_loss:.4f}, "
+                f"batch size: {batch_size}, "
+                f"total duration: {total_duration:.3f} s, "
+                f"max cut duration: {max_cut_duration:.3f} s"
             )
 
-        if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
-                loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
+                tb_writer.add_scalar(
+                    "train/current_mmi_loss",
+                    mmi_loss_cpu / params.train_frames,
+                    params.batch_idx_train,
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
+                tb_writer.add_scalar(
+                    "train/current_att_loss",
+                    att_loss_cpu / params.train_frames,
+                    params.batch_idx_train,
                 )
+                tb_writer.add_scalar(
+                    "train/current_loss",
+                    loss_cpu / params.train_frames,
+                    params.batch_idx_train,
+                )
+                tb_writer.add_scalar(
+                    "train/tot_avg_mmi_loss",
+                    tot_avg_mmi_loss,
+                    params.batch_idx_train,
+                )
+
+                tb_writer.add_scalar(
+                    "train/tot_avg_att_loss",
+                    tot_avg_att_loss,
+                    params.batch_idx_train,
+                )
+                tb_writer.add_scalar(
+                    "train/tot_avg_loss",
+                    tot_avg_loss,
+                    params.batch_idx_train,
+                )
+        if batch_idx > 0 and batch_idx % params.reset_interval == 0:
+            tot_loss = 0.0  # sum of losses over all batches
+            tot_mmi_loss = 0.0
+            tot_att_loss = 0.0
+
+            tot_frames = 0.0  # sum of frames over all batches
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
-            logging.info("Computing validation loss")
-            valid_info = compute_validation_loss(
+            compute_validation_loss(
                 params=params,
                 model=model,
                 graph_compiler=graph_compiler,
@@ -517,14 +560,33 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            logging.info(
+                f"Epoch {params.cur_epoch}, "
+                f"valid mmi loss {params.valid_mmi_loss:.4f}, "
+                f"valid att loss {params.valid_att_loss:.4f}, "
+                f"valid loss {params.valid_loss:.4f}, "
+                f"best valid loss: {params.best_valid_loss:.4f}, "
+                f"best valid epoch: {params.best_valid_epoch}"
+            )
             if tb_writer is not None:
-                valid_info.write_summary(
-                    tb_writer, "train/valid_", params.batch_idx_train
+                tb_writer.add_scalar(
+                    "train/valid_mmi_loss",
+                    params.valid_mmi_loss,
+                    params.batch_idx_train,
+                )
+                tb_writer.add_scalar(
+                    "train/valid_att_loss",
+                    params.valid_att_loss,
+                    params.batch_idx_train,
+                )
+                tb_writer.add_scalar(
+                    "train/valid_loss",
+                    params.valid_loss,
+                    params.batch_idx_train,
                 )
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    params.train_loss = loss_value
+    params.train_loss = params.tot_loss / params.tot_frames
+
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
@@ -551,7 +613,6 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
-    logging.info(params)
 
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
@@ -566,11 +627,10 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
+    graph_compiler = MmiTrainingGraphCompiler(
         params.lang_dir,
         device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
+        oov="<UNK>",
     )
 
     logging.info("About to create model")
@@ -582,10 +642,18 @@ def run(rank, world_size, args):
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
+        is_bpe=False,
+        is_espnet_structure=params.is_espnet_structure,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
+    assert model.decoder_num_class == num_classes + 1
+
+    params.sos_id = num_classes
+    params.eos_id = num_classes
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
+
+    logging.info(params)
 
     model.to(device)
     if world_size > 1:
@@ -599,7 +667,7 @@ def run(rank, world_size, args):
         weight_decay=params.weight_decay,
     )
 
-    if checkpoints:
+    if checkpoints and checkpoints["optimizer"]:
         optimizer.load_state_dict(checkpoints["optimizer"])
 
     librispeech = LibriSpeechAsrDataModule(args)
@@ -650,8 +718,6 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
-    args.lang_dir = Path(args.lang_dir)
 
     world_size = args.world_size
     assert world_size >= 1

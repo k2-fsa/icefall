@@ -25,7 +25,7 @@ This file downloads the following LibriSpeech LM files:
     - librispeech-lexicon.txt
 
 from http://www.openslr.org/resources/11
-and save them in the user provided directory.
+and saves them in the user provided directory.
 
 Files are not re-downloaded if they already exist.
 
