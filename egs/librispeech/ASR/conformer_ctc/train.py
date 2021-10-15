@@ -618,13 +618,17 @@ def run(rank, world_size, args):
         )
         batch = train_dl.dataset[cuts]
         try:
-            compute_loss(
+            optimizer.zero_grad()
+            loss, _ = compute_loss(
                 params=params,
                 model=model,
                 batch=batch,
                 graph_compiler=graph_compiler,
                 is_training=True,
             )
+            loss.backward()
+            clip_grad_norm_(model.parameters(), 5.0, 2.0)
+            optimizer.step()
             logging.info("OK!")
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
