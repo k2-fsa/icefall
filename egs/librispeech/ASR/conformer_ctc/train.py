@@ -607,19 +607,31 @@ def run(rank, world_size, args):
     valid_dl = librispeech.valid_dataloaders()
 
     from lhotse.dataset import find_pessimistic_batches
-    logging.info('Sanity check -- see if any of the batches in epoch 0 would cause OOM.')
+
+    logging.info(
+        "Sanity check -- see if any of the batches in epoch 0 would cause OOM."
+    )
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():
-        logging.info(f'* criterion: {criterion} (={crit_values[criterion]}) ...')
+        logging.info(
+            f"* criterion: {criterion} (={crit_values[criterion]}) ..."
+        )
         batch = train_dl.dataset[cuts]
         try:
-            compute_loss(params=params, model=model, batch=batch, graph_compiler=graph_compiler, is_training=True)
-            logging.info('OK!')
+            compute_loss(
+                params=params,
+                model=model,
+                batch=batch,
+                graph_compiler=graph_compiler,
+                is_training=True,
+            )
+            logging.info("OK!")
         except RuntimeError as e:
-            if 'CUDA out of memory' in str(e):
+            if "CUDA out of memory" in str(e):
                 logging.error(
-                    'Your GPU ran out of memory with the current max_duration setting. '
-                    'We recommend decreasing max_duration and trying again.'
+                    "Your GPU ran out of memory with the current "
+                    "max_duration setting. We recommend decreasing "
+                    "max_duration and trying again."
                 )
             raise
 
