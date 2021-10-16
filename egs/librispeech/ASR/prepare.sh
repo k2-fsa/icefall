@@ -3,7 +3,7 @@
 set -eou pipefail
 
 nj=15
-stage=-1
+stage=9
 stop_stage=100
 
 # We assume dl_dir (download dir) contains the following
@@ -189,6 +189,17 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
+  done
+fi
+
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    lm_dir=data/lm_training_${vocab_size}
+    mkdir -p $lm_dir
+    log "Stage 9: creating $lm_dir/lm_data.pt"
+    ./local/prepare_lm_training_data.py data/lang_bpe_${vocab_size}/bpe.model download/lm/librispeech-lm-norm.txt $lm_dir/lm_data.pt
   done
 fi
 
