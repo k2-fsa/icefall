@@ -29,7 +29,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
+        # os: [ubuntu-18.04, macos-10.15]
+        # disable macOS test for now.
+        os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
         torch: ["1.8.1"]
         k2-version: ["1.9.dev20210919"]
