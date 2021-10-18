@@ -203,7 +203,8 @@ def get_params() -> AttributeDict:
             "warm_step": 80000,
             "use_pruned_intersect": False,
             "den_scale": 1.0,
-            "use_ali_until": 13000,  # use alignments before this number of batches
+            # use alignments before this number of batches
+            "use_ali_until": 13000,
         }
     )
 

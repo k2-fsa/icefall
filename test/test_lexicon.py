@@ -26,8 +26,8 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import List
 
-import k2
 import sentencepiece as spm
 
 from icefall.lexicon import UniqLexicon
