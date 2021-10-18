@@ -28,11 +28,10 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from torch import Tensor
-
 from asr_datamodule import LibriSpeechAsrDataModule
 from lhotse.utils import fix_random_seed
 from model import TdnnLstm
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import StepLR
@@ -47,6 +46,7 @@ from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     encode_supervisions,
+    get_env_info,
     setup_logger,
     str2bool,
 )
@@ -171,6 +171,7 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
 

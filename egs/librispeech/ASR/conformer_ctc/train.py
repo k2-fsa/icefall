@@ -24,16 +24,14 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
 
-
 import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch import Tensor
-
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -48,6 +46,7 @@ from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     encode_supervisions,
+    get_env_info,
     setup_logger,
     str2bool,
 )
@@ -80,6 +79,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe_5000",
+        help="lang directory",
+    )
+
+    parser.add_argument(
         "--num-epochs",
         type=int,
         default=35,
@@ -109,7 +115,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe",
+        default="data/lang_bpe_5000",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
@@ -185,7 +191,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
             # parameters for conformer
@@ -204,6 +210,7 @@ def get_params() -> AttributeDict:
             "weight_decay": 1e-6,
             "lr_factor": 5.0,
             "warm_step": 80000,
+            "env_info": get_env_info(),
         }
     )
 

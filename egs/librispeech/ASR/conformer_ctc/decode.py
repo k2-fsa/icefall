@@ -43,6 +43,7 @@ from icefall.decode import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -142,7 +143,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe",
+        default="data/lang_bpe_5000",
         help="The lang dir",
     )
 
@@ -167,6 +168,7 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
     return params

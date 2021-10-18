@@ -21,10 +21,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Union
 
-from torch.utils.data import DataLoader
-
-from icefall.dataset.datamodule import DataModule
-from icefall.utils import str2bool
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
     BucketingSampler,
@@ -36,6 +32,10 @@ from lhotse.dataset import (
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from torch.utils.data import DataLoader
+
+from icefall.dataset.datamodule import DataModule
+from icefall.utils import str2bool
 
 
 class LibriSpeechAsrDataModule(DataModule):
@@ -162,7 +162,9 @@ class LibriSpeechAsrDataModule(DataModule):
         cuts_musan = load_manifest(self.args.feature_dir / "cuts_musan.json.gz")
 
         logging.info("About to create train dataset")
-        transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
+        transforms = [
+            CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+        ]
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "
