@@ -45,12 +45,12 @@ ICEFALL_DIR = Path(__file__).resolve().parent.parent
 egs_dir = ICEFALL_DIR / "egs/librispeech/ASR"
 lang_dir = egs_dir / "data/lang_bpe_500"
 #  cut_json = egs_dir / "data/fbank/cuts_train-clean-100.json.gz"
-cut_json = egs_dir / "data/fbank/cuts_train-clean-360.json.gz"
+#  cut_json = egs_dir / "data/fbank/cuts_train-clean-360.json.gz"
 #  cut_json = egs_dir / "data/fbank/cuts_train-other-500.json.gz"
-ali_filename = ICEFALL_DIR / "egs/librispeech/ASR/data/ali_500/train-960.pt"
+#  ali_filename = ICEFALL_DIR / "egs/librispeech/ASR/data/ali_500/train-960.pt"
 
-#  cut_json = egs_dir / "data/fbank/cuts_test-clean.json.gz"
-#  ali_filename = ICEFALL_DIR / "egs/librispeech/ASR/data/ali_500/test_clean.pt"
+cut_json = egs_dir / "data/fbank/cuts_test-clean.json.gz"
+ali_filename = ICEFALL_DIR / "egs/librispeech/ASR/data/ali_500/test_clean.pt"
 
 
 def data_exists():
@@ -62,7 +62,7 @@ def get_dataloader():
     cuts_train = cuts_train.with_features_path_prefix(egs_dir)
     train_sampler = SingleCutSampler(
         cuts_train,
-        max_duration=200,
+        max_duration=40,
         shuffle=False,
     )
 
@@ -162,7 +162,7 @@ def test():
 
         lattice = get_lattice(
             nnet_output=nnet_output,
-            HLG=HLG,
+            decoding_graph=HLG,
             supervision_segments=supervision_segments,
             search_beam=20,
             output_beam=8,

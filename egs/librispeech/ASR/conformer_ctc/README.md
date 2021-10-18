@@ -51,3 +51,27 @@ in `conformer_ctc/train.py`.
 Search `./conformer_ctc/asr_datamodule.py` for `preserve_id`.
 
 **TODO:** Add doc about how to use the extracted alignment in the other pull-request.
+
+### Step 3: Check your extracted alignments
+
+There is a file `test_ali.py` in `icefall/test` that can be used to test your
+alignments. It uses pre-computed alignments to modify a randomly generated
+`nnet_output` and it checks that we can decode the correct transcripts
+from the resulting `nnet_output`.
+
+You should get something like the following if you run that script:
+
+```
+$ ./test/test_ali.py
+['THE GOOD NATURED AUDIENCE IN PITY TO FALLEN MAJESTY SHOWED FOR ONCE GREATER DEFERENCE TO THE KING THAN TO THE MINISTER AND SUNG THE PSALM WHICH THE FORMER HAD CALLED FOR', 'THE OLD SERVANT TOLD HIM QUIETLY AS THEY CREPT BACK TO DWELL THAT THIS PASSAGE THAT LED FROM THE HUT IN THE PLEASANCE TO SHERWOOD AND THAT GEOFFREY FOR THE TIME WAS HIDING WITH THE OUTLAWS IN THE FOREST', 'FOR A WHILE SHE LAY IN HER CHAIR IN HAPPY DREAMY PLEASURE AT SUN AND BIRD AND TREE', "BUT THE ESSENCE OF LUTHER'S LECTURES IS THERE"]
+['THE GOOD NATURED AUDIENCE IN PITY TO FALLEN MAJESTY SHOWED FOR ONCE GREATER DEFERENCE TO THE KING THAN TO THE MINISTER AND SUNG THE PSALM WHICH THE FORMER HAD CALLED FOR', 'THE OLD SERVANT TOLD HIM QUIETLY AS THEY CREPT BACK TO GAMEWELL THAT THIS PASSAGE WAY LED FROM THE HUT IN THE PLEASANCE TO SHERWOOD AND THAT GEOFFREY FOR THE TIME WAS HIDING WITH THE OUTLAWS IN THE FOREST', 'FOR A WHILE SHE LAY IN HER CHAIR IN HAPPY DREAMY PLEASURE AT SUN AND BIRD AND TREE', "BUT THE ESSENCE OF LUTHER'S LECTURES IS THERE"]
+```
+
+### Step 4: Use your alignments in training
+
+Please refer to `conformer_mmi/train.py` for how usage. Some useful
+functions are:
+
+- `load_alignments()`, it loads alignment saved by `conformer_ctc/ali.py`
+- `convert_alignments_to_tensor()`, it converts alignments to PyTorch tensors
+- `lookup_alignments()`, it returns the alignments of utterances by giving the cut ID of the utterances.
