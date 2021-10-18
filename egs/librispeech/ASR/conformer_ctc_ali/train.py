@@ -379,10 +379,11 @@ def compute_loss(
                 cut_ids=cut_ids,
                 alignments=ali,
                 num_classes=nnet_output.shape[2],
+                log_score=-1,
             ).to(nnet_output)
 
             min_len = min(nnet_output.shape[1], mask.shape[1])
-            ali_scale = 500.0 / (params.batch_idx_train + 500)
+            ali_scale = 5000.0 / (params.batch_idx_train + 5000)
 
             nnet_output = nnet_output.clone()
             nnet_output[:, :min_len, :] += ali_scale * mask[:, :min_len, :]
