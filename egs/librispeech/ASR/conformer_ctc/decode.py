@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
+import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
@@ -78,6 +79,9 @@ def get_parser():
         default="attention-decoder",
         help="""Decoding method.
         Supported values are:
+            - (0) ctc-decoding. Use CTC decoding. It uses a sentence piece
+              model, i.e., lang_dir/bpe.model, to convert word pieces to words.
+              It needs neither a lexicon nor an n-gram LM.
             - (1) 1best. Extract the best path from the decoding lattice as the
               decoding result.
             - (2) nbest. Extract n paths from the decoding lattice; the path
@@ -107,7 +111,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""The scale to be applied to `lattice.scores`.
@@ -130,10 +134,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="conformer_ctc/exp",
+        help="The experiment dir",
+    )
+
+    parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_5000",
-        help="lang directory",
+        default="data/lang_bpe",
+        help="The lang dir",
     )
 
     return parser
@@ -142,7 +153,6 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
             "lm_dir": Path("data/lm"),
             # parameters for conformer
             "subsampling_factor": 4,
@@ -167,13 +177,15 @@ def get_params() -> AttributeDict:
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    HLG: k2.Fsa,
+    HLG: Optional[k2.Fsa],
+    H: Optional[k2.Fsa],
+    bpe_model: Optional[spm.SentencePieceProcessor],
     batch: dict,
     word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[List[int]]]:
+) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
 
@@ -198,7 +210,11 @@ def decode_one_batch(
       model:
         The neural model.
       HLG:
-        The decoding graph.
+        The decoding graph. Used only when params.method is NOT ctc-decoding.
+      H:
+        The ctc topo. Used only when params.method is ctc-decoding.
+      bpe_model:
+        The BPE model. Used only when params.method is ctc-decoding.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -217,7 +233,10 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = HLG.device
+    if HLG is not None:
+        device = HLG.device
+    else:
+        device = H.device
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -237,9 +256,17 @@ def decode_one_batch(
         1,
     ).to(torch.int32)
 
+    if H is None:
+        assert HLG is not None
+        decoding_graph = HLG
+    else:
+        assert HLG is None
+        assert bpe_model is not None
+        decoding_graph = H
+
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=decoding_graph,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
@@ -247,6 +274,24 @@ def decode_one_batch(
         max_active_states=params.max_active_states,
         subsampling_factor=params.subsampling_factor,
     )
+
+    if params.method == "ctc-decoding":
+        best_path = one_best_decoding(
+            lattice=lattice, use_double_scores=params.use_double_scores
+        )
+        # Note: `best_path.aux_labels` contains token IDs, not word IDs
+        # since we are using H, not HLG here.
+        #
+        # token_ids is a lit-of-list of IDs
+        token_ids = get_texts(best_path)
+
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        key = "ctc-decoding"
+        return {key: hyps}
 
     if params.method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
@@ -258,12 +303,12 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
             word_table=word_table,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
             oov="<UNK>",
         )
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
-        key = f"oracle_{params.num_paths}_lattice_score_scale_{params.lattice_score_scale}"  # noqa
+        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
         return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
@@ -277,9 +322,9 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                lattice_score_scale=params.lattice_score_scale,
+                nbest_scale=params.nbest_scale,
             )
-            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
+            key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
@@ -301,7 +346,7 @@ def decode_one_batch(
             G=G,
             num_paths=params.num_paths,
             lm_scale_list=lm_scale_list,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
@@ -327,7 +372,7 @@ def decode_one_batch(
             memory_key_padding_mask=memory_key_padding_mask,
             sos_id=sos_id,
             eos_id=eos_id,
-            lattice_score_scale=params.lattice_score_scale,
+            nbest_scale=params.nbest_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
@@ -348,12 +393,14 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    HLG: k2.Fsa,
+    HLG: Optional[k2.Fsa],
+    H: Optional[k2.Fsa],
+    bpe_model: Optional[spm.SentencePieceProcessor],
     word_table: k2.SymbolTable,
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[int], List[int]]]]:
+) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -364,7 +411,11 @@ def decode_dataset(
       model:
         The neural model.
       HLG:
-        The decoding graph.
+        The decoding graph. Used only when params.method is NOT ctc-decoding.
+      H:
+        The ctc topo. Used only when params.method is ctc-decoding.
+      bpe_model:
+        The BPE model. Used only when params.method is ctc-decoding.
       word_table:
         It is the word symbol table.
       sos_id:
@@ -399,6 +450,8 @@ def decode_dataset(
             params=params,
             model=model,
             HLG=HLG,
+            H=H,
+            bpe_model=bpe_model,
             batch=batch,
             word_table=word_table,
             G=G,
@@ -477,6 +530,8 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -504,14 +559,26 @@ def main():
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
-    HLG = k2.Fsa.from_dict(
-        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
-    )
-    HLG = HLG.to(device)
-    assert HLG.requires_grad is False
+    if params.method == "ctc-decoding":
+        HLG = None
+        H = k2.ctc_topo(
+            max_token=max_token_id,
+            modified=False,
+            device=device,
+        )
+        bpe_model = spm.SentencePieceProcessor()
+        bpe_model.load(str(params.lang_dir / "bpe.model"))
+    else:
+        H = None
+        bpe_model = None
+        HLG = k2.Fsa.from_dict(
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
+        )
+        HLG = HLG.to(device)
+        assert HLG.requires_grad is False
 
-    if not hasattr(HLG, "lm_scores"):
-        HLG.lm_scores = HLG.scores.clone()
+        if not hasattr(HLG, "lm_scores"):
+            HLG.lm_scores = HLG.scores.clone()
 
     if params.method in (
         "nbest-rescoring",
@@ -601,6 +668,8 @@ def main():
             params=params,
             model=model,
             HLG=HLG,
+            H=H,
+            bpe_model=bpe_model,
             word_table=lexicon.word_table,
             G=G,
             sos_id=sos_id,
