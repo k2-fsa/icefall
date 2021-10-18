@@ -373,7 +373,7 @@ def compute_loss(
             params.batch_idx_train > params.use_ali_until
             and params.beam_size < 8
         ):
-            logging.info("Change beam size to 8")
+            #  logging.info("Change beam size to 8")
             params.beam_size = 8
         else:
             params.beam_size = 6
