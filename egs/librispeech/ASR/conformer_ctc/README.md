@@ -50,8 +50,6 @@ in `conformer_ctc/train.py`.
 **Caution**: You have to set the parameter `preserve_id` to `True` for `CutMix`.
 Search `./conformer_ctc/asr_datamodule.py` for `preserve_id`.
 
-**TODO:** Add doc about how to use the extracted alignment in the other pull-request.
-
 ### Step 3: Check your extracted alignments
 
 There is a file `test_ali.py` in `icefall/test` that can be used to test your
@@ -69,7 +67,7 @@ $ ./test/test_ali.py
 
 ### Step 4: Use your alignments in training
 
-Please refer to `conformer_mmi/train.py` for how usage. Some useful
+Please refer to `conformer_mmi/train.py` for usage. Some useful
 functions are:
 
 - `load_alignments()`, it loads alignment saved by `conformer_ctc/ali.py`
