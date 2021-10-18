@@ -79,13 +79,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lang_bpe_5000",
-        help="lang directory",
-    )
-
-    parser.add_argument(
         "--num-epochs",
         type=int,
         default=35,
