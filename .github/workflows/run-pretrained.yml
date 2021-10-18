@@ -1,0 +1,106 @@
+# Copyright      2021  Fangjun Kuang (csukuangfj@gmail.com)
+
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: run-pre-trained-conformer-ctc
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+jobs:
+  run_pre_trained_conformer_ctc:
+    if: github.event.label.name == 'ready' || github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [3.6, 3.7, 3.8, 3.9]
+        torch: ["1.8.1"]
+        k2-version: ["1.9.dev20210919"]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip pytest
+          pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/torch_stable.html
+          pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
+
+          python3 -m pip install git+https://github.com/lhotse-speech/lhotse
+          python3 -m pip install kaldifeat
+          # We are in ./icefall and there is a file: requirements.txt in it
+          pip install -r requirements.txt
+
+      - name: Install graphviz
+        shell: bash
+        run: |
+          python3 -m pip install -qq graphviz
+          sudo apt-get -qq install graphviz
+
+      - name: Download pre-trained model
+        shell: bash
+        run: |
+          sudo apt-get -qq install git-lfs tree sox
+          cd egs/librispeech/ASR
+          mkdir tmp
+          cd tmp
+          git lfs install
+          git clone https://github.com/csukuangfj/icefall-asr-conformer-ctc-bpe-500
+          cd ..
+          tree tmp
+          soxi tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/*.flac
+          ls -lh tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/*.flac
+
+      - name: Run CTC decoding
+        shell: bash
+        run: |
+          export PYTHONPATH=$PWD:PYTHONPATH
+          cd egs/librispeech/ASR
+          ./conformer_ctc/pretrained.py \
+            --num-classes 500 \
+            --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
+            --bpe-model ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/bpe.model \
+            --method ctc-decoding \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0002.flac
+
+      - name: Run HLG decoding
+        shell: bash
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          cd egs/librispeech/ASR
+          ./conformer_ctc/pretrained.py \
+            --num-classes 500 \
+            --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
+            --words-file ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/words.txt \
+            --HLG ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/HLG.pt \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
+            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0002.flac

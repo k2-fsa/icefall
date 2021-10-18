@@ -29,7 +29,7 @@ from model import Tdnn
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import get_lattice, one_best_decoding
-from icefall.utils import AttributeDict, get_texts
+from icefall.utils import AttributeDict, get_env_info, get_texts
 
 
 def get_parser():
@@ -116,6 +116,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
     logging.info(f"{params}")
 
     device = torch.device("cpu")
@@ -175,7 +176,7 @@ def main():
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,

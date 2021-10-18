@@ -1,4 +1,5 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                    Mingshuang Luo)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -16,6 +17,7 @@
 
 
 import argparse
+import collections
 import logging
 import os
 import subprocess
@@ -27,10 +29,12 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
+import k2.version
 import kaldialign
 import lhotse
 import torch
 import torch.distributed as dist
+from torch.utils.tensorboard import SummaryWriter
 
 Pathlike = Union[str, Path]
 
@@ -233,8 +237,8 @@ def encode_supervisions(
     supervisions: dict, subsampling_factor: int
 ) -> Tuple[torch.Tensor, List[str]]:
     """
-    Encodes Lhotse's ``batch["supervisions"]`` dict into a pair of torch Tensor,
-    and a list of transcription strings.
+    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    a pair of torch Tensor, and a list of transcription strings.
 
     The supervision tensor has shape ``(batch_size, 3)``.
     Its second dimension contains information about sequence index [0],
@@ -302,6 +306,73 @@ def get_texts(
         return aux_labels.tolist()
 
 
+def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
+    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+    Returns:
+      Returns a list of lists of int, containing the token sequences we
+      decoded. For `ans[i]`, its length equals to the number of frames
+      after subsampling of the i-th utterance in the batch.
+    """
+    # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
+    label_shape = best_paths.arcs.shape().remove_axis(1)
+    # label_shape has axes [fsa][arc]
+    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
+    labels = labels.remove_values_eq(-1)
+    return labels.tolist()
+
+
+def save_alignments(
+    alignments: Dict[str, List[int]],
+    subsampling_factor: int,
+    filename: str,
+) -> None:
+    """Save alignments to a file.
+
+    Args:
+      alignments:
+        A dict containing alignments. Keys of the dict are utterances and
+        values are the corresponding framewise alignments after subsampling.
+      subsampling_factor:
+        The subsampling factor of the model.
+      filename:
+        Path to save the alignments.
+    Returns:
+      Return None.
+    """
+    ali_dict = {
+        "subsampling_factor": subsampling_factor,
+        "alignments": alignments,
+    }
+    torch.save(ali_dict, filename)
+
+
+def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
+    """Load alignments from a file.
+
+    Args:
+      filename:
+        Path to the file containing alignment information.
+        The file should be saved by :func:`save_alignments`.
+    Returns:
+      Return a tuple containing:
+        - subsampling_factor: The subsampling_factor used to compute
+          the alignments.
+        - alignments: A dict containing utterances and their corresponding
+          framewise alignment, after subsampling.
+    """
+    ali_dict = torch.load(filename)
+    subsampling_factor = ali_dict["subsampling_factor"]
+    alignments = ali_dict["alignments"]
+    return subsampling_factor, alignments
+
+
 def store_transcripts(
     filename: Pathlike, texts: Iterable[Tuple[str, str]]
 ) -> None:
@@ -339,13 +410,13 @@ def write_error_stats(
               Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
               reference words (2337 correct)
 
-        - The difference between the reference transcript and predicted results.
+        - The difference between the reference transcript and predicted result.
           An instance is given below::
 
             THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
 
-          The above example shows that the reference word is `EDISON`, but it is
-          predicted to `ADDISON` (a substitution error).
+          The above example shows that the reference word is `EDISON`,
+          but it is predicted to `ADDISON` (a substitution error).
 
           Another example is::
 
@@ -486,3 +557,76 @@ def write_error_stats(
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
     return float(tot_err_rate)
+
+
+class MetricsTracker(collections.defaultdict):
+    def __init__(self):
+        # Passing the type 'int' to the base-class constructor
+        # makes undefined items default to int() which is zero.
+        # This class will play a role as metrics tracker.
+        # It can record many metrics, including but not limited to loss.
+        super(MetricsTracker, self).__init__(int)
+
+    def __add__(self, other: "MetricsTracker") -> "MetricsTracker":
+        ans = MetricsTracker()
+        for k, v in self.items():
+            ans[k] = v
+        for k, v in other.items():
+            ans[k] = ans[k] + v
+        return ans
+
+    def __mul__(self, alpha: float) -> "MetricsTracker":
+        ans = MetricsTracker()
+        for k, v in self.items():
+            ans[k] = v * alpha
+        return ans
+
+    def __str__(self) -> str:
+        ans = ""
+        for k, v in self.norm_items():
+            norm_value = "%.4g" % v
+            ans += str(k) + "=" + str(norm_value) + ", "
+        frames = str(self["frames"])
+        ans += "over " + frames + " frames."
+        return ans
+
+    def norm_items(self) -> List[Tuple[str, float]]:
+        """
+        Returns a list of pairs, like:
+          [('ctc_loss', 0.1), ('att_loss', 0.07)]
+        """
+        num_frames = self["frames"] if "frames" in self else 1
+        ans = []
+        for k, v in self.items():
+            if k != "frames":
+                norm_value = float(v) / num_frames
+                ans.append((k, norm_value))
+        return ans
+
+    def reduce(self, device):
+        """
+        Reduce using torch.distributed, which I believe ensures that
+        all processes get the total.
+        """
+        keys = sorted(self.keys())
+        s = torch.tensor([float(self[k]) for k in keys], device=device)
+        dist.all_reduce(s, op=dist.ReduceOp.SUM)
+        for k, v in zip(keys, s.cpu().tolist()):
+            self[k] = v
+
+    def write_summary(
+        self,
+        tb_writer: SummaryWriter,
+        prefix: str,
+        batch_idx: int,
+    ) -> None:
+        """Add logging information to a TensorBoard writer.
+
+        Args:
+            tb_writer: a TensorBoard writer
+            prefix: a prefix for the name of the loss, e.g. "train/valid_",
+                or "train/current_"
+            batch_idx: The current batch index, used as the x-axis of the plot.
+        """
+        for k, v in self.norm_items():
+            tb_writer.add_scalar(prefix + k, v, batch_idx)

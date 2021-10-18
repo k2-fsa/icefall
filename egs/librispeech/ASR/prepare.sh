@@ -40,9 +40,9 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  # 5000
-  # 2000
-  # 1000
+  5000
+  2000
+  1000
   500
 )
 
@@ -59,13 +59,13 @@ log() {
 log "dl_dir: $dl_dir"
 
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "stage -1: Download LM"
+  log "Stage -1: Download LM"
   [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
   ./local/download_lm.py --out-dir=$dl_dir/lm
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "stage 0: Download data"
+  log "Stage 0: Download data"
 
   # If you have pre-downloaded it to /path/to/LibriSpeech,
   # you can create a symlink
@@ -130,7 +130,7 @@ fi
 
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "State 6: Prepare BPE based lang"
+  log "Stage 6: Prepare BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
