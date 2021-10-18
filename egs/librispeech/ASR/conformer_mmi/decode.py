@@ -43,7 +43,6 @@ from icefall.decode import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -136,15 +135,22 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc/exp",
+        default="conformer_mmi/exp_500",
         help="The experiment dir",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_5000",
+        default="data/lang_bpe_500",
         help="The lang dir",
+    )
+
+    parser.add_argument(
+        "--num-decoder-layers",
+        type=int,
+        default=6,
+        help="Number of attention decoder layers",
     )
 
     return parser
@@ -161,14 +167,12 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "nhead": 8,
             "attention_dim": 512,
-            "num_decoder_layers": 6,
             # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            "env_info": get_env_info(),
         }
     )
     return params
@@ -385,7 +389,7 @@ def decode_one_batch(
             ans[lm_scale_str] = hyps
     else:
         for lm_scale in lm_scale_list:
-            ans[lm_scale_str] = [[] * lattice.shape[0]]
+            ans["empty"] = [[] * lattice.shape[0]]
     return ans
 
 

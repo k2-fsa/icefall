@@ -17,18 +17,21 @@
 
 
 import argparse
-import logging
 import collections
+import logging
 import os
 import subprocess
+import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Any, Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
+import k2.version
 import kaldialign
+import lhotse
 import torch
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
@@ -135,17 +138,82 @@ def setup_logger(
         logging.getLogger("").addHandler(console)
 
 
-def get_env_info():
-    """
-    TODO:
-    """
+def get_git_sha1():
+    git_commit = (
+        subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .rstrip("\n")
+        .strip()
+    )
+    dirty_commit = (
+        len(
+            subprocess.run(
+                ["git", "diff", "--shortstat"],
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            .stdout.decode()
+            .rstrip("\n")
+            .strip()
+        )
+        > 0
+    )
+    git_commit = (
+        git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
+    )
+    return git_commit
+
+
+def get_git_date():
+    git_date = (
+        subprocess.run(
+            ["git", "log", "-1", "--format=%ad", "--date=local"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .rstrip("\n")
+        .strip()
+    )
+    return git_date
+
+
+def get_git_branch_name():
+    git_date = (
+        subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .rstrip("\n")
+        .strip()
+    )
+    return git_date
+
+
+def get_env_info() -> Dict[str, Any]:
+    """Get the environment information."""
     return {
-        "k2-git-sha1": None,
-        "k2-version": None,
-        "lhotse-version": None,
-        "torch-version": None,
-        "icefall-sha1": None,
-        "icefall-version": None,
+        "k2-version": k2.version.__version__,
+        "k2-build-type": k2.version.__build_type__,
+        "k2-with-cuda": k2.with_cuda,
+        "k2-git-sha1": k2.version.__git_sha1__,
+        "k2-git-date": k2.version.__git_date__,
+        "lhotse-version": lhotse.__version__,
+        "torch-cuda-available": torch.cuda.is_available(),
+        "torch-cuda-version": torch.version.cuda,
+        "python-version": sys.version[:3],
+        "icefall-git-branch": get_git_branch_name(),
+        "icefall-git-sha1": get_git_sha1(),
+        "icefall-git-date": get_git_date(),
+        "icefall-path": str(Path(__file__).resolve().parent.parent),
+        "k2-path": str(Path(k2.__file__).resolve()),
+        "lhotse-path": str(Path(lhotse.__file__).resolve()),
     }
 
 
@@ -236,6 +304,73 @@ def get_texts(
         return aux_labels
     else:
         return aux_labels.tolist()
+
+
+def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
+    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+    Returns:
+      Returns a list of lists of int, containing the token sequences we
+      decoded. For `ans[i]`, its length equals to the number of frames
+      after subsampling of the i-th utterance in the batch.
+    """
+    # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
+    label_shape = best_paths.arcs.shape().remove_axis(1)
+    # label_shape has axes [fsa][arc]
+    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
+    labels = labels.remove_values_eq(-1)
+    return labels.tolist()
+
+
+def save_alignments(
+    alignments: Dict[str, List[int]],
+    subsampling_factor: int,
+    filename: str,
+) -> None:
+    """Save alignments to a file.
+
+    Args:
+      alignments:
+        A dict containing alignments. Keys of the dict are utterances and
+        values are the corresponding framewise alignments after subsampling.
+      subsampling_factor:
+        The subsampling factor of the model.
+      filename:
+        Path to save the alignments.
+    Returns:
+      Return None.
+    """
+    ali_dict = {
+        "subsampling_factor": subsampling_factor,
+        "alignments": alignments,
+    }
+    torch.save(ali_dict, filename)
+
+
+def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
+    """Load alignments from a file.
+
+    Args:
+      filename:
+        Path to the file containing alignment information.
+        The file should be saved by :func:`save_alignments`.
+    Returns:
+      Return a tuple containing:
+        - subsampling_factor: The subsampling_factor used to compute
+          the alignments.
+        - alignments: A dict containing utterances and their corresponding
+          framewise alignment, after subsampling.
+    """
+    ali_dict = torch.load(filename)
+    subsampling_factor = ali_dict["subsampling_factor"]
+    alignments = ali_dict["alignments"]
+    return subsampling_factor, alignments
 
 
 def store_transcripts(

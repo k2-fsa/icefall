@@ -49,6 +49,8 @@ from prepare_lang import (
     write_mapping,
 )
 
+from icefall.utils import str2bool
+
 
 def lexicon_to_fst_no_sil(
     lexicon: Lexicon,
@@ -169,6 +171,20 @@ def get_args():
         """,
     )
 
+    parser.add_argument(
+        "--debug",
+        type=str2bool,
+        default=False,
+        help="""True for debugging, which will generate
+        a visualization of the lexicon FST.
+
+        Caution: If your lexicon contains hundreds of thousands
+        of lines, please set it to False!
+
+        See "test/test_bpe_lexicon.py" for usage.
+        """,
+    )
+
     return parser.parse_args()
 
 
@@ -220,6 +236,18 @@ def main():
     )
     torch.save(L.as_dict(), lang_dir / "L.pt")
     torch.save(L_disambig.as_dict(), lang_dir / "L_disambig.pt")
+
+    if args.debug:
+        labels_sym = k2.SymbolTable.from_file(lang_dir / "tokens.txt")
+        aux_labels_sym = k2.SymbolTable.from_file(lang_dir / "words.txt")
+
+        L.labels_sym = labels_sym
+        L.aux_labels_sym = aux_labels_sym
+        L.draw(f"{lang_dir / 'L.svg'}", title="L.pt")
+
+        L_disambig.labels_sym = labels_sym
+        L_disambig.aux_labels_sym = aux_labels_sym
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
 
 
 if __name__ == "__main__":

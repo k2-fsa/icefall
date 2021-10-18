@@ -11,10 +11,10 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from torch import Tensor
 from asr_datamodule import YesNoAsrDataModule
 from lhotse.utils import fix_random_seed
 from model import Tdnn
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -24,7 +24,13 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    get_env_info,
+    setup_logger,
+    str2bool,
+)
 
 
 def get_parser():
@@ -465,6 +471,7 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
 
     fix_random_seed(42)
     if world_size > 1:
