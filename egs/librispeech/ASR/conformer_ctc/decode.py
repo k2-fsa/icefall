@@ -143,7 +143,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe",
+        default="data/lang_bpe_5000",
         help="The lang dir",
     )
 

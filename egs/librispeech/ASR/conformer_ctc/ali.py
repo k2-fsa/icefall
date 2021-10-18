@@ -33,6 +33,7 @@ from icefall.utils import (
     AttributeDict,
     encode_supervisions,
     get_alignments,
+    get_env_info,
     save_alignments,
     setup_logger,
 )
@@ -62,7 +63,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe",
+        default="data/lang_bpe_5000",
         help="The lang dir",
     )
 
@@ -95,6 +96,7 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "output_beam": 10,
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
     return params
