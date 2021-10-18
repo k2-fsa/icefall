@@ -683,7 +683,8 @@ def scan_pessimistic_batches_for_oom(
                     "Your GPU ran out of memory with the current "
                     "max_duration setting. We recommend decreasing "
                     "max_duration and trying again.\n"
-                    f"Failing criterion: {criterion} (={crit_values[criterion]}) ..."
+                    f"Failing criterion: {criterion} "
+                    f"(={crit_values[criterion]}) ..."
                 )
             raise
 
