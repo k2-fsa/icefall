@@ -27,10 +27,10 @@ avg=15
   --bucketing-sampler 0 \
   --full-libri 1 \
   --exp-dir conformer_ctc/exp \
-  --lang-dir data/lang_bpe_5000 \
-  --ali-dir data/ali_5000
+  --lang-dir data/lang_bpe_500 \
+  --ali-dir data/ali_500
 ```
-and  you will get four files inside the folder `data/ali_5000`:
+and  you will get four files inside the folder `data/ali_500`:
 
 ```
 $ ls -lh data/ali_500
