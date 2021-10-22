@@ -66,11 +66,8 @@ to install ``lhotse``.
 (3) Download icefall
 --------------------
 
-``icefall`` is a collection of Python scripts, so you don't need to install it
-and we don't provide a ``setup.py`` to install it.
-
-What you need is to download it and set the environment variable ``PYTHONPATH``
-to point to it.
+``icefall`` is a collection of Python scripts; what you need is to download it
+and set the environment variable ``PYTHONPATH`` to point to it.
 
 Assume you want to place ``icefall`` in the folder ``/tmp``. The
 following commands show you how to setup ``icefall``:
