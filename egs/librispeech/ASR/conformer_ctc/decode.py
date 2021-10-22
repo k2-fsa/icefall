@@ -385,7 +385,7 @@ def decode_one_batch(
             ans[lm_scale_str] = hyps
     else:
         for lm_scale in lm_scale_list:
-            ans[lm_scale_str] = [[] * lattice.shape[0]]
+            ans[f"{lm_scale}"] = [[] * lattice.shape[0]]
     return ans
 
 
