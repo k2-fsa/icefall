@@ -36,7 +36,7 @@ from icefall.decode import (
     rescore_with_attention_decoder,
     rescore_with_whole_lattice,
 )
-from icefall.utils import AttributeDict, get_env_info, get_texts
+from icefall.utils import AttributeDict, get_env_info, get_texts, str2bool
 
 
 def get_parser():
@@ -195,6 +195,15 @@ def get_parser():
         "The sample rate has to be 16kHz.",
     )
 
+    parser.add_argument(
+        "--modified-ctc-topo",
+        type=str2bool,
+        default=False,
+        help="""True to use modified ctc topo.
+        Used only when method is ctc-decoding.
+        """,
+    )
+
     return parser
 
 
@@ -321,9 +330,10 @@ def main():
         bpe_model.load(params.bpe_model)
         max_token_id = params.num_classes - 1
 
+        logging.info(f"modified_ctc_topo: {params.modified_ctc_topo}")
         H = k2.ctc_topo(
             max_token=max_token_id,
-            modified=False,
+            modified=params.modified_ctc_topo,
             device=device,
         )
 

@@ -221,9 +221,11 @@ fi
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_phone
+  ./local/compile_hlg.py --lang-dir data/lang_phone --modified-ctc-topo True
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
+    ./local/compile_hlg.py --lang-dir $lang_dir --modified-ctc-topo true
   done
 fi

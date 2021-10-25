@@ -147,6 +147,13 @@ def get_parser():
         help="The lang dir",
     )
 
+    parser.add_argument(
+        "--modified-ctc-topo",
+        type=str2bool,
+        default=False,
+        help="True to use modified ctc topo.",
+    )
+
     return parser
 
 
@@ -563,7 +570,7 @@ def main():
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,
-            modified=False,
+            modified=params.modified_ctc_topo,
             device=device,
         )
         bpe_model = spm.SentencePieceProcessor()
@@ -571,9 +578,12 @@ def main():
     else:
         H = None
         bpe_model = None
-        HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
-        )
+        if params.modified_ctc_topo:
+            filename = params.lang_dir / "HLG_modified.pt"
+        else:
+            filename = params.lang_dir / "HLG.pt"
+        logging.info(f"Loading {filename}")
+        HLG = k2.Fsa.from_dict(torch.load(filename, map_location="cpu"))
         HLG = HLG.to(device)
         assert HLG.requires_grad is False
 
