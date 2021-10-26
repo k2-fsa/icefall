@@ -457,7 +457,8 @@ def main():
             if start >= 0:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
-        model.load_state_dict(average_checkpoints(filenames))
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
