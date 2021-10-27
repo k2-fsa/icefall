@@ -8,4 +8,5 @@ exclude = '''
     \.git
   | \.github
 )/
+  | make_kn_lm.py
 '''
