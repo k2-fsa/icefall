@@ -409,7 +409,7 @@ def main():
     if params.method in ["nbest-rescoring", "whole-lattice-rescoring"]:
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
-            logging.warning("It may take 8 minutes.")
+            logging.warning("It may take 20 seconds.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
                 first_word_disambig_id = lexicon.word_table["#0"]
 
