@@ -311,26 +311,20 @@ class TimitAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(
-            self.args.feature_dir / "cuts_TRAIN.json.gz"
-        )
+        cuts_train = load_manifest(self.args.feature_dir / "cuts_TRAIN.json.gz")
 
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(
-            self.args.feature_dir / "cuts_DEV.json.gz"
-        )
+        cuts_valid = load_manifest(self.args.feature_dir / "cuts_DEV.json.gz")
 
         return cuts_valid
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:    
+    def test_cuts(self) -> CutSet:
         logging.debug("About to get test cuts")
-        cuts_test = load_manifest(
-            self.args.feature_dir / "cuts_TEST.json.gz"
-        )
-    
+        cuts_test = load_manifest(self.args.feature_dir / "cuts_TEST.json.gz")
+
         return cuts_test

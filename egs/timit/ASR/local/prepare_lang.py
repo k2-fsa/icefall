@@ -106,7 +106,7 @@ def get_tokens(lexicon: Lexicon) -> List[str]:
     ans = set()
     for _, tokens in lexicon:
         ans.update(tokens)
-    #sorted_ans = sorted(list(ans))
+
     sorted_ans = list(ans)
     return sorted_ans
 
@@ -275,18 +275,11 @@ def lexicon_to_fst(
     loop_state = 0  # words enter and leave from here
     next_state = 1  # the next un-allocated state, will be incremented as we go.
     arcs = []
-    
-    print('token2id ori: ', token2id)
-    print('word2id ori: ', word2id)
 
     assert token2id["<eps>"] == 0
     assert word2id["<eps>"] == 0
 
     eps = 0
-    print('token2id new: ', token2id)
-    print('word2id new: ', word2id)
-
-    print(lexicon)
     for word, tokens in lexicon:
         assert len(tokens) > 0, f"{word} has no pronunciations"
         cur_state = loop_state
@@ -306,7 +299,7 @@ def lexicon_to_fst(
         # the other one to the sil_state.
         i = len(tokens) - 1
         w = word if i == 0 else eps
-        tokens[i] = tokens[i] if i >=0 else eps
+        tokens[i] = tokens[i] if i >= 0 else eps
         arcs.append([cur_state, loop_state, tokens[i], w, score])
 
     if need_self_loops:
@@ -326,7 +319,6 @@ def lexicon_to_fst(
     arcs = [[str(i) for i in arc] for arc in arcs]
     arcs = [" ".join(arc) for arc in arcs]
     arcs = "\n".join(arcs)
-    print(arcs)
     fsa = k2.Fsa.from_str(arcs, acceptor=False)
     return fsa
 
@@ -334,9 +326,8 @@ def lexicon_to_fst(
 def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
-    #out_dir = Path("data/lang_phone")
     lexicon_filename = lang_dir / "lexicon.txt"
-    
+
     lexicon = read_lexicon(lexicon_filename)
     tokens = get_tokens(lexicon)
 
@@ -386,7 +377,7 @@ def main():
         L.aux_labels_sym = k2.SymbolTable.from_file(lang_dir / "words.txt")
         L_disambig.labels_sym = L.labels_sym
         L_disambig.aux_labels_sym = L.aux_labels_sym
-        L.draw(out_dir / "L.png", title="L")
+        L.draw(lang_dir / "L.png", title="L")
         L_disambig.draw(lang_dir / "L_disambig.png", title="L_disambig")
 
 

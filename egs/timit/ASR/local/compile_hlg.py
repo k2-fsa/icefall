@@ -54,7 +54,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     """
     Args:
       lang_dir:
-        The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
+        The language directory, e.g., data/lang_phone.
 
     Return:
       An FSA representing HLG.
@@ -63,18 +63,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     max_token_id = max(lexicon.tokens)
     logging.info(f"Building ctc_topo. max_token_id: {max_token_id}")
     H = k2.ctc_topo(max_token_id)
-    
-    if Path(lang_dir / "L_disambig.pt").is_file():
-        logging.info("Loading L_disambig.pt")
-        d = torch.load(Path(lang_dir/"L_disambig.pt"))
-        L = k2.Fsa.from_dict(d)
-    else:
-        logging.info("Loading L_disambig.fst.txt")
-        with open(Path(lang_dir/"L_disambig.fst.txt")) as f:
-            L = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(L_disambig.as_dict(), Path(lang_dir / "L_disambig.pt"))
-
-    #L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
+    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
     if Path("data/lm/G.pt").is_file():
         logging.info("Loading pre-compiled G")

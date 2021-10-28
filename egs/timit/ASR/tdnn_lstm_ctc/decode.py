@@ -310,7 +310,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-       
+
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
@@ -449,7 +449,6 @@ def main():
     )
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        #load_checkpoint(f"tmp/icefall_asr_librispeech_tdnn-lstm_ctc/exp/pretrained.pt", model)
     else:
         start = params.epoch - params.avg + 1
         filenames = []
@@ -470,18 +469,6 @@ def main():
     model.eval()
 
     timit = TimitAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
-    #test_sets = ["test-clean", "test-other"]
-    #test_sets = ["test-other"]
-    #for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
-        #if test_set == "test-clean": continue
-        #if test_set == "test-other": break
-    test_set = "TEST"
     test_dl = timit.test_dataloaders()
     results_dict = decode_dataset(
         dl=test_dl,
@@ -491,7 +478,7 @@ def main():
         lexicon=lexicon,
         G=G,
     )
-
+    test_set = "TEST"
     save_results(
         params=params, test_set_name=test_set, results_dict=results_dict
     )

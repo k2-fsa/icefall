@@ -59,48 +59,43 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
       The lexicon.txt file and the train.text in lang_dir.
     """
     phones = []
-    
+
     supervisions_train = Path(manifests_dir) / "supervisions_TRAIN.json"
     lexicon = Path(lang_dir) / "lexicon.txt"
-    
+
     logging.info(f"Loading {supervisions_train}!")
-    with open(supervisions_train, 'r') as load_f:
+    with open(supervisions_train, "r") as load_f:
         load_dicts = json.load(load_f)
         for load_dict in load_dicts:
-            idx = load_dict['id']
-            text = load_dict['text']
-            phones_list = list(filter(None, text.split(' ')))
+            text = load_dict["text"]
+            phones_list = list(filter(None, text.split(" ")))
 
             for phone in phones_list:
                 if phone not in phones:
                     phones.append(phone)
-    
-    with open(lexicon, 'w') as f:
+
+    with open(lexicon, "w") as f:
         for phone in sorted(phones):
             f.write(str(phone) + "  " + str(phone))
-            f.write('\n')
+            f.write("\n")
         f.write("<UNK>  <UNK>")
-        f.write('\n')
+        f.write("\n")
 
-    return lexicon
-    
 
 def main():
     args = get_args()
     manifests_dir = Path(args.manifests_dir)
     lang_dir = Path(args.lang_dir)
 
-    logging.info(f"Generating lexicon.txt and train.text")
+    logging.info("Generating lexicon.txt")
+    prepare_lexicon(manifests_dir, lang_dir)
 
-    lexicon_file = prepare_lexicon(manifests_dir, lang_dir)
-    
 
 if __name__ == "__main__":
     formatter = (
         "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )    
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     main()
-
