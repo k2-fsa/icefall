@@ -22,7 +22,7 @@ stop_stage=100
 #      https://huggingface.co/luomingshuang/timit_lm, and the LM is based
 #	     on 39 phones.
 #	
-#	 - lm_tgmed.arpa
+#	    - lm_tgmed.arpa
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -95,7 +95,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute fbank for librispeech"
+  log "Stage 3: Compute fbank for timit"
   mkdir -p data/fbank
   ./local/compute_fbank_timit.py
 fi
