@@ -394,24 +394,16 @@ def compute_loss(
         mmi_loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
 
     if params.att_rate != 0.0:
-        token_ids = graph_compiler.texts_to_ids(texts)
+        token_ids = graph_compiler.texts_to_ids(supervisions["text"])
         with torch.set_grad_enabled(is_training):
-            if hasattr(model, "module"):
-                att_loss = model.module.decoder_forward(
-                    encoder_memory,
-                    memory_mask,
-                    token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
-                )
-            else:
-                att_loss = model.decoder_forward(
-                    encoder_memory,
-                    memory_mask,
-                    token_ids=token_ids,
-                    sos_id=graph_compiler.sos_id,
-                    eos_id=graph_compiler.eos_id,
-                )
+            mmodel = model.module if hasattr(model, "module") else model
+            att_loss = mmodel.decoder_forward(
+                encoder_memory,
+                memory_mask,
+                token_ids=token_ids,
+                sos_id=graph_compiler.sos_id,
+                eos_id=graph_compiler.eos_id,
+            )
         loss = (1.0 - params.att_rate) * mmi_loss + params.att_rate * att_loss
     else:
         loss = mmi_loss
