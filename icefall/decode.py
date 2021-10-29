@@ -732,6 +732,12 @@ def rescore_with_whole_lattice(
             logging.info(
                 f"num_arcs before pruning: {inv_lattice.arcs.num_elements()}"
             )
+            logging.info(
+                "This OOM is not an error. You can ignore it. "
+                "If your model does not converge well, or --max-duration "
+                "is too large, or the input sound file is difficult to "
+                "decode, you will meet this exception."
+            )
 
             # NOTE(fangjun): The choice of the threshold 1e-9 is arbitrary here
             # to avoid OOM. You may need to fine tune it.
