@@ -366,7 +366,7 @@ def compute_loss(
             # Note: We need to generate an unsorted version of token_ids
             # `encode_supervisions()` called above sorts text, but
             # encoder_memory and memory_mask are not sorted, so we
-            # use an usorted version `supervisions["text"]` to regenerate
+            # use an unsorted version `supervisions["text"]` to regenerate
             # the token_ids
             #
             # See https://github.com/k2-fsa/icefall/issues/97
