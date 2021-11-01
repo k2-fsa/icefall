@@ -17,13 +17,16 @@
 import k2
 import torch
 
+from icefall.decode import Nbest
 from icefall.lm.rescore import (
     add_bos,
     add_eos,
-    make_repeat_map,
+    compute_alignment,
+    conformer_lm_rescore,
     make_hyp_to_ref_map,
     make_repeat,
-    compute_alignments,
+    make_repeat_map,
+    prepare_conformer_lm_inputs,
 )
 
 
@@ -103,20 +106,51 @@ def test_make_repeat():
     assert str(b) == str(expected)
 
 
-def test_compute_alignments():
+def test_compute_alignment():
     # fmt: off
     tokens = k2.RaggedTensor([
         # utt 0
-        [1, 3], [8], [2],
+        [1, 3, 5, 8], [1,  5, 8], [2, 8, 3, 2],
         # utt 1
-        [1, 5], [9],
+        [2, 3], [2],
         ])
-    shape = k2.RaggedShape('[[x x x] [x x]]')
     # fmt: on
-    alignment = compute_alignments(tokens, shape)
-    print("maksed_src:", alignment.labels)
-    print("src:", alignment.hyp_labels)
-    print("tgt:", alignment.ref_labels)
+    shape = k2.RaggedShape("[[x x x] [x x]]")
+    alignment = compute_alignment(tokens, shape)
+    (
+        masked_src,
+        src,
+        tgt,
+        src_key_padding_mask,
+        weight,
+    ) = prepare_conformer_lm_inputs(alignment, bos_id=10, eos_id=20, blank_id=0)
+
+    #  print("masked src", masked_src)
+    #  print("src", src)
+    #  print("tgt", tgt)
+    #  print("src_key_padding_mask", src_key_padding_mask)
+    #  print("weight", weight)
+
+
+def test_conformer_lm_rescore():
+    path00 = k2.linear_fsa([1, 2, 0, 3, 0, 5])
+    path01 = k2.linear_fsa([1, 0, 5, 0])
+    path10 = k2.linear_fsa([9, 8, 0, 3, 0, 2])
+    path11 = k2.linear_fsa([9, 8, 0, 0, 3, 2])
+    path12 = k2.linear_fsa([9, 0, 8, 4, 0, 2, 3])
+
+    fsa = k2.Fsa.from_fsas([path00, path01, path10, path11, path12])
+    fsa.tokens = fsa.labels.clone()
+    shape = k2.RaggedShape("[[x x] [x x x]]")
+    nbest = Nbest(fsa, shape)
+    masked_src, src, tgt, src_key_padding_mask, weight = conformer_lm_rescore(
+        nbest, model=None, bos_id=10, eos_id=20, blank_id=0
+    )
+    print("masked src", masked_src)
+    print("src", src)
+    print("tgt", tgt)
+    print("src_key_padding_mask", src_key_padding_mask)
+    print("weight", weight)
 
 
 def main():
@@ -126,7 +160,8 @@ def main():
     test_make_repeat_map()
     test_make_hyp_to_ref_map()
     test_make_repeat()
-    test_compute_alignments()
+    test_compute_alignment()
+    test_conformer_lm_rescore()
 
 
 if __name__ == "__main__":
