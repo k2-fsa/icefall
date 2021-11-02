@@ -303,6 +303,10 @@ The commonly used options are:
 
       $ cd egs/librispeech/ASR
       $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300
+      # Caution: The above command is tested with a model with vocab size 500.
+      # The default settings in the master will not work.
+      # Please see https://github.com/k2-fsa/icefall/issues/103
+      # We will fix it later and delete this note.
 
     And the following command uses attention decoder for rescoring:
 
@@ -328,6 +332,8 @@ Usage:
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
+  # NOTE: Tested with a model with vocab size 500.
+  # It won't work for a model with vocab size 5000.
   $ ./conformer_ctc/decode.py \
       --epoch 25 \
       --avg 1 \
@@ -399,7 +405,7 @@ Download the pre-trained model
 
 The following commands describe how to download the pre-trained model:
 
-.. code-block::
+.. code-block:: bash
 
   $ cd egs/librispeech/ASR
   $ mkdir tmp
@@ -410,10 +416,23 @@ The following commands describe how to download the pre-trained model:
 .. CAUTION::
 
   You have to use ``git lfs`` to download the pre-trained model.
+  Otherwise, you will have the following issue when running ``decode.py``:
+
+    .. code-block::
+
+       _pickle.UnpicklingError: invalid load key, 'v'
+
+  To fix that issue, please use:
+
+     .. code-block:: bash
+
+        cd icefall_asr_librispeech_conformer_ctc
+        git lfs pull
+
 
 .. CAUTION::
 
-  In order to use this pre-trained model, your k2 version has to be v1.7 or later.
+  In order to use this pre-trained model, your k2 version has to be v1.9 or later.
 
 After downloading, you will have the following files:
 
