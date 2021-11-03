@@ -27,6 +27,9 @@ This script takes as input lang_dir and generates HLG from
     - G, the LM, built from data/lm/G_3_gram.fst.txt
 
 The generated HLG is saved in $lang_dir/HLG.pt
+
+If the commandline argument --modified-ctc-topo is True, the generated
+file is HLG_modified.pt
 """
 import argparse
 import logging
@@ -36,6 +39,7 @@ import k2
 import torch
 
 from icefall.lexicon import Lexicon
+from icefall.utils import str2bool
 
 
 def get_args():
@@ -46,15 +50,23 @@ def get_args():
         help="""Input and output directory.
         """,
     )
+    parser.add_argument(
+        "--modified-ctc-topo",
+        type=str2bool,
+        default=False,
+        help="True to use modified CTC topo",
+    )
 
     return parser.parse_args()
 
 
-def compile_HLG(lang_dir: str) -> k2.Fsa:
+def compile_HLG(lang_dir: str, modified_ctc_topo: bool = False) -> k2.Fsa:
     """
     Args:
       lang_dir:
         The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
+      modified_ctc_topo:
+        True to use modified CTC topo.
 
     Return:
       An FSA representing HLG.
@@ -62,17 +74,24 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     lexicon = Lexicon(lang_dir)
     max_token_id = max(lexicon.tokens)
     logging.info(f"Building ctc_topo. max_token_id: {max_token_id}")
-    H = k2.ctc_topo(max_token_id)
+    if modified_ctc_topo:
+        logging.info("Using modified CTC topo")
+    else:
+        logging.info("Using standard CTC topo")
+
+    H = k2.ctc_topo(max_token_id, modified=modified_ctc_topo)
+    logging.info(f"H.shape: {H.shape}, num_arcs: {H.num_arcs}")
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
     if Path("data/lm/G_3_gram.pt").is_file():
-        logging.info("Loading pre-compiled G_3_gram")
+        logging.info("Loading pre-compiled G_3_gram from data/lm/G_3_gram.pt")
         d = torch.load("data/lm/G_3_gram.pt")
         G = k2.Fsa.from_dict(d)
     else:
         logging.info("Loading G_3_gram.fst.txt")
         with open("data/lm/G_3_gram.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+            logging.info("Saving pre-compiled data/lm/G_3_gram.pt")
             torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
@@ -83,11 +102,13 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     logging.info("Intersecting L and G")
     LG = k2.compose(L, G)
-    logging.info(f"LG shape: {LG.shape}")
+    logging.info(f"LG shape: {LG.shape}, num_arcs: {LG.num_arcs}")
 
     logging.info("Connecting LG")
     LG = k2.connect(LG)
-    logging.info(f"LG shape after k2.connect: {LG.shape}")
+    logging.info(
+        f"LG shape after k2.connect: {LG.shape}, num_arcs: {LG.num_arcs}"
+    )
 
     logging.info(type(LG.aux_labels))
     logging.info("Determinizing LG")
@@ -106,7 +127,9 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
 
     LG = k2.remove_epsilon(LG)
-    logging.info(f"LG shape after k2.remove_epsilon: {LG.shape}")
+    logging.info(
+        f"LG shape after k2.remove_epsilon: {LG.shape}, num_arcs: {LG.num_arcs}"
+    )
 
     LG = k2.connect(LG)
     LG.aux_labels = LG.aux_labels.remove_values_eq(0)
@@ -126,7 +149,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     logging.info("Arc sorting LG")
     HLG = k2.arc_sort(HLG)
-    logging.info(f"HLG.shape: {HLG.shape}")
+    logging.info(f"HLG.shape: {HLG.shape}, num_arcs: {HLG.num_arcs}")
 
     return HLG
 
@@ -134,16 +157,23 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
+    logging.info(f"lang_dir: {args.lang_dir}")
+    logging.info(f"modified_ctc_topo: {args.modified_ctc_topo}")
 
-    if (lang_dir / "HLG.pt").is_file():
-        logging.info(f"{lang_dir}/HLG.pt already exists - skipping")
+    if args.modified_ctc_topo:
+        filename = lang_dir / "HLG_modified.pt"
+    else:
+        filename = lang_dir / "HLG.pt"
+
+    if filename.is_file():
+        logging.info(f"{filename} already exists - skipping")
         return
 
     logging.info(f"Processing {lang_dir}")
 
-    HLG = compile_HLG(lang_dir)
-    logging.info(f"Saving HLG.pt to {lang_dir}")
-    torch.save(HLG.as_dict(), f"{lang_dir}/HLG.pt")
+    HLG = compile_HLG(lang_dir, modified_ctc_topo=args.modified_ctc_topo)
+    logging.info(f"Saving {filename}")
+    torch.save(HLG.as_dict(), str(filename))
 
 
 if __name__ == "__main__":

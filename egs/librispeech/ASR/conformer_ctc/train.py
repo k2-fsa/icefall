@@ -115,6 +115,13 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--modified-ctc-topo",
+        type=str2bool,
+        default=False,
+        help="True to use modified ctc topo.",
+    )
+
     return parser
 
 
@@ -344,7 +351,9 @@ def compute_loss(
 
     token_ids = graph_compiler.texts_to_ids(texts)
 
-    decoding_graph = graph_compiler.compile(token_ids)
+    decoding_graph = graph_compiler.compile(
+        token_ids, modified=params.modified_ctc_topo
+    )
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
