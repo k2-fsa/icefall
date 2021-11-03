@@ -377,7 +377,7 @@ class GigaSpeechAsrDataModule(DataModule):
       while True:
         # self.total_train_cuts == 0 for the first run
         # self.consumed_cuts  == self.total_train_cuts for recreating dataloader
-        if self.total_train_cuts == 0 and self.consumed_cuts == self.total_train_cuts:
+        if self.total_train_cuts == 0 or self.consumed_cuts == self.total_train_cuts:
           self.train_dl = self.train_dataloaders()
           self.consumed_cuts = 0
 
