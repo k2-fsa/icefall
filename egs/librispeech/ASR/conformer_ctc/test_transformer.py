@@ -17,8 +17,7 @@
 
 
 import torch
-from torch.nn.utils.rnn import pad_sequence
-from transformer import (
+from conformer_ctc.transformer import (
     Transformer,
     add_eos,
     add_sos,
@@ -26,6 +25,7 @@ from transformer import (
     encoder_padding_mask,
     generate_square_subsequent_mask,
 )
+from torch.nn.utils.rnn import pad_sequence
 
 
 def test_encoder_padding_mask():

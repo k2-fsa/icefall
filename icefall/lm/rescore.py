@@ -32,14 +32,14 @@ We can generate the following inputs for the conformer LM model from `tokens`:
     - src
     - tgt
 by using `k2.levenshtein_alignment`.
+
+TODO(fangjun): Add more doc about rescoring with masked conformer-lm.
 """
 
 from typing import Tuple
 
 import k2
 import torch
-
-from icefall.decode import Nbest
 
 
 def make_key_padding_mask(lengths: torch.Tensor):
@@ -236,7 +236,7 @@ def make_repeat(tokens: k2.RaggedTensor) -> k2.RaggedTensor:
     >>> tokens
     [ [ [ 1 2 3 ] [ 4 5 ] [ 9 ] ] [ [ 5 8 ] [ 10 1 ] ] ]
     >>> make_repeat(tokens)
-    [ [ [ 1 2 3 ] [ 4 5 ] [ 9 ] [ 1 2 3 ] [ 4 5 ] [ 9 ] [ 1 2 3 ] [ 4 5 ] [ 9 ] ] [ [ 5 8 ] [ 10 1 ] [ 5 8 ] [ 10 1 ] ] ]
+    [ [ [ 1 2 3 ] [ 4 5 ] [ 9 ] [ 1 2 3 ] [ 4 5 ] [ 9 ] [ 1 2 3 ] [ 4 5 ] [ 9 ] ] [ [ 5 8 ] [ 10 1 ] [ 5 8 ] [ 10 1 ] ] ]  # noqa
 
     TODO: Add documentation.
 
@@ -300,6 +300,7 @@ def prepare_conformer_lm_inputs(
       alignments:
         It is computed by :func:`compute_alignment`
     """
+    device = alignment.device
     # alignment.arcs.shape has axes [fsa][state][arc]
     # we remove axis 1, i.e., state, here
     labels_shape = alignment.arcs.shape().remove_axis(1)
@@ -337,6 +338,7 @@ def prepare_conformer_lm_inputs(
         (tgt_eos_pad.size(0), tgt_eos_pad.size(1) - 1),
         fill_value=1,
         dtype=torch.float32,
+        device=device,
     )
 
     # find unmasked positions
@@ -359,52 +361,3 @@ def prepare_conformer_lm_inputs(
         src_key_padding_mask,
         weight,
     )
-
-
-def conformer_lm_rescore(
-    nbest: Nbest,
-    model: torch.nn.Module,
-    bos_id: int,
-    eos_id: int,
-    blank_id: int,
-    unmasked_weight: float = 0.25,
-    # TODO: add other arguments if needed
-) -> k2.RaggedTensor:
-    """Rescore an Nbest object with a conformer_lm model.
-
-    Args:
-      nbest:
-        It contains linear FSAs to be rescored.
-      model:
-        A conformer lm model. See "conformer_lm/train.py"
-
-    Returns:
-      Return a ragged tensor containing scores for each path
-      contained in the nbest. Its shape equals to `nbest.shape`.
-    """
-    assert hasattr(nbest.fsa, "tokens")
-    utt_path_shape = nbest.shape
-    # nbest.fsa.arcs.shape() has axes [path][state][arc]
-    # We remove the state axis here
-    path_token_shape = nbest.fsa.arcs.shape().remove_axis(1)
-
-    path_token = k2.RaggedTensor(path_token_shape, nbest.fsa.tokens)
-    path_token = path_token.remove_values_leq(0)
-
-    alignment = compute_alignment(path_token, utt_path_shape)
-    (
-        masked_src,
-        src,
-        tgt,
-        src_key_padding_mask,
-        weight,
-    ) = prepare_conformer_lm_inputs(
-        alignment,
-        bos_id=bos_id,
-        eos_id=eos_id,
-        blank_id=blank_id,
-        unmasked_weight=unmasked_weight,
-    )
-    return masked_src, src, tgt, src_key_padding_mask, weight
-    # TODO: pass masked_src, src, tgt, src_key_padding_mask, and weight
-    # to the given model

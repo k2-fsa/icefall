@@ -17,12 +17,10 @@
 import k2
 import torch
 
-from icefall.decode import Nbest
 from icefall.lm.rescore import (
     add_bos,
     add_eos,
     compute_alignment,
-    conformer_lm_rescore,
     make_hyp_to_ref_map,
     make_repeat,
     make_repeat_map,
@@ -45,6 +43,7 @@ def test_add_eos():
     expected = k2.RaggedTensor(
         [[1, 2, eos_id], [3, eos_id], [eos_id], [5, 8, 9, eos_id]]
     )
+    assert str(ragged_eos) == str(expected)
 
 
 def test_pad():
@@ -71,7 +70,7 @@ def test_make_hyp_to_ref_map():
     repeat_map = make_hyp_to_ref_map(row_splits)
     # fmt: off
     expected = torch.tensor([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3,
-        3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]).to(repeat_map)
+        3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]).to(repeat_map)  # noqa
     # fmt: on
     assert torch.all(torch.eq(repeat_map, expected))
 
@@ -82,8 +81,8 @@ def test_make_repeat_map():
     repeat_map = make_repeat_map(row_splits)
     # fmt: off
     expected = torch.tensor([0, 1, 2, 0, 1, 2, 0, 1, 2,
-        3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6,
-        3, 4, 5, 6]).to(repeat_map)
+        3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6,  # noqa
+        3, 4, 5, 6]).to(repeat_map)  # noqa
     # fmt: on
     assert torch.all(torch.eq(repeat_map, expected))
 
@@ -132,27 +131,6 @@ def test_compute_alignment():
     #  print("weight", weight)
 
 
-def test_conformer_lm_rescore():
-    path00 = k2.linear_fsa([1, 2, 0, 3, 0, 5])
-    path01 = k2.linear_fsa([1, 0, 5, 0])
-    path10 = k2.linear_fsa([9, 8, 0, 3, 0, 2])
-    path11 = k2.linear_fsa([9, 8, 0, 0, 3, 2])
-    path12 = k2.linear_fsa([9, 0, 8, 4, 0, 2, 3])
-
-    fsa = k2.Fsa.from_fsas([path00, path01, path10, path11, path12])
-    fsa.tokens = fsa.labels.clone()
-    shape = k2.RaggedShape("[[x x] [x x x]]")
-    nbest = Nbest(fsa, shape)
-    masked_src, src, tgt, src_key_padding_mask, weight = conformer_lm_rescore(
-        nbest, model=None, bos_id=10, eos_id=20, blank_id=0
-    )
-    print("masked src", masked_src)
-    print("src", src)
-    print("tgt", tgt)
-    print("src_key_padding_mask", src_key_padding_mask)
-    print("weight", weight)
-
-
 def main():
     test_add_bos()
     test_add_eos()
@@ -161,7 +139,6 @@ def main():
     test_make_hyp_to_ref_map()
     test_make_repeat()
     test_compute_alignment()
-    test_conformer_lm_rescore()
 
 
 if __name__ == "__main__":

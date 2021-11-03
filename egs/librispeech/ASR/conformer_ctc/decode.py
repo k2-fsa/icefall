@@ -26,8 +26,9 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from conformer_ctc.asr_datamodule import LibriSpeechAsrDataModule
+from conformer_ctc.conformer import Conformer
+from conformer_lm.conformer import MaskedLmConformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -37,6 +38,7 @@ from icefall.decode import (
     nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
+    rescore_with_conformer_lm,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
@@ -94,7 +96,10 @@ def get_parser():
               is the decoding result.
             - (5) attention-decoder. Extract n paths from the LM rescored
               lattice, the path with the highest score is the decoding result.
-            - (6) nbest-oracle. Its WER is the lower bound of any n-best
+            - (6) conformer-lm. In addition to attention-decoder rescoring, it
+              also uses conformer lm for rescoring. See the model in the
+              directory ./conformer_lm
+            - (7) nbest-oracle. Its WER is the lower bound of any n-best
               rescoring method can achieve. Useful for debugging n-best
               rescoring method.
         """,
@@ -106,7 +111,8 @@ def get_parser():
         default=100,
         help="""Number of paths for n-best based decoding method.
         Used only when "method" is one of the following values:
-        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
+        nbest, nbest-rescoring, attention-decoder, conformer-lm,
+        and nbest-oracle
         """,
     )
 
@@ -117,8 +123,8 @@ def get_parser():
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
-        nbest, nbest-rescoring, attention-decoder, and nbest-oracle
-        A smaller value results in more unique paths.
+        nbest, nbest-rescoring, attention-decoder, conformer_lm,
+        and nbest-oracle. A smaller value results in more unique paths.
         """,
     )
 
@@ -145,6 +151,35 @@ def get_parser():
         type=str,
         default="data/lang_bpe_5000",
         help="The lang dir",
+    )
+
+    parser.add_argument(
+        "--conformer-lm-exp-dir",
+        type=str,
+        default="conformer_lm/exp",
+        help="""The conformer lm exp dir.
+        Used only when method is conformer_lm.
+        """,
+    )
+
+    parser.add_argument(
+        "--conformer-lm-epoch",
+        type=int,
+        default=19,
+        help="""Used only when method is conformer_lm.
+        It specifies the checkpoint to use for the conformer
+        lm model.
+        """,
+    )
+
+    parser.add_argument(
+        "--conformer-lm-avg",
+        type=int,
+        default=1,
+        help="""Used only when method is conformer_lm.
+        It specifies number of checkpoints to average for
+        the conformer lm model.
+        """,
     )
 
     return parser
@@ -177,6 +212,7 @@ def get_params() -> AttributeDict:
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
+    masked_lm_model: Optional[nn.Module],
     HLG: Optional[k2.Fsa],
     H: Optional[k2.Fsa],
     bpe_model: Optional[spm.SentencePieceProcessor],
@@ -334,6 +370,7 @@ def decode_one_batch(
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "attention-decoder",
+        "conformer-lm",
     ]
 
     lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
@@ -354,7 +391,7 @@ def decode_one_batch(
             G_with_epsilon_loops=G,
             lm_scale_list=lm_scale_list,
         )
-    elif params.method == "attention-decoder":
+    elif params.method in ("attention-decoder", "conformer-lm"):
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
             lattice=lattice,
@@ -364,16 +401,32 @@ def decode_one_batch(
         # TODO: pass `lattice` instead of `rescored_lattice` to
         # `rescore_with_attention_decoder`
 
-        best_path_dict = rescore_with_attention_decoder(
-            lattice=rescored_lattice,
-            num_paths=params.num_paths,
-            model=model,
-            memory=memory,
-            memory_key_padding_mask=memory_key_padding_mask,
-            sos_id=sos_id,
-            eos_id=eos_id,
-            nbest_scale=params.nbest_scale,
-        )
+        if params.method == "attention-decoder":
+            best_path_dict = rescore_with_attention_decoder(
+                lattice=rescored_lattice,
+                num_paths=params.num_paths,
+                model=model,
+                memory=memory,
+                memory_key_padding_mask=memory_key_padding_mask,
+                sos_id=sos_id,
+                eos_id=eos_id,
+                nbest_scale=params.nbest_scale,
+            )
+        else:
+            # It uses:
+            # attention_decoder + conformer_lm
+            best_path_dict = rescore_with_conformer_lm(
+                lattice=rescored_lattice,
+                num_paths=params.num_paths,
+                model=model,
+                masked_lm_model=masked_lm_model,
+                memory=memory,
+                memory_key_padding_mask=memory_key_padding_mask,
+                sos_id=sos_id,
+                eos_id=eos_id,
+                blank_id=0,  # TODO(fangjun): pass it as an argument
+                nbest_scale=params.nbest_scale,
+            )
     else:
         assert False, f"Unsupported decoding method: {params.method}"
 
@@ -393,6 +446,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
+    masked_lm_model: Optional[nn.Module],
     HLG: Optional[k2.Fsa],
     H: Optional[k2.Fsa],
     bpe_model: Optional[spm.SentencePieceProcessor],
@@ -449,6 +503,7 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
+            masked_lm_model=masked_lm_model,
             HLG=HLG,
             H=H,
             bpe_model=bpe_model,
@@ -584,6 +639,7 @@ def main():
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "attention-decoder",
+        "conformer-lm",
     ):
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
@@ -607,7 +663,11 @@ def main():
             d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
             G = k2.Fsa.from_dict(d).to(device)
 
-        if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
+        if params.method in [
+            "whole-lattice-rescoring",
+            "attention-decoder",
+            "conformer-lm",
+        ]:
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)
@@ -655,6 +715,38 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
+    if params.method == "conformer-lm":
+        logging.info("Loading conformer lm model")
+        # Note: If the parameters does not match
+        # the one used to save the checkpoint, it will
+        # throw while calling `load_state_dict`.
+        masked_lm_model = MaskedLmConformer(
+            num_classes=num_classes,
+            d_model=params.attention_dim,
+            nhead=params.nhead,
+            num_decoder_layers=params.num_decoder_layers,
+        )
+        if params.conformer_lm_avg == 1:
+            load_checkpoint(
+                f"{params.conformer_lm_exp_dir}/epoch-{params.conformer_lm_epoch}.pt",  # noqa
+                masked_lm_model,
+            )
+        else:
+            start = params.conformer_lm_epoch - params.conformer_lm_avg + 1
+            filenames = []
+            for i in range(start, params.conformer_lm_epoch + 1):
+                if start >= 0:
+                    filenames.append(
+                        f"{params.conformer_lm_exp_dir}/epoch-{i}.pt"
+                    )
+            logging.info(f"averaging {filenames}")
+            masked_lm_model.to(device)
+            masked_lm_model.load_state_dict(
+                average_checkpoints(filenames, device=device)
+            )
+    else:
+        masked_lm_model = None
+
     librispeech = LibriSpeechAsrDataModule(args)
     # CAUTION: `test_sets` is for displaying only.
     # If you want to skip test-clean, you have to skip
@@ -668,6 +760,7 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
+            masked_lm_model=masked_lm_model,
             HLG=HLG,
             H=H,
             bpe_model=bpe_model,

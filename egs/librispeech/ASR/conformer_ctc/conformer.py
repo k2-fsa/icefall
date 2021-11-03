@@ -21,8 +21,12 @@ import warnings
 from typing import Optional, Tuple
 
 import torch
+from conformer_ctc.transformer import (
+    Supervisions,
+    Transformer,
+    encoder_padding_mask,
+)
 from torch import Tensor, nn
-from transformer import Supervisions, Transformer, encoder_padding_mask
 
 
 class Conformer(Transformer):
