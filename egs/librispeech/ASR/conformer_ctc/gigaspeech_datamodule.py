@@ -25,10 +25,10 @@ from icefall.dataset.datamodule import DataModule
 
 
 def get_context_suffix(args):
-    if args.context_window is None or args.context_window <= 0.0:
+    if args.giga_context_window is None or args.giga_context_window <= 0.0:
         ctx_suffix = ""
     else:
-        ctx_suffix = f"_{args.context_direction}{args.context_window}"
+        ctx_suffix = f"_{args.giga_context_direction}{args.giga_context_window}"
     return ctx_suffix
 
 
@@ -53,6 +53,8 @@ class GigaSpeechAsrDataModule(DataModule):
 
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
+        subparsers = parser.add_subparsers(help='seperate gigaspeech arguments from librispeech arguments')
+        parser = subparsers.add_parser(name='giga')
         super().add_arguments(parser)
         group = parser.add_argument_group(
             title='ASR data related options',
@@ -62,17 +64,20 @@ class GigaSpeechAsrDataModule(DataModule):
         )
         group.add_argument(
             '--feature-dir',
+            dest="giga_feature_dir",
             type=Path,
-            default=Path('exp/data'),
+            default=Path('exp/giga_data'),
             help='Path to directory with train/valid/test cuts.'
         )
         group.add_argument(
             '--max-duration',
+            dest="giga_max_duration",
             type=int,
             default=500.0,
             help="Maximum pooled recordings duration (seconds) in a single batch.")
         group.add_argument(
             '--bucketing-sampler',
+            dest="giga_bucketing_sampler",
             type=str2bool,
             default=False,
             help='When enabled, the batches will come from buckets of '
@@ -81,28 +86,33 @@ class GigaSpeechAsrDataModule(DataModule):
             '--num-buckets',
             type=int,
             default=30,
+            dest="giga_num_buckets",
             help='The number of buckets for the BucketingSampler'
                  '(you might want to increase it for larger datasets).')
         group.add_argument(
             '--concatenate-cuts',
+            dest="giga_concatenate_cuts",
             type=str2bool,
             default=True,
             help='When enabled, utterances (cuts) will be concatenated '
                  'to minimize the amount of padding.')
         group.add_argument(
             '--duration-factor',
+            dest="giga_duration_factor",
             type=float,
             default=1.0,
             help='Determines the maximum duration of a concatenated cut '
                  'relative to the duration of the longest cut in a batch.')
         group.add_argument(
             '--gap',
+            dest="giga_gap",
             type=float,
             default=1.0,
             help='The amount of padding (in seconds) inserted between concatenated cuts. '
                  'This padding is filled with noise when noise augmentation is used.')
         group.add_argument(
             '--on-the-fly-feats',
+            dest="giga_on_the_fly_feats",
             type=str2bool,
             default=False,
             help='When enabled, use on-the-fly cut mixing and feature extraction. '
@@ -110,12 +120,14 @@ class GigaSpeechAsrDataModule(DataModule):
         )
         group.add_argument(
             '--shuffle',
+            dest="giga_shuffle",
             type=str2bool,
             default=True,
             help='When enabled (=default), the examples will be shuffled for each epoch.'
             )
         group.add_argument(
             '--check-cuts',
+            dest="giga_check_cuts",
             type=str2bool,
             default=True,
             help='When enabled (=default), we will iterate over the whole training cut set '
@@ -126,12 +138,14 @@ class GigaSpeechAsrDataModule(DataModule):
         # GigaSpeech specific arguments
         group.add_argument(
             "--subset",
+            dest="giga_subset",
             type=str,
             default="XS",
             help="Select the GigaSpeech subset (XS|S|M|L|XL)",
         )
         group.add_argument(
             "--context-window",
+            dest="giga_context_window",
             type=float,
             default=0.0,
             help="Training cut duration in seconds. "
@@ -140,6 +154,7 @@ class GigaSpeechAsrDataModule(DataModule):
         )
         group.add_argument(
             "--context-direction",
+            dest="giga_context_direction",
             type=str,
             default="center",
             help="If context-window is 0, does nothing. "
@@ -148,6 +163,7 @@ class GigaSpeechAsrDataModule(DataModule):
         )
         group.add_argument(
             '--use-context-for-test',
+            dest="giga_use_context_for_text",
             type=str2bool,
             default=False,
             help='Should we read cuts with acoustic context or without it. '
@@ -155,24 +171,25 @@ class GigaSpeechAsrDataModule(DataModule):
         )
         group.add_argument(
             '--small-dev',
+            dest="giga_small_dev",
             type=str2bool,
             default=False,
             help='Should we use only 1000 utterances for dev (speeds up training)'
         )
 
     def validate_args(self):
-        if self.args.subset in ['L', 'XL']:
+        if self.args.giga_subset in ['L', 'XL']:
             assert (
-                self.args.shuffle == False
+                self.args.giga_shuffle == False
             ), "For GigaSpeech L/XL, you must use --shuffle 0 to avoid eagerly reading pyarrow manifests."
             assert (
-                self.args.check_cuts == False
+                self.args.giga_check_cuts == False
             ), "For GigaSpeech L/XL, you must use --check-cuts 0 to avoid eagerly reading pyarrow manifests."
             assert (
-                self.args.bucketing_sampler == False
+                self.args.giga_bucketing_sampler == False
             ), "For GigaSpeech L/XL, you must use --bucketing-sampler 0 to avoid eagerly reading pyarrow manifests."
             assert (
-                self.args.on_the_fly_feats == True
+                self.args.giga_on_the_fly_feats == True
             ), "For GigaSpeech L/XL, you must use --on-the-fly-feats 1 as we do not pre-compute them by default."
 
     def train_dataloaders(self) -> DataLoader:
@@ -183,19 +200,19 @@ class GigaSpeechAsrDataModule(DataModule):
         self.consumed_cuts = 0
 
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(self.args.feature_dir / 'cuts_musan.json.gz')
+        cuts_musan = load_manifest(self.args.giga_feature_dir / 'cuts_musan.json.gz')
 
         logging.info("About to create train dataset")
         transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
-        if self.args.concatenate_cuts:
+        if self.args.giga_concatenate_cuts:
             logging.info(f'Using cut concatenation with duration factor '
-                         f'{self.args.duration_factor} and gap {self.args.gap}.')
+                         f'{self.args.giga_duration_factor} and gap {self.args.giga_gap}.')
             # Cut concatenation should be the first transform in the list,
             # so that if we e.g. mix noise in, it will fill the gaps between different utterances.
             transforms = [
                              CutConcatenate(
-                                 duration_factor=self.args.duration_factor,
-                                 gap=self.args.gap
+                                 duration_factor=self.args.giga_duration_factor,
+                                 gap=self.args.giga_gap
                              )
                          ] + transforms
 
@@ -203,10 +220,10 @@ class GigaSpeechAsrDataModule(DataModule):
             # cuts_train,
             cut_transforms=transforms,
             return_cuts=True,
-            # check_inputs=self.args.check_cuts,
+            # check_inputs=self.args.giga_check_cuts,
         )
 
-        if self.args.on_the_fly_feats:
+        if self.args.giga_on_the_fly_feats:
             # NOTE: the PerturbSpeed transform should be added only if we remove it from data prep stage.
             # # Add on-the-fly speed perturbation; since originally it would have increased epoch
             # # size by 3, we will apply prob 2/3 and use 3x more epochs.
@@ -218,23 +235,23 @@ class GigaSpeechAsrDataModule(DataModule):
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)), num_workers=20),
                 return_cuts=True,
-                # check_inputs=self.args.check_cuts,
+                # check_inputs=self.args.giga_check_cuts,
             )
 
-        if self.args.bucketing_sampler:
+        if self.args.giga_bucketing_sampler:
             logging.info('Using BucketingSampler.')
             train_sampler = BucketingSampler(
                 cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-                num_buckets=self.args.num_buckets
+                max_duration=self.args.giga_max_duration,
+                shuffle=self.args.giga_shuffle,
+                num_buckets=self.args.giga_num_buckets
             )
         else:
             logging.info('Using SingleCutSampler.')
             train_sampler = SingleCutSampler(
                 cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
+                max_duration=self.args.giga_max_duration,
+                shuffle=self.args.giga_shuffle,
             )
         logging.info("About to create train dataloader")
         #train_dl = DataLoader(
@@ -261,32 +278,32 @@ class GigaSpeechAsrDataModule(DataModule):
         cuts_valid = self.valid_cuts()
 
         transforms = [ ]
-        if self.args.concatenate_cuts:
+        if self.args.giga_concatenate_cuts:
             transforms = [ CutConcatenate(
-                                 duration_factor=self.args.duration_factor,
-                                 gap=self.args.gap)
+                                 duration_factor=self.args.giga_duration_factor,
+                                 gap=self.args.giga_gap)
                           ] + transforms
 
 
         logging.info("About to create dev dataset")
-        if self.args.on_the_fly_feats:
+        if self.args.giga_on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cuts_valid,
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)), num_workers=8),
                 return_cuts=True,
-                check_inputs=self.args.check_cuts,
+                check_inputs=self.args.giga_check_cuts,
             )
         else:
             validate = K2SpeechRecognitionDataset(
                 # cuts_valid,
                 cut_transforms=transforms,
                 return_cuts=True,
-                # check_inputs=self.args.check_cuts,
+                # check_inputs=self.args.giga_check_cuts,
             )
         valid_sampler = SingleCutSampler(
             cuts_valid,
-            max_duration=self.args.max_duration,
+            max_duration=self.args.giga_max_duration,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
@@ -318,13 +335,13 @@ class GigaSpeechAsrDataModule(DataModule):
                 cuts_test,
                 input_strategy=(
                     OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)), num_workers=8)
-                    if self.args.on_the_fly_feats
+                    if self.args.giga_on_the_fly_feats
                     else PrecomputedFeatures()
                 ),
                 return_cuts=True,
-                check_inputs=self.args.check_cuts,
+                check_inputs=self.args.giga_check_cuts,
             )
-            sampler = SingleCutSampler(cuts_test, max_duration=self.args.max_duration)
+            sampler = SingleCutSampler(cuts_test, max_duration=self.args.giga_max_duration)
             logging.debug("About to create test dataloader")
             #test_dl = DataLoader(test, batch_size=None, sampler=sampler, num_workers=1)
             test_dl = LhotseDataLoader(test, sampler=sampler, num_workers=2)
@@ -339,32 +356,32 @@ class GigaSpeechAsrDataModule(DataModule):
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         # Note: for L and XL subsets, we are expecting that the training manifest is stored using pyarrow and pre-shuffled.
-        cuts_path_ext = 'jsonl.gz' if self.args.subset not in ['L', 'XL'] else 'arrow'
+        cuts_path_ext = 'jsonl.gz' if self.args.giga_subset not in ['L', 'XL'] else 'arrow'
         cuts_train = CutSet.from_file(
-            self.args.feature_dir
-            / f"gigaspeech_cuts_{self.args.subset}{get_context_suffix(self.args)}.{cuts_path_ext}"
+            self.args.giga_feature_dir
+            / f"gigaspeech_cuts_{self.args.giga_subset}{get_context_suffix(self.args)}.{cuts_path_ext}"
         )
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
-        if self.args.use_context_for_test:
-            path = self.args.feature_dir / f"gigaspeech_cuts_DEV{get_context_suffix(self.args)}.jsonl.gz"
+        if self.args.giga_use_context_for_test:
+            path = self.args.giga_feature_dir / f"gigaspeech_cuts_DEV{get_context_suffix(self.args)}.jsonl.gz"
         else:
-            path = self.args.feature_dir / f"gigaspeech_cuts_DEV.jsonl.gz"
+            path = self.args.giga_feature_dir / f"gigaspeech_cuts_DEV.jsonl.gz"
         logging.info(f"About to get valid cuts from {path}")
         cuts_valid = load_manifest(path)
-        if self.args.small_dev:
+        if self.args.giga_small_dev:
             return cuts_valid.subset(first=1000)
         else:
             return cuts_valid
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
-        if self.args.use_context_for_test:
-            path = self.args.feature_dir / f"gigaspeech_cuts_TEST{get_context_suffix(self.args)}.jsonl.gz"
+        if self.args.giga_use_context_for_test:
+            path = self.args.giga_feature_dir / f"gigaspeech_cuts_TEST{get_context_suffix(self.args)}.jsonl.gz"
         else:
-            path = self.args.feature_dir / f"gigaspeech_cuts_TEST.jsonl.gz"
+            path = self.args.giga_feature_dir / f"gigaspeech_cuts_TEST.jsonl.gz"
         logging.info(f"About to get test cuts from {path}")
         cuts_test = load_manifest(path)
         return cuts_test
