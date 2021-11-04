@@ -22,7 +22,6 @@ from lhotse import (
     combine,
 )
 from lhotse.recipes import prepare_gigaspeech, prepare_musan
-from lhotse.utils import is_module_available
 from icefall.utils import str2bool
 
 # Torch's multithreaded behavior needs to be disabled or it wastes a lot of CPU and
@@ -81,7 +80,7 @@ def get_parser():
     parser.add_argument(
         "--num-jobs",
         type=int,
-        default=min(5, os.cpu_count()),
+        default=min(15, os.cpu_count()),
         help="Number of parallel jobs.",
     )
     parser.add_argument(
@@ -115,6 +114,19 @@ def get_parser():
         "might currently consume excessive memory and time -- use on-the-fly feature "
         "extraction in the training script instead.",
     )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of workers for compute_and_store_features_batch.",
+    )
+    parser.add_argument(
+        "--batch-duration",
+        type=float,
+        default=600.0,
+        help="The maximum number of audio seconds in a batch"
+              "for compute_and_store_features_batch.",
+    )
     return parser
 
 
@@ -139,12 +151,6 @@ def has_no_oov(
 def main():
     args = get_parser().parse_args()
     dataset_parts = [args.subset, "DEV", "TEST"]
-    if args.subset in ["L", "XL"]:
-        assert is_module_available("pyarrow"), (
-            "Running the GigaSpeech recipe for L and XL splits "
-            "currently requires installing optional dependencies: "
-            "'pip install pyarrow pandas'."
-        )
 
     print("Parts we will prepare: ", dataset_parts)
 
@@ -159,7 +165,7 @@ def main():
         Path("/root/fangjun/data/musan"),
     )
 
-    output_dir = Path("exp/data")
+    output_dir = Path("exp/giga_data")
     print("GigaSpeech manifest preparation:")
     gigaspeech_manifests = prepare_gigaspeech(
         corpus_dir=corpus_dir,
@@ -174,21 +180,19 @@ def main():
         corpus_dir=musan_dir, output_dir=output_dir, parts=("music", "speech", "noise")
     )
 
-    ctx_suffix = get_context_suffix(args)
+    ctx_suffix = get_context_suffix(args, subparser=False)
 
     print("Feature extraction:")
     extractor = Fbank(FbankConfig(num_mel_bins=80))
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, manifests in gigaspeech_manifests.items():
-            # For L and XL partition we are going to store the manifest using pyarrow.
-            cuts_path_ext = "jsonl.gz" if partition not in ["L", "XL"] else "arrow"
             raw_cuts_path = output_dir / f"gigaspeech_cuts_{partition}_raw.jsonl.gz"
             cuts_path = (
-                output_dir / f"gigaspeech_cuts_{partition}{ctx_suffix}.{cuts_path_ext}"
+                    output_dir / f"gigaspeech_cuts_{partition}{ctx_suffix}.jsonl.gz"
             )
 
             if raw_cuts_path.is_file():
-                print(f"{partition} already exists - skipping checking transcript.")
+                print(f"{partition} already exists - skipping feature extraction.")
             else:
                 # Note this step makes the recipe different than LibriSpeech:
                 # We must filter out some utterances and remove punctuation to be consistent with Kaldi.
@@ -217,7 +221,7 @@ def main():
 
             if cuts_path.is_file():
                 print(
-                    f"{partition} already exists - skipping cutting into sub-segments and feature extraction."
+                    f"{partition} already exists - skipping cutting into sub-segments."
                 )
             else:
                 try:
@@ -241,7 +245,7 @@ def main():
                     context_direction=args.context_direction,
                 )
                 if partition in ["L", "XL"]:
-                    # Before storing manifests in the arrow format, we want to pre-shuffle them,
+                    # Before storing manifests in, we want to pre-shuffle them,
                     # as the sampler won't be able to do it later in an efficient manner.
                     cut_set = cut_set.shuffle()
 
@@ -252,13 +256,20 @@ def main():
                     #       data augmentation and feature computation for long recordings yet.
                     #       Therefore, we sacrifice some storage for the ability to precompute
                     #       features on shorter chunks, without memory blow-ups.
-                    cut_set = cut_set.compute_and_store_features(
+                    # cut_set = cut_set.compute_and_store_features(
+                    #     extractor=extractor,
+                    #     storage_path=f"{output_dir}/feats_gigaspeech_{partition}",
+                    #     # when an executor is specified, make more partitions
+                    #     num_jobs=args.num_jobs if ex is None else 80,
+                    #     executor=ex,
+                    # )
+                    cut_set = cut_set.compute_and_store_features_batch(
                         extractor=extractor,
                         storage_path=f"{output_dir}/feats_gigaspeech_{partition}",
-                        # when an executor is specified, make more partitions
-                        num_jobs=args.num_jobs if ex is None else 80,
-                        executor=ex,
+                        batch_duration=args.batch_duration,
+                        num_workers=args.num_workers,
                     )
+
 
                 cut_set.to_file(cuts_path)
 
@@ -278,13 +289,19 @@ def main():
                 )
                 .cut_into_windows(10.0)
                 .filter(lambda c: c.duration > 5)
-                .compute_and_store_features(
+                .compute_and_store_features_batch(
                     extractor=extractor,
                     storage_path=f"{output_dir}/feats_musan",
-                    num_jobs=args.num_jobs if ex is None else 80,
-                    executor=ex,
-                    storage_type=LilcomHdf5Writer,
+                    batch_duration=args.batch_duration,
+                    num_workers=args.num_workers,
                 )
+                # .compute_and_store_features(
+                #     extractor=extractor,
+                #     storage_path=f"{output_dir}/feats_musan",
+                #     num_jobs=args.num_jobs if ex is None else 80,
+                #     executor=ex,
+                #     storage_type=LilcomHdf5Writer,
+                # )
             )
             musan_cuts.to_file(musan_cuts_path)
 
