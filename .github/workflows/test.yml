@@ -33,8 +33,8 @@ jobs:
         # disable macOS test for now.
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
-        torch: ["1.8.1"]
-        k2-version: ["1.9.dev20210919"]
+        torch: ["1.8.1", "1.10"]
+        k2-version: ["1.9.dev20211101"]
 
       fail-fast: false
 
@@ -83,7 +83,10 @@ jobs:
           ls -lh
           export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
           echo $PYTHONPATH
-          pytest ./test
+          pytest -v -s ./test
+          # runt tests for conformer ctc
+          cd egs/librispeech/ASR/conformer_ctc
+          pytest -v -s
 
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
@@ -93,8 +96,8 @@ jobs:
           lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
           echo "lib_path: $lib_path"
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
-          pytest ./test
+          pytest -v -s ./test
 
           # runt tests for conformer ctc
           cd egs/librispeech/ASR/conformer_ctc
-          pytest
+          pytest -v -s
