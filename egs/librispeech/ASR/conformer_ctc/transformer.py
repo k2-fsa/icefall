@@ -41,7 +41,6 @@ class Transformer(nn.Module):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        mmi_loss: bool = True,
         use_feat_batchnorm: bool = False,
     ) -> None:
         """
@@ -70,7 +69,6 @@ class Transformer(nn.Module):
             If True, use pre-layer norm; False to use post-layer norm.
           vgg_frontend:
             True to use vgg style frontend for subsampling.
-          mmi_loss:
           use_feat_batchnorm:
             True to use batchnorm for the input layer.
         """
@@ -85,8 +83,8 @@ class Transformer(nn.Module):
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
 
-        # self.encoder_embed converts the input of shape [N, T, num_classes]
-        # to the shape [N, T//subsampling_factor, d_model].
+        # self.encoder_embed converts the input of shape (N, T, num_classes)
+        # to the shape (N, T//subsampling_factor, d_model).
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_classes -> d_model
@@ -122,14 +120,9 @@ class Transformer(nn.Module):
         )
 
         if num_decoder_layers > 0:
-            if mmi_loss:
-                self.decoder_num_class = (
-                    self.num_classes + 1
-                )  # +1 for the sos/eos symbol
-            else:
-                self.decoder_num_class = (
-                    self.num_classes
-                )  # bpe model already has sos/eos symbol
+            self.decoder_num_class = (
+                self.num_classes
+            )  # bpe model already has sos/eos symbol
 
             self.decoder_embed = nn.Embedding(
                 num_embeddings=self.decoder_num_class, embedding_dim=d_model
@@ -169,7 +162,7 @@ class Transformer(nn.Module):
         """
         Args:
           x:
-            The input tensor. Its shape is [N, T, C].
+            The input tensor. Its shape is (N, T, C).
           supervision:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
@@ -178,17 +171,17 @@ class Transformer(nn.Module):
 
         Returns:
           Return a tuple containing 3 tensors:
-            - CTC output for ctc decoding. Its shape is [N, T, C]
-            - Encoder output with shape [T, N, C]. It can be used as key and
+            - CTC output for ctc decoding. Its shape is (N, T, C)
+            - Encoder output with shape (T, N, C). It can be used as key and
               value for the decoder.
             - Encoder output padding mask. It can be used as
-              memory_key_padding_mask for the decoder. Its shape is [N, T].
+              memory_key_padding_mask for the decoder. Its shape is (N, T).
               It is None if `supervision` is None.
         """
         if self.use_feat_batchnorm:
-            x = x.permute(0, 2, 1)  # [N, T, C] -> [N, C, T]
+            x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
             x = self.feat_batchnorm(x)
-            x = x.permute(0, 2, 1)  # [N, C, T] -> [N, T, C]
+            x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision
         )
@@ -202,7 +195,7 @@ class Transformer(nn.Module):
 
         Args:
           x:
-            The model input. Its shape is [N, T, C].
+            The model input. Its shape is (N, T, C).
           supervisions:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
@@ -213,8 +206,8 @@ class Transformer(nn.Module):
             padding mask for the decoder.
         Returns:
           Return a tuple with two tensors:
-            - The encoder output, with shape [T, N, C]
-            - encoder padding mask, with shape [N, T].
+            - The encoder output, with shape (T, N, C)
+            - encoder padding mask, with shape (N, T).
               The mask is None if `supervisions` is None.
               It is used as memory key padding mask in the decoder.
         """
@@ -232,17 +225,18 @@ class Transformer(nn.Module):
         Args:
           x:
             The output tensor from the transformer encoder.
-            Its shape is [T, N, C]
+            Its shape is (T, N, C)
 
         Returns:
           Return a tensor that can be used for CTC decoding.
-          Its shape is [N, T, C]
+          Its shape is (N, T, C)
         """
         x = self.encoder_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         x = nn.functional.log_softmax(x, dim=-1)  # (N, T, C)
         return x
 
+    @torch.jit.export
     def decoder_forward(
         self,
         memory: torch.Tensor,
@@ -254,7 +248,7 @@ class Transformer(nn.Module):
         """
         Args:
           memory:
-            It's the output of the encoder with shape [T, N, C]
+            It's the output of the encoder with shape (T, N, C)
           memory_key_padding_mask:
             The padding mask from the encoder.
           token_ids:
@@ -271,11 +265,15 @@ class Transformer(nn.Module):
         """
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device)
@@ -308,6 +306,7 @@ class Transformer(nn.Module):
 
         return decoder_loss
 
+    @torch.jit.export
     def decoder_nll(
         self,
         memory: torch.Tensor,
@@ -319,7 +318,7 @@ class Transformer(nn.Module):
         """
         Args:
           memory:
-            It's the output of the encoder with shape [T, N, C]
+            It's the output of the encoder with shape (T, N, C)
           memory_key_padding_mask:
             The padding mask from the encoder.
           token_ids:
@@ -338,11 +337,15 @@ class Transformer(nn.Module):
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=eos_id)
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=-1)
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
@@ -656,25 +659,25 @@ class PositionalEncoding(nn.Module):
         self.d_model = d_model
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
-        self.pe = None
+        # not doing: self.pe = None because of errors thrown by torchscript
+        self.pe = torch.zeros(0, 0, dtype=torch.float32)
 
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
 
-        The shape of `self.pe` is [1, T1, d_model]. The shape of the input x
-        is [N, T, d_model]. If T > T1, then we change the shape of self.pe
-        to [N, T, d_model]. Otherwise, nothing is done.
+        The shape of `self.pe` is (1, T1, d_model). The shape of the input x
+        is (N, T, d_model). If T > T1, then we change the shape of self.pe
+        to (N, T, d_model). Otherwise, nothing is done.
 
         Args:
           x:
-            It is a tensor of shape [N, T, C].
+            It is a tensor of shape (N, T, C).
         Returns:
           Return None.
         """
         if self.pe is not None:
             if self.pe.size(1) >= x.size(1):
-                if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         pe = torch.zeros(x.size(1), self.d_model, dtype=torch.float32)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
@@ -685,7 +688,7 @@ class PositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
-        # Now pe is of shape [1, T, d_model], where T is x.size(1)
+        # Now pe is of shape (1, T, d_model), where T is x.size(1)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -694,10 +697,10 @@ class PositionalEncoding(nn.Module):
 
         Args:
           x:
-            Its shape is [N, T, C]
+            Its shape is (N, T, C)
 
         Returns:
-          Return a tensor of shape [N, T, C]
+          Return a tensor of shape (N, T, C)
         """
         self.extend_pe(x)
         x = x * self.xscale + self.pe[:, : x.size(1), :]
@@ -979,10 +982,7 @@ def add_sos(token_ids: List[List[int]], sos_id: int) -> List[List[int]]:
       Return a new list-of-list, where each sublist starts
       with SOS ID.
     """
-    ans = []
-    for utt in token_ids:
-        ans.append([sos_id] + utt)
-    return ans
+    return [[sos_id] + utt for utt in token_ids]
 
 
 def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
@@ -999,7 +999,4 @@ def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
       Return a new list-of-list, where each sublist ends
       with EOS ID.
     """
-    ans = []
-    for utt in token_ids:
-        ans.append(utt + [eos_id])
-    return ans
+    return [utt + [eos_id] for utt in token_ids]

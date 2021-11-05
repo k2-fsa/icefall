@@ -1,4 +1,4 @@
-Confromer CTC
+Conformer CTC
 =============
 
 This tutorial shows you how to run a conformer ctc model
@@ -20,6 +20,7 @@ In this tutorial, you will learn:
   - (2) How to start the training, either with a single GPU or multiple GPUs
   - (3) How to do decoding after training, with n-gram LM rescoring and attention decoder rescoring
   - (4) How to use a pre-trained model, provided by us
+  - (5) How to deploy your trained model in C++, without Python dependencies
 
 Data preparation
 ----------------
@@ -45,7 +46,7 @@ For example,
 
 .. code-block:: bash
 
-  $ cd egs/yesno/ASR
+  $ cd egs/librispeech/ASR
   $ ./prepare.sh --stage 0 --stop-stage 0
 
 means to run only stage 0.
@@ -171,7 +172,7 @@ The following options are used quite often:
 Pre-configured options
 ~~~~~~~~~~~~~~~~~~~~~~
 
-There are some training options, e.g., learning rate,
+There are some training options, e.g., weight decay,
 number of warmup steps, results dir, etc,
 that are not passed from the commandline.
 They are pre-configured by the function ``get_params()`` in
@@ -292,16 +293,29 @@ The commonly used options are:
 
   - ``--method``
 
-    This specifies the decoding method.
+    This specifies the decoding method. This script supports 7 decoding methods.
+    As for ctc decoding, it uses a sentence piece model to convert word pieces to words.
+    And it needs neither a lexicon nor an n-gram LM.
 
-    The following command uses attention decoder for rescoring:
+    For example, the following command uses CTC topology for decoding:
 
     .. code-block::
 
       $ cd egs/librispeech/ASR
-      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --lattice-score-scale 0.5
+      $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300
+      # Caution: The above command is tested with a model with vocab size 500.
+      # The default settings in the master will not work.
+      # Please see https://github.com/k2-fsa/icefall/issues/103
+      # We will fix it later and delete this note.
 
-  - ``--lattice-score-scale``
+    And the following command uses attention decoder for rescoring:
+
+    .. code-block::
+
+      $ cd egs/librispeech/ASR
+      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --nbest-scale 0.5
+
+  - ``--nbest-scale``
 
     It is used to scale down lattice scores so that there are more unique
     paths for rescoring.
@@ -310,6 +324,63 @@ The commonly used options are:
 
     It has the same meaning as the one during training. A larger
     value may cause OOM.
+
+Here are some results for CTC decoding with a vocab size of 500:
+
+Usage:
+
+.. code-block:: bash
+
+  $ cd egs/librispeech/ASR
+  # NOTE: Tested with a model with vocab size 500.
+  # It won't work for a model with vocab size 5000.
+  $ ./conformer_ctc/decode.py \
+      --epoch 25 \
+      --avg 1 \
+      --max-duration 300 \
+      --exp-dir conformer_ctc/exp \
+      --lang-dir data/lang_bpe_500 \
+      --method ctc-decoding
+
+The output is given below:
+
+.. code-block:: bash
+
+  2021-09-26 12:44:31,033 INFO [decode.py:537] Decoding started
+  2021-09-26 12:44:31,033 INFO [decode.py:538]
+  {'lm_dir': PosixPath('data/lm'), 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True,
+  'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8,
+  'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True,
+  'epoch': 25, 'avg': 1, 'method': 'ctc-decoding', 'num_paths': 100, 'nbest_scale': 0.5,
+  'export': False, 'exp_dir': PosixPath('conformer_ctc/exp'), 'lang_dir': PosixPath('data/lang_bpe_500'), 'full_libri': False,
+  'feature_dir': PosixPath('data/fbank'), 'max_duration': 100, 'bucketing_sampler': False, 'num_buckets': 30,
+  'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False,
+  'shuffle': True, 'return_cuts': True, 'num_workers': 2}
+  2021-09-26 12:44:31,406 INFO [lexicon.py:113] Loading pre-compiled data/lang_bpe_500/Linv.pt
+  2021-09-26 12:44:31,464 INFO [decode.py:548] device: cuda:0
+  2021-09-26 12:44:36,171 INFO [checkpoint.py:92] Loading checkpoint from conformer_ctc/exp/epoch-25.pt
+  2021-09-26 12:44:36,776 INFO [decode.py:652] Number of model parameters: 109226120
+  2021-09-26 12:44:37,714 INFO [decode.py:473] batch 0/206, cuts processed until now is 12
+  2021-09-26 12:45:15,944 INFO [decode.py:473] batch 100/206, cuts processed until now is 1328
+  2021-09-26 12:45:54,443 INFO [decode.py:473] batch 200/206, cuts processed until now is 2563
+  2021-09-26 12:45:56,411 INFO [decode.py:494] The transcripts are stored in conformer_ctc/exp/recogs-test-clean-ctc-decoding.txt
+  2021-09-26 12:45:56,592 INFO [utils.py:331] [test-clean-ctc-decoding] %WER 3.26% [1715 / 52576, 163 ins, 128 del, 1424 sub ]
+  2021-09-26 12:45:56,807 INFO [decode.py:506] Wrote detailed error stats to conformer_ctc/exp/errs-test-clean-ctc-decoding.txt
+  2021-09-26 12:45:56,808 INFO [decode.py:522]
+  For test-clean, WER of different settings are:
+  ctc-decoding    3.26    best for test-clean
+
+  2021-09-26 12:45:57,362 INFO [decode.py:473] batch 0/203, cuts processed until now is 15
+  2021-09-26 12:46:35,565 INFO [decode.py:473] batch 100/203, cuts processed until now is 1477
+  2021-09-26 12:47:15,106 INFO [decode.py:473] batch 200/203, cuts processed until now is 2922
+  2021-09-26 12:47:16,131 INFO [decode.py:494] The transcripts are stored in conformer_ctc/exp/recogs-test-other-ctc-decoding.txt
+  2021-09-26 12:47:16,208 INFO [utils.py:331] [test-other-ctc-decoding] %WER 8.21% [4295 / 52343, 396 ins, 315 del, 3584 sub ]
+  2021-09-26 12:47:16,432 INFO [decode.py:506] Wrote detailed error stats to conformer_ctc/exp/errs-test-other-ctc-decoding.txt
+  2021-09-26 12:47:16,432 INFO [decode.py:522]
+  For test-other, WER of different settings are:
+  ctc-decoding    8.21    best for test-other
+
+  2021-09-26 12:47:16,433 INFO [decode.py:680] Done!
 
 Pre-trained Model
 -----------------
@@ -334,7 +405,7 @@ Download the pre-trained model
 
 The following commands describe how to download the pre-trained model:
 
-.. code-block::
+.. code-block:: bash
 
   $ cd egs/librispeech/ASR
   $ mkdir tmp
@@ -345,6 +416,23 @@ The following commands describe how to download the pre-trained model:
 .. CAUTION::
 
   You have to use ``git lfs`` to download the pre-trained model.
+  Otherwise, you will have the following issue when running ``decode.py``:
+
+    .. code-block::
+
+       _pickle.UnpicklingError: invalid load key, 'v'
+
+  To fix that issue, please use:
+
+     .. code-block:: bash
+
+        cd icefall_asr_librispeech_conformer_ctc
+        git lfs pull
+
+
+.. CAUTION::
+
+  In order to use this pre-trained model, your k2 version has to be v1.9 or later.
 
 After downloading, you will have the following files:
 
@@ -377,7 +465,6 @@ After downloading, you will have the following files:
   6 directories, 11 files
 
 **File descriptions**:
-
   - ``data/lang_bpe/HLG.pt``
 
       It is the decoding graph.
@@ -409,9 +496,9 @@ After downloading, you will have the following files:
 
       It contains some test sound files from LibriSpeech ``test-clean`` dataset.
 
-  - `test_waves/trans.txt`
+  - ``test_waves/trans.txt``
 
-      It contains the reference transcripts for the sound files in `test_waves/`.
+      It contains the reference transcripts for the sound files in ``test_waves/``.
 
 The information of the test sound files is listed below:
 
@@ -458,11 +545,57 @@ Usage
 
 displays the help information.
 
-It supports three decoding methods:
+It supports 4 decoding methods:
 
+  - CTC decoding
   - HLG decoding
   - HLG + n-gram LM rescoring
   - HLG + n-gram LM rescoring + attention decoder rescoring
+
+CTC decoding
+^^^^^^^^^^^^
+
+CTC decoding uses the best path of the decoding lattice as the decoding result
+without any LM or lexicon.
+
+The command to run CTC decoding is:
+
+.. code-block:: bash
+
+  $ cd egs/librispeech/ASR
+  $ ./conformer_ctc/pretrained.py \
+    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
+    --bpe-model ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/bpe.model \
+    --method ctc-decoding \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
+    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+
+The output is given below:
+
+.. code-block::
+
+  2021-10-13 11:21:50,896 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:21:50,896 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:21:56,669 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:21:56,670 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:21:56,683 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:21:57,341 INFO [pretrained.py:290] Building CTC topology
+  2021-10-13 11:21:57,625 INFO [lexicon.py:113] Loading pre-compiled tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/Linv.pt
+  2021-10-13 11:21:57,679 INFO [pretrained.py:299] Loading BPE model
+  2021-10-13 11:22:00,076 INFO [pretrained.py:314] Use CTC decoding
+  2021-10-13 11:22:00,087 INFO [pretrained.py:400] 
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
+  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
+
+  2021-10-13 11:22:00,087 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding
 ^^^^^^^^^^^^
@@ -486,14 +619,14 @@ The output is given below:
 
 .. code-block::
 
-  2021-08-20 11:03:05,712 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:03:05,712 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:03:11,345 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:03:18,442 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:03:18,444 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:03:18,507 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:03:18,795 INFO [pretrained.py:300] Use HLG decoding
-  2021-08-20 11:03:19,149 INFO [pretrained.py:339]
+  2021-10-13 11:25:19,458 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:25:19,458 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:25:25,342 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:25:25,343 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:25:25,356 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:25:26,026 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:25:33,735 INFO [pretrained.py:359] Use HLG decoding
+  2021-10-13 11:25:34,013 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -504,7 +637,7 @@ The output is given below:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:03:19,149 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:25:34,014 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding + LM rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -532,15 +665,15 @@ Its output is:
 
 .. code-block::
 
-  2021-08-20 11:12:17,565 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:12:17,565 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:12:23,728 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:12:30,035 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-08-20 11:13:10,779 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:13:10,787 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:13:10,798 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:13:11,085 INFO [pretrained.py:305] Use HLG decoding + LM rescoring
-  2021-08-20 11:13:11,736 INFO [pretrained.py:339]
+  2021-10-13 11:28:19,129 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:28:19,129 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:28:23,531 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:28:23,532 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:28:23,544 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:28:24,141 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:28:30,752 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
+  2021-10-13 11:28:48,308 INFO [pretrained.py:364] Use HLG decoding + LM rescoring
+  2021-10-13 11:28:48,815 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -551,7 +684,7 @@ Its output is:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:13:11,737 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:28:48,815 INFO [pretrained.py:402] Decoding Done
 
 HLG decoding + LM rescoring + attention decoder rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -573,7 +706,7 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
     --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 1.3 \
     --attention-decoder-scale 1.2 \
-    --lattice-score-scale 0.5 \
+    --nbest-scale 0.5 \
     --num-paths 100 \
     --sos-id 1 \
     --eos-id 1 \
@@ -585,15 +718,15 @@ The output is below:
 
 .. code-block::
 
-  2021-08-20 11:19:11,397 INFO [pretrained.py:217] device: cuda:0
-  2021-08-20 11:19:11,397 INFO [pretrained.py:219] Creating model
-  2021-08-20 11:19:17,354 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-08-20 11:19:24,615 INFO [pretrained.py:246] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-08-20 11:20:04,576 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-08-20 11:20:04,584 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-08-20 11:20:04,595 INFO [pretrained.py:271] Decoding started
-  2021-08-20 11:20:04,854 INFO [pretrained.py:313] Use HLG + LM rescoring + attention decoder rescoring
-  2021-08-20 11:20:05,805 INFO [pretrained.py:339]
+  2021-10-13 11:29:50,106 INFO [pretrained.py:236] device: cuda:0
+  2021-10-13 11:29:50,106 INFO [pretrained.py:238] Creating model
+  2021-10-13 11:29:56,063 INFO [pretrained.py:255] Constructing Fbank computer
+  2021-10-13 11:29:56,063 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
+  2021-10-13 11:29:56,077 INFO [pretrained.py:271] Decoding started
+  2021-10-13 11:29:56,770 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
+  2021-10-13 11:30:04,023 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
+  2021-10-13 11:30:18,163 INFO [pretrained.py:372] Use HLG + LM rescoring + attention decoder rescoring
+  2021-10-13 11:30:19,367 INFO [pretrained.py:400] 
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
@@ -604,7 +737,7 @@ The output is below:
   ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-08-20 11:20:05,805 INFO [pretrained.py:341] Decoding Done
+  2021-10-13 11:30:19,367 INFO [pretrained.py:402] Decoding Done
 
 Colab notebook
 --------------
@@ -625,3 +758,119 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
 
 **Congratulations!** You have finished the librispeech ASR recipe with
 conformer CTC models in ``icefall``.
+
+If you want to deploy your trained model in C++, please read the following section.
+
+Deployment with C++
+-------------------
+
+This section describes how to deploy your trained model in C++, without
+Python dependencies.
+
+We assume you have run ``./prepare.sh`` and have the following directories available:
+
+.. code-block:: bash
+
+    data
+    |-- lang_bpe
+
+Also, we assume your checkpoints are saved in ``conformer_ctc/exp``.
+
+If you know that averaging 20 checkpoints starting from ``epoch-30.pt`` yields the
+lowest WER, you can run the following commands
+
+.. code-block::
+
+  $ cd egs/librispeech/ASR
+  $ ./conformer_ctc/export.py \
+      --epoch 30 \
+      --avg 20 \
+      --jit 1 \
+      --lang-dir data/lang_bpe \
+      --exp-dir conformer_ctc/exp
+
+to get a torch scripted model saved in ``conformer_ctc/exp/cpu_jit.pt``.
+
+Now you have all needed files ready. Let us compile k2 from source:
+
+.. code-block:: bash
+
+  $ cd $HOME
+  $ git clone https://github.com/k2-fsa/k2
+  $ cd k2
+  $ git checkout v2.0-pre
+
+.. CAUTION::
+
+  You have to switch to the branch ``v2.0-pre``!
+
+.. code-block:: bash
+
+  $ mkdir build-release
+  $ cd build-release
+  $ cmake -DCMAKE_BUILD_TYPE=Release ..
+  $ make -j decode
+  # You will find an executable: `./bin/decode`
+
+Now you are ready to go!
+
+To view the usage of ``./bin/decode``, run:
+
+.. code-block::
+
+  $ ./bin/decode
+
+It will show you the following message:
+
+.. code-block::
+
+  Please provide --jit_pt
+
+    (1) CTC decoding
+      ./bin/decode \
+        --use_ctc_decoding true \
+        --jit_pt <path to exported torch script pt file> \
+        --bpe_model <path to pretrained BPE model> \
+        /path/to/foo.wav \
+        /path/to/bar.wav \
+        <more wave files if any>
+    (2) HLG decoding
+      ./bin/decode \
+        --use_ctc_decoding false \
+        --jit_pt <path to exported torch script pt file> \
+        --hlg <path to HLG.pt> \
+        --word-table <path to words.txt> \
+        /path/to/foo.wav \
+        /path/to/bar.wav \
+        <more wave files if any>
+
+     --use_gpu false to use CPU
+     --use_gpu true to use GPU
+
+``./bin/decode`` supports two types of decoding at present: CTC decoding and HLG decoding.
+
+CTC decoding
+^^^^^^^^^^^^
+
+You need to provide:
+
+  - ``--jit_pt``, this is the file generated by ``conformer_ctc/export.py``. You can find it
+    in ``conformer_ctc/exp/cpu_jit.pt``.
+  - ``--bpe_model``, this is a sentence piece model generated by ``prepare.sh``. You can find
+    it in ``data/lang_bpe/bpe.model``.
+
+
+HLG decoding
+^^^^^^^^^^^^
+
+You need to provide:
+
+  - ``--jit_pt``, this is the same file as in CTC decoding.
+  - ``--hlg``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/HLG.pt``.
+  - ``--word-table``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/words.txt``.
+
+We do provide a Colab notebook, showing you how to run a torch scripted model in C++.
+Please see |librispeech asr conformer ctc torch script colab notebook|
+
+.. |librispeech asr conformer ctc torch script colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/drive/1BIGLWzS36isskMXHKcqC9ysN6pspYXs_?usp=sharing

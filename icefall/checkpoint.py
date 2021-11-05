@@ -120,22 +120,26 @@ def load_checkpoint(
     return checkpoint
 
 
-def average_checkpoints(filenames: List[Path]) -> dict:
+def average_checkpoints(
+    filenames: List[Path], device: torch.device = torch.device("cpu")
+) -> dict:
     """Average a list of checkpoints.
 
     Args:
       filenames:
         Filenames of the checkpoints to be averaged. We assume all
         checkpoints are saved by :func:`save_checkpoint`.
+      device:
+        Move checkpoints to this device before averaging.
     Returns:
       Return a dict (i.e., state_dict) which is the average of all
       model state dicts contained in the checkpoints.
     """
     n = len(filenames)
 
-    avg = torch.load(filenames[0], map_location="cpu")["model"]
+    avg = torch.load(filenames[0], map_location=device)["model"]
     for i in range(1, n):
-        state_dict = torch.load(filenames[i], map_location="cpu")["model"]
+        state_dict = torch.load(filenames[i], map_location=device)["model"]
         for k in avg:
             avg[k] += state_dict[k]
 

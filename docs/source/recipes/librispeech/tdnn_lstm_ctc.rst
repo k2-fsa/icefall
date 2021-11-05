@@ -153,10 +153,6 @@ Some commonly used options are:
     will save the averaged model to ``tdnn_lstm_ctc/exp/pretrained.pt``.
     See :ref:`tdnn_lstm_ctc use a pre-trained model` for how to use it.
 
-.. HINT::
-
-   There are several decoding methods provided in `tdnn_lstm_ctc/decode.py <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/tdnn_lstm_ctc/train.py>`_, you can change the decoding method by modifying ``method`` parameter in function ``get_params()``.
-
 
 .. _tdnn_lstm_ctc use a pre-trained model:
 
@@ -167,6 +163,16 @@ We have uploaded the pre-trained model to
 `<https://huggingface.co/pkufool/icefall_asr_librispeech_tdnn-lstm_ctc>`_.
 
 The following shows you how to use the pre-trained model.
+
+
+Install kaldifeat
+~~~~~~~~~~~~~~~~~
+
+`kaldifeat <https://github.com/csukuangfj/kaldifeat>`_ is used to
+extract features for a single sound file or multiple sound files
+at the same time.
+
+Please refer to `<https://github.com/csukuangfj/kaldifeat>`_ for installation.
 
 Download the pre-trained model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -182,6 +188,10 @@ Download the pre-trained model
 .. CAUTION::
 
   You have to use ``git lfs`` to download the pre-trained model.
+
+.. CAUTION::
+
+  In order to use this pre-trained model, your k2 version has to be v1.7 or later.
 
 After downloading, you will have the following files:
 
@@ -212,13 +222,75 @@ After downloading, you will have the following files:
 
   6 directories, 10 files
 
+**File descriptions**:
 
-Download kaldifeat
-~~~~~~~~~~~~~~~~~~
+  - ``data/lang_phone/HLG.pt``
 
-`kaldifeat <https://github.com/csukuangfj/kaldifeat>`_ is used for extracting
-features from a single or multiple sound files. Please refer to
-`<https://github.com/csukuangfj/kaldifeat>`_ to install ``kaldifeat`` first.
+      It is the decoding graph.
+
+  - ``data/lang_phone/tokens.txt``
+
+      It contains tokens and their IDs.
+
+  - ``data/lang_phone/words.txt``
+
+      It contains words and their IDs.
+
+  - ``data/lm/G_4_gram.pt``
+
+      It is a 4-gram LM, useful for LM rescoring.
+
+  - ``exp/pretrained.pt``
+
+      It contains pre-trained model parameters, obtained by averaging
+      checkpoints from ``epoch-14.pt`` to ``epoch-19.pt``.
+      Note: We have removed optimizer ``state_dict`` to reduce file size.
+
+  - ``test_waves/*.flac``
+
+      It contains some test sound files from LibriSpeech ``test-clean`` dataset.
+
+  - ``test_waves/trans.txt``
+
+      It contains the reference transcripts for the sound files in ``test_waves/``.
+
+The information of the test sound files is listed below:
+
+.. code-block:: bash
+
+  $ soxi tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/*.flac
+
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac'
+  Channels       : 1
+  Sample Rate    : 16000
+  Precision      : 16-bit
+  Duration       : 00:00:06.62 = 106000 samples ~ 496.875 CDDA sectors
+  File Size      : 116k
+  Bit Rate       : 140k
+  Sample Encoding: 16-bit FLAC
+
+
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac'
+  Channels       : 1
+  Sample Rate    : 16000
+  Precision      : 16-bit
+  Duration       : 00:00:16.71 = 267440 samples ~ 1253.62 CDDA sectors
+  File Size      : 343k
+  Bit Rate       : 164k
+  Sample Encoding: 16-bit FLAC
+
+
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac'
+  Channels       : 1
+  Sample Rate    : 16000
+  Precision      : 16-bit
+  Duration       : 00:00:04.83 = 77200 samples ~ 361.875 CDDA sectors
+  File Size      : 105k
+  Bit Rate       : 174k
+  Sample Encoding: 16-bit FLAC
+
+  Total Duration of 3 files: 00:00:28.16
+
 
 Inference with a pre-trained model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -21,7 +21,7 @@ Installation
 .. |torch_versions| image:: ./images/torch-1.6.0_1.7.0_1.7.1_1.8.0_1.8.1_1.9.0-green.svg
   :alt: Supported PyTorch versions
 
-.. |k2_versions| image:: ./images/k2-v-1.7.svg
+.. |k2_versions| image:: ./images/k2-v1.9-blueviolet.svg
   :alt: Supported k2 versions
 
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
@@ -35,12 +35,12 @@ installs its dependency PyTorch, which can be reused by ``lhotse``.
 (1) Install k2
 --------------
 
-Please refer to `<https://k2.readthedocs.io/en/latest/installation/index.html>`_
+Please refer to `<https://k2-fsa.github.io/k2/installation/index.html>`_
 to install ``k2``.
 
 .. CAUTION::
 
-  You need to install ``k2`` with a version at least **v1.7**.
+  You need to install ``k2`` with a version at least **v1.9**.
 
 .. HINT::
 
@@ -66,11 +66,8 @@ to install ``lhotse``.
 (3) Download icefall
 --------------------
 
-``icefall`` is a collection of Python scripts, so you don't need to install it
-and we don't provide a ``setup.py`` to install it.
-
-What you need is to download it and set the environment variable ``PYTHONPATH``
-to point to it.
+``icefall`` is a collection of Python scripts; what you need is to download it
+and set the environment variable ``PYTHONPATH`` to point to it.
 
 Assume you want to place ``icefall`` in the folder ``/tmp``. The
 following commands show you how to setup ``icefall``:

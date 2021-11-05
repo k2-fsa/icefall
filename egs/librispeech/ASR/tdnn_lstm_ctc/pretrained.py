@@ -34,7 +34,7 @@ from icefall.decode import (
     one_best_decoding,
     rescore_with_whole_lattice,
 )
-from icefall.utils import AttributeDict, get_texts
+from icefall.utils import AttributeDict, get_env_info, get_texts
 
 
 def get_parser():
@@ -159,6 +159,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
     logging.info(f"{params}")
 
     device = torch.device("cpu")
@@ -218,11 +219,11 @@ def main():
     features = pad_sequence(
         features, batch_first=True, padding_value=math.log(1e-10)
     )
-    features = features.permute(0, 2, 1)  # now features is [N, C, T]
+    features = features.permute(0, 2, 1)  # now features is (N, C, T)
 
     with torch.no_grad():
         nnet_output = model(features)
-        # nnet_output is [N, T, C]
+        # nnet_output is (N, T, C)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(
@@ -232,7 +233,7 @@ def main():
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,

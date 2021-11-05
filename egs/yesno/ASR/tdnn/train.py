@@ -4,17 +4,17 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional
+from typing import Optional, Tuple
 
 import k2
 import torch
-import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
 from asr_datamodule import YesNoAsrDataModule
 from lhotse.utils import fix_random_seed
 from model import Tdnn
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -24,7 +24,13 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    get_env_info,
+    setup_logger,
+    str2bool,
+)
 
 
 def get_parser():
@@ -122,6 +128,8 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval` is 0
 
+        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+
         - beam_size: It is used in k2.ctc_loss
 
         - reduction: It is used in k2.ctc_loss
@@ -142,6 +150,7 @@ def get_params() -> AttributeDict:
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
             "log_interval": 10,
+            "reset_interval": 20,
             "valid_interval": 10,
             "beam_size": 10,
             "reduction": "sum",
@@ -245,7 +254,7 @@ def compute_loss(
     batch: dict,
     graph_compiler: CtcTrainingGraphCompiler,
     is_training: bool,
-):
+) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
 
@@ -268,13 +277,13 @@ def compute_loss(
     """
     device = graph_compiler.device
     feature = batch["inputs"]
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
     with torch.set_grad_enabled(is_training):
         nnet_output = model(feature)
-        # nnet_output is [N, T, C]
+        # nnet_output is (N, T, C)
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -305,13 +314,11 @@ def compute_loss(
 
     assert loss.requires_grad == is_training
 
-    # train_frames and valid_frames are used for printing.
-    if is_training:
-        params.train_frames = supervision_segments[:, 2].sum().item()
-    else:
-        params.valid_frames = supervision_segments[:, 2].sum().item()
+    info = MetricsTracker()
+    info["frames"] = supervision_segments[:, 2].sum().item()
+    info["loss"] = loss.detach().cpu().item()
 
-    return loss
+    return loss, info
 
 
 def compute_validation_loss(
@@ -320,16 +327,16 @@ def compute_validation_loss(
     graph_compiler: CtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
-) -> None:
+) -> MetricsTracker:
     """Run the validation process. The validation loss
     is saved in `params.valid_loss`.
     """
     model.eval()
 
-    tot_loss = 0.0
-    tot_frames = 0.0
+    tot_loss = MetricsTracker()
+
     for batch_idx, batch in enumerate(valid_dl):
-        loss = compute_loss(
+        loss, loss_info = compute_loss(
             params=params,
             model=model,
             batch=batch,
@@ -338,22 +345,18 @@ def compute_validation_loss(
         )
         assert loss.requires_grad is False
 
-        loss_cpu = loss.detach().cpu().item()
-        tot_loss += loss_cpu
-        tot_frames += params.valid_frames
+        tot_loss = tot_loss + loss_info
 
     if world_size > 1:
-        s = torch.tensor([tot_loss, tot_frames], device=loss.device)
-        dist.all_reduce(s, op=dist.ReduceOp.SUM)
-        s = s.cpu().tolist()
-        tot_loss = s[0]
-        tot_frames = s[1]
+        tot_loss.reduce(loss.device)
 
-    params.valid_loss = tot_loss / tot_frames
+    loss_value = tot_loss["loss"] / tot_loss["frames"]
 
-    if params.valid_loss < params.best_valid_loss:
+    if loss_value < params.best_valid_loss:
         params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = params.valid_loss
+        params.best_valid_loss = loss_value
+
+    return tot_loss
 
 
 def train_one_epoch(
@@ -392,57 +395,45 @@ def train_one_epoch(
     """
     model.train()
 
-    tot_loss = 0.0  # sum of losses over all batches
-    tot_frames = 0.0  # sum of frames over all batches
+    tot_loss = MetricsTracker()
+
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        loss = compute_loss(
+        loss, loss_info = compute_loss(
             params=params,
             model=model,
             batch=batch,
             graph_compiler=graph_compiler,
             is_training=True,
         )
-
-        # NOTE: We use reduction==sum and loss is computed over utterances
-        # in the batch and there is no normalization to it so far.
+        # summary stats.
+        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
         optimizer.zero_grad()
         loss.backward()
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
-        loss_cpu = loss.detach().cpu().item()
-
-        tot_frames += params.train_frames
-        tot_loss += loss_cpu
-        tot_avg_loss = tot_loss / tot_frames
-
         if batch_idx % params.log_interval == 0:
             logging.info(
-                f"Epoch {params.cur_epoch}, batch {batch_idx}, "
-                f"batch avg loss {loss_cpu/params.train_frames:.4f}, "
-                f"total avg loss: {tot_avg_loss:.4f}, "
-                f"batch size: {batch_size}"
+                f"Epoch {params.cur_epoch}, "
+                f"batch {batch_idx}, loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
+        if batch_idx % params.log_interval == 0:
 
             if tb_writer is not None:
-                tb_writer.add_scalar(
-                    "train/current_loss",
-                    loss_cpu / params.train_frames,
-                    params.batch_idx_train,
+                loss_info.write_summary(
+                    tb_writer, "train/current_", params.batch_idx_train
                 )
-
-                tb_writer.add_scalar(
-                    "train/tot_avg_loss",
-                    tot_avg_loss,
-                    params.batch_idx_train,
+                tot_loss.write_summary(
+                    tb_writer, "train/tot_", params.batch_idx_train
                 )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
-            compute_validation_loss(
+            valid_info = compute_validation_loss(
                 params=params,
                 model=model,
                 graph_compiler=graph_compiler,
@@ -450,19 +441,16 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            logging.info(
-                f"Epoch {params.cur_epoch}, valid loss {params.valid_loss:.4f},"
-                f" best valid loss: {params.best_valid_loss:.4f} "
-                f"best valid epoch: {params.best_valid_epoch}"
-            )
+            logging.info(f"Epoch {params.cur_epoch}, validation {valid_info}")
             if tb_writer is not None:
-                tb_writer.add_scalar(
-                    "train/valid_loss",
-                    params.valid_loss,
+                valid_info.write_summary(
+                    tb_writer,
+                    "train/valid_",
                     params.batch_idx_train,
                 )
 
-    params.train_loss = tot_loss / tot_frames
+    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    params.train_loss = loss_value
 
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
@@ -483,6 +471,7 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
+    params["env_info"] = get_env_info()
 
     fix_random_seed(42)
     if world_size > 1:
