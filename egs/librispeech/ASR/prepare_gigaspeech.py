@@ -15,8 +15,8 @@ import torch
 from gigaspeech_datamodule import get_context_suffix
 from lhotse import (
     CutSet,
-    Fbank,
-    FbankConfig,
+    KaldifeatFbank,
+    KaldifeatFbankConfig,
     LilcomHdf5Writer,
     SupervisionSegment,
     combine,
@@ -183,7 +183,8 @@ def main():
     ctx_suffix = get_context_suffix(args, subparser=False)
 
     print("Feature extraction:")
-    extractor = Fbank(FbankConfig(num_mel_bins=80))
+    # extractor = Fbank(FbankConfig(num_mel_bins=80))
+    extractor = KaldifeatFbank(KaldifeatFbankConfig(device='cuda'))  # default config uses 80 mel bins already
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, manifests in gigaspeech_manifests.items():
             raw_cuts_path = output_dir / f"gigaspeech_cuts_{partition}_raw.jsonl.gz"
@@ -268,6 +269,7 @@ def main():
                         storage_path=f"{output_dir}/feats_gigaspeech_{partition}",
                         batch_duration=args.batch_duration,
                         num_workers=args.num_workers,
+                        storage_type=partial(LilcomHdf5Writer, tick_power=-3),
                     )
 
 

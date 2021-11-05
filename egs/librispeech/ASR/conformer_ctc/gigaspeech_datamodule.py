@@ -9,7 +9,7 @@ from typing import List, Union
 
 from torch.utils.data import DataLoader
 
-from lhotse import CutSet, KaldifeatFbank, FbankConfig, load_manifest
+from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, load_manifest
 from lhotse.dataset import (
     BucketingSampler,
     CutConcatenate,
@@ -261,7 +261,10 @@ class GigaSpeechAsrDataModule(DataModule):
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
-                    KaldifeatFbank(FbankConfig(num_mel_bins=80)),
+                    # To avoid unexpected GPU OOM issue during training,
+                    # I think using the cpu version is safer
+                    # KaldifeatFbank(KaldifeatFbankConfig(device='cuda')),
+                    KaldifeatFbank(KaldifeatFbankConfig()),
                     num_workers=self.args.giga_num_workers_inner,
                 ),
                 return_cuts=self.args.giga_return_cuts,
@@ -316,7 +319,10 @@ class GigaSpeechAsrDataModule(DataModule):
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
-                    KaldifeatFbank(FbankConfig(num_mel_bins=80)), num_workers=8
+                    # To avoid unexpected GPU OOM issue during training,
+                    # I think using the cpu version is safer
+                    # KaldifeatFbank(KaldifeatFbankConfig(device='cuda')), num_workers=8
+                    KaldifeatFbank(KaldifeatFbankConfig()), num_workers=8
                 ),
                 return_cuts=self.args.giga_return_cuts,
             )
@@ -357,7 +363,10 @@ class GigaSpeechAsrDataModule(DataModule):
             logging.debug("About to create test dataset")
             test = K2SpeechRecognitionDataset(
                 input_strategy=(
-                    OnTheFlyFeatures(KaldifeatFbank(FbankConfig(num_mel_bins=80)), num_workers=8)
+                    # To avoid unexpected GPU OOM issue during training,
+                    # I think using the cpu version is safer
+                    # OnTheFlyFeatures(KaldifeatFbank(KaldifeatFbankConfig(device='cuda')), num_workers=8)
+                    OnTheFlyFeatures(KaldifeatFbank(KaldifeatFbankConfig()), num_workers=8)
                     if self.args.giga_on_the_fly_feats
                     else PrecomputedFeatures()
                 ),
