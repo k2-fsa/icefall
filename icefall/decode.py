@@ -224,6 +224,7 @@ class Nbest(object):
         else:
             word_seq = lattice.aux_labels.index(path)
             word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
+        word_seq = word_seq.remove_values_leq(0)
 
         # Each utterance has `num_paths` paths but some of them transduces
         # to the same word sequence, so we need to remove repeated word
