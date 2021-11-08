@@ -224,6 +224,7 @@ class Nbest(object):
         else:
             word_seq = lattice.aux_labels.index(path)
             word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
+        word_seq = word_seq.remove_values_leq(0)
 
         # Each utterance has `num_paths` paths but some of them transduces
         # to the same word sequence, so we need to remove repeated word
@@ -732,6 +733,12 @@ def rescore_with_whole_lattice(
             logging.info(
                 f"num_arcs before pruning: {inv_lattice.arcs.num_elements()}"
             )
+            logging.info(
+                "This OOM is not an error. You can ignore it. "
+                "If your model does not converge well, or --max-duration "
+                "is too large, or the input sound file is difficult to "
+                "decode, you will meet this exception."
+            )
 
             # NOTE(fangjun): The choice of the threshold 1e-9 is arbitrary here
             # to avoid OOM. You may need to fine tune it.
@@ -864,6 +871,7 @@ def rescore_with_attention_decoder(
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
         ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        ngram_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         ngram_lm_scale_list = [ngram_lm_scale]
 
@@ -871,6 +879,7 @@ def rescore_with_attention_decoder(
         attention_scale_list = [0.01, 0.05, 0.08]
         attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         attention_scale_list = [attention_scale]
 
