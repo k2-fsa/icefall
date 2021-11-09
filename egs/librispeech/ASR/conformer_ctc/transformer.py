@@ -311,7 +311,7 @@ class Transformer(nn.Module):
         self,
         memory: torch.Tensor,
         memory_key_padding_mask: torch.Tensor,
-        token_ids: List[List[int]],
+        token_ids: List[torch.Tensor],
         sos_id: int,
         eos_id: int,
     ) -> torch.Tensor:
@@ -334,6 +334,11 @@ class Transformer(nn.Module):
         """
         # The common part between this function and decoder_forward could be
         # extracted as a separate function.
+        if isinstance(token_ids[0], torch.Tensor):
+            # This branch is executed by torchscript in C++.
+            # See https://github.com/k2-fsa/k2/pull/870
+            # https://github.com/k2-fsa/k2/blob/3c1c18400060415b141ccea0115fd4bf0ad6234e/k2/torch/bin/attention_rescore.cu#L286
+            token_ids = [tolist(t) for t in token_ids]
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
@@ -660,7 +665,7 @@ class PositionalEncoding(nn.Module):
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
         # not doing: self.pe = None because of errors thrown by torchscript
-        self.pe = torch.zeros(0, 0, dtype=torch.float32)
+        self.pe = torch.zeros(1, 0, self.d_model, dtype=torch.float32)
 
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
@@ -1000,3 +1005,8 @@ def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
       with EOS ID.
     """
     return [utt + [eos_id] for utt in token_ids]
+
+
+def tolist(t: torch.Tensor) -> List[int]:
+    """Used by jit"""
+    return torch.jit.annotate(List[int], t.tolist())

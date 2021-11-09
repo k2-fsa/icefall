@@ -224,6 +224,7 @@ class Nbest(object):
         else:
             word_seq = lattice.aux_labels.index(path)
             word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
+        word_seq = word_seq.remove_values_leq(0)
 
         # Each utterance has `num_paths` paths but some of them transduces
         # to the same word sequence, so we need to remove repeated word
@@ -363,7 +364,7 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        saved_scores = self.fsa.scores.clone()
 
         # The `scores` of every arc consists of `am_scores` and `lm_scores`
         self.fsa.scores = self.fsa.scores - self.fsa.lm_scores
@@ -390,10 +391,10 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        saved_scores = self.fsa.scores.clone()
 
         # The `scores` of every arc consists of `am_scores` and `lm_scores`
-        self.fsa.scores = self.fsa.lm_scores
+        self.fsa.scores = self.fsa.lm_scores.clone()
 
         lm_scores = self.fsa.get_tot_scores(
             use_double_scores=True, log_semiring=False
@@ -870,6 +871,7 @@ def rescore_with_attention_decoder(
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
         ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        ngram_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         ngram_lm_scale_list = [ngram_lm_scale]
 
@@ -877,6 +879,7 @@ def rescore_with_attention_decoder(
         attention_scale_list = [0.01, 0.05, 0.08]
         attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         attention_scale_list = [attention_scale]
 

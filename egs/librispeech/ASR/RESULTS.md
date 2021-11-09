@@ -1,6 +1,61 @@
 ## Results
 
 ### LibriSpeech BPE training results (Conformer-CTC)
+
+#### 2021-11-09
+
+The best WER, as of 2021-11-09, for the librispeech test dataset is below
+(using HLG decoding + n-gram LM rescoring + attention decoder rescoring):
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.42       | 5.73       |
+
+Scale values used in n-gram LM rescoring and attention rescoring for the best WERs are:
+| ngram_lm_scale | attention_scale |
+|----------------|-----------------|
+| 2.0            | 2.0             |
+
+
+To reproduce the above result, use the following commands for training:
+
+```
+cd egs/librispeech/ASR/conformer_ctc
+./prepare.sh
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./conformer_ctc/train.py \
+  --exp-dir conformer_ctc/exp_500_att0.8 \
+  --lang-dir data/lang_bpe_500 \
+  --att-rate 0.8 \
+  --full-libri 1 \
+  --max-duration 200 \
+  --concatenate-cuts 0 \
+  --world-size 4 \
+  --bucketing-sampler 1 \
+  --start-epoch 0 \
+  --num-epochs 80
+```
+
+and the following command for decoding
+
+```
+./conformer_ctc/decode.py \
+  --exp-dir conformer_ctc/exp_500_att0.8 \
+  --lang-dir data/lang_bpe_500 \
+  --max-duration 30 \
+  --concatenate-cuts 0 \
+  --bucketing-sampler 1 \
+  --num-paths 1000 \
+  --epoch 77 \
+  --avg 55 \
+  --method attention-decoder \
+  --nbest-scale 0.5
+```
+
+You can find the pre-trained model by visiting
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09>
+
+
 #### 2021-08-19
 (Wei Kang): Result of https://github.com/k2-fsa/icefall/pull/13
 
