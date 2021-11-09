@@ -33,7 +33,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --bucketing-sampler 1 \
   --start-epoch 0 \
-  --num-epochs 80
+  --num-epochs 90
+# Note: It trains for 90 epochs, but the best WER is at epoch-77.pt
 ```
 
 and the following command for decoding
@@ -54,6 +55,9 @@ and the following command for decoding
 
 You can find the pre-trained model by visiting
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09>
+
+The tensorboard log for training is available at
+<https://tensorboard.dev/experiment/hZDWrZfaSqOMqtW0NEfXKg/#scalars>
 
 
 #### 2021-08-19
