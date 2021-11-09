@@ -453,7 +453,7 @@ class LiGRU_Layer(torch.nn.Module):
 
             # Sampling the mask
             drop_mask = self.drop_masks[
-                self.drop_mask_cnt : self.drop_mask_cnt + self.batch_size
+                self.drop_mask_cnt:self.drop_mask_cnt + self.batch_size
             ]
             self.drop_mask_cnt = self.drop_mask_cnt + self.batch_size
 
