@@ -55,7 +55,7 @@ folder.
 
 .. HINT::
 
-  TIMIT is very small dataset. So one GPU is enough.
+  TIMIT is a very small dataset. So one GPU is enough.
 
 The command to run the training part is:
 
