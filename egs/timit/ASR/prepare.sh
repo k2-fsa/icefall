@@ -56,6 +56,7 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   # using: `sudo apt-get install git-lfs && git-lfs install`
   [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
   git clone https://huggingface.co/luomingshuang/timit_lm $dl_dir/lm
+  cd $dl_dir/lm && git lfs pull
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
@@ -124,7 +125,7 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare G"
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
   mkdir -p data/lm

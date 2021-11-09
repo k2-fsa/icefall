@@ -1,5 +1,5 @@
 # Copyright      2021     Piotr Żelasko
-#                2021     Xiaomi Corp.    (authors: Mingshuang Luo)
+#                2021     Xiaomi Corp.     (authors: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

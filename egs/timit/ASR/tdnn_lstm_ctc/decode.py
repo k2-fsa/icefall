@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                    Mingshuang Luo)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -239,7 +238,8 @@ def decode_one_batch(
 
     assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
 
-    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09]
+    lm_scale_list += [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
@@ -409,7 +409,7 @@ def main():
     if params.method in ["nbest-rescoring", "whole-lattice-rescoring"]:
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
-            logging.warning("It may take 20 seconds.")
+            logging.warning("It may take 8 minutes.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
                 first_word_disambig_id = lexicon.word_table["#0"]
 
@@ -469,6 +469,7 @@ def main():
     model.eval()
 
     timit = TimitAsrDataModule(args)
+    test_set = "TEST"
     test_dl = timit.test_dataloaders()
     results_dict = decode_dataset(
         dl=test_dl,
@@ -478,7 +479,7 @@ def main():
         lexicon=lexicon,
         G=G,
     )
-    test_set = "TEST"
+
     save_results(
         params=params, test_set_name=test_set, results_dict=results_dict
     )

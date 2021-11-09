@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                    Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -26,7 +27,7 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import TimitAsrDataModule
-from model import TdnnLstm
+from model import TdnnLiGRU
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -310,7 +311,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-       
+
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
@@ -442,14 +443,13 @@ def main():
     else:
         G = None
 
-    model = TdnnLstm(
+    model = TdnnLiGRU(
         num_features=params.feature_dim,
         num_classes=max_phone_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
     )
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        #load_checkpoint(f"tmp/icefall_asr_librispeech_tdnn-lstm_ctc/exp/pretrained.pt", model)
     else:
         start = params.epoch - params.avg + 1
         filenames = []
@@ -470,22 +470,9 @@ def main():
     model.eval()
 
     timit = TimitAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
-    #test_sets = ["test-clean", "test-other"]
-    #test_sets = ["test-other"]
-    #for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
-        #if test_set == "test-clean": continue
-        #if test_set == "test-other": break
     test_set = "TEST"
     test_dl = timit.test_dataloaders()
-    
-    #test_set = "TRAIN"
-    #test_dl = timit.train_dataloaders()
+
     results_dict = decode_dataset(
         dl=test_dl,
         params=params,

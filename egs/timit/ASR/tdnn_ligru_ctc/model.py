@@ -1,4 +1,5 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                    Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,12 +22,10 @@ import torch.nn as nn
 from torch import Tensor
 from typing import Optional
 
-class TdnnLstm(nn.Module):
+
+class TdnnLiGRU(nn.Module):
     def __init__(
-        self,  
-        num_features: int, 
-        num_classes: int, 
-        subsampling_factor: int = 3
+        self, num_features: int, num_classes: int, subsampling_factor: int = 3
     ) -> None:
         """
         Args:
@@ -65,7 +64,6 @@ class TdnnLstm(nn.Module):
                 in_channels=512,
                 out_channels=512,
                 kernel_size=3,
-                #stride=self.subsampling_factor,  # stride: subsampling_factor!
                 stride=1,
                 padding=1,
             ),
@@ -75,7 +73,7 @@ class TdnnLstm(nn.Module):
                 in_channels=512,
                 out_channels=512,
                 kernel_size=3,
-                stride=self.subsampling_factor,
+                stride=self.subsampling_factor,  # stride: subsampling_factor!
                 padding=1,
             ),
             nn.ReLU(inplace=True),
@@ -83,21 +81,20 @@ class TdnnLstm(nn.Module):
         )
         self.ligrus = nn.ModuleList(
             [
-                LiGRU(input_shape=[None, None, 512], hidden_size=512, num_layers=1, bidirectional=True, re_init=False) 
-                for _ in range(4)
-            ]        
-        )
-        self.linears = nn.ModuleList(
-            [
-                nn.Linear(in_features=1024, out_features=512)
-                for _ in range(4)
-            ]        
-        )
-        self.bnorms = nn.ModuleList(
-            [
-                nn.BatchNorm1d(num_features=512, affine=False)
+                LiGRU(
+                    input_shape=[None, None, 512],
+                    hidden_size=512,
+                    num_layers=1,
+                    bidirectional=True,
+                )
                 for _ in range(4)
             ]
+        )
+        self.linears = nn.ModuleList(
+            [nn.Linear(in_features=1024, out_features=512) for _ in range(4)]
+        )
+        self.bnorms = nn.ModuleList(
+            [nn.BatchNorm1d(num_features=512, affine=False) for _ in range(4)]
         )
         self.dropout = nn.Dropout(0.2)
         self.linear = nn.Linear(in_features=512, out_features=self.num_classes)
@@ -115,23 +112,22 @@ class TdnnLstm(nn.Module):
         x = x.permute(0, 2, 1)
         for ligru, linear, bnorm in zip(self.ligrus, self.linears, self.bnorms):
             x_new, _ = ligru(x)
-            #print('ligru output shape: ', x_new.shape)
             x_new = linear(x_new)
-            #print('linear output shape: ', x_new.shape)
             x_new = bnorm(x_new.permute(0, 2, 1)).permute(0, 2, 1)
-            #    2, 0, 1
-            #)  # (T, N, C) -> (N, C, T) -> (T, N, C)
+            # (N, T, C) -> (N, C, T) -> (N, T, C)
             x_new = self.dropout(x_new)
             x = x_new + x  # skip connections
-        #x = x.transpose(
-        #    1, 0
-        #)  # (T, N, C) -> (N, T, C) -> linear expects "features" in the last dim
+
         x = self.linear(x)
         x = nn.functional.log_softmax(x, dim=-1)
         return x
 
+
 class LiGRU(torch.nn.Module):
-    """ This function implements a Light GRU (liGRU).
+    """This function implements a Light GRU (liGRU).
+    This LiGRU model is from speechbrain, please see
+    https://github.com/speechbrain/speechbrain/blob/develop/speechbrain/nnet/RNN.py
+
 
     LiGRU is single-gate GRU model based on batch-norm + relu
     activations + recurrent dropout. For more info see:
@@ -169,9 +165,6 @@ class LiGRU(torch.nn.Module):
         If True, the additive bias b is adopted.
     dropout : float
         It is the dropout factor (must be between 0 and 1).
-    re_init : bool
-        If True, orthogonal initialization is used for the recurrent weights.
-        Xavier initialization is used for the input connection weights.
     bidirectional : bool
         If True, a bidirectional model that scans the sequence both
         right-to-left and left-to-right is used.
@@ -194,7 +187,6 @@ class LiGRU(torch.nn.Module):
         num_layers=1,
         bias=True,
         dropout=0.0,
-        re_init=True,
         bidirectional=False,
     ):
         super().__init__()
@@ -204,7 +196,6 @@ class LiGRU(torch.nn.Module):
         self.normalization = normalization
         self.bias = bias
         self.dropout = dropout
-        self.re_init = re_init
         self.bidirectional = bidirectional
         self.reshape = False
 
@@ -215,13 +206,9 @@ class LiGRU(torch.nn.Module):
         self.batch_size = input_shape[0]
         self.rnn = self._init_layers()
 
-        if self.re_init:
-            rnn_init(self.rnn)
-
     def _init_layers(self):
         """Initializes the layers of the liGRU."""
         rnn = torch.nn.ModuleList([])
-        #print('fea_dim: ', self.fea_dim)
         current_dim = self.fea_dim
 
         for i in range(self.num_layers):
@@ -296,7 +283,7 @@ class LiGRU(torch.nn.Module):
 
 
 class LiGRU_Layer(torch.nn.Module):
-    """ This function implements Light-Gated Recurrent Units (ligru) layer.
+    """This function implements Light-Gated Recurrent Units (ligru) layer.
 
     Arguments
     ---------
@@ -344,11 +331,7 @@ class LiGRU_Layer(torch.nn.Module):
         self.drop_mask_cnt = 0
         self.drop_mask_te = torch.tensor([1.0]).float()
         self.w = nn.Linear(self.input_size, 2 * self.hidden_size, bias=False)
-
         self.u = nn.Linear(self.hidden_size, 2 * self.hidden_size, bias=False)
-        print(self.batch_size)
-        #if self.bidirectional:
-        #    self.batch_size = self.batch_size * 2
 
         # Initializing batch norm
         self.normalize = False
@@ -368,9 +351,6 @@ class LiGRU_Layer(torch.nn.Module):
 
         # Initial state
         self.register_buffer("h_init", torch.zeros(1, self.hidden_size))
-
-        # Preloading dropout masks (gives some speed improvement)
-        #self._init_drop(self.batch_size)
 
         # Setting the activation function
         if nonlinearity == "tanh":
@@ -399,7 +379,6 @@ class LiGRU_Layer(torch.nn.Module):
         self._change_batch_size(x)
 
         # Feed-forward affine transformations (all steps in parallel)
-        #print(x.shape)
         w = self.w(x)
 
         # Apply batch normalization
@@ -450,7 +429,6 @@ class LiGRU_Layer(torch.nn.Module):
         """Initializes the recurrent dropout operation. To speed it up,
         the dropout masks are sampled in advance.
         """
-        #self.drop = torch.nn.Dropout(p=self.dropout, inplace=False)
         self.N_drop_masks = 16000
         self.drop_mask_cnt = 0
 
@@ -497,71 +475,8 @@ class LiGRU_Layer(torch.nn.Module):
             if self.training:
                 self.drop_masks = self.drop(
                     torch.ones(
-                        self.N_drop_masks, self.hidden_size, device=x.device,
+                        self.N_drop_masks,
+                        self.hidden_size,
+                        device=x.device,
                     )
                 ).data
-
-
-class Linear(torch.nn.Module):
-    """Computes a linear transformation y = wx + b.
-
-    Arguments
-    ---------
-    n_neurons : int
-        It is the number of output neurons (i.e, the dimensionality of the
-        output).
-    input_shape: tuple
-        It is the shape of the input tensor.
-    input_size: int
-        Size of the input tensor.
-    bias : bool
-        If True, the additive bias b is adopted.
-    combine_dims : bool
-        If True and the input is 4D, combine 3rd and 4th dimensions of input.
-
-    Example
-    -------
-    >>> inputs = torch.rand(10, 50, 40)
-    >>> lin_t = Linear(input_shape=(10, 50, 40), n_neurons=100)
-    >>> output = lin_t(inputs)
-    >>> output.shape
-    torch.Size([10, 50, 100])
-    """
-
-    def __init__(
-        self,
-        n_neurons,
-        input_shape=None,
-        input_size=None,
-        bias=True,
-        combine_dims=False,
-    ):
-        super().__init__()
-        self.combine_dims = combine_dims
-
-        if input_shape is None and input_size is None:
-            raise ValueError("Expected one of input_shape or input_size")
-
-        if input_size is None:
-            input_size = input_shape[-1]
-            if len(input_shape) == 4 and self.combine_dims:
-                input_size = input_shape[2] * input_shape[3]
-
-        # Weights are initialized following pytorch approach
-        self.w = nn.Linear(input_size, n_neurons, bias=bias)
-
-    def forward(self, x):
-        """Returns the linear transformation of input tensor.
-
-        Arguments
-        ---------
-        x : torch.Tensor
-            Input to transform linearly.
-        """
-        if x.ndim == 4 and self.combine_dims:
-            x = x.reshape(x.shape[0], x.shape[1], x.shape[2] * x.shape[3])
-        #print(x.shape)
-        #print(self.w)
-        wx = self.w(x)
-
-        return wx

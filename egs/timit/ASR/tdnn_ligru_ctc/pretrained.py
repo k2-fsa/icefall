@@ -26,7 +26,7 @@ import k2
 import kaldifeat
 import torch
 import torchaudio
-from model import TdnnLstm
+from model import TdnnLiGRU
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import (
@@ -91,7 +91,7 @@ def get_parser():
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.8,
+        default=0.1,
         help="""
         Used only when method is whole-lattice-rescoring.
         It specifies the scale for n-gram LM scores.
@@ -169,7 +169,7 @@ def main():
     logging.info(f"device: {device}")
 
     logging.info("Creating model")
-    model = TdnnLstm(
+    model = TdnnLiGRU(
         num_features=params.feature_dim,
         num_classes=params.num_classes,
         subsampling_factor=params.subsampling_factor,

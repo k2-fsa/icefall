@@ -65,7 +65,7 @@ The command to run the training part is:
   $ export CUDA_VISIBLE_DEVICES="0"
   $ ./tdnn_lstm_ctc/train.py
 
-By default, it will run ``30`` epochs. Training logs and checkpoints are saved
+By default, it will run ``25`` epochs. Training logs and checkpoints are saved
 in ``tdnn_lstm_ctc/exp``.
 
 In ``tdnn_lstm_ctc/exp``, you will find the following files:
@@ -219,7 +219,7 @@ After downloading, you will have the following files:
       |   `-- lm
       |       `-- G_4_gram.pt
       |-- exp
-      |   `-- pretrained.pt
+      |   `-- pretrained_average_16_25.pt
       `-- test_wavs
           |-- FDHC0_SI1559.WAV
           |-- FELC0_SI756.WAV
@@ -264,9 +264,9 @@ The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ ffprobe -show_format tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV
+  $ ffprobe -show_format tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV
 
-  Input #0, nistsphere, from 'tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV':
+  Input #0, nistsphere, from 'tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV':
   Metadata:
     database_id     : TIMIT
     database_version: 1.0
@@ -276,9 +276,9 @@ The information of the test sound files is listed below:
   Duration: 00:00:03.40, bitrate: 258 kb/s
     Stream #0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s
 
-  $ ffprobe -show_format tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV
+  $ ffprobe -show_format tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV
 
-  Input #0, nistsphere, from 'tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV':
+  Input #0, nistsphere, from 'tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV':
   Metadata:
     database_id     : TIMIT
     database_version: 1.0
@@ -288,9 +288,9 @@ The information of the test sound files is listed below:
   Duration: 00:00:04.19, bitrate: 257 kb/s
     Stream #0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s
 
-  $ ffprobe -show_format tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
+  $ ffprobe -show_format tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
 
-  Input #0, nistsphere, from 'tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV':
+  Input #0, nistsphere, from 'tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV':
   Metadata:
     database_id     : TIMIT
     database_version: 1.0
@@ -317,12 +317,12 @@ To decode with ``1best`` method, we can use:
 
   ./tdnn_lstm_ctc/pretrained.py 
     --method 1best
-    --checkpoint ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretrained_average_16_25.pt 
-    --words-file ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/words.txt 
-    --HLG ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt 
-    ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV 
-    ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV 
-    ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
+    --checkpoint ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretrained_average_16_25.pt 
+    --words-file ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/words.txt 
+    --HLG ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
 
 The output is:
 
@@ -355,14 +355,14 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
 
   ./tdnn_lstm_ctc/pretrained.py \
     --method whole-lattice-rescoring \
-    --checkpoint ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretraind.pt \
+    --checkpoint ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretrained_average_16_25.pt \
     --words-file ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/words.txt \
     --HLG ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt \
     --G ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lm/G_4_gram.pt \
-    --ngram-lm-scale 0.8 \
-    ./tmp-lstm/icefall_asr_timit_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac \
-    ./tmp-lstm/icefall_asr_timit_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac \
-    ./tmp-lstm/icefall_asr_timit_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac
+    --ngram-lm-scale 0.08 \
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
 
 The decoding output is:
 
@@ -370,20 +370,20 @@ The decoding output is:
 
   2021-11-08 20:05:22,739 INFO [pretrained.py:169] device: cuda:0
   2021-11-08 20:05:22,739 INFO [pretrained.py:171] Creating model
-  2021-11-08 20:05:26,959 INFO [pretrained.py:183] Loading HLG from ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt
-  2021-11-08 20:05:26,971 INFO [pretrained.py:191] Loading G from ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lm/G_4_gram.pt
+  2021-11-08 20:05:26,959 INFO [pretrained.py:183] Loading HLG from ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt
+  2021-11-08 20:05:26,971 INFO [pretrained.py:191] Loading G from ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lm/G_4_gram.pt
   2021-11-08 20:05:26,977 INFO [pretrained.py:200] Constructing Fbank computer
-  2021-11-08 20:05:26,978 INFO [pretrained.py:210] Reading sound files: ['./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV', './tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV', './tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV']
+  2021-11-08 20:05:26,978 INFO [pretrained.py:210] Reading sound files: ['./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV']
   2021-11-08 20:05:26,981 INFO [pretrained.py:216] Decoding started
   2021-11-08 20:05:27,519 INFO [pretrained.py:251] Use HLG decoding + LM rescoring
   2021-11-08 20:05:27,878 INFO [pretrained.py:267] 
-  ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV:
+  ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV:
   sil dh ih sh uw l iy v iy z ih sil p r aa sil k s ah m ey dx ih sil w uh dx iy w ih s f iy l ih ng w ih th ih n ih m s eh l f sil jh
 
-  ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV:
+  ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV:
   sil dh ih sil t ih r iy ih s sil s er r eh m ih sil n ah l ih ng sil k l ey sil r eh sil d w ay sil d aa r sil b ow f sil jh
 
-  ./tmp-lstm-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV:
+  ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV:
   sil hh ah z sil b ih n iy w ah z sil b ae n ih sil b ay s sil n ey sil k ih l f eh n s ih z eh n dh eh r w er sil g r ey z ih n sil k ae dx l sil
 
 

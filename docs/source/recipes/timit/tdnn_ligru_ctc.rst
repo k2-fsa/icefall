@@ -65,7 +65,7 @@ The command to run the training part is:
   $ export CUDA_VISIBLE_DEVICES="0"
   $ ./tdnn_ligru_ctc/train.py
 
-By default, it will run ``30`` epochs. Training logs and checkpoints are saved
+By default, it will run ``25`` epochs. Training logs and checkpoints are saved
 in ``tdnn_ligru_ctc/exp``.
 
 In ``tdnn_ligru_ctc/exp``, you will find the following files:
@@ -221,7 +221,7 @@ After downloading, you will have the following files:
       |   `-- lm
       |       `-- G_4_gram.pt
       |-- exp
-      |   `-- pretrained.pt
+      |   `-- pretrained_average_9_25.pt
       `-- test_wavs
           |-- FDHC0_SI1559.WAV
           |-- FELC0_SI756.WAV
@@ -319,7 +319,7 @@ To decode with ``1best`` method, we can use:
 
   ./tdnn_ligru_ctc/pretrained.py 
     --method 1best
-    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_16_25.pt 
+    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt 
     --words-file ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt 
     --HLG ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt 
     ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV 
@@ -357,7 +357,7 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
 
   ./tdnn_ligru_ctc/pretrained.py \
     --method whole-lattice-rescoring \
-    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/exp/pretraind.pt \
+    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/exp/pretrained_average_9_25.pt \
     --words-file ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lang_phone/words.txt \
     --HLG ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lang_phone/HLG.pt \
     --G ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lm/G_4_gram.pt \

@@ -30,7 +30,7 @@ import torch.nn as nn
 import torch.optim as optim
 from asr_datamodule import TimitAsrDataModule
 from lhotse.utils import fix_random_seed
-from model import TdnnLiGRU
+from model import TdnnLstm
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -81,7 +81,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=25,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -154,12 +154,12 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_ligru_ctc/exp"),
+            "exp_dir": Path("tdnn_lstm_ctc/exp"),
             "lang_dir": Path("data/lang_phone"),
             "lr": 1e-3,
             "feature_dim": 80,
             "weight_decay": 5e-4,
-            "subsampling_factor": 2,
+            "subsampling_factor": 3,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -508,7 +508,7 @@ def run(rank, world_size, args):
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
 
-    model = TdnnLiGRU(
+    model = TdnnLstm(
         num_features=params.feature_dim,
         num_classes=max_phone_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
@@ -525,7 +525,7 @@ def run(rank, world_size, args):
         lr=params.lr,
         weight_decay=params.weight_decay,
     )
-    scheduler = StepLR(optimizer, step_size=2, gamma=0.8)
+    scheduler = StepLR(optimizer, step_size=8, gamma=0.8)
 
     if checkpoints:
         optimizer.load_state_dict(checkpoints["optimizer"])
