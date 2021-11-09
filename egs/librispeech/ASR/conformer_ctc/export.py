@@ -24,7 +24,7 @@ import logging
 from pathlib import Path
 
 import torch
-from conformer import Conformer
+from conformer_ctc.conformer import Conformer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon

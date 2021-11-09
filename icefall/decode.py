@@ -20,6 +20,11 @@ from typing import Dict, List, Optional, Union
 import k2
 import torch
 
+from icefall.lm.rescore import (
+    compute_alignment,
+    make_hyp_to_ref_map,
+    prepare_conformer_lm_inputs,
+)
 from icefall.utils import get_texts
 
 
@@ -903,4 +908,199 @@ def rescore_with_attention_decoder(
 
             key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}"
             ans[key] = best_path
+    return ans
+
+
+def rescore_with_conformer_lm(
+    lattice: k2.Fsa,
+    num_paths: int,
+    model: torch.nn.Module,
+    masked_lm_model: torch.nn.Module,
+    memory: torch.Tensor,
+    memory_key_padding_mask: Optional[torch.Tensor],
+    sos_id: int,
+    eos_id: int,
+    blank_id: int,
+    nbest_scale: float = 1.0,
+    ngram_lm_scale: Optional[float] = None,
+    attention_scale: Optional[float] = None,
+    masked_lm_scale: Optional[float] = None,
+    use_double_scores: bool = True,
+) -> Dict[str, k2.Fsa]:
+    """This function extracts `num_paths` paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest score is
+    the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc].
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `(T, N, C)`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape `(N, T)`.
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
+      nbest_scale:
+        It's the scale applied to `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
+      masked_lm_scale:
+        Optional. It specifies the scale for conformer_lm scores.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
+    nbest = Nbest.from_lattice(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        nbest_scale=nbest_scale,
+    )
+    # nbest.fsa.scores are all 0s at this point
+
+    nbest = nbest.intersect(lattice)
+    # Now nbest.fsa has its scores set.
+    # Also, nbest.fsa inherits the attributes from `lattice`.
+    assert hasattr(nbest.fsa, "lm_scores")
+
+    am_scores = nbest.compute_am_scores()
+    ngram_lm_scores = nbest.compute_lm_scores()
+
+    # The `tokens` attribute is set inside `compile_hlg.py`
+    assert hasattr(nbest.fsa, "tokens")
+    assert isinstance(nbest.fsa.tokens, torch.Tensor)
+
+    path_to_utt_map = nbest.shape.row_ids(1).to(torch.long)
+    # the shape of memory is (T, N, C), so we use axis=1 here
+    expanded_memory = memory.index_select(1, path_to_utt_map)
+
+    if memory_key_padding_mask is not None:
+        # The shape of memory_key_padding_mask is (N, T), so we
+        # use axis=0 here.
+        expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
+            0, path_to_utt_map
+        )
+    else:
+        expanded_memory_key_padding_mask = None
+
+    # remove axis corresponding to states.
+    tokens_shape = nbest.fsa.arcs.shape().remove_axis(1)
+    tokens = k2.RaggedTensor(tokens_shape, nbest.fsa.tokens)
+    tokens = tokens.remove_values_leq(0)
+
+    alignment = compute_alignment(tokens, nbest.shape)
+    (
+        masked_src_symbols,
+        src_symbols,
+        tgt_symbols,
+        src_key_padding_mask,
+        tgt_weights,
+    ) = prepare_conformer_lm_inputs(
+        alignment,
+        bos_id=sos_id,
+        eos_id=eos_id,
+        blank_id=blank_id,
+        unmasked_weight=0.0,
+    )
+
+    masked_src_symbols = masked_src_symbols.to(torch.int64)
+    src_symbols = src_symbols.to(torch.int64)
+    tgt_symbols = tgt_symbols.to(torch.int64)
+
+    masked_lm_memory, masked_lm_pos_emb = masked_lm_model(
+        masked_src_symbols, src_key_padding_mask
+    )
+
+    tgt_nll = masked_lm_model.decoder_nll(
+        masked_lm_memory,
+        masked_lm_pos_emb,
+        src_symbols,
+        tgt_symbols,
+        src_key_padding_mask,
+    )
+
+    # nll means negative log-likelihood
+    # ll means log-likelihood
+    tgt_ll = -1 * (tgt_nll * tgt_weights).sum(dim=-1)
+
+    # Note: log-likelihood for those pairs that have identical src/tgt are 0
+    # since their tgt_weights is 0
+
+    # TODO(fangjun): Add documentation about why we do the following
+    tgt_ll_shape_row_ids = make_hyp_to_ref_map(nbest.shape.row_splits(1))
+    tgt_ll_shape = k2.ragged.create_ragged_shape2(
+        row_splits=None,
+        row_ids=tgt_ll_shape_row_ids,
+        cached_tot_size=tgt_ll_shape_row_ids.numel(),
+    )
+    ragged_tgt_ll = k2.RaggedTensor(tgt_ll_shape, tgt_ll)
+
+    ragged_tgt_ll = ragged_tgt_ll.remove_values_eq(0)
+    masked_lm_scores = ragged_tgt_ll.max()
+
+    # TODO(fangjun): Support passing a ragged tensor to `decoder_nll` directly.
+    token_ids = tokens.tolist()
+
+    nll = model.decoder_nll(
+        memory=expanded_memory,
+        memory_key_padding_mask=expanded_memory_key_padding_mask,
+        token_ids=token_ids,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
+    assert nll.ndim == 2
+    assert nll.shape[0] == len(token_ids)
+
+    attention_scores = -nll.sum(dim=1)
+
+    if ngram_lm_scale is None:
+        ngram_lm_scale_list = [0.01, 0.05, 0.08]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        ngram_lm_scale_list = [ngram_lm_scale]
+
+    if attention_scale is None:
+        attention_scale_list = [0.01, 0.05, 0.08]
+        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        attention_scale_list = [attention_scale]
+
+    if masked_lm_scale is None:
+        masked_lm_scale_list = [0.01, 0.05, 0.08]
+        masked_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        masked_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+    else:
+        masked_lm_scale_list = [masked_lm_scale]
+
+    ans = dict()
+    for n_scale in ngram_lm_scale_list:
+        for a_scale in attention_scale_list:
+            for m_scale in masked_lm_scale_list:
+                tot_scores = (
+                    am_scores.values
+                    + n_scale * ngram_lm_scores.values
+                    + a_scale * attention_scores
+                    + m_scale * masked_lm_scores
+                )
+                ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+                max_indexes = ragged_tot_scores.argmax()
+                best_path = k2.index_fsa(nbest.fsa, max_indexes)
+
+                key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}_masked_lm_scale_{m_scale}"  # noqa
+                ans[key] = best_path
     return ans
