@@ -39,9 +39,10 @@ and [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc].
 
 The best WER we currently have is:
 
-||test-clean|test-other|
-|--|--|--|
-|WER| 2.57% | 5.94% |
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.42       | 5.73       |
+
 
 We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
 
@@ -49,9 +50,9 @@ We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In
 
 The WER for this model is:
 
-||test-clean|test-other|
-|--|--|--|
-|WER| 6.59% | 17.69% |
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 6.59       | 17.69      |
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
