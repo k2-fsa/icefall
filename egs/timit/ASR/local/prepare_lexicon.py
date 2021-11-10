@@ -58,7 +58,7 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     Return:
       The lexicon.txt file and the train.text in lang_dir.
     """
-    phones = set([])
+    phones = set()
 
     supervisions_train = Path(manifests_dir) / "supervisions_TRAIN.json"
     lexicon = Path(lang_dir) / "lexicon.txt"

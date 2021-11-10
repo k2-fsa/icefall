@@ -70,7 +70,7 @@ def compute_fbank_timit():
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if "TRAIN" in partition:
+            if partition == "TRAIN":
                 cut_set = (
                     cut_set
                     + cut_set.perturb_speed(0.9)

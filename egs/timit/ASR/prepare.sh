@@ -23,8 +23,8 @@ stop_stage=100
 #	     on 39 phones. About how to get these LM files, you can know it 
 #      from https://github.com/luomingshuang/Train_LM_with_kaldilm.
 #	
-#	    - lm_3_gram_tgmed.arpa
-#     - lm_4_gram_tgmed.arpa
+#	    - lm_3_gram.arpa
+#     - lm_4_gram.arpa
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -135,7 +135,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/lm_3_gram_tgmed.arpa > data/lm/G_3_gram.fst.txt
+      $dl_dir/lm/lm_3_gram.arpa > data/lm/G_3_gram.fst.txt
   fi
 
   if [ ! -f data/lm/G_4_gram.fst.txt ]; then
@@ -144,7 +144,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=4 \
-      $dl_dir/lm/lm_4_gram_tgmed.arpa > data/lm/G_4_gram.fst.txt
+      $dl_dir/lm/lm_4_gram.arpa > data/lm/G_4_gram.fst.txt
   fi
 fi
 
