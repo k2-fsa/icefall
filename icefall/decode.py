@@ -412,7 +412,9 @@ class Nbest(object):
         scores_shape = self.fsa.arcs.shape().remove_axis(1)
         # scores_shape has axes [path][arc]
 
-        ragged_scores = k2.RaggedTensor(scores_shape, self.scores.contiguous())
+        ragged_scores = k2.RaggedTensor(
+            scores_shape, self.fsa.scores.contiguous()
+        )
 
         tot_scores = ragged_scores.sum()
 
