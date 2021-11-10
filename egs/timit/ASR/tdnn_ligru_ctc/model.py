@@ -128,7 +128,6 @@ class LiGRU(torch.nn.Module):
     This LiGRU model is from speechbrain, please see
     https://github.com/speechbrain/speechbrain/blob/develop/speechbrain/nnet/RNN.py
 
-
     LiGRU is single-gate GRU model based on batch-norm + relu
     activations + recurrent dropout. For more info see:
 
