@@ -304,9 +304,6 @@ The commonly used options are:
       $ cd egs/librispeech/ASR
       $ ./conformer_ctc/decode.py --method ctc-decoding --max-duration 300
       # Caution: The above command is tested with a model with vocab size 500.
-      # The default settings in the master will not work.
-      # Please see https://github.com/k2-fsa/icefall/issues/103
-      # We will fix it later and delete this note.
 
     And the following command uses attention decoder for rescoring:
 
@@ -386,7 +383,7 @@ Pre-trained Model
 -----------------
 
 We have uploaded a pre-trained model to
-`<https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc>`_.
+`<https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09>`_
 
 We describe how to use the pre-trained model to transcribe a sound file or
 multiple sound files in the following.
@@ -408,14 +405,13 @@ The following commands describe how to download the pre-trained model:
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ mkdir tmp
-  $ cd tmp
-  $ git lfs install
-  $ git clone https://huggingface.co/pkufool/icefall_asr_librispeech_conformer_ctc
+  $ git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
+  $ cd icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
+  $ git lfs pull
 
 .. CAUTION::
 
-  You have to use ``git lfs`` to download the pre-trained model.
+  You have to use ``git lfs pull`` to download the pre-trained model.
   Otherwise, you will have the following issue when running ``decode.py``:
 
     .. code-block::
@@ -426,9 +422,8 @@ The following commands describe how to download the pre-trained model:
 
      .. code-block:: bash
 
-        cd icefall_asr_librispeech_conformer_ctc
+        cd icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
         git lfs pull
-
 
 .. CAUTION::
 
@@ -439,46 +434,52 @@ After downloading, you will have the following files:
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ tree tmp
+  $ tree icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
 
 .. code-block:: bash
 
-  tmp
-  `-- icefall_asr_librispeech_conformer_ctc
-      |-- README.md
-      |-- data
-      |   |-- lang_bpe
-      |   |   |-- HLG.pt
-      |   |   |-- bpe.model
-      |   |   |-- tokens.txt
-      |   |   `-- words.txt
-      |   `-- lm
-      |       `-- G_4_gram.pt
-      |-- exp
-      |   `-- pretrained.pt
-      `-- test_wavs
-          |-- 1089-134686-0001.flac
-          |-- 1221-135766-0001.flac
-          |-- 1221-135766-0002.flac
-          `-- trans.txt
+  icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
+  |-- README.md
+  |-- data
+  |   |-- lang_bpe_500
+  |   |   |-- HLG.pt
+  |   |   |-- HLG_modified.pt
+  |   |   |-- bpe.model
+  |   |   |-- tokens.txt
+  |   |   `-- words.txt
+  |   `-- lm
+  |       `-- G_4_gram.pt
+  |-- exp
+  |   |-- cpu_jit.pt
+  |   `-- pretrained.pt
+  |-- log
+  |   `-- log-decode-2021-11-09-17-38-28
+  `-- test_wavs
+      |-- 1089-134686-0001.wav
+      |-- 1221-135766-0001.wav
+      |-- 1221-135766-0002.wav
+      `-- trans.txt
 
-  6 directories, 11 files
 
 **File descriptions**:
-  - ``data/lang_bpe/HLG.pt``
+  - ``data/lang_bpe_500/HLG.pt``
 
       It is the decoding graph.
 
-  - ``data/lang_bpe/bpe.model``
+  - ``data/lang_bpe_500/HLG_modified.pt``
+
+      It uses a modified CTC topology while building HLG.
+
+  - ``data/lang_bpe_500/bpe.model``
 
       It is a sentencepiece model. You can use it to reproduce our results.
 
-  - ``data/lang_bpe/tokens.txt``
+  - ``data/lang_bpe_500/tokens.txt``
 
       It contains tokens and their IDs, generated from ``bpe.model``.
       Provided only for convenience so that you can look up the SOS/EOS ID easily.
 
-  - ``data/lang_bpe/words.txt``
+  - ``data/lang_bpe_500/words.txt``
 
       It contains words and their IDs.
 
@@ -489,49 +490,55 @@ After downloading, you will have the following files:
   - ``exp/pretrained.pt``
 
       It contains pre-trained model parameters, obtained by averaging
-      checkpoints from ``epoch-15.pt`` to ``epoch-34.pt``.
+      checkpoints from ``epoch-23.pt`` to ``epoch-77.pt``.
       Note: We have removed optimizer ``state_dict`` to reduce file size.
 
-  - ``test_waves/*.flac``
+  - ``exp/cpu_jit.pt``
+
+      It contains torch scripted model that can be deployed in C++.
+
+  - ``test_wavs/*.wav``
 
       It contains some test sound files from LibriSpeech ``test-clean`` dataset.
 
-  - ``test_waves/trans.txt``
+  - ``test_wavs/trans.txt``
 
-      It contains the reference transcripts for the sound files in ``test_waves/``.
+      It contains the reference transcripts for the sound files in ``test_wavs/``.
 
 The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/*.flac
+  $ soxi icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/*.wav
 
-  Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac'
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
   Duration       : 00:00:06.62 = 106000 samples ~ 496.875 CDDA sectors
-  File Size      : 116k
-  Bit Rate       : 140k
-  Sample Encoding: 16-bit FLAC
+  File Size      : 212k
+  Bit Rate       : 256k
+  Sample Encoding: 16-bit Signed Integer PCM
 
-  Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac'
+
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
   Duration       : 00:00:16.71 = 267440 samples ~ 1253.62 CDDA sectors
-  File Size      : 343k
-  Bit Rate       : 164k
-  Sample Encoding: 16-bit FLAC
+  File Size      : 535k
+  Bit Rate       : 256k
+  Sample Encoding: 16-bit Signed Integer PCM
 
-  Input File     : 'tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac'
+
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
   Duration       : 00:00:04.83 = 77200 samples ~ 361.875 CDDA sectors
-  File Size      : 105k
-  Bit Rate       : 174k
-  Sample Encoding: 16-bit FLAC
+  File Size      : 154k
+  Bit Rate       : 256k
+  Sample Encoding: 16-bit Signed Integer PCM
 
   Total Duration of 3 files: 00:00:28.16
 
@@ -564,38 +571,37 @@ The command to run CTC decoding is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --bpe-model ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/bpe.model \
-    --method ctc-decoding \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+     --checkpoint ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt \
+     --bpe-model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model \
+     --method ctc-decoding \
+     --num-classes 500 \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is given below:
 
 .. code-block::
 
-  2021-10-13 11:21:50,896 INFO [pretrained.py:236] device: cuda:0
-  2021-10-13 11:21:50,896 INFO [pretrained.py:238] Creating model
-  2021-10-13 11:21:56,669 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-10-13 11:21:56,670 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-10-13 11:21:56,683 INFO [pretrained.py:271] Decoding started
-  2021-10-13 11:21:57,341 INFO [pretrained.py:290] Building CTC topology
-  2021-10-13 11:21:57,625 INFO [lexicon.py:113] Loading pre-compiled tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/Linv.pt
-  2021-10-13 11:21:57,679 INFO [pretrained.py:299] Loading BPE model
-  2021-10-13 11:22:00,076 INFO [pretrained.py:314] Use CTC decoding
-  2021-10-13 11:22:00,087 INFO [pretrained.py:400] 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
-  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+  2021-11-10 12:12:29,554 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': None, 'HLG': None, 'bpe_model': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model', 'method': 'ctc-decoding', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 12:12:29,554 INFO [pretrained.py:266] device: cuda:0
+  2021-11-10 12:12:29,554 INFO [pretrained.py:268] Creating model
+  2021-11-10 12:12:35,600 INFO [pretrained.py:285] Constructing Fbank computer
+  2021-11-10 12:12:35,601 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
+  2021-11-10 12:12:35,758 INFO [pretrained.py:301] Decoding started
+  2021-11-10 12:12:36,025 INFO [pretrained.py:319] Use CTC decoding
+  2021-11-10 12:12:36,204 INFO [pretrained.py:425]
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROFFELS
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
-  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
-  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED B
+  OSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-10-13 11:22:00,087 INFO [pretrained.py:402] Decoding Done
+  2021-11-10 12:12:36,204 INFO [pretrained.py:427] Decoding Done
 
 HLG decoding
 ^^^^^^^^^^^^
@@ -608,36 +614,39 @@ The command to run HLG decoding is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
-    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+     --checkpoint ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt \
+     --words-file ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+     --method 1best \
+     --num-classes 500 \
+     --HLG ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is given below:
 
 .. code-block::
 
-  2021-10-13 11:25:19,458 INFO [pretrained.py:236] device: cuda:0
-  2021-10-13 11:25:19,458 INFO [pretrained.py:238] Creating model
-  2021-10-13 11:25:25,342 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-10-13 11:25:25,343 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-10-13 11:25:25,356 INFO [pretrained.py:271] Decoding started
-  2021-10-13 11:25:26,026 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-10-13 11:25:33,735 INFO [pretrained.py:359] Use HLG decoding
-  2021-10-13 11:25:34,013 INFO [pretrained.py:400] 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
+  2021-11-10 13:33:03,723 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': '1best', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:33:03,723 INFO [pretrained.py:266] device: cuda:0
+  2021-11-10 13:33:03,723 INFO [pretrained.py:268] Creating model
+  2021-11-10 13:33:09,775 INFO [pretrained.py:285] Constructing Fbank computer
+  2021-11-10 13:33:09,776 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
+  2021-11-10 13:33:09,881 INFO [pretrained.py:301] Decoding started
+  2021-11-10 13:33:09,951 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 13:33:13,234 INFO [pretrained.py:384] Use HLG decoding
+  2021-11-10 13:33:13,571 INFO [pretrained.py:425]
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
-  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
-  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-10-13 11:25:34,014 INFO [pretrained.py:402] Decoding Done
+  2021-11-10 13:33:13,571 INFO [pretrained.py:427] Decoding Done
+
 
 HLG decoding + LM rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -650,41 +659,43 @@ The command to run HLG decoding + LM rescoring is:
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
-    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
-    --method whole-lattice-rescoring \
-    --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
-    --ngram-lm-scale 0.8 \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+  ./conformer_ctc/pretrained.py \
+     --checkpoint ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt \
+     --words-file ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+     --method whole-lattice-rescoring \
+     --num-classes 500 \
+     --HLG ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+     --G ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
+     --ngram-lm-scale 1.0 \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 Its output is:
 
 .. code-block::
 
-  2021-10-13 11:28:19,129 INFO [pretrained.py:236] device: cuda:0
-  2021-10-13 11:28:19,129 INFO [pretrained.py:238] Creating model
-  2021-10-13 11:28:23,531 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-10-13 11:28:23,532 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-10-13 11:28:23,544 INFO [pretrained.py:271] Decoding started
-  2021-10-13 11:28:24,141 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-10-13 11:28:30,752 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-10-13 11:28:48,308 INFO [pretrained.py:364] Use HLG decoding + LM rescoring
-  2021-10-13 11:28:48,815 INFO [pretrained.py:400] 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
+  2021-11-10 13:39:55,857 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'whole-lattice-rescoring', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 1.0, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-$it-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:39:55,858 INFO [pretrained.py:266] device: cuda:0
+  2021-11-10 13:39:55,858 INFO [pretrained.py:268] Creating model
+  2021-11-10 13:40:01,979 INFO [pretrained.py:285] Constructing Fbank computer
+  2021-11-10 13:40:01,980 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
+  2021-11-10 13:40:02,055 INFO [pretrained.py:301] Decoding started
+  2021-11-10 13:40:02,117 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 13:40:05,051 INFO [pretrained.py:363] Loading G from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
+  2021-11-10 13:40:18,959 INFO [pretrained.py:389] Use HLG decoding + LM rescoring
+  2021-11-10 13:40:19,546 INFO [pretrained.py:425]
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
-  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
-  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-10-13 11:28:48,815 INFO [pretrained.py:402] Decoding Done
+  2021-11-10 13:40:19,546 INFO [pretrained.py:427] Decoding Done
+
 
 HLG decoding + LM rescoring + attention decoder rescoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -699,45 +710,72 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
 
   $ cd egs/librispeech/ASR
   $ ./conformer_ctc/pretrained.py \
-    --checkpoint ./tmp/icefall_asr_librispeech_conformer_ctc/exp/pretrained.pt \
-    --words-file ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/words.txt \
-    --HLG ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt \
-    --method attention-decoder \
-    --G ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt \
-    --ngram-lm-scale 1.3 \
-    --attention-decoder-scale 1.2 \
-    --nbest-scale 0.5 \
-    --num-paths 100 \
-    --sos-id 1 \
-    --eos-id 1 \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac
+     --checkpoint ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt \
+     --words-file ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+     --method attention-decoder \
+     --num-classes 500 \
+     --HLG ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+     --G ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
+     --ngram-lm-scale 2.0 \
+     --attention-decoder-scale 2.0 \
+     --nbest-scale 0.5 \
+     --num-paths 100 \
+     --sos-id 1 \
+     --eos-id 1 \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is below:
 
 .. code-block::
 
-  2021-10-13 11:29:50,106 INFO [pretrained.py:236] device: cuda:0
-  2021-10-13 11:29:50,106 INFO [pretrained.py:238] Creating model
-  2021-10-13 11:29:56,063 INFO [pretrained.py:255] Constructing Fbank computer
-  2021-10-13 11:29:56,063 INFO [pretrained.py:265] Reading sound files: ['./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac']
-  2021-10-13 11:29:56,077 INFO [pretrained.py:271] Decoding started
-  2021-10-13 11:29:56,770 INFO [pretrained.py:327] Loading HLG from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lang_bpe/HLG.pt
-  2021-10-13 11:30:04,023 INFO [pretrained.py:338] Loading G from ./tmp/icefall_asr_librispeech_conformer_ctc/data/lm/G_4_gram.pt
-  2021-10-13 11:30:18,163 INFO [pretrained.py:372] Use HLG + LM rescoring + attention decoder rescoring
-  2021-10-13 11:30:19,367 INFO [pretrained.py:400] 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1089-134686-0001.flac:
+  2021-11-10 13:43:45,598 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'attention-decoder', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 2.0, 'attention_decoder_scale': 2.0, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:43:45,599 INFO [pretrained.py:266] device: cuda:0
+  2021-11-10 13:43:45,599 INFO [pretrained.py:268] Creating model
+  2021-11-10 13:43:51,833 INFO [pretrained.py:285] Constructing Fbank computer
+  2021-11-10 13:43:51,834 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
+  2021-11-10 13:43:51,915 INFO [pretrained.py:301] Decoding started
+  2021-11-10 13:43:52,076 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 13:43:55,110 INFO [pretrained.py:363] Loading G from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
+  2021-11-10 13:44:09,329 INFO [pretrained.py:397] Use HLG + LM rescoring + attention decoder rescoring
+  2021-11-10 13:44:10,192 INFO [pretrained.py:425]
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0001.flac:
-  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONOURED
-  BOSOM TO CONNECT HER PARENT FOR EVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_conformer_ctc/test_wavs/1221-135766-0002.flac:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
-  2021-10-13 11:30:19,367 INFO [pretrained.py:402] Decoding Done
+  2021-11-10 13:44:10,192 INFO [pretrained.py:427] Decoding Done
+
+
+Compute WER with the pre-trained model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To check the WER of the pre-trained model on the test datasets, run:
+
+.. code-block:: bash
+
+  $ cd egs/librispeech/ASR
+  $ cd icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/
+  $ ln -s pretrained.pt epoch-999.pt
+  $ cd ../..
+  $ ./conformer_ctc/decode.py \
+      --exp-dir ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp \
+      --lang-dir ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500 \
+      --lm-dir ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm \
+      --epoch 999 \
+      --avg 1 \
+      --concatenate-cuts 0 \
+      --bucketing-sampler 1 \
+      --max-duration 30 \
+      --num-paths 1000 \
+      --method attention-decoder \
+      --nbest-scale 0.5
+
 
 Colab notebook
 --------------
@@ -756,7 +794,7 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
   ``HLG decoding + LM rescoring + attention decoder rescoring``.
   Otherwise, you can only run ``HLG decoding`` with Colab.
 
-**Congratulations!** You have finished the librispeech ASR recipe with
+**Congratulations!** You have finished the LibriSpeech ASR recipe with
 conformer CTC models in ``icefall``.
 
 If you want to deploy your trained model in C++, please read the following section.
@@ -764,34 +802,14 @@ If you want to deploy your trained model in C++, please read the following secti
 Deployment with C++
 -------------------
 
-This section describes how to deploy your trained model in C++, without
+This section describes how to deploy the pre-trained model in C++, without
 Python dependencies.
 
-We assume you have run ``./prepare.sh`` and have the following directories available:
+.. HINT::
 
-.. code-block:: bash
+  At present, it does NOT support streaming decoding.
 
-    data
-    |-- lang_bpe
-
-Also, we assume your checkpoints are saved in ``conformer_ctc/exp``.
-
-If you know that averaging 20 checkpoints starting from ``epoch-30.pt`` yields the
-lowest WER, you can run the following commands
-
-.. code-block::
-
-  $ cd egs/librispeech/ASR
-  $ ./conformer_ctc/export.py \
-      --epoch 30 \
-      --avg 20 \
-      --jit 1 \
-      --lang-dir data/lang_bpe \
-      --exp-dir conformer_ctc/exp
-
-to get a torch scripted model saved in ``conformer_ctc/exp/cpu_jit.pt``.
-
-Now you have all needed files ready. Let us compile k2 from source:
+First, let us compile k2 from source:
 
 .. code-block:: bash
 
@@ -809,67 +827,232 @@ Now you have all needed files ready. Let us compile k2 from source:
   $ mkdir build-release
   $ cd build-release
   $ cmake -DCMAKE_BUILD_TYPE=Release ..
-  $ make -j decode
-  # You will find an executable: `./bin/decode`
+  $ make -j ctc_decode hlg_decode ngram_lm_rescore attention_rescore
+
+  # You will find four binaries in `./bin`, i.e.,
+  # ./bin/ctc_decode, ./bin/hlg_decode,
+  # ./bin/ngram_lm_rescore, and ./bin/attention_rescore
 
 Now you are ready to go!
 
-To view the usage of ``./bin/decode``, run:
+Assume you have run:
+
+  .. code-block:: bash
+
+    $ cd k2/build-release
+    $ ln -s /path/to/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09 ./
+
+To view the usage of ``./bin/ctc_decode``, run:
 
 .. code-block::
 
-  $ ./bin/decode
+  $ ./bin/ctc_decode
 
 It will show you the following message:
 
-.. code-block::
+.. code-block:: bash
 
-  Please provide --jit_pt
+  Please provide --nn_model
 
-    (1) CTC decoding
-      ./bin/decode \
-        --use_ctc_decoding true \
-        --jit_pt <path to exported torch script pt file> \
-        --bpe_model <path to pretrained BPE model> \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
-        <more wave files if any>
-    (2) HLG decoding
-      ./bin/decode \
-        --use_ctc_decoding false \
-        --jit_pt <path to exported torch script pt file> \
-        --hlg <path to HLG.pt> \
-        --word-table <path to words.txt> \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
-        <more wave files if any>
+  This file implements decoding with a CTC topology, without any
+  kinds of LM or lexicons.
 
-     --use_gpu false to use CPU
-     --use_gpu true to use GPU
+  Usage:
+    ./bin/ctc_decode \
+      --use_gpu true \
+      --nn_model <path to torch scripted pt file> \
+      --bpe_model <path to pre-trained BPE model> \
+      <path to foo.wav> \
+      <path to bar.wav> \
+      <more waves if any>
 
-``./bin/decode`` supports two types of decoding at present: CTC decoding and HLG decoding.
+  To see all possible options, use
+    ./bin/ctc_decode --help
+
+  Caution:
+   - Only sound files (*.wav) with single channel are supported.
+   - It assumes the model is conformer_ctc/transformer.py from icefall.
+     If you use a different model, you have to change the code
+     related to `model.forward` in this file.
+
 
 CTC decoding
 ^^^^^^^^^^^^
 
-You need to provide:
+.. code-block:: bash
 
-  - ``--jit_pt``, this is the file generated by ``conformer_ctc/export.py``. You can find it
-    in ``conformer_ctc/exp/cpu_jit.pt``.
-  - ``--bpe_model``, this is a sentence piece model generated by ``prepare.sh``. You can find
-    it in ``data/lang_bpe/bpe.model``.
+  ./bin/ctc_decode \
+    --use_gpu true \
+    --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
+    --bpe_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
+Its output is:
+
+.. code-block::
+
+  2021-11-10 13:57:55.316 [I] k2/torch/bin/ctc_decode.cu:105:int main(int, char**) Use GPU
+  2021-11-10 13:57:55.316 [I] k2/torch/bin/ctc_decode.cu:109:int main(int, char**) Device: cuda:0
+  2021-11-10 13:57:55.316 [I] k2/torch/bin/ctc_decode.cu:118:int main(int, char**) Load wave files
+  2021-11-10 13:58:01.221 [I] k2/torch/bin/ctc_decode.cu:125:int main(int, char**) Build Fbank computer
+  2021-11-10 13:58:01.222 [I] k2/torch/bin/ctc_decode.cu:136:int main(int, char**) Compute features
+  2021-11-10 13:58:01.228 [I] k2/torch/bin/ctc_decode.cu:144:int main(int, char**) Load neural network model
+  2021-11-10 13:58:02.19 [I] k2/torch/bin/ctc_decode.cu:159:int main(int, char**) Compute nnet_output
+  2021-11-10 13:58:02.543 [I] k2/torch/bin/ctc_decode.cu:174:int main(int, char**) Build CTC topo
+  2021-11-10 13:58:02.547 [I] k2/torch/bin/ctc_decode.cu:177:int main(int, char**) Decoding
+  2021-11-10 13:58:02.708 [I] k2/torch/bin/ctc_decode.cu:207:int main(int, char**)
+  Decoding result:
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROFFELS
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 HLG decoding
 ^^^^^^^^^^^^
 
-You need to provide:
+.. code-block:: bash
 
-  - ``--jit_pt``, this is the same file as in CTC decoding.
-  - ``--hlg``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/HLG.pt``.
-  - ``--word-table``, this file is generated by ``prepare.sh``. You can find it in ``data/lang_bpe/words.txt``.
+  ./bin/hlg_decode \
+    --use_gpu true \
+    --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
+    --hlg ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+    --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
-We do provide a Colab notebook, showing you how to run a torch scripted model in C++.
+The output is:
+
+.. code-block::
+
+  2021-11-10 13:59:04.729 [I] k2/torch/bin/hlg_decode.cu:111:int main(int, char**) Use GPU
+  2021-11-10 13:59:04.729 [I] k2/torch/bin/hlg_decode.cu:115:int main(int, char**) Device: cuda:0
+  2021-11-10 13:59:04.729 [I] k2/torch/bin/hlg_decode.cu:124:int main(int, char**) Load wave files
+  2021-11-10 13:59:10.702 [I] k2/torch/bin/hlg_decode.cu:131:int main(int, char**) Build Fbank computer
+  2021-11-10 13:59:10.703 [I] k2/torch/bin/hlg_decode.cu:142:int main(int, char**) Compute features
+  2021-11-10 13:59:10.707 [I] k2/torch/bin/hlg_decode.cu:150:int main(int, char**) Load neural network model
+  2021-11-10 13:59:11.545 [I] k2/torch/bin/hlg_decode.cu:165:int main(int, char**) Compute nnet_output
+  2021-11-10 13:59:12.72 [I] k2/torch/bin/hlg_decode.cu:180:int main(int, char**) Load ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 13:59:12.994 [I] k2/torch/bin/hlg_decode.cu:185:int main(int, char**) Decoding
+  2021-11-10 13:59:13.268 [I] k2/torch/bin/hlg_decode.cu:216:int main(int, char**)
+  Decoding result:
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
+
+
+HLG decoding + n-gram LM rescoring
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+  ./bin/ngram_lm_rescore \
+    --use_gpu true \
+    --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
+    --hlg ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+    --g ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
+    --ngram_lm_scale 1.0 \
+    --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+
+The output is:
+
+.. code-block::
+
+  2021-11-10 14:00:55.279 [I] k2/torch/bin/ngram_lm_rescore.cu:122:int main(int, char**) Use GPU
+  2021-11-10 14:00:55.280 [I] k2/torch/bin/ngram_lm_rescore.cu:126:int main(int, char**) Device: cuda:0
+  2021-11-10 14:00:55.280 [I] k2/torch/bin/ngram_lm_rescore.cu:135:int main(int, char**) Load wave files
+  2021-11-10 14:01:01.214 [I] k2/torch/bin/ngram_lm_rescore.cu:142:int main(int, char**) Build Fbank computer
+  2021-11-10 14:01:01.215 [I] k2/torch/bin/ngram_lm_rescore.cu:153:int main(int, char**) Compute features
+  2021-11-10 14:01:01.219 [I] k2/torch/bin/ngram_lm_rescore.cu:161:int main(int, char**) Load neural network model
+  2021-11-10 14:01:01.945 [I] k2/torch/bin/ngram_lm_rescore.cu:176:int main(int, char**) Compute nnet_output
+  2021-11-10 14:01:02.475 [I] k2/torch/bin/ngram_lm_rescore.cu:191:int main(int, char**) Load ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 14:01:03.398 [I] k2/torch/bin/ngram_lm_rescore.cu:199:int main(int, char**) Decoding
+  2021-11-10 14:01:03.515 [I] k2/torch/bin/ngram_lm_rescore.cu:205:int main(int, char**) Load n-gram LM: ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
+  2021-11-10 14:01:07.432 [W] k2/torch/csrc/deserialization.cu:441:k2::FsaClass k2::LoadFsa(const string&, c10::optional<c10::Device>)
+  Ignore non tensor attribute: 'dummy' of type: Int
+  2021-11-10 14:01:07.589 [I] k2/torch/bin/ngram_lm_rescore.cu:214:int main(int, char**) Rescore with an n-gram LM
+  2021-11-10 14:01:08.68 [I] k2/torch/bin/ngram_lm_rescore.cu:242:int main(int, char**)
+  Decoding result:
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
+
+
+HLG decoding + n-gram LM rescoring + attention decoder rescoring
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+  ./bin/attention_rescore \
+    --use_gpu true \
+    --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
+    --hlg ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
+    --g ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
+    --ngram_lm_scale 2.0 \
+    --attention_scale 2.0 \
+    --num_paths 100 \
+    --nbest_scale 0.5 \
+    --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
+    --sos_id 1 \
+    --eos_id 1 \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+
+The output is:
+
+.. code-block::
+
+  2021-11-10 14:02:43.656 [I] k2/torch/bin/attention_rescore.cu:149:int main(int, char**) Use GPU
+  2021-11-10 14:02:43.656 [I] k2/torch/bin/attention_rescore.cu:153:int main(int, char**) Device: cuda:0
+  2021-11-10 14:02:43.656 [I] k2/torch/bin/attention_rescore.cu:162:int main(int, char**) Load wave files
+  2021-11-10 14:02:49.216 [I] k2/torch/bin/attention_rescore.cu:169:int main(int, char**) Build Fbank computer
+  2021-11-10 14:02:49.217 [I] k2/torch/bin/attention_rescore.cu:180:int main(int, char**) Compute features
+  2021-11-10 14:02:49.222 [I] k2/torch/bin/attention_rescore.cu:188:int main(int, char**) Load neural network model
+  2021-11-10 14:02:49.984 [I] k2/torch/bin/attention_rescore.cu:203:int main(int, char**) Compute nnet_output
+  2021-11-10 14:02:50.624 [I] k2/torch/bin/attention_rescore.cu:220:int main(int, char**) Load ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
+  2021-11-10 14:02:51.519 [I] k2/torch/bin/attention_rescore.cu:228:int main(int, char**) Decoding
+  2021-11-10 14:02:51.632 [I] k2/torch/bin/attention_rescore.cu:234:int main(int, char**) Load n-gram LM: ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
+  2021-11-10 14:02:55.537 [W] k2/torch/csrc/deserialization.cu:441:k2::FsaClass k2::LoadFsa(const string&, c10::optional<c10::Device>) Ignore non tensor attribute: 'dummy' of type: Int
+  2021-11-10 14:02:55.645 [I] k2/torch/bin/attention_rescore.cu:243:int main(int, char**) Rescore with an n-gram LM
+  2021-11-10 14:02:55.970 [I] k2/torch/bin/attention_rescore.cu:246:int main(int, char**) Sample 100 paths
+  2021-11-10 14:02:56.215 [I] k2/torch/bin/attention_rescore.cu:293:int main(int, char**) Run attention decoder
+  2021-11-10 14:02:57.35 [I] k2/torch/bin/attention_rescore.cu:303:int main(int, char**) Rescoring
+  2021-11-10 14:02:57.179 [I] k2/torch/bin/attention_rescore.cu:369:int main(int, char**)
+  Decoding result:
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
+  AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
+  GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
+
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
+  YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
+
+There is a Colab notebook showing you how to run a torch scripted model in C++.
 Please see |librispeech asr conformer ctc torch script colab notebook|
 
 .. |librispeech asr conformer ctc torch script colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
