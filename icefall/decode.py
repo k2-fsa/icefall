@@ -364,23 +364,13 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        # Caution: We need a clone here. `self.fsa.scores` is a
-        # reference to a tensor representing the last field of an arc
-        # in the FSA (Remeber that an arc has four fields.) If we later assign
-        # `self.fsa.scores`, it will also change the scores on every arc, which
-        # means saved_scores will also be changed if we don't use `clone()`
-        # here.
-        saved_scores = self.fsa.scores.clone()
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
+        am_scores = self.fsa.scores - self.fsa.lm_scores
+        ragged_am_scores = k2.RaggedTensor(scores_shape, am_scores.contiguous())
+        tot_scores = ragged_am_scores.sum()
 
-        # The `scores` of every arc consists of `am_scores` and `lm_scores`
-        self.fsa.scores = self.fsa.scores - self.fsa.lm_scores
-
-        am_scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
-        )
-        self.fsa.scores = saved_scores
-
-        return k2.RaggedTensor(self.shape, am_scores)
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def compute_lm_scores(self) -> k2.RaggedTensor:
         """Compute LM scores of each linear FSA (i.e., each path within
@@ -397,17 +387,16 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores.clone()
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
 
-        # The `scores` of every arc consists of `am_scores` and `lm_scores`
-        self.fsa.scores = self.fsa.lm_scores.clone()
-
-        lm_scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
+        ragged_lm_scores = k2.RaggedTensor(
+            scores_shape, self.fsa.lm_scores.contiguous()
         )
-        self.fsa.scores = saved_scores
 
-        return k2.RaggedTensor(self.shape, lm_scores)
+        tot_scores = ragged_lm_scores.sum()
+
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def tot_scores(self) -> k2.RaggedTensor:
         """Get total scores of FSAs in this Nbest.
@@ -420,10 +409,14 @@ class Nbest(object):
           Return a ragged tensor with two axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
-        )
-        return k2.RaggedTensor(self.shape, scores)
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
+
+        ragged_scores = k2.RaggedTensor(scores_shape, self.scores.contiguous())
+
+        tot_scores = ragged_scores.sum()
+
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def build_levenshtein_graphs(self) -> k2.Fsa:
         """Return an FsaVec with axes [utt][state][arc]."""

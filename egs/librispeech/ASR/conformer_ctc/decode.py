@@ -147,13 +147,21 @@ def get_parser():
         help="The lang dir",
     )
 
+    parser.add_argument(
+        "--lm-dir",
+        type=str,
+        default="data/lm",
+        help="""The LM dir.
+        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+        """,
+    )
+
     return parser
 
 
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "lm_dir": Path("data/lm"),
             # parameters for conformer
             "subsampling_factor": 4,
             "vgg_frontend": False,
@@ -532,6 +540,7 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
+    args.lm_dir = Path(args.lm_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -572,9 +581,8 @@ def main():
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
         )
-        HLG = HLG.to(device)
         assert HLG.requires_grad is False
 
         if not hasattr(HLG, "lm_scores"):
@@ -609,8 +617,8 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
-            G = k2.Fsa.from_dict(d).to(device)
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
+            G = k2.Fsa.from_dict(d)
 
         if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
             # Add epsilon self-loops to G as we will compose
