@@ -856,6 +856,10 @@ def rescore_with_attention_decoder(
     tokens = tokens.remove_values_leq(0)
     token_ids = tokens.tolist()
 
+    if len(token_ids) == 0:
+        print("Warning: rescore_with_attention_decoder(): empty token-ids")
+        return None
+
     nll = model.decoder_nll(
         memory=expanded_memory,
         memory_key_padding_mask=expanded_memory_key_padding_mask,
