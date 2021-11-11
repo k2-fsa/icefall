@@ -479,14 +479,13 @@ def decode_dataset(
             assert (
                 len(results) > 0
             ), "It should not decode to empty in the first batch!"
-            keys = list(results.keys())
-            for lm_scale in keys:
-                this_batch = []
-                hyp_words = []
-                for ref_text in texts:
-                    ref_words = ref_text.split()
-                    this_batch.append((ref_words, hyp_words))
+            this_batch = []
+            hyp_words = []
+            for ref_text in texts:
+                ref_words = ref_text.split()
+                this_batch.append((ref_words, hyp_words))
 
+            for lm_scale in results.keys():
                 results[lm_scale].extend(this_batch)
 
         num_cuts += len(texts)
