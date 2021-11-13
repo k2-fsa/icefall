@@ -110,7 +110,8 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for GigaSpeech"
   mkdir -p data/fbank
-  ./local/compute_fbank_gigaspeech.py
+  ./local/compute_fbank_gigaspeech.py --num-jobs $nj --context-window 0.0 \
+    --context-direction center --precomputed-features False
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then

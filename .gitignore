@@ -6,3 +6,5 @@ exp
 exp*/
 *.pt
 download
+dask-worker-space
+log
