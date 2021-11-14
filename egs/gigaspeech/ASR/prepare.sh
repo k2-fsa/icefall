@@ -262,7 +262,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $data/lm/3-gram.arpa > data/lm/G_3_gram.fst.txt
+      data/lm/3-gram.arpa > data/lm/G_3_gram.fst.txt
   fi
 
   if [ ! -f data/lm/4-gram.arpa ]; then
@@ -278,7 +278,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=4 \
-      $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+      data/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
   fi
 fi
 
