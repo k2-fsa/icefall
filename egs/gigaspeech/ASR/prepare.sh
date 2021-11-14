@@ -249,13 +249,27 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   # it using: pip install kaldilm
 
   mkdir -p data/lm
+  if [ ! -f data/lm/3-gram.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text "data/lang_phone/transcript_words.txt" \
+      -lm data/lm/3-gram.arpa
+  fi
+
   if [ ! -f data/lm/G_3_gram.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
+      $data/lm/3-gram.arpa > data/lm/G_3_gram.fst.txt
+  fi
+
+  if [ ! -f data/lm/4-gram.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 4 \
+      -text "data/lang_phone/transcript_words.txt" \
+      -lm data/lm/4-gram.arpa
   fi
 
   if [ ! -f data/lm/G_4_gram.fst.txt ]; then
@@ -270,7 +284,7 @@ fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
+  # ./local/compile_hlg.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
