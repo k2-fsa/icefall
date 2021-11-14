@@ -13,7 +13,7 @@ stop_stage=100
 #  - $dl_dir/GigaSpeech
 #      You can find audio, dict, GigaSpeech.json inside it.
 #      You can apply for the download credentials by following
-#      https://github.com/SpeechColab/GigaSpeech#dataset-download
+#      https://github.com/SpeechColab/GigaSpeech#download
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -187,8 +187,8 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
-    # # We reuse words.txt from phone based lexicon
-    # # so that the two can share G.pt later.
+    # We reuse words.txt from phone based lexicon
+    # so that the two can share G.pt later.
     cp data/lang_phone/{words.txt,transcript_words.txt} $lang_dir
 
     if [ ! -f $lang_dir/transcript_words.txt ]; then
