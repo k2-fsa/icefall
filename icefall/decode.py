@@ -20,11 +20,7 @@ from typing import Dict, List, Optional, Union
 import k2
 import torch
 
-from icefall.lm.rescore import (
-    compute_alignment,
-    make_hyp_to_ref_map,
-    prepare_conformer_lm_inputs,
-)
+from icefall.lm.rescore import compute_alignment, prepare_conformer_lm_inputs
 from icefall.utils import get_texts
 
 
@@ -989,8 +985,6 @@ def rescore_with_conformer_lm(
     tokens = k2.RaggedTensor(tokens_shape, nbest.fsa.tokens)
     tokens = tokens.remove_values_leq(0)
 
-    device = model.device
-
     #  import pdb
     #
     #  pdb.set_trace()
@@ -998,70 +992,51 @@ def rescore_with_conformer_lm(
         nbest.shape.row_splits(1)[1:] - nbest.shape.row_splits(1)[:-1]
     )
     logging.info(f"path per utt: {path_per_utt}")
-    if 1 not in path_per_utt:
-        device2 = masked_lm_model.device
 
-        alignment = compute_alignment(
-            tokens.to(device2), nbest.shape.to(device2)
+    device2 = masked_lm_model.device
+
+    alignment = compute_alignment(tokens.to(device2), nbest.shape.to(device2))
+    tgt_ll_list = []
+    for label_name in ["ref_labels", "hyp_labels"]:
+        (
+            masked_src_symbols,
+            src_symbols,
+            tgt_symbols,
+            src_key_padding_mask,
+            tgt_weights,
+        ) = prepare_conformer_lm_inputs(
+            alignment,
+            bos_id=sos_id,
+            eos_id=eos_id,
+            blank_id=blank_id,
+            src_label_name=label_name,
+            unmasked_weight=0.0,
         )
-        tgt_ll_list = []
-        for label_name in ["ref_labels", "hyp_labels"]:
-            (
-                masked_src_symbols,
-                src_symbols,
-                tgt_symbols,
-                src_key_padding_mask,
-                tgt_weights,
-            ) = prepare_conformer_lm_inputs(
-                alignment,
-                bos_id=sos_id,
-                eos_id=eos_id,
-                blank_id=blank_id,
-                src_label_name=label_name,
-                unmasked_weight=0.0,
-            )
 
-            masked_src_symbols = masked_src_symbols.to(torch.int64)
-            src_symbols = src_symbols.to(torch.int64)
-            tgt_symbols = tgt_symbols.to(torch.int64)
+        masked_src_symbols = masked_src_symbols.to(torch.int64)
+        src_symbols = src_symbols.to(torch.int64)
+        tgt_symbols = tgt_symbols.to(torch.int64)
 
-            masked_lm_memory, masked_lm_pos_emb = masked_lm_model(
-                masked_src_symbols, src_key_padding_mask
-            )
-
-            tgt_nll = masked_lm_model.decoder_nll(
-                masked_lm_memory,
-                masked_lm_pos_emb,
-                src_symbols,
-                tgt_symbols,
-                src_key_padding_mask,
-            )
-
-            # nll means negative log-likelihood
-            # ll means log-likelihood
-            tgt_ll = -1 * (tgt_nll * tgt_weights).sum(dim=-1)
-
-            tgt_ll_list.append(tgt_ll)
-
-        #  tgt_ll = tgt_ll_list[1] - tgt_ll_list[0] # wer: 2.61
-        tgt_ll = tgt_ll_list[0] - tgt_ll_list[1]
-
-        # TODO(fangjun): Add documentation about why we do the following
-        tgt_ll_shape_row_ids = make_hyp_to_ref_map(
-            nbest.shape.row_splits(1).to(device2)
+        masked_lm_memory, masked_lm_pos_emb = masked_lm_model(
+            masked_src_symbols, src_key_padding_mask
         )
-        tgt_ll_shape = k2.ragged.create_ragged_shape2(
-            row_splits=None,
-            row_ids=tgt_ll_shape_row_ids,
-            cached_tot_size=tgt_ll_shape_row_ids.numel(),
-        )
-        ragged_tgt_ll = k2.RaggedTensor(tgt_ll_shape, tgt_ll)
 
-        ragged_tgt_ll = ragged_tgt_ll.remove_values_eq(0)
-        masked_lm_scores = ragged_tgt_ll.max().to(device)
-    else:
-        logging.warning(f"Disable masked lm. path per utt is: {path_per_utt}")
-        masked_lm_scores = torch.zeros_like(am_scores.values)
+        tgt_nll = masked_lm_model.decoder_nll(
+            masked_lm_memory,
+            masked_lm_pos_emb,
+            src_symbols,
+            tgt_symbols,
+            src_key_padding_mask,
+        )
+
+        # nll means negative log-likelihood
+        # ll means log-likelihood
+        tgt_ll = -1 * (tgt_nll * tgt_weights).sum(dim=-1)
+
+        tgt_ll_list.append(tgt_ll)
+
+    # hyp - ref
+    masked_lm_scores = tgt_ll_list[1] - tgt_ll_list[0]
 
     # TODO(fangjun): Support passing a ragged tensor to `decoder_nll` directly.
     token_ids = tokens.tolist()

@@ -17,16 +17,22 @@
 """
 This file contains rescoring code for NN LMs, e.g., conformer LM.
 
-Support an utterance has 3 paths:
-    (a, b, c)
+Suppose that an utterance has 3 paths:
+    (a, b, c, d, e)
+
 and we want to use a masked conformer LM to assign a likelihood to each path.
 
 The following shows the steps:
 
-(1) Select path pairs:
-    (a, b), (a, c)
-    (b, a), (b, c)
-    (c, a), (c, b)
+(1) Select "a" as the reference path. Note: For ease of implementation,
+    we always select the first path as the reference one.
+
+(2) We have the following path pairs:
+
+    (a, a) (a, b), (a, c), (a, d), (a, e)
+
+    Note: Even if we know the likelihood for the pair (a, a) is always 0,
+    we still list it here for ease of implementation.
 
 (2) For each pair, e.g., for the pair (a, b),
 
@@ -39,20 +45,27 @@ The following shows the steps:
     (iv)  Use "b" as "src" and its shifted version as "tgt".
           We can get another likelihood value, denoted as "ab_other"
 
-So for the path pair (a, b), (a, c), (b, a), (b, c), (c, a), and (c, b),
+So for the path pair (a, a), (a, b), (a, c), (a, d), and (a, e),
 we can get the following log-likelihood values, viewed as two tensors:
 
-    self = [ab_self,   ac_self,  ba_self,  bc_self,  ca_self,  cb_self]
+    self = [aa_self, ab_self,   ac_self,  ad_self, ae_self]
 
-    other = [ab_other, ac_other, ba_other, bc_other, ca_other, cb_other]
+    other = [aa_other, ab_other, ac_other, ad_other, ae_other]
 
-    Compute the difference the two tensors:
+    Compute the difference between the two tensors:
 
-        self - other = [ab_self - ab_other, ac_self - ac_other, ...]
+        other - self = [aa_other - aa_self, ab_other - ab_self,
+                        ac_other - ac_self, ... ]
 
-  The log-likelihood for path a is : max(ab_self - ab_other, ac_self - ac_other)
-  The log-likelihood for path b is : max(ba_self - ba_other, bc_self - bc_other)
-  The log-likelihood for path c is : max(ca_self - ca_other, cb_self - cb_other)
+  The log-likelihood for path a is : 0
+  The log-likelihood for path b is : ab_other - ab_self
+  The log-likelihood for path c is : ac_other - ac_self
+  The log-likelihood for path d is : ad_other - ad_self
+  The log-likelihood for path e is : ae_other - ae_self
+
+Note: "ab_other - ab_self" can be interpreted as
+
+    log P(b) - log P(a)
 """
 
 from typing import Tuple
@@ -181,14 +194,13 @@ def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
     return concat(ragged, eos_id, direction="right")
 
 
-def make_hyp_to_ref_map(row_splits: torch.Tensor):
+def make_hyp_to_ref_map(row_splits: torch.Tensor) -> torch.Tensor:
     """
-    TODO: Add documentation.
+    TODO: Add documentation
 
     >>> row_splits = torch.tensor([0, 3, 5], dtype=torch.int32)
     >>> make_hyp_to_ref_map(row_splits)
-    tensor([0, 0, 1, 1, 2, 2, 3, 4], dtype=torch.int32)
-
+    tensor([0, 0, 0, 3, 3], dtype=torch.int32)
     """
     device = row_splits.device
     sizes = (row_splits[1:] - row_splits[:-1]).tolist()
@@ -198,76 +210,13 @@ def make_hyp_to_ref_map(row_splits: torch.Tensor):
     for size, offset in zip(sizes, offsets):
         # Explanation of the following operations
         # assume size is 3, offset is 2
-        # torch.arange() + offset is [2, 3, 4]
-        # expand() is [[2, 3, 4], [2, 3, 4]]
-        # t() is [[2, 2], [3, 3], [4, 4]]
-        # reshape() is [2, 2, 3, 3, 4, 4]
+        # torch.zeros() + offset is [2, 2, 2]
         map_tensor = (
-            (torch.arange(size, dtype=torch.int32, device=device) + offset)
-            .expand(size - 1, size)
-            .t()
-            .reshape(-1)
+            torch.zeros(size, dtype=torch.int32, device=device) + offset
         )
         map_tensor_list.append(map_tensor)
 
     return torch.cat(map_tensor_list)
-
-
-def make_repeat_map(row_splits: torch.Tensor):
-    """
-    TODO: Add documentation.
-
-    >>> row_splits = torch.tensor([0, 3, 5], dtype=torch.int32)
-    >>> make_repeat_map(row_splits)
-    tensor([1, 2, 0, 2, 0, 1, 4, 3], dtype=torch.int32)
-
-    """
-    device = row_splits.device
-    sizes = (row_splits[1:] - row_splits[:-1]).tolist()
-    offsets = row_splits[:-1]
-
-    map_tensor_list = []
-    for size, offset in zip(sizes, offsets):
-        # Explanation of the following operations
-        # assume size is 3, offset is 2
-        # torch.arange() + offset is [2, 3, 4]
-        # expand() is [[2, 3, 4], [2, 3, 4], [2, 3, 4]]
-        # reshape() is [2, 3, 4, 2, 3, 4, 2, 3, 4]
-        map_tensor = (
-            (torch.arange(size, dtype=torch.int32, device=device) + offset)
-            .expand(size, size)
-            .reshape(-1)
-        )
-        diag_offset = torch.arange(size, device=device) * (size + 1)
-        # remove diagonal elements
-        map_tensor[diag_offset] = -1
-        map_tensor = map_tensor[map_tensor != -1]
-        # In the above example, map_tensor becomes
-        # [3, 4, 2, 4, 2, 3]
-        map_tensor_list.append(map_tensor)
-
-    return torch.cat(map_tensor_list)
-
-
-def make_repeat(tokens: k2.RaggedTensor) -> k2.RaggedTensor:
-    """Repeat paths in an utterance.
-
-    For instance, if an utterance contains 3 paths: [path1 path2 path3],
-    after repeating, this utterance will contain 6 paths:
-    [path2 path3] [path1 path3] [path1 path2]
-
-    >>> tokens = k2.RaggedTensor([ [[1, 2, 3], [4, 5], [9]], [[5, 8], [10, 1]] ])
-    >>> tokens.to_str_simple()
-    'RaggedTensor([[[1, 2, 3], [4, 5], [9]], [[5, 8], [10, 1]]], dtype=torch.int32)'
-    >>> make_repeat(tokens).to_str_simple()
-    'RaggedTensor([[[4, 5], [9], [1, 2, 3], [9], [1, 2, 3], [4, 5]], [[10, 1], [5, 8]]], dtype=torch.int32)'  # noqa
-
-    TODO: Add documentation.
-
-    """
-    assert tokens.num_axes == 3, f"num_axes: {tokens.num_axes}"
-    indexes = make_repeat_map(tokens.shape.row_splits(1))
-    return tokens.index(axis=1, indexes=indexes)[0]
 
 
 def compute_alignment(
@@ -285,15 +234,13 @@ def compute_alignment(
     """
     assert tokens.tot_size(0) == shape.tot_size(1)
     device = tokens.device
-    utt_path_shape = shape.compose(tokens.shape)
-    utt_path_token = k2.RaggedTensor(utt_path_shape, tokens.values)
-    utt_path_token_repeated = make_repeat(utt_path_token)
-    path_token_repeated = utt_path_token_repeated.remove_axis(0)
+
+    hyps = k2.levenshtein_graph(tokens, device=device)
 
     refs = k2.levenshtein_graph(tokens, device=device)
-    hyps = k2.levenshtein_graph(path_token_repeated, device=device)
 
-    hyp_to_ref_map = make_hyp_to_ref_map(utt_path_shape.row_splits(1))
+    hyp_to_ref_map = make_hyp_to_ref_map(shape.row_splits(1))
+
     alignment = k2.levenshtein_alignment(
         refs=refs, hyps=hyps, hyp_to_ref_map=hyp_to_ref_map
     )

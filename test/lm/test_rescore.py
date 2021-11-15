@@ -22,8 +22,6 @@ from icefall.lm.rescore import (
     add_eos,
     compute_alignment,
     make_hyp_to_ref_map,
-    make_repeat,
-    make_repeat_map,
     prepare_conformer_lm_inputs,
 )
 
@@ -67,42 +65,9 @@ def test_pad():
 def test_make_hyp_to_ref_map():
     a = k2.RaggedTensor([[[1, 2], [], [3]], [[1, 3], [2], [4], [5]]])
     row_splits = a.shape.row_splits(1)
-    repeat_map = make_hyp_to_ref_map(row_splits)
-    # fmt: off
-    expected = torch.tensor([0, 0, 1, 1, 2, 2, 3,
-        3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6]).to(repeat_map)  # noqa
-    # fmt: on
-    assert torch.all(torch.eq(repeat_map, expected))
-
-
-def test_make_repeat_map():
-    a = k2.RaggedTensor([[[1, 2], [], [3]], [[1, 3], [2], [4], [5]]])
-    row_splits = a.shape.row_splits(1)
-    repeat_map = make_repeat_map(row_splits)
-    # fmt: off
-    expected = torch.tensor([1, 2, 0, 2, 0, 1,
-        4, 5, 6, 3, 5, 6, 3, 4, 6,  # noqa
-        3, 4, 5]).to(repeat_map)  # noqa
-    # fmt: on
-    assert torch.all(torch.eq(repeat_map, expected))
-
-
-def test_make_repeat():
-    # fmt: off
-    a = k2.RaggedTensor([
-        [[1, 3, 5], [2, 6]],
-        [[1, 2, 3, 4], [2], [], [9, 10, 11]],
-        ])
-    b = make_repeat(a)
-    expected = k2.RaggedTensor([
-        [[2, 6], [1, 3, 5]],
-        [              [2], [], [9, 10, 11],   # noqa
-         [1, 2, 3, 4],      [], [9, 10, 11],   # noqa
-         [1, 2, 3, 4], [2],     [9, 10, 11],   # noqa
-         [1, 2, 3, 4], [2], [],            ],  # noqa
-        ])
-    # fmt: on
-    assert str(b) == str(expected)
+    hyp_to_ref_map = make_hyp_to_ref_map(row_splits)
+    expected = torch.tensor([0, 0, 0, 3, 3, 3, 3]).to(hyp_to_ref_map)
+    assert torch.all(torch.eq(hyp_to_ref_map, expected))
 
 
 def test_compute_alignment():
@@ -140,9 +105,7 @@ def main():
     test_add_bos()
     test_add_eos()
     test_pad()
-    test_make_repeat_map()
     test_make_hyp_to_ref_map()
-    test_make_repeat()
     test_compute_alignment()
 
 
