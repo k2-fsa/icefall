@@ -39,8 +39,8 @@ The following shows the steps:
     (iv)  Use "b" as "src" and its shifted version as "tgt".
           We can get another likelihood value, denoted as "ab_other"
 
-So for the path pair (a, b), (a, c), we can get the following log-likelihood
-values, viewed as two tensors:
+So for the path pair (a, b), (a, c), (b, a), (b, c), (c, a), and (c, b),
+we can get the following log-likelihood values, viewed as two tensors:
 
     self = [ab_self,   ac_self,  ba_self,  bc_self,  ca_self,  cb_self]
 
@@ -219,7 +219,7 @@ def make_repeat_map(row_splits: torch.Tensor):
 
     >>> row_splits = torch.tensor([0, 3, 5], dtype=torch.int32)
     >>> make_repeat_map(row_splits)
-    tensor([0, 1, 2, 0, 1, 2, 0, 1, 2, 3, 4, 3, 4], dtype=torch.int32)
+    tensor([1, 2, 0, 2, 0, 1, 4, 3], dtype=torch.int32)
 
     """
     device = row_splits.device
@@ -250,12 +250,11 @@ def make_repeat_map(row_splits: torch.Tensor):
 
 
 def make_repeat(tokens: k2.RaggedTensor) -> k2.RaggedTensor:
-    """Repeat the number of paths of an utterance to the number that
-    equals to the number of paths in the utterance.
+    """Repeat paths in an utterance.
 
     For instance, if an utterance contains 3 paths: [path1 path2 path3],
-    after repeating, this utterance will contain 9 paths:
-    [path1 path2 path3] [path1 path2 path3] [path1 path2 path3]
+    after repeating, this utterance will contain 6 paths:
+    [path2 path3] [path1 path3] [path1 path2]
 
     >>> tokens = k2.RaggedTensor([ [[1, 2, 3], [4, 5], [9]], [[5, 8], [10, 1]] ])
     >>> tokens.to_str_simple()
