@@ -224,6 +224,7 @@ class Nbest(object):
         else:
             word_seq = lattice.aux_labels.index(path)
             word_seq = word_seq.remove_axis(word_seq.num_axes - 2)
+        word_seq = word_seq.remove_values_leq(0)
 
         # Each utterance has `num_paths` paths but some of them transduces
         # to the same word sequence, so we need to remove repeated word
@@ -363,17 +364,13 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
+        am_scores = self.fsa.scores - self.fsa.lm_scores
+        ragged_am_scores = k2.RaggedTensor(scores_shape, am_scores.contiguous())
+        tot_scores = ragged_am_scores.sum()
 
-        # The `scores` of every arc consists of `am_scores` and `lm_scores`
-        self.fsa.scores = self.fsa.scores - self.fsa.lm_scores
-
-        am_scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
-        )
-        self.fsa.scores = saved_scores
-
-        return k2.RaggedTensor(self.shape, am_scores)
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def compute_lm_scores(self) -> k2.RaggedTensor:
         """Compute LM scores of each linear FSA (i.e., each path within
@@ -390,17 +387,16 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
 
-        # The `scores` of every arc consists of `am_scores` and `lm_scores`
-        self.fsa.scores = self.fsa.lm_scores
-
-        lm_scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
+        ragged_lm_scores = k2.RaggedTensor(
+            scores_shape, self.fsa.lm_scores.contiguous()
         )
-        self.fsa.scores = saved_scores
 
-        return k2.RaggedTensor(self.shape, lm_scores)
+        tot_scores = ragged_lm_scores.sum()
+
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def tot_scores(self) -> k2.RaggedTensor:
         """Get total scores of FSAs in this Nbest.
@@ -413,10 +409,16 @@ class Nbest(object):
           Return a ragged tensor with two axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        scores = self.fsa.get_tot_scores(
-            use_double_scores=True, log_semiring=False
+        scores_shape = self.fsa.arcs.shape().remove_axis(1)
+        # scores_shape has axes [path][arc]
+
+        ragged_scores = k2.RaggedTensor(
+            scores_shape, self.fsa.scores.contiguous()
         )
-        return k2.RaggedTensor(self.shape, scores)
+
+        tot_scores = ragged_scores.sum()
+
+        return k2.RaggedTensor(self.shape, tot_scores)
 
     def build_levenshtein_graphs(self) -> k2.Fsa:
         """Return an FsaVec with axes [utt][state][arc]."""
@@ -854,6 +856,10 @@ def rescore_with_attention_decoder(
     tokens = tokens.remove_values_leq(0)
     token_ids = tokens.tolist()
 
+    if len(token_ids) == 0:
+        print("Warning: rescore_with_attention_decoder(): empty token-ids")
+        return None
+
     nll = model.decoder_nll(
         memory=expanded_memory,
         memory_key_padding_mask=expanded_memory_key_padding_mask,
@@ -870,6 +876,7 @@ def rescore_with_attention_decoder(
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
         ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        ngram_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         ngram_lm_scale_list = [ngram_lm_scale]
 
@@ -877,6 +884,7 @@ def rescore_with_attention_decoder(
         attention_scale_list = [0.01, 0.05, 0.08]
         attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
     else:
         attention_scale_list = [attention_scale]
 
