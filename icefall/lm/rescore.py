@@ -17,23 +17,42 @@
 """
 This file contains rescoring code for NN LMs, e.g., conformer LM.
 
-Here are the ideas about preparing the inputs for the conformer LM model
-from an Nbest object.
+Support an utterance has 3 paths:
+    (a, b, c)
+and we want to use a masked conformer LM to assign a likelihood to each path.
 
-Given an Nbest object `nbest`, we have:
-    - nbest.fsa
-    - nbest.shape, whose axes are [utt][path]
+The following shows the steps:
 
-We can get `tokens` from nbest.fsa. The resulting `tokens` will have
-2 axes [path][token]. Note, we should remove 0s from `tokens`.
+(1) Select path pairs:
+    (a, b), (a, c)
+    (b, a), (b, c)
+    (c, a), (c, b)
 
-We can generate the following inputs for the conformer LM model from `tokens`:
-    - masked_src
-    - src
-    - tgt
-by using `k2.levenshtein_alignment`.
+(2) For each pair, e.g., for the pair (a, b),
 
-TODO(fangjun): Add more doc about rescoring with masked conformer-lm.
+    (i) Compute the alignment between "a" and "b"
+    (ii) Use the computed alignment as `masked_src,`
+    (iii) Use "a" as "src" and its shifted version as "tgt" (of course, we need
+          to add bos and eos) and we can get a log-likelihood value (after
+          negating the negative log-likelihood). Let us call this value as
+          "ab_self"
+    (iv)  Use "b" as "src" and its shifted version as "tgt".
+          We can get another likelihood value, denoted as "ab_other"
+
+So for the path pair (a, b), (a, c), we can get the following log-likelihood
+values, viewed as two tensors:
+
+    self = [ab_self,   ac_self,  ba_self,  bc_self,  ca_self,  cb_self]
+
+    other = [ab_other, ac_other, ba_other, bc_other, ca_other, cb_other]
+
+    Compute the difference the two tensors:
+
+        self - other = [ab_self - ab_other, ac_self - ac_other, ...]
+
+  The log-likelihood for path a is : max(ab_self - ab_other, ac_self - ac_other)
+  The log-likelihood for path b is : max(ba_self - ba_other, bc_self - bc_other)
+  The log-likelihood for path c is : max(ca_self - ca_other, cb_self - cb_other)
 """
 
 from typing import Tuple
