@@ -498,6 +498,8 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
+        #  if batch_idx > 10:
+        #      break
         texts = batch["supervisions"]["text"]
 
         hyps_dict = decode_one_batch(
@@ -539,7 +541,7 @@ def save_results(
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
-    if params.method == "attention-decoder":
+    if params.method in ("attention-decoder", "conformer-lm"):
         # Set it to False since there are too many logs.
         enable_log = False
     else:
@@ -591,7 +593,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
+    setup_logger(f"{params.exp_dir}/log-{params.method}-2/log-decode")
     logging.info("Decoding started")
     logging.info(params)
 
@@ -714,9 +716,15 @@ def main():
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+    model.device = device
 
     if params.method == "conformer-lm":
         logging.info("Loading conformer lm model")
+        assert torch.cuda.device_count() > 1, f"{torch.cuda.device_count()}"
+
+        # We use a second GPU for masked LM model as it causes OOM
+        # with 1 GPU
+        device2 = torch.device("cuda", 1)
         # Note: If the parameters does not match
         # the one used to save the checkpoint, it will
         # throw while calling `load_state_dict`.
@@ -740,10 +748,12 @@ def main():
                         f"{params.conformer_lm_exp_dir}/epoch-{i}.pt"
                     )
             logging.info(f"averaging {filenames}")
-            masked_lm_model.to(device)
+            masked_lm_model.to(device2)
             masked_lm_model.load_state_dict(
-                average_checkpoints(filenames, device=device)
+                average_checkpoints(filenames, device=device2)
             )
+        masked_lm_model.to(device2)
+        masked_lm_model.device = device2
     else:
         masked_lm_model = None
 
@@ -756,6 +766,8 @@ def main():
     #
     test_sets = ["test-clean", "test-other"]
     for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+        #  if test_set == "test-clean":
+        #      continue
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

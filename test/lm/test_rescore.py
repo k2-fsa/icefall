@@ -69,8 +69,8 @@ def test_make_hyp_to_ref_map():
     row_splits = a.shape.row_splits(1)
     repeat_map = make_hyp_to_ref_map(row_splits)
     # fmt: off
-    expected = torch.tensor([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3,
-        3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]).to(repeat_map)  # noqa
+    expected = torch.tensor([0, 0, 1, 1, 2, 2, 3,
+        3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6]).to(repeat_map)  # noqa
     # fmt: on
     assert torch.all(torch.eq(repeat_map, expected))
 
@@ -80,9 +80,9 @@ def test_make_repeat_map():
     row_splits = a.shape.row_splits(1)
     repeat_map = make_repeat_map(row_splits)
     # fmt: off
-    expected = torch.tensor([0, 1, 2, 0, 1, 2, 0, 1, 2,
-        3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6,  # noqa
-        3, 4, 5, 6]).to(repeat_map)  # noqa
+    expected = torch.tensor([1, 2, 0, 2, 0, 1,
+        4, 5, 6, 3, 5, 6, 3, 4, 6,  # noqa
+        3, 4, 5]).to(repeat_map)  # noqa
     # fmt: on
     assert torch.all(torch.eq(repeat_map, expected))
 
@@ -95,11 +95,11 @@ def test_make_repeat():
         ])
     b = make_repeat(a)
     expected = k2.RaggedTensor([
-        [[1, 3, 5], [2, 6], [1, 3, 5], [2, 6]],
-        [[1, 2, 3, 4], [2], [], [9, 10, 11],
-         [1, 2, 3, 4], [2], [], [9, 10, 11],
-         [1, 2, 3, 4], [2], [], [9, 10, 11],
-         [1, 2, 3, 4], [2], [], [9, 10, 11]],
+        [[2, 6], [1, 3, 5]],
+        [              [2], [], [9, 10, 11],   # noqa
+         [1, 2, 3, 4],      [], [9, 10, 11],   # noqa
+         [1, 2, 3, 4], [2],     [9, 10, 11],   # noqa
+         [1, 2, 3, 4], [2], [],            ],  # noqa
         ])
     # fmt: on
     assert str(b) == str(expected)
@@ -116,19 +116,24 @@ def test_compute_alignment():
     # fmt: on
     shape = k2.RaggedShape("[[x x x] [x x]]")
     alignment = compute_alignment(tokens, shape)
+    print(alignment.ref_labels)
+    print(alignment.hyp_labels)
+    print(alignment.labels)
     (
         masked_src,
         src,
         tgt,
         src_key_padding_mask,
         weight,
-    ) = prepare_conformer_lm_inputs(alignment, bos_id=10, eos_id=20, blank_id=0)
+    ) = prepare_conformer_lm_inputs(
+        alignment, bos_id=10, eos_id=20, blank_id=0, src_label_name="hyp_labels"
+    )
 
-    #  print("masked src", masked_src)
-    #  print("src", src)
-    #  print("tgt", tgt)
-    #  print("src_key_padding_mask", src_key_padding_mask)
-    #  print("weight", weight)
+    print("masked src", masked_src)
+    print("src", src)
+    print("tgt", tgt)
+    print("src_key_padding_mask", src_key_padding_mask)
+    print("weight", weight)
 
 
 def main():
