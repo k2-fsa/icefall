@@ -104,7 +104,6 @@ def setup_logger(
     """
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-
     if dist.is_available() and dist.is_initialized():
         world_size = dist.get_world_size()
         rank = dist.get_rank()

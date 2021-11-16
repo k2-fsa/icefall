@@ -903,3 +903,4 @@ def rescore_with_attention_decoder(
             key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}"
             ans[key] = best_path
     return ans
+

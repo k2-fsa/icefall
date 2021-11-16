@@ -1,0 +1,56 @@
+## Results
+
+### Aishell training results (Conformer-CTC)
+#### 2021-09-13
+(Wei Kang): Result of https://github.com/k2-fsa/icefall/pull/30
+
+Pretrained model is available at https://huggingface.co/pkufool/icefall_asr_aishell_conformer_ctc
+
+The best decoding results (CER) are listed below, we got this results by averaging models from epoch 23 to 40, and using `attention-decoder` decoder with num_paths equals to 100.
+
+||test|
+|--|--|
+|CER| 4.74% |
+
+To get more unique paths, we scaled the lattice.scores with 0.5 (see https://github.com/k2-fsa/icefall/pull/10#discussion_r690951662 for more details), we searched the lm_score_scale and attention_score_scale for best results, the scales that produced the CER above are also listed below.
+
+||lm_scale|attention_scale|
+|--|--|--|
+|test|0.3|0.9|
+
+You can use the following commands to reproduce our results:
+
+```bash
+git clone https://github.com/k2-fsa/icefall
+cd icefall
+
+cd egs/aishell/ASR
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+python conformer_ctc/train.py --bucketing-sampler False \
+                              --concatenate-cuts False \
+                              --max-duration 200 \
+                              --world-size 2
+
+python conformer_ctc/decode.py --lattice-score-scale 0.5 \
+                               --epoch 40 \
+                               --avg 18 \
+                               --method attention-decoder \
+                               --max-duration 50 \
+                               --num-paths 100
+```
+
+### Aishell training results (Tdnn-Lstm)
+#### 2021-09-13
+
+(Wei Kang): Result of phone based Tdnn-Lstm model, https://github.com/k2-fsa/icefall/pull/30
+
+Pretrained model is available at https://huggingface.co/pkufool/icefall_asr_aishell_conformer_ctc_lstm_ctc
+
+The best decoding results (CER) are listed below, we got this results by averaging models from epoch 19 to 8, and using `1best` decoding method.
+
+||test|
+|--|--|
+|CER| 10.16% |
+

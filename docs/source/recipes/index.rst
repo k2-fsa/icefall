@@ -15,3 +15,5 @@ We may add recipes for other tasks as well in the future.
    yesno
 
    librispeech
+
+   aishell
