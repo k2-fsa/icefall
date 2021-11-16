@@ -97,13 +97,17 @@ Configurable options
 shows you the training options that can be passed from the commandline.
 The following options are used quite often:
 
+  - ``--exp-dir``
+
+    The experiment folder to save logs and model checkpoints,
+    default ``./conformer_ctc/exp``.
 
   - ``--num-epochs``
 
     It is the number of epochs to train. For instance,
     ``./conformer_ctc/train.py --num-epochs 30`` trains for 30 epochs
     and generates ``epoch-0.pt``, ``epoch-1.pt``, ..., ``epoch-29.pt``
-    in the folder ``./conformer_ctc/exp``.
+    in the folder set with ``--exp-dir``.
 
   - ``--start-epoch``
 
@@ -174,7 +178,7 @@ Pre-configured options
 ~~~~~~~~~~~~~~~~~~~~~~
 
 There are some training options, e.g., weight decay,
-number of warmup steps, results dir, etc,
+number of warmup steps, etc,
 that are not passed from the commandline.
 They are pre-configured by the function ``get_params()`` in
 `conformer_ctc/train.py <https://github.com/k2-fsa/icefall/blob/master/egs/aishell/ASR/conformer_ctc/train.py>`_
@@ -192,8 +196,8 @@ them, please modify ``./conformer_ctc/train.py`` directly.
 Training logs
 ~~~~~~~~~~~~~
 
-Training logs and checkpoints are saved in ``conformer_ctc/exp``.
-You will find the following files in that directory:
+Training logs and checkpoints are saved in the folder set by ``--exp-dir``
+(default ``conformer_ctc/exp``). You will find the following files in that directory:
 
   - ``epoch-0.pt``, ``epoch-1.pt``, ...
 
@@ -223,10 +227,10 @@ You will find the following files in that directory:
 
         To stop uploading, press Ctrl-C.
 
-        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/qvNrx6JIQAaN5Ly3uQotrg/
+        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/WE1DocDqRRCOSAgmGyClhg/
 
-        [2021-09-12T16:41:16] Started scanning logdir.
-        [2021-09-12T16:42:17] Total uploaded: 125346 scalars, 0 tensors, 0 binary objects
+        [2021-11-16T10:51:46] Started scanning logdir.
+        [2021-11-16T10:52:32] Total uploaded: 111606 scalars, 0 tensors, 0 binary objects
         Listening for new data in logdir...
 
     Note there is a URL in the above output, click it and you will see
@@ -236,7 +240,7 @@ You will find the following files in that directory:
          :width: 600
          :alt: TensorBoard screenshot
          :align: center
-         :target: https://tensorboard.dev/experiment/qvNrx6JIQAaN5Ly3uQotrg/
+         :target: https://tensorboard.dev/experiment/WE1DocDqRRCOSAgmGyClhg/
 
          TensorBoard screenshot.
 
@@ -307,9 +311,9 @@ The commonly used options are:
     .. code-block::
 
       $ cd egs/aishell/ASR
-      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --lattice-score-scale 0.5
+      $ ./conformer_ctc/decode.py --method attention-decoder --max-duration 30 --nbest-scale 0.5
 
-  - ``--lattice-score-scale``
+  - ``--nbest-scale``
 
     It is used to scale down lattice scores so that there are more unique
     paths for rescoring.
@@ -403,7 +407,7 @@ After downloading, you will have the following files:
   - ``exp/pretrained.pt``
 
       It contains pre-trained model parameters, obtained by averaging
-      checkpoints from ``epoch-18.pt`` to ``epoch-40.pt``.
+      checkpoints from ``epoch-25.pt`` to ``epoch-84.pt``.
       Note: We have removed optimizer ``state_dict`` to reduce file size.
 
   - ``test_waves/*.wav``
@@ -483,7 +487,7 @@ The command to run HLG decoding is:
     --method 1best \
     ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
     ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav 
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
 
 The output is given below:
 
@@ -527,7 +531,7 @@ The command to run HLG decoding + attention decoder rescoring is:
     --method attention-decoder \
     ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
     ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav 
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
 
 The output is below:
 

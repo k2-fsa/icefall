@@ -1,16 +1,16 @@
 ## Results
 
 ### Aishell training results (Conformer-CTC)
-#### 2021-09-13
+#### 2021-11-16
 (Wei Kang): Result of https://github.com/k2-fsa/icefall/pull/30
 
 Pretrained model is available at https://huggingface.co/pkufool/icefall_asr_aishell_conformer_ctc
 
-The best decoding results (CER) are listed below, we got this results by averaging models from epoch 23 to 40, and using `attention-decoder` decoder with num_paths equals to 100.
+The best decoding results (CER) are listed below, we got this results by averaging models from epoch 25 to 84, and using `attention-decoder` decoder with num_paths equals to 100.
 
 ||test|
 |--|--|
-|CER| 4.74% |
+|CER| 4.26% |
 
 To get more unique paths, we scaled the lattice.scores with 0.5 (see https://github.com/k2-fsa/icefall/pull/10#discussion_r690951662 for more details), we searched the lm_score_scale and attention_score_scale for best results, the scales that produced the CER above are also listed below.
 
@@ -27,17 +27,18 @@ cd icefall
 cd egs/aishell/ASR
 ./prepare.sh
 
-export CUDA_VISIBLE_DEVICES="0,1"
-python conformer_ctc/train.py --bucketing-sampler False \
-                              --concatenate-cuts False \
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+python conformer_ctc/train.py --bucketing-sampler True \
                               --max-duration 200 \
-                              --world-size 2
+                              --start-epoch 0 \
+                              --num-epoch 90 \
+                              --world-size 4
 
-python conformer_ctc/decode.py --lattice-score-scale 0.5 \
-                               --epoch 40 \
-                               --avg 18 \
+python conformer_ctc/decode.py --nbest-scale 0.5 \
+                               --epoch 84 \
+                               --avg 25 \
                                --method attention-decoder \
-                               --max-duration 50 \
+                               --max-duration 20 \
                                --num-paths 100
 ```
 
@@ -53,4 +54,3 @@ The best decoding results (CER) are listed below, we got this results by averagi
 ||test|
 |--|--|
 |CER| 10.16% |
-

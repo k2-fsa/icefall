@@ -69,7 +69,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #     |-- lexicon.txt
   #     `-- speaker.info
 
-  if [ ! -d $dl_dir/aishell/wav ]; then
+  if [ ! -d $dl_dir/aishell/data_aishell/wav ]; then
     lhotse download aishell $dl_dir
   fi
 
@@ -133,7 +133,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   cat $dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt |
   cut -d " " -f 2- | sed -e 's/[ \t\r\n]*//g' > data/lang_char/text
-  
+
   if [ ! -f data/lang_char/L_disambig.pt ]; then
     ./local/prepare_char.py
   fi
@@ -160,4 +160,3 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   ./local/compile_hlg.py --lang-dir data/lang_phone
   ./local/compile_hlg.py --lang-dir data/lang_char
 fi
-

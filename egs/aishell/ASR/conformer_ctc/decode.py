@@ -77,6 +77,8 @@ def get_parser():
         default="attention-decoder",
         help="""Decoding method.
         Supported values are:
+            - (0) ctc-decoding. Use CTC decoding. It maps the tokens ids to
+              tokens using token symbol tabel directly.
             - (1) 1best. Extract the best path from the decoding lattice as the
               decoding result.
             - (2) nbest. Extract n paths from the decoding lattice; the path

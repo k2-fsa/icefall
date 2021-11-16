@@ -34,7 +34,7 @@ from icefall.decode import (
     one_best_decoding,
     rescore_with_attention_decoder,
 )
-from icefall.utils import AttributeDict, get_texts
+from icefall.utils import AttributeDict, get_env_info, get_texts
 
 
 def get_parser():
@@ -52,14 +52,21 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--words-file",
+        "--tokens-file",
         type=str,
-        required=True,
-        help="Path to words.txt",
+        help="Path to tokens.txt" "Used only when method is ctc-decoding",
     )
 
     parser.add_argument(
-        "--HLG", type=str, required=True, help="Path to HLG.pt."
+        "--words-file",
+        type=str,
+        help="Path to words.txt" "Used when method is NOT ctc-decoding",
+    )
+
+    parser.add_argument(
+        "--HLG",
+        type=str,
+        help="Path to HLG.pt." "Used when method is NOT ctc-decoding",
     )
 
     parser.add_argument(
@@ -68,6 +75,8 @@ def get_parser():
         default="1best",
         help="""Decoding method.
         Possible values are:
+        (0) ctc-decoding - Use ctc decoding. It maps the tokens ids to tokens
+            using the token symbol table directly.
         (1) 1best - Use the best path as decoding output. Only
             the transformer encoder output is used for decoding.
             We call it HLG decoding.
@@ -111,7 +120,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""
@@ -125,7 +134,7 @@ def get_parser():
 
     parser.add_argument(
         "--sos-id",
-        type=float,
+        type=int,
         default=1,
         help="""
         Used only when method is attention-decoder.
@@ -135,12 +144,19 @@ def get_parser():
 
     parser.add_argument(
         "--eos-id",
-        type=float,
+        type=int,
         default=1,
         help="""
         Used only when method is attention-decoder.
         It specifies ID for the EOS token.
         """,
+    )
+
+    parser.add_argument(
+        "--num_classes",
+        type=int,
+        default=4336,
+        help="The Vocab size.",
     )
 
     parser.add_argument(
@@ -160,7 +176,6 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "sample_rate": 16000,
-            "num_classes": 4336,
             # parameters for conformer
             "subsampling_factor": 4,
             "feature_dim": 80,
@@ -175,6 +190,7 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
     return params
@@ -212,6 +228,11 @@ def main():
     params.update(vars(args))
     logging.info(f"{params}")
 
+    if args.method != "attention-decoder":
+        # to save memory as the attention decoder
+        # will not be used
+        params.num_decoder_layers = 0
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
@@ -231,16 +252,9 @@ def main():
     )
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
+    model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
-
-    logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
-    HLG = HLG.to(device)
-    if not hasattr(HLG, "lm_scores"):
-        # For whole-lattice-rescoring and attention-decoder
-        HLG.lm_scores = HLG.scores.clone()
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
@@ -275,41 +289,79 @@ def main():
         dtype=torch.int32,
     )
 
-    lattice = get_lattice(
-        nnet_output=nnet_output,
-        HLG=HLG,
-        supervision_segments=supervision_segments,
-        search_beam=params.search_beam,
-        output_beam=params.output_beam,
-        min_active_states=params.min_active_states,
-        max_active_states=params.max_active_states,
-        subsampling_factor=params.subsampling_factor,
-    )
+    if params.method == "ctc-decoding":
+        logging.info("Use CTC decoding")
+        token_sym_table = k2.SymbolTable.from_file(params.tokens_file)
+        max_token_id = params.num_classes - 1
 
-    if params.method == "1best":
-        logging.info("Use HLG decoding")
+        H = k2.ctc_topo(
+            max_token=max_token_id,
+            modified=False,
+            device=device,
+        )
+
+        lattice = get_lattice(
+            nnet_output=nnet_output,
+            decoding_graph=H,
+            supervision_segments=supervision_segments,
+            search_beam=params.search_beam,
+            output_beam=params.output_beam,
+            min_active_states=params.min_active_states,
+            max_active_states=params.max_active_states,
+            subsampling_factor=params.subsampling_factor,
+        )
+
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
-    elif params.method == "attention-decoder":
-        logging.info("Use HLG + attention decoder rescoring")
-        best_path_dict = rescore_with_attention_decoder(
-            lattice=lattice,
-            num_paths=params.num_paths,
-            model=model,
-            memory=memory,
-            memory_key_padding_mask=memory_key_padding_mask,
-            sos_id=params.sos_id,
-            eos_id=params.eos_id,
-            scale=params.lattice_score_scale,
-            ngram_lm_scale=params.ngram_lm_scale,
-            attention_scale=params.attention_decoder_scale,
-        )
-        best_path = next(iter(best_path_dict.values()))
+        token_ids = get_texts(best_path)
+        hyps = [[token_sym_table[i] for i in ids] for ids in token_ids]
+        hyps = [s.split() for s in hyps]
+    elif params.method in ["1best", "attention-decoder"]:
+        logging.info(f"Loading HLG from {params.HLG}")
+        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+        HLG = HLG.to(device)
+        if not hasattr(HLG, "lm_scores"):
+            # For whole-lattice-rescoring and attention-decoder
+            HLG.lm_scores = HLG.scores.clone()
 
-    hyps = get_texts(best_path)
-    word_sym_table = k2.SymbolTable.from_file(params.words_file)
-    hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+        lattice = get_lattice(
+            nnet_output=nnet_output,
+            HLG=HLG,
+            supervision_segments=supervision_segments,
+            search_beam=params.search_beam,
+            output_beam=params.output_beam,
+            min_active_states=params.min_active_states,
+            max_active_states=params.max_active_states,
+            subsampling_factor=params.subsampling_factor,
+        )
+
+        if params.method == "1best":
+            logging.info("Use HLG decoding")
+            best_path = one_best_decoding(
+                lattice=lattice, use_double_scores=params.use_double_scores
+            )
+        elif params.method == "attention-decoder":
+            logging.info("Use HLG + attention decoder rescoring")
+            best_path_dict = rescore_with_attention_decoder(
+                lattice=lattice,
+                num_paths=params.num_paths,
+                model=model,
+                memory=memory,
+                memory_key_padding_mask=memory_key_padding_mask,
+                sos_id=params.sos_id,
+                eos_id=params.eos_id,
+                scale=params.lattice_score_scale,
+                ngram_lm_scale=params.ngram_lm_scale,
+                attention_scale=params.attention_decoder_scale,
+            )
+            best_path = next(iter(best_path_dict.values()))
+
+        hyps = get_texts(best_path)
+        word_sym_table = k2.SymbolTable.from_file(params.words_file)
+        hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+    else:
+        raise ValueError(f"Unsupported decoding method: {params.method}")
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
