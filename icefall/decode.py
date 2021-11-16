@@ -365,7 +365,7 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        saved_scores = self.fsa.scores.clone()
 
         # The `scores` of every arc consists of `am_scores` and `lm_scores`
         self.fsa.scores = self.fsa.scores - self.fsa.lm_scores
@@ -392,7 +392,7 @@ class Nbest(object):
           Return a ragged tensor with 2 axes [utt][path_scores].
           Its dtype is torch.float64.
         """
-        saved_scores = self.fsa.scores
+        saved_scores = self.fsa.scores.clone()
 
         # The `scores` of every arc consists of `am_scores` and `lm_scores`
         self.fsa.scores = self.fsa.lm_scores
