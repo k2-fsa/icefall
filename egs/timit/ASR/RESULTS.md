@@ -39,7 +39,9 @@ python tdnn_lstm_ctc/decode.py --epoch 25 \
 ### TIMIT training results (Tdnn_LiGRU_CTC)
 #### 2021-11-16
 
-(Mingshuang Luo): Result of phone based Tdnn_LiGRU_CTC model.
+(Mingshuang Luo): Result of phone based Tdnn_LiGRU_CTC model, https://github.com/k2-fsa/icefall/pull/114
+
+TensorBoard log is available at https://tensorboard.dev/experiment/IlQxeq5vQJ2SEVP94Y5fyg/#scalars
 
 Pretrained model is available at https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ctc
 
