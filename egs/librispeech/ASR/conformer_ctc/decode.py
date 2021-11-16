@@ -754,6 +754,7 @@ def main():
             )
         masked_lm_model.to(device2)
         masked_lm_model.device = device2
+        masked_lm_model.eval()
     else:
         masked_lm_model = None
 
