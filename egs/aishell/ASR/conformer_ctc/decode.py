@@ -17,7 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import logging
 from collections import defaultdict
@@ -42,6 +41,7 @@ from icefall.decode import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -100,7 +100,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lattice-score-scale",
+        "--nbest-scale",
         type=float,
         default=0.5,
         help="""The scale to be applied to `lattice.scores`.
@@ -122,15 +122,35 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="conformer_ctc/exp",
+        help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="The lang dir",
+    )
+
+    parser.add_argument(
+        "--lm-dir",
+        type=str,
+        default="data/lm",
+        help="""The LM dir.
+        It should contain either G_3_gram.pt or G_3_gram.fst.txt
+        """,
+    )
+
     return parser
 
 
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_ctc/exp"),
-            "lang_dir": Path("data/lang_char"),
-            "lm_dir": Path("data/lm"),
             # parameters for conformer
             "subsampling_factor": 4,
             "feature_dim": 80,
@@ -146,6 +166,7 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            "env_info": get_env_info(),
         }
     )
     return params
@@ -154,9 +175,10 @@ def get_params() -> AttributeDict:
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    HLG: k2.Fsa,
+    HLG: Optional[k2.Fsa],
+    H: Optional[k2.Fsa],
     batch: dict,
-    word_table: k2.SymbolTable,
+    lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
 ) -> Dict[str, List[List[int]]]:
@@ -183,13 +205,15 @@ def decode_one_batch(
       model:
         The neural model.
       HLG:
-        The decoding graph.
+        The decoding graph. Used when params.method is NOT ctc-decoding.
+      H:
+        The ctc topo. Used only when params.method is ctc-decoding.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      word_table:
-        The word symbol table.
+      lexicon:
+        It contains the token symbol table and the word symbol table.
       sos_id:
         The token ID of the SOS.
       eos_id:
@@ -198,16 +222,20 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = HLG.device
+    if HLG is not None:
+        device = HLG.device
+    else:
+        device = H.device
+
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
-    # at entry, feature is [N, T, C]
+    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
-    # nnet_output is [N, T, C]
+    # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
         (
@@ -218,9 +246,16 @@ def decode_one_batch(
         1,
     ).to(torch.int32)
 
+    if H is None:
+        assert HLG is not None
+        decoding_graph = HLG
+    else:
+        assert HLG is None
+        decoding_graph = H
+
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=decoding_graph,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
@@ -229,18 +264,37 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
+    if params.method == "ctc-decoding":
+        best_path = one_best_decoding(
+            lattice=lattice, use_double_scores=params.use_double_scores
+        )
+        # Note: `best_path.aux_labels` contains token IDs, not word IDs
+        # since we are using H, not HLG here.
+        #
+        # token_ids is a lit-of-list of IDs
+        token_ids = get_texts(best_path)
+
+        key = "ctc-decoding"
+        hyps = [[lexicon.token_table[i] for i in ids] for ids in token_ids]
+        return {key: hyps}
+
     if params.method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
-        # is slightly worse than that of rescored lattices.
-        return nbest_oracle(
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
             lattice=lattice,
             num_paths=params.num_paths,
             ref_texts=supervisions["text"],
-            word_table=word_table,
-            scale=params.lattice_score_scale,
+            word_table=lexicon.word_table,
+            nbest_scale=params.nbest_scale,
+            oov="<UNK>",
         )
+        hyps = get_texts(best_path)
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
+        return {key: hyps}
 
     if params.method in ["1best", "nbest"]:
         if params.method == "1best":
@@ -253,12 +307,12 @@ def decode_one_batch(
                 lattice=lattice,
                 num_paths=params.num_paths,
                 use_double_scores=params.use_double_scores,
-                scale=params.lattice_score_scale,
+                nbest_scale=params.nbest_scale,
             )
-            key = f"no_rescore-scale-{params.lattice_score_scale}-{params.num_paths}"  # noqa
+            key = f"no_rescore-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.method == "attention-decoder"
@@ -271,13 +325,14 @@ def decode_one_batch(
         memory_key_padding_mask=memory_key_padding_mask,
         sos_id=sos_id,
         eos_id=eos_id,
-        scale=params.lattice_score_scale,
+        nbest_scale=params.nbest_scale,
     )
     ans = dict()
-    for lm_scale_str, best_path in best_path_dict.items():
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        ans[lm_scale_str] = hyps
+    if best_path_dict is not None:
+        for lm_scale_str, best_path in best_path_dict.items():
+            hyps = get_texts(best_path)
+            hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
+            ans[lm_scale_str] = hyps
     return ans
 
 
@@ -285,8 +340,9 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    HLG: k2.Fsa,
-    word_table: k2.SymbolTable,
+    HLG: Optional[k2.Fsa],
+    H: Optional[k2.Fsa],
+    lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
 ) -> Dict[str, List[Tuple[List[int], List[int]]]]:
@@ -300,9 +356,11 @@ def decode_dataset(
       model:
         The neural model.
       HLG:
-        The decoding graph.
-      word_table:
-        It is the word symbol table.
+        The decoding graph. Used when params.method is NOT ctc-decoding.
+      H:
+        The ctc topo. Used only when params.method is ctc-decoding.
+      lexicon:
+        It contains the token symbol table and the word symbol table.
       sos_id:
         The token ID for SOS.
       eos_id:
@@ -331,14 +389,16 @@ def decode_dataset(
             params=params,
             model=model,
             HLG=HLG,
+            H=H,
             batch=batch,
-            word_table=word_table,
+            lexicon=lexicon,
             sos_id=sos_id,
             eos_id=eos_id,
         )
 
         for lm_scale, hyps in hyps_dict.items():
             this_batch = []
+            assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
@@ -411,6 +471,9 @@ def main():
     parser = get_parser()
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
+    args.lm_dir = Path(args.lm_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -438,14 +501,22 @@ def main():
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
-    HLG = k2.Fsa.from_dict(
-        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
-    )
-    HLG = HLG.to(device)
-    assert HLG.requires_grad is False
+    if params.method == "ctc-decoding":
+        HLG = None
+        H = k2.ctc_topo(
+            max_token=max_token_id,
+            modified=False,
+            device=device,
+        )
+    else:
+        H = None
+        HLG = k2.Fsa.from_dict(
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
+        )
+        assert HLG.requires_grad is False
 
-    if not hasattr(HLG, "lm_scores"):
-        HLG.lm_scores = HLG.scores.clone()
+        if not hasattr(HLG, "lm_scores"):
+            HLG.lm_scores = HLG.scores.clone()
 
     model = Conformer(
         num_features=params.feature_dim,
@@ -468,7 +539,8 @@ def main():
             if start >= 0:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
-        model.load_state_dict(average_checkpoints(filenames))
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
@@ -483,12 +555,7 @@ def main():
     logging.info(f"Number of model parameters: {num_param}")
 
     aishell = AishellAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
+
     test_sets = ["test"]
     for test_set, test_dl in zip(test_sets, aishell.test_dataloaders()):
         results_dict = decode_dataset(
@@ -496,7 +563,8 @@ def main():
             params=params,
             model=model,
             HLG=HLG,
-            word_table=lexicon.word_table,
+            H=H,
+            lexicon=lexicon,
             sos_id=sos_id,
             eos_id=eos_id,
         )
