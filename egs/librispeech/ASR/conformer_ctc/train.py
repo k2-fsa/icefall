@@ -81,7 +81,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=35,
+        default=78,
         help="Number of epochs to train.",
     )
 
@@ -108,10 +108,19 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_5000",
+        default="data/lang_bpe_500",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
+        """,
+    )
+
+    parser.add_argument(
+        "--att-rate",
+        type=float,
+        default=0.8,
+        help="""The attention rate.
+        The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
         """,
     )
 
@@ -198,7 +207,6 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
-            "att_rate": 0.7,
             # parameters for Noam
             "weight_decay": 1e-6,
             "lr_factor": 5.0,

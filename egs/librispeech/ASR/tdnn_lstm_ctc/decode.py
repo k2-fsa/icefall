@@ -422,6 +422,9 @@ def main():
                 # Arcs entering the back-off state have label equal to #0.
                 # We have to change it to 0 here.
                 G.labels[G.labels >= first_word_disambig_id] = 0
+                # See https://github.com/k2-fsa/k2/issues/874
+                # for why we need to set G.properties to None
+                G.__dict__["_properties"] = None
                 G = k2.Fsa.from_fsas([G]).to(device)
                 G = k2.arc_sort(G)
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")

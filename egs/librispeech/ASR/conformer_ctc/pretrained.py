@@ -169,7 +169,7 @@ def get_parser():
     parser.add_argument(
         "--num-classes",
         type=int,
-        default=5000,
+        default=500,
         help="""
         Vocab size in the BPE model.
         """,
