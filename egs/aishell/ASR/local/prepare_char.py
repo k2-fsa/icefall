@@ -33,10 +33,9 @@ and generates the following files in the directory `lang_dir`:
     - tokens.txt
 """
 
-import argparse
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import k2
 import torch

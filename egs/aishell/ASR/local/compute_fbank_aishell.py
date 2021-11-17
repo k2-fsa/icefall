@@ -107,4 +107,3 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_aishell(num_mel_bins=args.num_mel_bins)
-

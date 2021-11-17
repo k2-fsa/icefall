@@ -87,6 +87,7 @@ def compute_fbank_musan(num_mel_bins: int = 80):
         )
         musan_cuts.to_json(musan_cuts_path)
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
