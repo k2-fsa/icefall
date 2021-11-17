@@ -20,7 +20,7 @@ import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import k2
 import torch
@@ -29,12 +29,7 @@ from asr_datamodule import AishellAsrDataModule
 from model import TdnnLstm
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.decode import (
-    get_lattice,
-    nbest_decoding,
-    one_best_decoding,
-    rescore_with_attention_decoder,
-)
+from icefall.decode import get_lattice, nbest_decoding, one_best_decoding
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
