@@ -86,7 +86,8 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
-        pieces = [token2id[i] if i in token2id else token2id['<unk>'] for i in pieces]
+        pieces = [token2id[i] if i in token2id else token2id['<unk>'] 
+                for i in pieces]
 
         for i in range(len(pieces) - 1):
             w = word if i == 0 else eps
@@ -135,7 +136,7 @@ def contain_oov(token_sym_table: Dict[str, int], tokens: List[str]) -> bool:
       otherwise False.
     """
     for tok in tokens:
-        if not tok in token_sym_table:
+        if tok not in token_sym_table:
             return True
     return False
 
@@ -186,7 +187,7 @@ def generate_tokens(text_file: str) -> Dict[str, int]:
             line = re.sub(whitespace, "", line)
             chars = list(line)
             for char in chars:
-                if not char in tokens:
+                if char not in tokens:
                     tokens[char] = len(tokens)
     return tokens 
 

@@ -108,4 +108,3 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     compute_fbank_musan(num_mel_bins=args.num_mel_bins)
-
