@@ -24,6 +24,7 @@ stop_stage=100
 #        - 4-gram.arpa
 #        - librispeech-vocab.txt
 #        - librispeech-lexicon.txt
+#        - librispeech-lm-norm.txt.gz
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -225,5 +226,18 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
+  done
+fi
+
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    lm_dir=data/lm_training_${vocab_size}
+    mkdir -p $lm_dir
+    log "Stage 10: Creating $lm_dir/lm_data.pt (It may take 8 minutes)"
+    ./local/prepare_lm_training_data.py \
+      $lang_dir/bpe.model \
+      $dl_dir/lm/librispeech-lm-norm.txt \
+      $lm_dir/lm_data.pt
   done
 fi
