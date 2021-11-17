@@ -34,11 +34,11 @@ jobs:
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
         torch: ["1.8.0", "1.10.0"]
-        torchaudio: ["0.8.0", "0.10.0"]
+        torchaudio: ["0.8.0", "0.10.0+cpu"]
         k2-version: ["1.9.dev20211101"]
         exclude:
           - torch: "1.8.0"
-            torchaudio: "0.10.0"
+            torchaudio: "0.10.0+cpu"
           - torch: "1.10.0"
             torchaudio: "0.8.0"
 
