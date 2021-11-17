@@ -64,6 +64,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip pytest
+          # numpy 1.20.x does not support python 3.6
+          pip install numpy==1.19
           pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
           if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
             pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
