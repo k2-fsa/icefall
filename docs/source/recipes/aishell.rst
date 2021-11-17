@@ -1,4 +1,4 @@
-Aishell
+AIShell
 =======
 
 We provide the following models for the Aishell dataset:
@@ -7,4 +7,3 @@ We provide the following models for the Aishell dataset:
    :maxdepth: 2
 
    aishell/conformer_ctc
-   aishell/tdnn_lstm_ctc
