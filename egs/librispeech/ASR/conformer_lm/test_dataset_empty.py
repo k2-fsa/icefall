@@ -1,6 +1,6 @@
+#!/usr/bin/env python3
 import k2
 import torch
-import _k2
 import dataset
 from dataset import LmDataset
 import os
@@ -9,8 +9,6 @@ import torch.distributed as dist
 
 def local_collate_fn(sentences):
     return dataset.collate_fn(sentences, bos_sym=1, eos_sym=1, blank_sym=0, debug=False)
-
-x = _k2.RaggedInt('[[1]]')  # make sure library initialized?
 
 if __name__ == '__main__':
 
@@ -21,8 +19,8 @@ if __name__ == '__main__':
     dist.init_process_group(backend="nccl", group_name="main",
                             rank=0, world_size=1)
 
-    words = k2.RaggedInt('[[0][1 2]]')
-    sentences = k2.RaggedInt('[[1][][][][][]]')
+    words = k2.RaggedTensor('[[0][1 2]]')
+    sentences = k2.RaggedTensor('[[1][][][][][]]')
 
     train = LmDataset(sentences, words)
 

@@ -30,17 +30,10 @@ class LmDataset(torch.utils.data.Dataset):
         Return the i'th sentence, as a list of ints (representing BPE pieces, without
         bos or eos symbols).
         """
-        # in future will just do:
-        #return self.words[self.sentences[i]].tolist()
-
-        # It would be nicer if we could just return self.sentences[i].tolist(),
-        # but for now that operator on k2.RaggedInt does not support when the
-        # ragged has only 2 axes.
-        row_splits = self.sentences.shape.row_splits(1)
-        (begin, end) = row_splits[i:i+2].tolist()
-        sentence = self.sentences.data[begin:end]
-        sentence, _ = self.words.index(sentence, axis=0, need_value_indexes=False)
-        return sentence.data.tolist()
+        # self.sentences[i] returns a 1-D tensor containing word indexes
+        # self.words[self.sentences[i]] returns a ragged tensor with axes
+        # [word][token].
+        return self.words[self.sentences[i]].values.tolist()
 
 
 def load_train_test_lm_dataset(archive_fn: Union[str,Path],

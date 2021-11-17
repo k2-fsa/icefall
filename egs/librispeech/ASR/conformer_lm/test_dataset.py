@@ -18,7 +18,7 @@ if __name__ == '__main__':
     dist.init_process_group(backend="nccl", group_name="main",
                             rank=0, world_size=1)
 
-    train,test = dataset.load_train_test_lm_dataset('../data/lm_training_5000/lm_data.pt')
+    train,test = dataset.load_train_test_lm_dataset('../data/lm_training_500/lm_data.pt')
     sampler = dataset.LmBatchSampler(test, symbols_per_batch=5000, world_size=2, rank=0)
     print("len(sampler) = ", len(sampler))
 
