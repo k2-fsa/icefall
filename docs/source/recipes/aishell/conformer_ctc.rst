@@ -465,10 +465,54 @@ Usage
 
 displays the help information.
 
-It supports two decoding methods:
+It supports three decoding methods:
 
+  - CTC decoding
   - HLG decoding
   - HLG + attention decoder rescoring
+
+CTC decoding
+^^^^^^^^^^^^
+
+CTC decoding only uses the ctc topology for decoding without a lexicon and language model
+
+The command to run CTC decoding is:
+
+.. code-block:: bash
+
+  $ cd egs/aishell/ASR
+  $ ./conformer_ctc/pretrained.py \
+    --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt \
+    --tokens-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt \
+    --method ctc-decoding \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+
+The output is given below:
+
+.. code-block::
+
+  2021-11-18 07:53:41,707 INFO [pretrained.py:229] {'sample_rate': 16000, 'subsampling_factor': 4, 'feature_dim': 80, 'nhead': 4, 'attention_dim': 512, 'num_decoder_layers': 6, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f2fd997f752ed11bbef4c306652c433e83f9cf12', 'k2-git-date': 'Sun Sep 19 09:41:46 2021', 'lhotse-version': '0.11.0.dev+git.33cfe45.clean', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'aishell', 'icefall-git-sha1': 'd57a873-dirty', 'icefall-git-date': 'Wed Nov 17 19:53:25 2021', 'icefall-path': '/ceph-hw/kangwei/code/icefall_aishell3', 'k2-path': '/ceph-hw/kangwei/code/k2_release/k2/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-hw/kangwei/code/lhotse/lhotse/__init__.py'}, 'checkpoint': './tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt', 'tokens_file': './tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt', 'words_file': None, 'HLG': None, 'method': 'ctc-decoding', 'num_paths': 100, 'ngram_lm_scale': 0.3, 'attention_decoder_scale': 0.9, 'nbest_scale': 0.5, 'sos_id': 1, 'eos_id': 1, 'num_classes': 4336, 'sound_files': ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']}
+  2021-11-18 07:53:41,708 INFO [pretrained.py:240] device: cuda:0
+  2021-11-18 07:53:41,708 INFO [pretrained.py:242] Creating model
+  2021-11-18 07:53:51,131 INFO [pretrained.py:259] Constructing Fbank computer
+  2021-11-18 07:53:51,134 INFO [pretrained.py:269] Reading sound files: ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']
+  2021-11-18 07:53:51,138 INFO [pretrained.py:275] Decoding started
+  2021-11-18 07:53:51,241 INFO [pretrained.py:293] Use CTC decoding
+  2021-11-18 07:53:51,704 INFO [pretrained.py:369]
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav:
+  甚 至 出 现 交 易 几 乎 停 止 的 情 况
+
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav:
+  一 二 线 城 市 虽 然 也 处 于 调 整 中
+
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav:
+  但 因 为 聚 集 了 过 多 公 共 资 源
+
+
+  2021-11-18 07:53:51,704 INFO [pretrained.py:371] Decoding Done
+
 
 HLG decoding
 ^^^^^^^^^^^^
@@ -493,14 +537,15 @@ The output is given below:
 
 .. code-block::
 
-  2021-09-13 10:46:59,842 INFO [pretrained.py:219] device: cuda:0
-  2021-09-13 10:46:59,842 INFO [pretrained.py:221] Creating model
-  2021-09-13 10:47:54,682 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt
-  2021-09-13 10:48:46,111 INFO [pretrained.py:245] Constructing Fbank computer
-  2021-09-13 10:48:46,113 INFO [pretrained.py:255] Reading sound files: ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']
-  2021-09-13 10:48:46,368 INFO [pretrained.py:262] Decoding started
-  2021-09-13 10:48:46,847 INFO [pretrained.py:291] Use HLG decoding
-  2021-09-13 10:48:47,176 INFO [pretrained.py:322]
+  2021-11-18 07:37:38,683 INFO [pretrained.py:229] {'sample_rate': 16000, 'subsampling_factor': 4, 'feature_dim': 80, 'nhead': 4, 'attention_dim': 512, 'num_decoder_layers': 6, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f2fd997f752ed11bbef4c306652c433e83f9cf12', 'k2-git-date': 'Sun Sep 19 09:41:46 2021', 'lhotse-version': '0.11.0.dev+git.33cfe45.clean', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'aishell', 'icefall-git-sha1': 'd57a873-clean', 'icefall-git-date': 'Wed Nov 17 19:53:25 2021', 'icefall-path': '/ceph-hw/kangwei/code/icefall_aishell3', 'k2-path': '/ceph-hw/kangwei/code/k2_release/k2/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-hw/kangwei/code/lhotse/lhotse/__init__.py'}, 'checkpoint': './tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt', 'tokens_file': None, 'words_file': './tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt', 'HLG': './tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt', 'method': '1best', 'num_paths': 100, 'ngram_lm_scale': 0.3, 'attention_decoder_scale': 0.9, 'nbest_scale': 0.5, 'sos_id': 1, 'eos_id': 1, 'num_classes': 4336, 'sound_files': ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']}
+  2021-11-18 07:37:38,684 INFO [pretrained.py:240] device: cuda:0
+  2021-11-18 07:37:38,684 INFO [pretrained.py:242] Creating model
+  2021-11-18 07:37:47,651 INFO [pretrained.py:259] Constructing Fbank computer
+  2021-11-18 07:37:47,654 INFO [pretrained.py:269] Reading sound files: ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']
+  2021-11-18 07:37:47,659 INFO [pretrained.py:275] Decoding started
+  2021-11-18 07:37:47,752 INFO [pretrained.py:321] Loading HLG from ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt
+  2021-11-18 07:37:51,887 INFO [pretrained.py:340] Use HLG decoding
+  2021-11-18 07:37:52,102 INFO [pretrained.py:370]
   ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav:
   甚至 出现 交易 几乎 停止 的 情况
 
@@ -511,10 +556,11 @@ The output is given below:
   但 因为 聚集 了 过多 公共 资源
 
 
-  2021-09-13 10:48:47,177 INFO [pretrained.py:324] Decoding Done
+  2021-11-18 07:37:52,102 INFO [pretrained.py:372] Decoding Done
+
 
 HLG decoding + attention decoder rescoring
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 It extracts n paths from the lattice, recores the extracted paths with
 an attention decoder. The path with the highest score is the decoding result.
@@ -537,14 +583,15 @@ The output is below:
 
 .. code-block::
 
-  2021-09-13 11:02:15,852 INFO [pretrained.py:219] device: cuda:0
-  2021-09-13 11:02:15,852 INFO [pretrained.py:221] Creating model
-  2021-09-13 11:02:22,292 INFO [pretrained.py:238] Loading HLG from ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt
-  2021-09-13 11:02:27,060 INFO [pretrained.py:245] Constructing Fbank computer
-  2021-09-13 11:02:27,062 INFO [pretrained.py:255] Reading sound files: ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']
-  2021-09-13 11:02:27,129 INFO [pretrained.py:261] Decoding started
-  2021-09-13 11:02:27,241 INFO [pretrained.py:295] Use HLG + attention decoder rescoring
-  2021-09-13 11:02:27,823 INFO [pretrained.py:318]
+  2021-11-18 07:42:05,965 INFO [pretrained.py:229] {'sample_rate': 16000, 'subsampling_factor': 4, 'feature_dim': 80, 'nhead': 4, 'attention_dim': 512, 'num_decoder_layers': 6, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f2fd997f752ed11bbef4c306652c433e83f9cf12', 'k2-git-date': 'Sun Sep 19 09:41:46 2021', 'lhotse-version': '0.11.0.dev+git.33cfe45.clean', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'aishell', 'icefall-git-sha1': 'd57a873-dirty', 'icefall-git-date': 'Wed Nov 17 19:53:25 2021', 'icefall-path': '/ceph-hw/kangwei/code/icefall_aishell3', 'k2-path': '/ceph-hw/kangwei/code/k2_release/k2/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-hw/kangwei/code/lhotse/lhotse/__init__.py'}, 'checkpoint': './tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt', 'tokens_file': None, 'words_file': './tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt', 'HLG': './tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt', 'method': 'attention-decoder', 'num_paths': 100, 'ngram_lm_scale': 0.3, 'attention_decoder_scale': 0.9, 'nbest_scale': 0.5, 'sos_id': 1, 'eos_id': 1, 'num_classes': 4336, 'sound_files': ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']}
+  2021-11-18 07:42:05,966 INFO [pretrained.py:240] device: cuda:0
+  2021-11-18 07:42:05,966 INFO [pretrained.py:242] Creating model
+  2021-11-18 07:42:16,821 INFO [pretrained.py:259] Constructing Fbank computer
+  2021-11-18 07:42:16,822 INFO [pretrained.py:269] Reading sound files: ['./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav', './tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav']
+  2021-11-18 07:42:16,826 INFO [pretrained.py:275] Decoding started
+  2021-11-18 07:42:16,916 INFO [pretrained.py:321] Loading HLG from ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt
+  2021-11-18 07:42:21,115 INFO [pretrained.py:345] Use HLG + attention decoder rescoring
+  2021-11-18 07:42:21,888 INFO [pretrained.py:370]
   ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav:
   甚至 出现 交易 几乎 停止 的 情况
 
@@ -555,7 +602,8 @@ The output is below:
   但 因为 聚集 了 过多 公共 资源
 
 
-  2021-09-13 11:02:27,823 INFO [pretrained.py:320] Decoding Done
+  2021-11-18 07:42:21,889 INFO [pretrained.py:372] Decoding Done
+
 
 Colab notebook
 --------------

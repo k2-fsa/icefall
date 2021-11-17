@@ -296,7 +296,7 @@ def main():
 
         H = k2.ctc_topo(
             max_token=max_token_id,
-            modified=False,
+            modified=True,
             device=device,
         )
 
@@ -316,7 +316,6 @@ def main():
         )
         token_ids = get_texts(best_path)
         hyps = [[token_sym_table[i] for i in ids] for ids in token_ids]
-        hyps = [s.split() for s in hyps]
     elif params.method in ["1best", "attention-decoder"]:
         logging.info(f"Loading HLG from {params.HLG}")
         HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
@@ -351,7 +350,7 @@ def main():
                 memory_key_padding_mask=memory_key_padding_mask,
                 sos_id=params.sos_id,
                 eos_id=params.eos_id,
-                scale=params.lattice_score_scale,
+                nbest_scale=params.nbest_scale,
                 ngram_lm_scale=params.ngram_lm_scale,
                 attention_scale=params.attention_decoder_scale,
             )
