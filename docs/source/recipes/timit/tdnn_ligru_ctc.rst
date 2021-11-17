@@ -357,10 +357,10 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
 
   ./tdnn_ligru_ctc/pretrained.py \
     --method whole-lattice-rescoring \
-    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/exp/pretrained_average_9_25.pt \
-    --words-file ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lang_phone/words.txt \
-    --HLG ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lang_phone/HLG.pt \
-    --G ./tmp-ligru/icefall_asr_timit_tdnn-ligru_ctc/data/lm/G_4_gram.pt \
+    --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt \
+    --words-file ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt \
+    --HLG ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt \
+    --G ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 0.1 \
     ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV 
     ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV 
