@@ -32,8 +32,8 @@ from pathlib import Path
 import torch
 from lhotse import (
     CutSet,
-    Fbank,
-    FbankConfig,
+    KaldifeatFbank,
+    KaldifeatFbankConfig,
     LilcomHdf5Writer,
     SupervisionSegment,
 )
@@ -52,12 +52,6 @@ torch.set_num_interop_threads(1)
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument(
-        "--num-jobs",
-        type=int,
-        default=min(15, os.cpu_count()),
-        help="Number of parallel jobs.",
     )
     parser.add_argument(
         "--context-window",
@@ -85,6 +79,19 @@ def get_parser():
         "It is recommended to disable it for L and XL splits as the "
         "pre-computation might currently consume excessive memory and time "
         "-- use on-the-fly feature extraction in the training script instead.",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of dataloading workers used for reading the audio.",
+    )
+    parser.add_argument(
+        "--batch-duration",
+        type=float,
+        default=600.0,
+        help="The maximum number of audio seconds in a batch."
+        "Determines batch size dynamically.",
     )
     return parser
 
@@ -119,7 +126,6 @@ def get_context_suffix(args):
 def compute_fbank_gigaspeech(args):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
-    num_mel_bins = 80
 
     dataset_parts = (
         "XL",
@@ -134,78 +140,113 @@ def compute_fbank_gigaspeech(args):
     )
     assert manifests is not None
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
+    if torch.cuda.is_available():
+        extractor = KaldifeatFbank(
+            KaldifeatFbankConfig(device="cuda"),
+        )
+    else:
+        extractor = KaldifeatFbank(
+            KaldifeatFbankConfig(device="cpu"),
+        )
     ctx_suffix = get_context_suffix(args)
 
-    with get_executor() as ex:  # Initialize the executor only once.
-        for partition, m in manifests.items():
-            raw_cuts_path = output_dir / f"cuts_{partition}_raw.jsonl.gz"
-            if raw_cuts_path.is_file():
-                logging.info(
-                    f"{partition} already exists - skipping feature extraction."
-                )
-            else:
-                # Note this step makes the recipe different than LibriSpeech:
-                # We must filter out some utterances and remove punctuation
-                # to be consistent with Kaldi.
-                logging.info("Filtering OOV utterances from supervisions")
-                m["supervisions"] = m["supervisions"].filter(has_no_oov)
-                logging.info(f"Normalizing text in {partition}")
-                for sup in m["supervisions"]:
-                    sup.text = normalize_text(sup.text)
+    for partition, m in manifests.items():
+        raw_cuts_path = output_dir / f"cuts_{partition}_raw.jsonl.gz"
+        if raw_cuts_path.is_file():
+            logging.info(
+                f"{partition} already exists - skipping feature extraction."
+            )
+        else:
+            # Note this step makes the recipe different than LibriSpeech:
+            # We must filter out some utterances and remove punctuation
+            # to be consistent with Kaldi.
+            logging.info("Filtering OOV utterances from supervisions")
+            m["supervisions"] = m["supervisions"].filter(has_no_oov)
+            logging.info(f"Normalizing text in {partition}")
+            for sup in m["supervisions"]:
+                sup.text = normalize_text(sup.text)
 
-                # Create long-recording cut manifests.
-                logging.info(f"Processing {partition}")
-                cut_set = CutSet.from_manifests(
-                    recordings=m["recordings"],
-                    supervisions=m["supervisions"],
-                )
-                # Run data augmentation that needs to be done in the
-                # time domain.
-                if partition not in ["DEV", "TEST"]:
-                    cut_set = (
-                        cut_set
-                        + cut_set.perturb_speed(0.9)
-                        + cut_set.perturb_speed(1.1)
-                    )
-                cut_set.to_file(raw_cuts_path)
-
-            cuts_path = output_dir / f"cuts_{partition}{ctx_suffix}.jsonl.gz"
-            if cuts_path.is_file():
-                logging.info(
-                    f"{partition} already exists - skipping cutting into "
-                    f"sub-segments."
-                )
-            else:
-                try:
-                    # If we skipped initializing `cut_set` because it exists
-                    # on disk, we'll load it. This helps us avoid re-computing
-                    # the features for different variants of context windows.
+            # Create long-recording cut manifests.
+            logging.info(f"Processing {partition}")
+            cut_set = CutSet.from_manifests(
+                recordings=m["recordings"],
+                supervisions=m["supervisions"],
+            )
+            # Run data augmentation that needs to be done in the
+            # time domain.
+            if partition not in ["DEV", "TEST"]:
+                cut_set = (
                     cut_set
-                except NameError:
-                    logging.info(f"Reading {partition} raw cuts from disk.")
-                    cut_set = CutSet.from_file(raw_cuts_path)
-                # Note this step makes the recipe different than LibriSpeech:
-                # Since recordings are long, the initial CutSet has very long
-                # cuts with a plenty of supervisions. We cut these into smaller
-                # chunks centered around each supervision, possibly adding
-                # acoustic context.
-                logging.info(
-                    f"About to split {partition} raw cuts into smaller chunks."
+                    + cut_set.perturb_speed(0.9)
+                    + cut_set.perturb_speed(1.1)
                 )
-                cut_set = cut_set.trim_to_supervisions(
-                    keep_overlapping=False,
-                    min_duration=None
-                    if args.context_window <= 0.0
-                    else args.context_window,
-                    context_direction=args.context_direction,
-                )
-                if partition in ["L", "XL"]:
-                    # Before storing manifests in, we want to pre-shuffle them,
-                    # as the sampler won't be able to do it later in an
-                    # efficient manner.
-                    cut_set = cut_set.shuffle()
+            cut_set.to_file(raw_cuts_path)
 
+        cuts_path = output_dir / f"cuts_{partition}{ctx_suffix}.jsonl.gz"
+        if cuts_path.is_file():
+            logging.info(
+                f"{partition} already exists - skipping cutting into "
+                f"sub-segments."
+            )
+        else:
+            try:
+                # If we skipped initializing `cut_set` because it exists
+                # on disk, we'll load it. This helps us avoid re-computing
+                # the features for different variants of context windows.
+                cut_set
+            except NameError:
+                logging.info(f"Reading {partition} raw cuts from disk.")
+                cut_set = CutSet.from_file(raw_cuts_path)
+            # Note this step makes the recipe different than LibriSpeech:
+            # Since recordings are long, the initial CutSet has very long
+            # cuts with a plenty of supervisions. We cut these into smaller
+            # chunks centered around each supervision, possibly adding
+            # acoustic context.
+            logging.info(
+                f"About to split {partition} raw cuts into smaller chunks."
+            )
+            cut_set = cut_set.trim_to_supervisions(
+                keep_overlapping=False,
+                min_duration=None
+                if args.context_window <= 0.0
+                else args.context_window,
+                context_direction=args.context_direction,
+            )
+
+            if args.precomputed_features:
+                # Extract the features after cutting large recordings into
+                # smaller cuts.
+                # Note:
+                # we support very efficient "chunked" feature reads with
+                # the argument `storage_type=ChunkedLilcomHdf5Writer`,
+                # but we don't support efficient data augmentation and
+                # feature computation for long recordings yet.
+                # Therefore, we sacrifice some storage for the ability to
+                # precompute features on shorter chunks,
+                # without memory blow-ups.
+                if torch.cuda.is_available():
+                    logging.info("GPU detected, do the CUDA extraction.")
+                    cut_set = cut_set.compute_and_store_features_batch(
+                        extractor=extractor,
+                        storage_path=f"{output_dir}/feats_{partition}",
+                        num_workers=args.num_workers,
+                        batch_duration=args.batch_duration,
+                        storage_type=LilcomHdf5Writer,
+                    )
+            cut_set.to_file(cuts_path)
+
+            # Remove cut_set so the next iteration can correctly infer
+            # whether it needs to load the raw cuts from disk or not.
+            del cut_set
+
+    # In case the user insists on CPU extraction
+    if not torch.cuda.is_available():
+        with get_executor() as ex:  # Initialize the executor only once.
+            for partition, m in manifests.items():
+                cuts_path = (
+                    output_dir / f"cuts_{partition}{ctx_suffix}.jsonl.gz"
+                )
+                cut_set = CutSet.from_file(cuts_path)
                 if args.precomputed_features:
                     # Extract the features after cutting large recordings into
                     # smaller cuts.
@@ -217,19 +258,19 @@ def compute_fbank_gigaspeech(args):
                     # Therefore, we sacrifice some storage for the ability to
                     # precompute features on shorter chunks,
                     # without memory blow-ups.
+                    logging.info(
+                        "GPU not detected, we recommend you skip the "
+                        "extraction and do on-the-fly extraction "
+                        "while training."
+                    )
                     cut_set = cut_set.compute_and_store_features(
                         extractor=extractor,
                         storage_path=f"{output_dir}/feats_{partition}",
                         # when an executor is specified, make more partitions
-                        num_jobs=args.num_jobs if ex is None else 80,
+                        num_jobs=min(15, os.cpu_count()) if ex is None else 80,
                         executor=ex,
                         storage_type=LilcomHdf5Writer,
                     )
-                cut_set.to_file(cuts_path)
-
-                # Remove cut_set so the next iteration can correctly infer
-                # whether it needs to load the raw cuts from disk or not.
-                del cut_set
 
 
 def main():

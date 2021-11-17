@@ -76,6 +76,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       echo "$0: Error, invalid $dl_dir/password."
       exit 1;
     fi
+    # Download XL, DEV and TEST sets by default.
     lhotse download gigaspeech --subset auto --host tsinghua \
       $dl_dir/password $dl_dir/GigaSpeech
   fi
@@ -110,8 +111,15 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for GigaSpeech"
   mkdir -p data/fbank
-  ./local/compute_fbank_gigaspeech.py --num-jobs $nj --context-window 0.0 \
-    --context-direction center --precomputed-features False
+  # We assume you have a GPU card and implement CUDA extraction here.
+  # Since without CUDA it would take too much time to compute feats
+  # for L or XL subset, we recommend --precomputed-features False.
+  #
+  # We assume you have install kaldifeat, if not, please install
+  # it using: pip install kaldifeat
+  ./local/compute_fbank_gigaspeech.py --precomputed-features True \
+    --num-workers 4 --batch-duration 600.0 \
+    --context-window 0.0 --context-direction center
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
@@ -155,7 +163,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
   fi
 
-  cat $lang_dir/transcript_words.txt | sed 's| |\n|g' \
+  cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
     | sort -u | sed '/^$/d' > $lang_dir/words.txt
   (echo '!SIL'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
     cat - $lang_dir/words.txt | sort | uniq | awk '
