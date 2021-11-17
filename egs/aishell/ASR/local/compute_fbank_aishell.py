@@ -25,6 +25,7 @@ The generated fbank features are saved in data/fbank.
 
 import logging
 import os
+import argparse
 from pathlib import Path
 
 import torch
@@ -43,7 +44,7 @@ torch.set_num_interop_threads(1)
 
 def compute_fbank_aishell(num_mel_bins: int = 80):
     src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank40")
+    output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
     dataset_parts = (

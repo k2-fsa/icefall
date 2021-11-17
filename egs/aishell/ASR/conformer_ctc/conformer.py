@@ -40,7 +40,6 @@ class Conformer(Transformer):
         cnn_module_kernel (int): Kernel size of convolution module
         normalize_before (bool): whether to use layer_norm before the first block.
         vgg_frontend (bool): whether to use vgg frontend.
-        use_feat_batchnorm(bool): whether to use batch-normalize the input.
     """
 
     def __init__(
@@ -99,7 +98,7 @@ class Conformer(Transformer):
         """
         Args:
           x:
-            The model input. Its shape is [N, T, C].
+            The model input. Its shape is (N, T, C).
           supervisions:
             Supervision in lhotse format.
             See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
@@ -453,7 +452,6 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self._reset_parameters()
 
-
     def _reset_parameters(self) -> None:
         nn.init.xavier_uniform_(self.in_proj.weight)
         nn.init.constant_(self.in_proj.bias, 0.0)
@@ -682,7 +680,6 @@ class RelPositionMultiheadAttention(nn.Module):
             if _b is not None:
                 _b = _b[_start:]
             v = nn.functional.linear(value, _w, _b)
-
 
         if attn_mask is not None:
             assert (

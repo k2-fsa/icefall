@@ -27,7 +27,6 @@ stop_stage=10
 #     - music
 #     - noise
 #     - speech
-
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
@@ -88,7 +87,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the aishell corpus
   # to $dl_dir/aishell
   mkdir -p data/manifests
-  lhotse prepare aishell -j $nj $dl_dir/aishell data/manifests
+  lhotse prepare aishell $dl_dir/aishell data/manifests
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
