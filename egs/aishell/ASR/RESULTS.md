@@ -6,7 +6,7 @@
 
 Pretrained model is available at https://huggingface.co/pkufool/icefall_asr_aishell_conformer_ctc
 
-The best decoding results (CER) are listed below, we got this results by averaging models from epoch 59 to 84, and using `attention-decoder` decoder with num_paths equals to 100.
+The best decoding results (CER) are listed below, we got this results by averaging models from epoch 60 to 84, and using `attention-decoder` decoder with num_paths equals to 100.
 
 ||test|
 |--|--|
