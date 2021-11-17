@@ -25,8 +25,8 @@ representation of a dict with the following format:
 """
 
 import argparse
+import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import k2
 import sentencepiece as spm
@@ -43,12 +43,14 @@ def get_args():
     parser.add_argument(
         "lm_data",
         type=str,
-        help="""Input LM training data as text, e.g. data/downloads/lm/librispeech-lm-norm.txt""",
+        help="""Input LM training data as text, e.g.
+        data/downloads/lm/librispeech-lm-norm.txt""",
     )
     parser.add_argument(
         "lm_archive",
         type=str,
-        help="""Path to output archive, e.g. lm_data.pt; look at the source of this script to see the format.""",
+        help="""Path to output archive, e.g. lm_data.pt;
+        look at the source of this script to see the format.""",
     )
 
     return parser.parse_args()
@@ -56,6 +58,10 @@ def get_args():
 
 def main():
     args = get_args()
+
+    if Path(args.lm_archive).exists():
+        logging.warning(f"{args.lm_archive} exists - skipping")
+        return
 
     sp = spm.SentencePieceProcessor()
     sp.load(args.bpe_model)
@@ -76,7 +82,7 @@ def main():
                 break
             line_words = line.split()
             for w in line_words:
-                if not w in word2index:
+                if w not in word2index:
                     w_bpe = sp.Encode(w)
                     word2index[w] = len(words2bpe)
                     words2bpe.append(w_bpe)
@@ -91,6 +97,12 @@ def main():
 
 
 if __name__ == "__main__":
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
     main()
 
 
