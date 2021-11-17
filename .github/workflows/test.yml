@@ -34,7 +34,7 @@ jobs:
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
         torch: ["1.8.0", "1.10.0"]
-        torchaudio: ["0.8.0", "0.10.0+cpu"]
+        torchaudio: ["0.8.0", "0.10.0"]
         k2-version: ["1.9.dev20211101"]
         exclude:
           - torch: "1.8.0"
@@ -65,7 +65,12 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip pytest
           pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          pip install torchaudio==${{ matrix.torchaudio }}
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+          else
+            pip install torchaudio==${{ matrix.torchaudio }}
+          fi
+
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
