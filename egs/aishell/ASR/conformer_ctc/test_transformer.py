@@ -17,16 +17,15 @@
 
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from transformer import (
     Transformer,
+    add_eos,
+    add_sos,
+    decoder_padding_mask,
     encoder_padding_mask,
     generate_square_subsequent_mask,
-    decoder_padding_mask,
-    add_sos,
-    add_eos,
 )
-
-from torch.nn.utils.rnn import pad_sequence
 
 
 def test_encoder_padding_mask():
@@ -82,11 +81,7 @@ def test_decoder_padding_mask():
     y = pad_sequence(x, batch_first=True, padding_value=-1)
     mask = decoder_padding_mask(y, ignore_id=-1)
     expected_mask = torch.tensor(
-        [
-            [False, False, True],
-            [False, True, True],
-            [False, False, False],
-        ]
+        [[False, False, True], [False, True, True], [False, False, False]]
     )
     assert torch.all(torch.eq(mask, expected_mask))
 

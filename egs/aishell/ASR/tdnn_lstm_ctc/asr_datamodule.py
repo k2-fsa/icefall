@@ -308,17 +308,13 @@ class AishellAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(
-            self.args.feature_dir / "cuts_train.json.gz"
-        )
+        cuts_train = load_manifest(self.args.feature_dir / "cuts_train.json.gz")
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(
-            self.args.feature_dir / "cuts_dev.json.gz"
-        )
+        cuts_valid = load_manifest(self.args.feature_dir / "cuts_dev.json.gz")
         return cuts_valid
 
     @lru_cache()

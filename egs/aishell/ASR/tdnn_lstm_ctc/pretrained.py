@@ -29,10 +29,7 @@ import torchaudio
 from model import TdnnLstm
 from torch.nn.utils.rnn import pad_sequence
 
-from icefall.decode import (
-    get_lattice,
-    one_best_decoding,
-)
+from icefall.decode import get_lattice, one_best_decoding
 from icefall.utils import AttributeDict, get_texts
 
 
@@ -203,7 +200,7 @@ def main():
         subsampling_factor=params.subsampling_factor,
     )
 
-    assert(params.method == "1best")
+    assert params.method == "1best"
     logging.info("Use HLG decoding")
     best_path = one_best_decoding(
         lattice=lattice, use_double_scores=params.use_double_scores
