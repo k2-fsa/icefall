@@ -33,7 +33,13 @@ class LmDataset(torch.utils.data.Dataset):
         # self.sentences[i] returns a 1-D tensor containing word indexes
         # self.words[self.sentences[i]] returns a ragged tensor with axes
         # [word][token].
-        return self.words[self.sentences[i]].values.tolist()
+        word_tokens =  self.words[self.sentences[i]]
+        # TODO(fangjun): Need to figure out why `word_tokens`
+        # can be a torch.Tensor
+        if isinstance(word_tokens, torch.Tensor):
+            return word_tokens
+        else:
+            return word_tokens.values.tolist()
 
 
 def load_train_test_lm_dataset(archive_fn: Union[str,Path],
