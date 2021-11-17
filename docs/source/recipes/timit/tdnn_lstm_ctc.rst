@@ -388,3 +388,17 @@ The decoding output is:
 
 
 2021-11-08 20:05:27,878 INFO [pretrained.py:269] Decoding Done
+
+
+Colab notebook
+--------------
+
+We provide a colab notebook for decoding with pre-trained model.
+
+|timit tdnn_lstm_ctc colab notebook|
+
+.. |timit tdnn_lstm_ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/drive/1Hs9DA4V96uapw_30uNp32OMJgkuR5VVd
+
+
+**Congratulations!** You have finished the TDNN-LSTM-CTC recipe on timit in ``icefall``.
