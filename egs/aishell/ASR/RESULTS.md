@@ -3,7 +3,7 @@
 ### AIShell training results (Conformer-CTC)
 #### 2021-11-17
 (Wei Kang): Result of https://github.com/k2-fsa/icefall/pull/30
-(Pinfeng Luo): Result of https://github.com/k2-fsa/icefall/pull/30
+(Pinfeng Luo): Result of https://github.com/k2-fsa/icefall/pull/123
 
 Pretrained model is available at https://huggingface.co/pfluo/icefall_aishell_model
 The tensorboard log for training is available at  https://tensorboard.dev/experiment/zsw6Hn6EQlG8I7HqEkiQpw
