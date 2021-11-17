@@ -31,8 +31,9 @@ jobs:
       matrix:
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
-        torch: ["1.8.1"]
-        k2-version: ["1.9.dev20210919"]
+        torch: ["1.10.0"]
+        torchaudio: ["0.10.0"]
+        k2-version: ["1.9.dev20211101"]
 
       fail-fast: false
 
@@ -49,7 +50,9 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip pytest
-          pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/torch_stable.html
+          # numpy 1.20.x does not support python 3.6
+          pip install numpy==1.19
+          pip install torch==${{ matrix.torch }}+cpu torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
 
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse

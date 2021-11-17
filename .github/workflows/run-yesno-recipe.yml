@@ -33,8 +33,9 @@ jobs:
         # TODO: enable macOS for CPU testing
         os: [ubuntu-18.04]
         python-version: [3.8]
-        torch: ["1.8.1"]
-        k2-version: ["1.9.dev20210919"]
+        torch: ["1.10.0"]
+        torchaudio: ["0.10.0"]
+        k2-version: ["1.9.dev20211101"]
       fail-fast: false
 
     steps:
@@ -57,6 +58,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install -U pip
+          pip install torch==${{ matrix.torch }}+cpu torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           python3 -m pip install git+https://github.com/lhotse-speech/lhotse
 

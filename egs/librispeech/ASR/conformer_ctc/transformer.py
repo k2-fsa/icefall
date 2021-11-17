@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from label_smoothing import LabelSmoothingLoss
 from subsampling import Conv2dSubsampling, VggSubsampling
 from torch.nn.utils.rnn import pad_sequence
 
@@ -152,7 +153,7 @@ class Transformer(nn.Module):
                 d_model, self.decoder_num_class
             )
 
-            self.decoder_criterion = LabelSmoothingLoss(self.decoder_num_class)
+            self.decoder_criterion = LabelSmoothingLoss()
         else:
             self.decoder_criterion = None
 
@@ -797,73 +798,6 @@ class Noam(object):
                 self.optimizer.load_state_dict(state_dict["optimizer"])
             else:
                 setattr(self, key, value)
-
-
-class LabelSmoothingLoss(nn.Module):
-    """
-    Label-smoothing loss. KL-divergence between
-    q_{smoothed ground truth prob.}(w)
-    and p_{prob. computed by model}(w) is minimized.
-    Modified from
-    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py  # noqa
-
-    Args:
-        size: the number of class
-        padding_idx: padding_idx: ignored class id
-        smoothing: smoothing rate (0.0 means the conventional CE)
-        normalize_length: normalize loss by sequence length if True
-        criterion: loss function to be smoothed
-    """
-
-    def __init__(
-        self,
-        size: int,
-        padding_idx: int = -1,
-        smoothing: float = 0.1,
-        normalize_length: bool = False,
-        criterion: nn.Module = nn.KLDivLoss(reduction="none"),
-    ) -> None:
-        """Construct an LabelSmoothingLoss object."""
-        super(LabelSmoothingLoss, self).__init__()
-        self.criterion = criterion
-        self.padding_idx = padding_idx
-        assert 0.0 < smoothing <= 1.0
-        self.confidence = 1.0 - smoothing
-        self.smoothing = smoothing
-        self.size = size
-        self.true_dist = None
-        self.normalize_length = normalize_length
-
-    def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """
-        Compute loss between x and target.
-
-        Args:
-          x:
-            prediction of dimension
-            (batch_size, input_length, number_of_classes).
-          target:
-            target masked with self.padding_id of
-            dimension (batch_size, input_length).
-
-        Returns:
-          A scalar tensor containing the loss without normalization.
-        """
-        assert x.size(2) == self.size
-        #  batch_size = x.size(0)
-        x = x.view(-1, self.size)
-        target = target.view(-1)
-        with torch.no_grad():
-            true_dist = x.clone()
-            true_dist.fill_(self.smoothing / (self.size - 1))
-            ignore = target == self.padding_idx  # (B,)
-            total = len(target) - ignore.sum().item()
-            target = target.masked_fill(ignore, 0)  # avoid -1 index
-            true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
-        kl = self.criterion(torch.log_softmax(x, dim=1), true_dist)
-        #  denom = total if self.normalize_length else batch_size
-        denom = total if self.normalize_length else 1
-        return kl.masked_fill(ignore.unsqueeze(1), 0).sum() / denom
 
 
 def encoder_padding_mask(
