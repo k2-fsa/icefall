@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                    Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,8 +26,8 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from model import TdnnLstm
+from asr_datamodule import TimitAsrDataModule
+from model import TdnnLiGRU
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -39,7 +40,6 @@ from icefall.decode import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -125,17 +125,16 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_lstm_ctc/exp/"),
+            "exp_dir": Path("tdnn_ligru_ctc/exp/"),
             "lang_dir": Path("data/lang_phone"),
             "lm_dir": Path("data/lm"),
             "feature_dim": 80,
-            "subsampling_factor": 3,
+            "subsampling_factor": 2,
             "search_beam": 20,
             "output_beam": 5,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            "env_info": get_env_info(),
         }
     )
     return params
@@ -240,7 +239,8 @@ def decode_one_batch(
 
     assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
 
-    lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    lm_scale_list = [0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09]
+    lm_scale_list += [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
@@ -352,7 +352,7 @@ def save_results(
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
-        # The following prints out WERs, per-word error statistics and aligned
+        # The following prints out PERs, per-phone error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
         with open(errs_filename, "w") as f:
@@ -362,13 +362,13 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
+    errs_info = params.exp_dir / f"per-summary-{test_set_name}.txt"
     with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
+        print("settings\tPER", file=f)
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, PER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
@@ -379,7 +379,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    TimitAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     params = get_params()
@@ -410,7 +410,6 @@ def main():
     if params.method in ["nbest-rescoring", "whole-lattice-rescoring"]:
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
-            logging.warning("It may take 8 minutes.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
                 first_word_disambig_id = lexicon.word_table["#0"]
 
@@ -422,9 +421,6 @@ def main():
                 # Arcs entering the back-off state have label equal to #0.
                 # We have to change it to 0 here.
                 G.labels[G.labels >= first_word_disambig_id] = 0
-                # See https://github.com/k2-fsa/k2/issues/874
-                # for why we need to set G.properties to None
-                G.__dict__["_properties"] = None
                 G = k2.Fsa.from_fsas([G]).to(device)
                 G = k2.arc_sort(G)
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
@@ -446,7 +442,7 @@ def main():
     else:
         G = None
 
-    model = TdnnLstm(
+    model = TdnnLiGRU(
         num_features=params.feature_dim,
         num_classes=max_phone_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
@@ -460,8 +456,7 @@ def main():
             if start >= 0:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(average_checkpoints(filenames))
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
@@ -473,27 +468,22 @@ def main():
     model.to(device)
     model.eval()
 
-    librispeech = LibriSpeechAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
-    test_sets = ["test-clean", "test-other"]
-    for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
-        results_dict = decode_dataset(
-            dl=test_dl,
-            params=params,
-            model=model,
-            HLG=HLG,
-            lexicon=lexicon,
-            G=G,
-        )
+    timit = TimitAsrDataModule(args)
+    test_set = "TEST"
+    test_dl = timit.test_dataloaders()
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+    results_dict = decode_dataset(
+        dl=test_dl,
+        params=params,
+        model=model,
+        HLG=HLG,
+        lexicon=lexicon,
+        G=G,
+    )
+
+    save_results(
+        params=params, test_set_name=test_set, results_dict=results_dict
+    )
 
     logging.info("Done!")
 
