@@ -36,6 +36,11 @@ jobs:
         torch: ["1.8.0", "1.10.0"]
         torchaudio: ["0.8.0", "0.10.0"]
         k2-version: ["1.9.dev20211101"]
+        exclude:
+          - torch: "1.8.0"
+            torchaudio: "0.10.0"
+          - torch: "1.10.0"
+            torchaudio: "0.8.0"
 
       fail-fast: false
 
