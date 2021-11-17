@@ -5,6 +5,7 @@ max-line-length = 80
 per-file-ignores =
     # line too long
     egs/librispeech/ASR/*/conformer.py: E501,
+    egs/aishell/ASR/*/conformer.py: E501,
 
 exclude =
   .git,

@@ -33,10 +33,9 @@ and generates the following files in the directory `lang_dir`:
     - tokens.txt
 """
 
-import argparse
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import k2
 import torch
@@ -87,7 +86,9 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
-        pieces = [token2id[i] if i in token2id else token2id['<unk>'] for i in pieces]
+        pieces = [
+            token2id[i] if i in token2id else token2id["<unk>"] for i in pieces
+        ]
 
         for i in range(len(pieces) - 1):
             w = word if i == 0 else eps
@@ -136,7 +137,7 @@ def contain_oov(token_sym_table: Dict[str, int], tokens: List[str]) -> bool:
       otherwise False.
     """
     for tok in tokens:
-        if not tok in token_sym_table:
+        if tok not in token_sym_table:
             return True
     return False
 
@@ -178,18 +179,18 @@ def generate_tokens(text_file: str) -> Dict[str, int]:
       from 0 to len(keys) - 1.
     """
     tokens: Dict[str, int] = dict()
-    tokens['<blk>'] = 0
-    tokens['<sos/eos>'] = 1
-    tokens['<unk>'] = 2
+    tokens["<blk>"] = 0
+    tokens["<sos/eos>"] = 1
+    tokens["<unk>"] = 2
     whitespace = re.compile(r"([ \t\r\n]+)")
     with open(text_file, "r", encoding="utf-8") as f:
         for line in f:
             line = re.sub(whitespace, "", line)
             chars = list(line)
             for char in chars:
-                if not char in tokens:
+                if char not in tokens:
                     tokens[char] = len(tokens)
-    return tokens 
+    return tokens
 
 
 def main():

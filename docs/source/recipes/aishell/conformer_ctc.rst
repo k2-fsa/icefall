@@ -107,7 +107,7 @@ The following options are used quite often:
     It is the number of epochs to train. For instance,
     ``./conformer_ctc/train.py --num-epochs 30`` trains for 30 epochs
     and generates ``epoch-0.pt``, ``epoch-1.pt``, ..., ``epoch-29.pt``
-    in the folder set with ``--exp-dir``.
+    in the folder set by ``--exp-dir``.
 
   - ``--start-epoch``
 

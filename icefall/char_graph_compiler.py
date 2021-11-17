@@ -54,7 +54,6 @@ class CharCtcTrainingGraphCompiler(object):
         self.sos_id = self.token_table[sos_token]
         self.eos_id = self.token_table[eos_token]
 
-
     def texts_to_ids(self, texts: List[str]) -> List[List[int]]:
         """Convert a list of texts to a list-of-list of token IDs.
 
@@ -71,11 +70,14 @@ class CharCtcTrainingGraphCompiler(object):
         whitespace = re.compile(r"([ \t])")
         for text in texts:
             text = re.sub(whitespace, "", text)
-            sub_ids = [self.token_table[txt] if txt in self.token_table \
-                else self.oov_id for txt in text]
+            sub_ids = [
+                self.token_table[txt]
+                if txt in self.token_table
+                else self.oov_id
+                for txt in text
+            ]
             ids.append(sub_ids)
         return ids
-
 
     def compile(
         self,
@@ -95,4 +97,3 @@ class CharCtcTrainingGraphCompiler(object):
           piece IDs.
         """
         return k2.ctc_graph(token_ids, modified=modified, device=self.device)
-
