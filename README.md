@@ -12,10 +12,11 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide two recipes at present:
+We provide three recipes at present:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
+  - [TIMIT][timit]
 
 ### yesno
 
@@ -57,6 +58,32 @@ The WER for this model is:
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
 
+### TIMIT
+
+We provide two models for this recipe: [TDNN LSTM CTC model][TIMIT_tdnn_lstm_ctc]
+and [TDNN LiGRU CTC model][TIMIT_tdnn_ligru_ctc].
+
+#### TDNN LSTM CTC Model
+
+The best PER we currently have is:
+
+||TEST|
+|--|--|
+|PER| 19.71% |
+
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Hs9DA4V96uapw_30uNp32OMJgkuR5VVd?usp=sharing)
+
+#### TDNN LiGRU CTC Model
+
+The PER for this model is:
+
+||TEST|
+|--|--|
+|PER| 17.66% |
+
+We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb?usp=sharing)
+
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -72,6 +99,9 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
+[TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
+[timit]: egs/timit/ASR
 [k2]: https://github.com/k2-fsa/k2

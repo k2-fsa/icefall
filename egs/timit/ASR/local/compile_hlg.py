@@ -54,7 +54,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     """
     Args:
       lang_dir:
-        The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
+        The language directory, e.g., data/lang_phone.
 
     Return:
       An FSA representing HLG.
@@ -65,15 +65,15 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     H = k2.ctc_topo(max_token_id)
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
-    if Path("data/lm/G_3_gram.pt").is_file():
-        logging.info("Loading pre-compiled G_3_gram")
-        d = torch.load("data/lm/G_3_gram.pt")
+    if Path("data/lm/G.pt").is_file():
+        logging.info("Loading pre-compiled G")
+        d = torch.load("data/lm/G.pt")
         G = k2.Fsa.from_dict(d)
     else:
         logging.info("Loading G_3_gram.fst.txt")
         with open("data/lm/G_3_gram.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
+            torch.save(G.as_dict(), "data/lm/G.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
@@ -101,11 +101,7 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     logging.info("Removing disambiguation symbols on LG")
 
     LG.labels[LG.labels >= first_token_disambig_id] = 0
-    # See https://github.com/k2-fsa/k2/issues/874
-    # for why we need to set LG.properties to None
-    LG.__dict__["_properties"] = None
 
-    assert isinstance(LG.aux_labels, k2.RaggedTensor)
     LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
 
     LG = k2.remove_epsilon(LG)
