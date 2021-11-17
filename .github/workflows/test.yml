@@ -33,7 +33,8 @@ jobs:
         # disable macOS test for now.
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
-        torch: ["1.8.1", "1.10.0"]
+        torch: ["1.8.0", "1.10.0"]
+        torchaudio: ["0.8.0", "0.10.0"]
         k2-version: ["1.9.dev20211101"]
 
       fail-fast: false
@@ -58,6 +59,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip pytest
+          pip install torch==${{ matrix.torch }}+cpu torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
