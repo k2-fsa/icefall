@@ -15,15 +15,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Usage:
+    ./conformer_ctc/ali.py \
+            --exp-dir ./conformer_ctc/exp \
+            --lang-dir ./data/lang_bpe_500 \
+            --epoch 20 \
+            --avg 10 \
+            --max-duration 300 \
+            --dataset train-clean-100 \
+            --out-dir data/token-ali
+"""
+
 import argparse
 import logging
 from pathlib import Path
 from typing import List, Tuple
 
 import k2
+import numpy as np
 import torch
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from lhotse import CutSet
+from lhotse.features.io import FeaturesWriter, NumpyHdf5Writer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -75,10 +90,37 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--ali-dir",
+        "--out-dir",
         type=str,
-        default="data/ali_500",
-        help="The experiment dir",
+        required=True,
+        help="""Output directory.
+        It contains the following generated files:
+
+        - xxx.h5
+        - cuts_xxx.json.gz
+
+        where xxx is the value of `--dataset`. For instance, if
+        `--dataset` is `train-clean-100`, it will contain two files:
+
+        - `train-clean-100.h5`
+        - `cuts_train-clean-100.json.gz`
+        """,
+    )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        help="""The name of the dataset to compute alignments for.
+        Possible values are:
+            - test-clean.
+            - test-other
+            - train-clean-100
+            - train-clean-360
+            - train-other-500
+            - dev-clean
+            - dev-other
+        """,
     )
     return parser
 
@@ -91,7 +133,9 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "attention_dim": 512,
             "subsampling_factor": 4,
-            "num_decoder_layers": 6,
+            # Set it to 0 since attention decoder
+            # is not used for computing alignments
+            "num_decoder_layers": 0,
             "vgg_frontend": False,
             "use_feat_batchnorm": True,
             "output_beam": 10,
@@ -105,9 +149,10 @@ def get_params() -> AttributeDict:
 def compute_alignments(
     model: torch.nn.Module,
     dl: torch.utils.data.DataLoader,
+    writer: FeaturesWriter,
     params: AttributeDict,
     graph_compiler: BpeCtcTrainingGraphCompiler,
-) -> List[Tuple[str, List[int]]]:
+) -> CutSet:
     """Compute the framewise alignments of a dataset.
 
     Args:
@@ -120,9 +165,8 @@ def compute_alignments(
       graph_compiler:
         It converts token IDs to decoding graphs.
     Returns:
-      Return a list of tuples. Each tuple contains two entries:
-        - Utterance ID
-        - Framewise alignments (token IDs) after subsampling
+      Return a CutSet. Each cut has a custom field `token_alignment`
+      of type `lhotse.array.TemporalArray`.
     """
     try:
         num_batches = len(dl)
@@ -131,7 +175,7 @@ def compute_alignments(
     num_cuts = 0
 
     device = graph_compiler.device
-    ans = []
+    cuts = []
     for batch_idx, batch in enumerate(dl):
         feature = batch["inputs"]
 
@@ -140,11 +184,10 @@ def compute_alignments(
         feature = feature.to(device)
 
         supervisions = batch["supervisions"]
+        cut_list = supervisions["cut"]
 
-        cut_ids = []
-        for cut in supervisions["cut"]:
-            assert len(cut.supervisions) == 1
-            cut_ids.append(cut.id)
+        for cut in cut_list:
+            assert len(cut.supervisions) == 1, f"{len(cut.supervisions)}"
 
         nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
         # nnet_output is [N, T, C]
@@ -156,10 +199,12 @@ def compute_alignments(
         # In general, new2old is an identity map since lhotse sorts the returned
         # cuts by duration in descending order
         new2old = supervision_segments[:, 0].tolist()
-        cut_ids = [cut_ids[i] for i in new2old]
+
+        cut_list = [cut_list[i] for i in new2old]
 
         token_ids = graph_compiler.texts_to_ids(texts)
         decoding_graph = graph_compiler.compile(token_ids)
+        decoding_graph.tokens = decoding_graph.aux_labels.clone()
 
         dense_fsa_vec = k2.DenseFsaVec(
             nnet_output,
@@ -179,8 +224,18 @@ def compute_alignments(
         )
 
         ali_ids = get_alignments(best_path)
-        assert len(ali_ids) == len(cut_ids)
-        ans += list(zip(cut_ids, ali_ids))
+        assert len(ali_ids) == len(cut_list)
+        for cut, ali in zip(cut_list, ali_ids):
+
+            cut.token_alignment = writer.store_array(
+                key=cut.id,
+                value=np.asarray(ali, dtype=np.int32),
+                frame_shift=0.04,  # frame shift is 0.01s, subsampling_factor is 4
+                temporal_dim=0,
+                start=0,
+            )
+
+        cuts += cut_list
 
         num_cuts += len(ali_ids)
 
@@ -191,7 +246,7 @@ def compute_alignments(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
 
-    return ans
+    return CutSet.from_cuts(cuts)
 
 
 @torch.no_grad()
@@ -200,19 +255,31 @@ def main():
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
-    assert args.return_cuts is True
-    assert args.concatenate_cuts is False
-    if args.full_libri is False:
-        print("Changing --full-libri to True")
-        args.full_libri = True
+    args.enable_spec_aug = False
+    args.enable_musan = False
+    args.return_cuts = True
+    args.concatenate_cuts = False
 
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log/ali")
+    setup_logger(f"{params.exp_dir}/log-ali")
 
-    logging.info("Computing alignment - started")
+    logging.info(f"Computing alignments for {params.dataset} - started")
     logging.info(params)
+
+    out_dir = Path(params.out_dir)
+    out_dir.mkdir(exist_ok=True)
+
+    out_ali_filename = out_dir / f"{params.dataset}.h5"
+    if out_ali_filename.exists():
+        logging.info(f"{out_ali_filename} exists - skipping")
+        return
+
+    out_manifest_filename = out_dir / f"cuts_{params.dataset}.json.gz"
+    if out_manifest_filename.exists():
+        logging.info(f"{out_manifest_filename} exists - skipping")
+        return
 
     lexicon = Lexicon(params.lang_dir)
     max_token_id = max(lexicon.tokens)
@@ -221,6 +288,7 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
+    logging.info(f"device: {device}")
 
     graph_compiler = BpeCtcTrainingGraphCompiler(
         params.lang_dir,
@@ -240,9 +308,12 @@ def main():
         vgg_frontend=params.vgg_frontend,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
+    model.to(device)
 
     if params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        load_checkpoint(
+            f"{params.exp_dir}/epoch-{params.epoch}.pt", model, strict=False
+        )
     else:
         start = params.epoch - params.avg + 1
         filenames = []
@@ -250,61 +321,53 @@ def main():
             if start >= 0:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
-        model.load_state_dict(average_checkpoints(filenames))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
-    model.to(device)
     model.eval()
 
     librispeech = LibriSpeechAsrDataModule(args)
+    if params.dataset == "test-clean":
+        test_clean_cuts = librispeech.test_clean_cuts()
+        dl = librispeech.test_dataloaders(test_clean_cuts)
+    elif params.dataset == "test-other":
+        test_other_cuts = librispeech.test_other_cuts()
+        dl = librispeech.test_dataloaders(test_other_cuts)
+    elif params.dataset == "train-clean-100":
+        train_clean_100_cuts = librispeech.train_clean_100_cuts()
+        dl = librispeech.train_dataloaders(train_clean_100_cuts)
+    elif params.dataset == "train-clean-360":
+        train_clean_360_cuts = librispeech.train_clean_360_cuts()
+        dl = librispeech.train_dataloaders(train_clean_360_cuts)
+    elif params.dataset == "train-other-500":
+        train_other_500_cuts = librispeech.train_other_500_cuts()
+        dl = librispeech.train_dataloaders(train_other_500_cuts)
+    elif params.dataset == "dev-clean":
+        dev_clean_cuts = librispeech.dev_clean_cuts()
+        dl = librispeech.valid_dataloaders(dev_clean_cuts)
+    else:
+        assert params.dataset == "dev-other", f"{params.dataset}"
+        dev_other_cuts = librispeech.dev_other_cuts()
+        dl = librispeech.valid_dataloaders(dev_other_cuts)
 
-    train_dl = librispeech.train_dataloaders()
-    valid_dl = librispeech.valid_dataloaders()
-    test_dl = librispeech.test_dataloaders()  # a list
-
-    ali_dir = Path(params.ali_dir)
-    ali_dir.mkdir(exist_ok=True)
-
-    enabled_datasets = {
-        "test_clean": test_dl[0],
-        "test_other": test_dl[1],
-        "train-960": train_dl,
-        "valid": valid_dl,
-    }
-    # For train-960, it takes about 3 hours 40 minutes, i.e., 3.67 hours to
-    # compute the alignments if you use --max-duration=500
-    #
-    # There are 960 * 3 = 2880 hours data and it takes only
-    # 3 hours 40 minutes to get the alignment.
-    # The RTF is roughly: 3.67 / 2880 = 0.0012743
-    #
-    # At the end, you would see
-    # 2021-09-28 11:32:46,690 INFO [ali.py:188] batch 21000/?, cuts processed until now is 836270  # noqa
-    # 2021-09-28 11:33:45,084 INFO [ali.py:188] batch 21100/?, cuts processed until now is 840268  # noqa
-    for name, dl in enabled_datasets.items():
-        logging.info(f"Processing {name}")
-        if name == "train-960":
-            logging.info(
-                f"It will take about 3 hours 40 minutes for {name}, "
-                "which contains 960 * 3 = 2880 hours of data"
-            )
-        alignments = compute_alignments(
+    logging.info(f"Processing {params.dataset}")
+    with NumpyHdf5Writer(out_ali_filename) as writer:
+        cut_set = compute_alignments(
             model=model,
             dl=dl,
+            writer=writer,
             params=params,
             graph_compiler=graph_compiler,
         )
-        num_utt = len(alignments)
-        alignments = dict(alignments)
-        assert num_utt == len(alignments)
-        filename = ali_dir / f"{name}.pt"
-        save_alignments(
-            alignments=alignments,
-            subsampling_factor=params.subsampling_factor,
-            filename=filename,
-        )
-        logging.info(
-            f"For dataset {name}, its alignments are saved to {filename}"
-        )
+
+    cut_set.to_json(out_manifest_filename)
+
+    logging.info(
+        f"For dataset {params.dataset}, its alignments are "
+        f"saved to {out_ali_filename} and the cut manifest file "
+        f"is {out_manifest_filename}. Number of cuts: {len(cut_set)}"
+    )
 
 
 torch.set_num_threads(1)

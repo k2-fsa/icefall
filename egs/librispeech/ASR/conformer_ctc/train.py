@@ -614,8 +614,16 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
 
     librispeech = LibriSpeechAsrDataModule(args)
-    train_dl = librispeech.train_dataloaders()
-    valid_dl = librispeech.valid_dataloaders()
+
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
+    train_dl = librispeech.train_dataloaders(train_cuts)
+
+    valid_cuts = librispeech.dev_clean_cuts()
+    valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     scan_pessimistic_batches_for_oom(
         model=model,

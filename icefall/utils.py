@@ -306,7 +306,10 @@ def get_texts(
 
 
 def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
-    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+    """Extract the token IDs (from best_paths.tokens) from the best-path FSAs.
+
+    Caution:
+      There are no repeats in `best_paths.tokens`.
 
     Args:
       best_paths:
@@ -320,11 +323,11 @@ def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
       after subsampling of the i-th utterance in the batch.
     """
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
-    label_shape = best_paths.arcs.shape().remove_axis(1)
-    # label_shape has axes [fsa][arc]
-    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
-    labels = labels.remove_values_eq(-1)
-    return labels.tolist()
+    token_shape = best_paths.arcs.shape().remove_axis(1)
+    # token_shape has axes [fsa][arc]
+    tokens = k2.RaggedTensor(token_shape, best_paths.tokens)
+    tokens = tokens.remove_values_eq(-1)
+    return tokens.tolist()
 
 
 def save_alignments(
