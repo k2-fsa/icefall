@@ -16,6 +16,7 @@ We provide three recipes at present:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
+  - [Aishell][aishell]
   - [TIMIT][timit]
 
 ### yesno
@@ -57,6 +58,31 @@ The WER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
+### Aishell
+
+We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
+and [TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc].
+
+#### Conformer CTC Model
+
+The best CER we currently have is:
+
+|     | test |
+|-----|------|
+| CER | 4.26 |
+
+
+We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
+
+#### TDNN LSTM CTC Model
+
+The CER for this model is:
+
+|     | test  |
+|-----|-------|
+| CER | 10.16 |
+
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z?usp=sharing)
 
 ### TIMIT
 
