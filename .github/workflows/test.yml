@@ -33,8 +33,14 @@ jobs:
         # disable macOS test for now.
         os: [ubuntu-18.04]
         python-version: [3.6, 3.7, 3.8, 3.9]
-        torch: ["1.8.1"]
-        k2-version: ["1.9.dev20210919"]
+        torch: ["1.8.0", "1.10.0"]
+        torchaudio: ["0.8.0", "0.10.0"]
+        k2-version: ["1.9.dev20211101"]
+        exclude:
+          - torch: "1.8.0"
+            torchaudio: "0.10.0"
+          - torch: "1.10.0"
+            torchaudio: "0.8.0"
 
       fail-fast: false
 
@@ -58,6 +64,15 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip pytest
+          # numpy 1.20.x does not support python 3.6
+          pip install numpy==1.19
+          pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+          else
+            pip install torchaudio==${{ matrix.torchaudio }}
+          fi
+
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
@@ -83,7 +98,10 @@ jobs:
           ls -lh
           export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
           echo $PYTHONPATH
-          pytest ./test
+          pytest -v -s ./test
+          # runt tests for conformer ctc
+          cd egs/librispeech/ASR/conformer_ctc
+          pytest -v -s
 
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
@@ -93,8 +111,8 @@ jobs:
           lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
           echo "lib_path: $lib_path"
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
-          pytest ./test
+          pytest -v -s ./test
 
           # runt tests for conformer ctc
           cd egs/librispeech/ASR/conformer_ctc
-          pytest
+          pytest -v -s
