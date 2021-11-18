@@ -14,10 +14,10 @@ from model import Tdnn
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import get_lattice, one_best_decoding
+from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,

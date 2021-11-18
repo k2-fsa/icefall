@@ -21,17 +21,15 @@ import collections
 import logging
 import os
 import subprocess
-import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
 import k2.version
 import kaldialign
-import lhotse
 import torch
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
@@ -135,85 +133,6 @@ def setup_logger(
         console.setLevel(level)
         console.setFormatter(logging.Formatter(formatter))
         logging.getLogger("").addHandler(console)
-
-
-def get_git_sha1():
-    git_commit = (
-        subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            check=True,
-            stdout=subprocess.PIPE,
-        )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
-    dirty_commit = (
-        len(
-            subprocess.run(
-                ["git", "diff", "--shortstat"],
-                check=True,
-                stdout=subprocess.PIPE,
-            )
-            .stdout.decode()
-            .rstrip("\n")
-            .strip()
-        )
-        > 0
-    )
-    git_commit = (
-        git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
-    )
-    return git_commit
-
-
-def get_git_date():
-    git_date = (
-        subprocess.run(
-            ["git", "log", "-1", "--format=%ad", "--date=local"],
-            check=True,
-            stdout=subprocess.PIPE,
-        )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
-    return git_date
-
-
-def get_git_branch_name():
-    git_date = (
-        subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            check=True,
-            stdout=subprocess.PIPE,
-        )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
-    return git_date
-
-
-def get_env_info() -> Dict[str, Any]:
-    """Get the environment information."""
-    return {
-        "k2-version": k2.version.__version__,
-        "k2-build-type": k2.version.__build_type__,
-        "k2-with-cuda": k2.with_cuda,
-        "k2-git-sha1": k2.version.__git_sha1__,
-        "k2-git-date": k2.version.__git_date__,
-        "lhotse-version": lhotse.__version__,
-        "torch-cuda-available": torch.cuda.is_available(),
-        "torch-cuda-version": torch.version.cuda,
-        "python-version": sys.version[:3],
-        "icefall-git-branch": get_git_branch_name(),
-        "icefall-git-sha1": get_git_sha1(),
-        "icefall-git-date": get_git_date(),
-        "icefall-path": str(Path(__file__).resolve().parent.parent),
-        "k2-path": str(Path(k2.__file__).resolve()),
-        "lhotse-path": str(Path(lhotse.__file__).resolve()),
-    }
 
 
 class AttributeDict(dict):
