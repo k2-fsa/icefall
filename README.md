@@ -125,9 +125,12 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
+[Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
+[aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [k2]: https://github.com/k2-fsa/k2
