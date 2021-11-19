@@ -34,7 +34,7 @@ from icefall.decode import (
     one_best_decoding,
     rescore_with_attention_decoder,
 )
-from icefall.utils import AttributeDict, get_env_info, get_texts
+from icefall.utils import AttributeDict, get_texts
 
 
 def get_parser():
@@ -190,7 +190,6 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
-            "env_info": get_env_info(),
         }
     )
     return params
