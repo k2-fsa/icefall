@@ -25,26 +25,15 @@
 
 from pathlib import Path
 
-import k2
-import torch
-from lhotse import load_manifest
+from lhotse import CutSet, load_manifest
 from lhotse.dataset import K2SpeechRecognitionDataset, SingleCutSampler
-from torch.nn.utils.rnn import pad_sequence
+from lhotse.dataset.collation import collate_custom_field
 from torch.utils.data import DataLoader
-
-from icefall.ali import (
-    convert_alignments_to_tensor,
-    load_alignments,
-    lookup_alignments,
-)
-from icefall.decode import get_lattice, one_best_decoding
-from icefall.lexicon import Lexicon
-from icefall.utils import get_texts
 
 ICEFALL_DIR = Path(__file__).resolve().parent.parent
 egs_dir = ICEFALL_DIR / "egs/librispeech/ASR"
 lang_dir = egs_dir / "data/lang_bpe_500"
-cuts_json = egs_dir / "data/token_ali/cuts_test-clean.json.gz"
+cuts_json = egs_dir / "data/ali/cuts_dev-clean.json.gz"
 
 
 def data_exists():
@@ -53,10 +42,11 @@ def data_exists():
 
 def get_dataloader():
     cuts = load_manifest(cuts_json)
+    print(cuts[0])
     cuts = cuts.with_features_path_prefix(egs_dir)
     sampler = SingleCutSampler(
         cuts,
-        max_duration=40,
+        max_duration=10,
         shuffle=False,
     )
 
@@ -75,14 +65,24 @@ def get_dataloader():
 def test():
     if not data_exists():
         return
-    device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
     dl = get_dataloader()
     for batch in dl:
         supervisions = batch["supervisions"]
         cuts = supervisions["cut"]
-        print(cuts)
+        labels_alignment, labels_alignment_length = collate_custom_field(
+            CutSet.from_cuts(cuts), "labels_alignment"
+        )
+
+        (
+            aux_labels_alignment,
+            aux_labels_alignment_length,
+        ) = collate_custom_field(CutSet.from_cuts(cuts), "aux_labels_alignment")
+
+        print(labels_alignment)
+        print(aux_labels_alignment)
+        print(labels_alignment_length)
+        print(aux_labels_alignment_length)
+        #  print(cuts)
         break
 
 

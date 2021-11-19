@@ -24,13 +24,12 @@ Usage:
             --avg 10 \
             --max-duration 300 \
             --dataset train-clean-100 \
-            --out-dir data/token-ali
+            --out-dir data/ali
 """
 
 import argparse
 import logging
 from pathlib import Path
-from typing import List, Tuple
 
 import k2
 import numpy as np
@@ -49,7 +48,6 @@ from icefall.utils import (
     encode_supervisions,
     get_alignments,
     get_env_info,
-    save_alignments,
     setup_logger,
 )
 
@@ -94,16 +92,21 @@ def get_parser():
         type=str,
         required=True,
         help="""Output directory.
-        It contains the following generated files:
+        It contains 3 generated files:
 
-        - xxx.h5
+        - labels_xxx.h5
+        - aux_labels_xxx.h5
         - cuts_xxx.json.gz
 
         where xxx is the value of `--dataset`. For instance, if
-        `--dataset` is `train-clean-100`, it will contain two files:
+        `--dataset` is `train-clean-100`, it will contain 3 files:
 
-        - `train-clean-100.h5`
+        - `labels_train-clean-100.h5`
+        - `aux_labels_train-clean-100.h5`
         - `cuts_train-clean-100.json.gz`
+
+        Note: Both labels_xxx.h5 and aux_labels_xxx.h5 contain framewise
+        alignment. The difference is that labels_xxx.h5 contains repeats.
         """,
     )
 
@@ -149,7 +152,8 @@ def get_params() -> AttributeDict:
 def compute_alignments(
     model: torch.nn.Module,
     dl: torch.utils.data.DataLoader,
-    writer: FeaturesWriter,
+    labels_writer: FeaturesWriter,
+    aux_labels_writer: FeaturesWriter,
     params: AttributeDict,
     graph_compiler: BpeCtcTrainingGraphCompiler,
 ) -> CutSet:
@@ -165,8 +169,10 @@ def compute_alignments(
       graph_compiler:
         It converts token IDs to decoding graphs.
     Returns:
-      Return a CutSet. Each cut has a custom field `token_alignment`
-      of type `lhotse.array.TemporalArray`.
+      Return a CutSet. Each cut has two custom fields: labels_alignment
+      and aux_labels_alignment, containing framewise alignments information.
+      Both are of type `lhotse.array.TemporalArray`. The difference between
+      the two alignments is that `labels_alignment` contain repeats.
     """
     try:
         num_batches = len(dl)
@@ -204,7 +210,6 @@ def compute_alignments(
 
         token_ids = graph_compiler.texts_to_ids(texts)
         decoding_graph = graph_compiler.compile(token_ids)
-        decoding_graph.tokens = decoding_graph.aux_labels.clone()
 
         dense_fsa_vec = k2.DenseFsaVec(
             nnet_output,
@@ -223,21 +228,32 @@ def compute_alignments(
             use_double_scores=params.use_double_scores,
         )
 
-        ali_ids = get_alignments(best_path)
-        assert len(ali_ids) == len(cut_list)
-        for cut, ali in zip(cut_list, ali_ids):
-
-            cut.token_alignment = writer.store_array(
+        labels_ali = get_alignments(best_path, kind="labels")
+        aux_labels_ali = get_alignments(best_path, kind="aux_labels")
+        assert len(labels_ali) == len(aux_labels_ali) == len(cut_list)
+        for cut, labels, aux_labels in zip(
+            cut_list, labels_ali, aux_labels_ali
+        ):
+            cut.labels_alignment = labels_writer.store_array(
                 key=cut.id,
-                value=np.asarray(ali, dtype=np.int32),
-                frame_shift=0.04,  # frame shift is 0.01s, subsampling_factor is 4
+                value=np.asarray(labels, dtype=np.int32),
+                # frame shift is 0.01s, subsampling_factor is 4
+                frame_shift=0.04,
+                temporal_dim=0,
+                start=0,
+            )
+            cut.aux_labels_alignment = aux_labels_writer.store_array(
+                key=cut.id,
+                value=np.asarray(aux_labels, dtype=np.int32),
+                # frame shift is 0.01s, subsampling_factor is 4
+                frame_shift=0.04,
                 temporal_dim=0,
                 start=0,
             )
 
         cuts += cut_list
 
-        num_cuts += len(ali_ids)
+        num_cuts += len(cut_list)
 
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
@@ -271,15 +287,18 @@ def main():
     out_dir = Path(params.out_dir)
     out_dir.mkdir(exist_ok=True)
 
-    out_ali_filename = out_dir / f"{params.dataset}.h5"
-    if out_ali_filename.exists():
-        logging.info(f"{out_ali_filename} exists - skipping")
-        return
-
+    out_labels_ali_filename = out_dir / f"labels_{params.dataset}.h5"
+    out_aux_labels_ali_filename = out_dir / f"aux_labels_{params.dataset}.h5"
     out_manifest_filename = out_dir / f"cuts_{params.dataset}.json.gz"
-    if out_manifest_filename.exists():
-        logging.info(f"{out_manifest_filename} exists - skipping")
-        return
+
+    for f in (
+        out_labels_ali_filename,
+        out_aux_labels_ali_filename,
+        out_manifest_filename,
+    ):
+        if f.exists():
+            logging.info(f"{f} exists - skipping")
+            return
 
     lexicon = Lexicon(params.lang_dir)
     max_token_id = max(lexicon.tokens)
@@ -352,21 +371,24 @@ def main():
         dl = librispeech.valid_dataloaders(dev_other_cuts)
 
     logging.info(f"Processing {params.dataset}")
-    with NumpyHdf5Writer(out_ali_filename) as writer:
-        cut_set = compute_alignments(
-            model=model,
-            dl=dl,
-            writer=writer,
-            params=params,
-            graph_compiler=graph_compiler,
-        )
+    with NumpyHdf5Writer(out_labels_ali_filename) as labels_writer:
+        with NumpyHdf5Writer(out_aux_labels_ali_filename) as aux_labels_writer:
+            cut_set = compute_alignments(
+                model=model,
+                dl=dl,
+                labels_writer=labels_writer,
+                aux_labels_writer=aux_labels_writer,
+                params=params,
+                graph_compiler=graph_compiler,
+            )
 
-    cut_set.to_json(out_manifest_filename)
+    cut_set.to_file(out_manifest_filename)
 
     logging.info(
-        f"For dataset {params.dataset}, its alignments are "
-        f"saved to {out_ali_filename} and the cut manifest file "
-        f"is {out_manifest_filename}. Number of cuts: {len(cut_set)}"
+        f"For dataset {params.dataset}, its alignments with repeats are "
+        f"saved to {out_labels_ali_filename}, the alignments without repeats "
+        f"are saved to {out_aux_labels_ali_filename}, and the cut manifest "
+        f"file is {out_manifest_filename}. Number of cuts: {len(cut_set)}"
     )
 
 

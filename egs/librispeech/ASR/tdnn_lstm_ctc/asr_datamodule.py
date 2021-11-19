@@ -19,7 +19,6 @@ import argparse
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Union
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
