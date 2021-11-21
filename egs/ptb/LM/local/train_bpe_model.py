@@ -35,7 +35,7 @@ import sentencepiece as spm
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--lang-dir",
+        "--out-dir",
         type=str,
         help="""Input and output directory.
         The generated bpe.model is saved to this directory.
@@ -60,11 +60,9 @@ def get_args():
 def main():
     args = get_args()
     vocab_size = args.vocab_size
-    lang_dir = Path(args.lang_dir)
-
     model_type = "unigram"
 
-    model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
+    model_prefix = f"{args.out_dir}/{model_type}_{vocab_size}"
     train_text = args.transcript
     character_coverage = 1.0
     input_sentence_size = 100000000
@@ -90,7 +88,7 @@ def main():
             eos_id=-1,
         )
 
-    shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
+    shutil.copyfile(model_file, f"{args.out_dir}/bpe.model")
 
 
 if __name__ == "__main__":
