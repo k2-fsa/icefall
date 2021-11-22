@@ -122,6 +122,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--trained-dir",
+        type=Path,
+        default=None,
+        help="The experiment dir",
+    )
+
+    parser.add_argument(
         "--lang-dir",
         type=Path,
         default="data/lang_bpe",
@@ -144,7 +151,6 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("conformer_ctc/exp"),
             "lang_dir": Path("data/lang_bpe"),
-            "lm_dir": Path("data/lm"),
             # parameters for conformer
             "causal": True,
             "subsampling_factor": 4,
@@ -410,6 +416,12 @@ def main():
     logging.info("Decoding started")
     logging.info(params)
 
+    if params.trained_dir is not None:
+        params.lang_dir = Path(params.trained_dir) / "lang_bpe"
+        # used naming result files
+        params.epoch = "trained_model"
+        params.avg = 1
+
     lexicon = Lexicon(params.lang_dir)
     max_token_id = max(lexicon.tokens)
     num_classes = max_token_id + 1  # +1 for the blank
@@ -441,7 +453,10 @@ def main():
         causal=params.causal,
     )
 
-    if params.avg == 1 and params.avg_models is not None:
+    if params.trained_dir is not None:
+        model_name = f"{params.trained_dir}/trained_streaming_conformer.pt"
+        load_checkpoint(model_name, model)
+    elif params.avg == 1 and params.avg_models is not None:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         filenames = []

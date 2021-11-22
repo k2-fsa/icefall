@@ -127,7 +127,7 @@ def get_parser():
     parser.add_argument(
         "--dynamic-chunk-training",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to use dynamic right context during training.",
     )
 
