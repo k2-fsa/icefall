@@ -124,6 +124,20 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="Whether to use dynamic right context during training.",
+    )
+
+    parser.add_argument(
+        "--short-chunk-proportion",
+        type=float,
+        default=0.7,
+        help="Proportion of samples trained with short right context",
+    )
+
     return parser
 
 
@@ -340,7 +354,12 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
+        nnet_output, encoder_memory, memory_mask = model(
+            feature,
+            supervisions,
+            dynamic_chunk_training=params.dynamic_chunk_training,
+            short_chunk_proportion=params.short_chunk_proportion,
+        )
         # nnet_output is (N, T, C)
 
     # NOTE: We need `encode_supervisions` to sort sequences with

@@ -158,7 +158,13 @@ class Transformer(nn.Module):
             self.decoder_criterion = None
 
     def forward(
-        self, x: torch.Tensor, supervision: Optional[Supervisions] = None
+        self,
+        x: torch.Tensor,
+        supervision: Optional[Supervisions] = None,
+        dynamic_chunk_training: bool = False,
+        short_chunk_proportion: float = 0.5,
+        chunk_size: int = -1,
+        simulate_streaming=False,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Args:
@@ -184,13 +190,21 @@ class Transformer(nn.Module):
             x = self.feat_batchnorm(x)
             x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         encoder_memory, memory_key_padding_mask = self.run_encoder(
-            x, supervision
+            x,
+            supervision,
+            dynamic_chunk_training=dynamic_chunk_training,
+            short_chunk_proportion=short_chunk_proportion,
+            chunk_size=chunk_size,
+            simulate_streaming=simulate_streaming,
         )
         x = self.ctc_output(encoder_memory)
         return x, encoder_memory, memory_key_padding_mask
 
     def run_encoder(
-        self, x: torch.Tensor, supervisions: Optional[Supervisions] = None
+        self,
+        x: torch.Tensor,
+        supervisions: Optional[Supervisions] = None,
+        chunk_size: int = -1,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Run the transformer encoder.
 
@@ -205,6 +219,8 @@ class Transformer(nn.Module):
             It is read directly from the batch, without any sorting. It is used
             to compute the encoder padding mask, which is used as memory key
             padding mask for the decoder.
+          chunk_size: right chunk_size to simulate streaming decoding
+            -1 for whole right context
         Returns:
           Return a tuple with two tensors:
             - The encoder output, with shape (T, N, C)
@@ -212,12 +228,16 @@ class Transformer(nn.Module):
               The mask is None if `supervisions` is None.
               It is used as memory key padding mask in the decoder.
         """
+        # streaming decoding(chunk_size >= 0) is only verified with Conformer
+        assert chunk_size == -1
         x = self.encoder_embed(x)
         x = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
-        x = self.encoder(x, src_key_padding_mask=mask)  # (T, N, C)
+        x = self.encoder(
+            x, src_key_padding_mask=mask, chunk_size=chunk_size
+        )  # (T, N, C)
 
         return x, mask
 
