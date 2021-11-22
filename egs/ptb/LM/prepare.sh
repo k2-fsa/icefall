@@ -72,6 +72,16 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
       --bpe-model $out_dir/bpe.model \
       --lm-data $dl_dir/ptb.train.txt \
       --lm-archive $out_dir/lm_data.pt
+
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $out_dir/bpe.model \
+      --lm-data $dl_dir/ptb.valid.txt \
+      --lm-archive $out_dir/lm_data-valid.pt
+
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $out_dir/bpe.model \
+      --lm-data $dl_dir/ptb.test.txt \
+      --lm-archive $out_dir/lm_data-test.pt
   done
 fi
 
@@ -91,5 +101,15 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       --in-lm-data $out_dir/lm_data.pt \
       --out-lm-data $out_dir/sorted_lm_data.pt \
       --out-statistics $out_dir/statistics.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_data-valid.pt \
+      --out-lm-data $out_dir/sorted_lm_data-valid.pt \
+      --out-statistics $out_dir/statistics-valid.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_data-test.pt \
+      --out-lm-data $out_dir/sorted_lm_data-test.pt \
+      --out-statistics $out_dir/statistics-test.txt
   done
 fi
