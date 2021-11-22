@@ -216,7 +216,7 @@ Training logs and checkpoints are saved in the folder set by ``--exp-dir``
       .. code-block:: bash
 
         $ cd conformer_ctc/exp/tensorboard
-        $ tensorboard dev upload --logdir . --description "Conformer CTC training for Aishell with icefall"
+        $ tensorboard dev upload --logdir . --name "Aishell conformer ctc training with icefall" --description "Training with new LabelSmoothing loss, see https://github.com/k2-fsa/icefall/pull/109"
 
     It will print something like below:
 
@@ -227,10 +227,10 @@ Training logs and checkpoints are saved in the folder set by ``--exp-dir``
 
         To stop uploading, press Ctrl-C.
 
-        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/WE1DocDqRRCOSAgmGyClhg/
+        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/engw8KSkTZqS24zBV5dgCg/
 
-        [2021-11-16T10:51:46] Started scanning logdir.
-        [2021-11-16T10:52:32] Total uploaded: 111606 scalars, 0 tensors, 0 binary objects
+        [2021-11-22T11:09:27] Started scanning logdir.
+        [2021-11-22T11:10:14] Total uploaded: 116068 scalars, 0 tensors, 0 binary objects
         Listening for new data in logdir...
 
     Note there is a URL in the above output, click it and you will see
