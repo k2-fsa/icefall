@@ -42,8 +42,6 @@ dl_dir=$PWD/download
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
   5000
-  2000
-  1000
   500
 )
 
@@ -288,7 +286,6 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
         cat $f | cut -d " " -f 2-
       done > $out_dir/test.txt
     fi
-    exit 0
 
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/prepare_lm_training_data.py \
