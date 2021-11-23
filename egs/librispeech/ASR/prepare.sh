@@ -337,7 +337,6 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
         cat $f | cut -d " " -f 2-
       done > $out_dir/test.txt
     fi
-    exit 0
 
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/prepare_lm_training_data.py \
