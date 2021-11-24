@@ -20,12 +20,8 @@ import k2
 import pytest
 import torch
 
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    get_env_info,
-    get_texts,
-)
+from icefall.env import get_env_info
+from icefall.utils import AttributeDict, encode_supervisions, get_texts
 
 
 @pytest.fixture

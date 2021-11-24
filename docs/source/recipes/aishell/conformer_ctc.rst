@@ -18,7 +18,7 @@ In this tutorial, you will learn:
 
   - (1) How to prepare data for training and decoding
   - (2) How to start the training, either with a single GPU or multiple GPUs
-  - (3) How to do decoding after training, with 1best and attention decoder rescoring
+  - (3) How to do decoding after training, with ctc-decoding, 1best and attention decoder rescoring
   - (4) How to use a pre-trained model, provided by us
 
 Data preparation
@@ -216,7 +216,7 @@ Training logs and checkpoints are saved in the folder set by ``--exp-dir``
       .. code-block:: bash
 
         $ cd conformer_ctc/exp/tensorboard
-        $ tensorboard dev upload --logdir . --description "Conformer CTC training for Aishell with icefall"
+        $ tensorboard dev upload --logdir . --name "Aishell conformer ctc training with icefall" --description "Training with new LabelSmoothing loss, see https://github.com/k2-fsa/icefall/pull/109"
 
     It will print something like below:
 
@@ -227,10 +227,10 @@ Training logs and checkpoints are saved in the folder set by ``--exp-dir``
 
         To stop uploading, press Ctrl-C.
 
-        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/WE1DocDqRRCOSAgmGyClhg/
+        New experiment created. View your TensorBoard at: https://tensorboard.dev/experiment/engw8KSkTZqS24zBV5dgCg/
 
-        [2021-11-16T10:51:46] Started scanning logdir.
-        [2021-11-16T10:52:32] Total uploaded: 111606 scalars, 0 tensors, 0 binary objects
+        [2021-11-22T11:09:27] Started scanning logdir.
+        [2021-11-22T11:10:14] Total uploaded: 116068 scalars, 0 tensors, 0 binary objects
         Listening for new data in logdir...
 
     Note there is a URL in the above output, click it and you will see
@@ -623,3 +623,125 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
 
 **Congratulations!** You have finished the aishell ASR recipe with
 conformer CTC models in ``icefall``.
+
+
+If you want to deploy your trained model in C++, please read the following section.
+
+Deployment with C++
+-------------------
+
+This section describes how to deploy the pre-trained model in C++, without
+Python dependencies.
+
+.. HINT::
+
+  At present, it does NOT support streaming decoding.
+
+First, let us compile k2 from source:
+
+.. code-block:: bash
+
+  $ cd $HOME
+  $ git clone https://github.com/k2-fsa/k2
+  $ cd k2
+  $ git checkout v2.0-pre
+
+.. CAUTION::
+
+  You have to switch to the branch ``v2.0-pre``!
+
+.. code-block:: bash
+
+  $ mkdir build-release
+  $ cd build-release
+  $ cmake -DCMAKE_BUILD_TYPE=Release ..
+  $ make -j hlg_decode
+
+  # You will find four binaries in `./bin`, i.e. ./bin/hlg_decode,
+
+Now you are ready to go!
+
+Assume you have run:
+
+  .. code-block:: bash
+
+    $ cd k2/build-release
+    $ ln -s /path/to/icefall-asr-aishell-conformer-ctc ./
+
+To view the usage of ``./bin/hlg_decode``, run:
+
+.. code-block::
+
+  $ ./bin/hlg_decode
+
+It will show you the following message:
+
+.. code-block:: bash
+
+  Please provide --nn_model
+
+  This file implements decoding with an HLG decoding graph.
+
+  Usage:
+    ./bin/hlg_decode \
+      --use_gpu true \
+      --nn_model <path to torch scripted pt file> \
+      --hlg <path to HLG.pt> \
+      --word_table <path to words.txt> \
+      <path to foo.wav> \
+      <path to bar.wav> \
+      <more waves if any>
+
+  To see all possible options, use
+    ./bin/hlg_decode --help
+
+  Caution:
+   - Only sound files (*.wav) with single channel are supported.
+   - It assumes the model is conformer_ctc/transformer.py from icefall.
+     If you use a different model, you have to change the code
+     related to `model.forward` in this file.
+
+
+HLG decoding
+^^^^^^^^^^^^
+
+.. code-block:: bash
+
+  ./bin/hlg_decode \
+    --use_gpu true \
+    --nn_model icefall_asr_aishell_conformer_ctc/exp/cpu_jit.pt \
+    --hlg icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt \
+    --word_table icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt \
+    icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav \
+    icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav \
+    icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+
+The output is:
+
+.. code-block::
+
+  2021-11-18 14:48:20.89 [I] k2/torch/bin/hlg_decode.cu:115:int main(int, char**) Device: cpu
+  2021-11-18 14:48:20.89 [I] k2/torch/bin/hlg_decode.cu:124:int main(int, char**) Load wave files
+  2021-11-18 14:48:20.97 [I] k2/torch/bin/hlg_decode.cu:131:int main(int, char**) Build Fbank computer
+  2021-11-18 14:48:20.98 [I] k2/torch/bin/hlg_decode.cu:142:int main(int, char**) Compute features
+  2021-11-18 14:48:20.115 [I] k2/torch/bin/hlg_decode.cu:150:int main(int, char**) Load neural network model
+  2021-11-18 14:48:20.693 [I] k2/torch/bin/hlg_decode.cu:165:int main(int, char**) Compute nnet_output
+  2021-11-18 14:48:23.182 [I] k2/torch/bin/hlg_decode.cu:180:int main(int, char**) Load icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt
+  2021-11-18 14:48:33.489 [I] k2/torch/bin/hlg_decode.cu:185:int main(int, char**) Decoding
+  2021-11-18 14:48:45.217 [I] k2/torch/bin/hlg_decode.cu:216:int main(int, char**)
+  Decoding result:
+
+  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav
+  甚至 出现 交易 几乎 停止 的 情况
+
+  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav
+  一二 线 城市 虽然 也 处于 调整 中
+
+  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+  但 因为 聚集 了 过多 公共 资源
+
+There is a Colab notebook showing you how to run a torch scripted model in C++.
+Please see |aishell asr conformer ctc torch script colab notebook|
+
+.. |aishell asr conformer ctc torch script colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/drive/1Vh7RER7saTW01DtNbvr7CY7ovNZgmfWz?usp=sharing

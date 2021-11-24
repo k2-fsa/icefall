@@ -42,12 +42,12 @@ from lhotse.features.io import FeaturesWriter, NumpyHdf5Writer
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import one_best_decoding
+from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     encode_supervisions,
     get_alignments,
-    get_env_info,
     setup_logger,
 )
 

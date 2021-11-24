@@ -22,15 +22,10 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
+from icefall.env import get_env_info
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    get_env_info,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 
 def get_parser():

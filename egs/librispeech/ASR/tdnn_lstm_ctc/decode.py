@@ -36,10 +36,10 @@ from icefall.decode import (
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
+from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
