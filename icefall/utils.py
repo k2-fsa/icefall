@@ -321,6 +321,17 @@ def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
       Returns a list of lists of int, containing the token sequences we
       decoded. For `ans[i]`, its length equals to the number of frames
       after subsampling of the i-th utterance in the batch.
+
+    Example:
+      When `kind` is `labels`, one possible alignment example is (with
+      repeats)::
+
+        c c c blk a a blk blk t t t blk blk
+
+     If `kind` is `aux_labels`, the above example changes to::
+
+        c blk blk blk a blk blk blk t blk blk blk blk
+
     """
     assert kind in ("labels", "aux_labels")
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here

@@ -82,7 +82,6 @@ def test():
         print(aux_labels_alignment)
         print(labels_alignment_length)
         print(aux_labels_alignment_length)
-        #  print(cuts)
         break
 
 
