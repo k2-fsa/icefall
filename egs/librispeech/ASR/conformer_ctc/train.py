@@ -124,6 +124,13 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--lr-factor",
+        type=float,
+        default=5.0,
+        help="The lr_factor for Noam optimizer",
+    )
+
     return parser
 
 
@@ -182,8 +189,6 @@ def get_params() -> AttributeDict:
 
         - weight_decay:  The weight_decay for the optimizer.
 
-        - lr_factor: The lr_factor for Noam optimizer.
-
         - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
@@ -209,7 +214,6 @@ def get_params() -> AttributeDict:
             "use_double_scores": True,
             # parameters for Noam
             "weight_decay": 1e-6,
-            "lr_factor": 5.0,
             "warm_step": 80000,
             "env_info": get_env_info(),
         }
