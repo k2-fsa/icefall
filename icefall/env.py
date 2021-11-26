@@ -16,6 +16,7 @@
 # limitations under the License.
 
 
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -103,4 +104,6 @@ def get_env_info() -> Dict[str, Any]:
         "icefall-path": str(Path(__file__).resolve().parent.parent),
         "k2-path": str(Path(k2.__file__).resolve()),
         "lhotse-path": str(Path(lhotse.__file__).resolve()),
+        "hostname": socket.gethostname(),
+        "IP address": socket.gethostbyname(socket.gethostname()),
     }
