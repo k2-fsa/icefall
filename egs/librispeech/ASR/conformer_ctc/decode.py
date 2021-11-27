@@ -615,7 +615,7 @@ def main():
                 # Save a dummy value so that it can be loaded in C++.
                 # See https://github.com/pytorch/pytorch/issues/67902
                 # for why we need to do this.
-                G["dummy"] = 1
+                G.dummy = 1
 
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
