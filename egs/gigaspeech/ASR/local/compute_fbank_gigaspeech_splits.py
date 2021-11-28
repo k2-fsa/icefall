@@ -23,10 +23,10 @@ from pathlib import Path
 
 import torch
 from lhotse import (
+    ChunkedLilcomHdf5Writer,
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    LilcomHdf5Writer,
 )
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -100,7 +100,7 @@ def compute_fbank_gigaspeech_splits(args):
             storage_path=f"{output_dir}/feats_XL_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
-            storage_type=LilcomHdf5Writer,
+            storage_type=ChunkedLilcomHdf5Writer,
         )
 
         logging.info("About to split cuts into smaller chunks.")
