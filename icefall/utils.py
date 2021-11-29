@@ -224,8 +224,8 @@ def get_texts(
         return aux_labels.tolist()
 
 
-def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
-    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
+    """Extract labels or aux_labels from the best-path FSAs.
 
     Args:
       best_paths:
@@ -233,17 +233,34 @@ def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
         be meaningful).
+      kind:
+        Possible values are: "labels" and "aux_labels". Caution: When it is
+        "labels", the resulting alignments contain repeats.
     Returns:
       Returns a list of lists of int, containing the token sequences we
       decoded. For `ans[i]`, its length equals to the number of frames
       after subsampling of the i-th utterance in the batch.
+
+    Example:
+      When `kind` is `labels`, one possible alignment example is (with
+      repeats)::
+
+        c c c blk a a blk blk t t t blk blk
+
+     If `kind` is `aux_labels`, the above example changes to::
+
+        c blk blk blk a blk blk blk t blk blk blk blk
+
     """
+    assert kind in ("labels", "aux_labels")
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
-    label_shape = best_paths.arcs.shape().remove_axis(1)
-    # label_shape has axes [fsa][arc]
-    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
-    labels = labels.remove_values_eq(-1)
-    return labels.tolist()
+    token_shape = best_paths.arcs.shape().remove_axis(1)
+    # token_shape has axes [fsa][arc]
+    tokens = k2.RaggedTensor(
+        token_shape, getattr(best_paths, kind).contiguous()
+    )
+    tokens = tokens.remove_values_eq(-1)
+    return tokens.tolist()
 
 
 def save_alignments(
