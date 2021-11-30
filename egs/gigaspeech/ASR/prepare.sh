@@ -8,7 +8,7 @@ stop_stage=100
 
 # Split XL subset to this number of pieces
 # This is to avoid OOM during feature extraction.
-num_splits=1000
+num_splits=2000
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded

@@ -62,6 +62,20 @@ def get_parser():
         required=True,
         help="The number of splits of the XL subset",
     )
+
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=0,
+        help="Process pieces starting from this number (inclusive).",
+    )
+
+    parser.add_argument(
+        "--stop",
+        type=int,
+        default=-1,
+        help="Stop processing pieces until this number (exclusive).",
+    )
     return parser
 
 
@@ -73,13 +87,20 @@ def compute_fbank_gigaspeech_splits(args):
 
     num_digits = len(str(num_splits))
 
+    start = args.start
+    stop = args.stop
+    if stop < start:
+        stop = num_splits
+
+    stop = min(stop, num_splits)
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
-    for i in range(num_splits):
+    for i in range(start, stop):
         idx = f"{i + 1}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
