@@ -113,14 +113,47 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  mkdir -p data/lang_phone
+  lang_dir=data/lang_phone
+  mkdir -p $lang_dir
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
     cat - $dl_dir/aishell/resource_aishell/lexicon.txt |
-    sort | uniq > data/lang_phone/lexicon.txt
+    sort | uniq > $lang_dir/lexicon.txt
+
+  ./local/generate_unique_lexicon.py --lang-dir $lang_dir
 
   if [ ! -f data/lang_phone/L_disambig.pt ]; then
     ./local/prepare_lang.py
+  fi
+
+  # Train a bigram P for MMI training
+  if [ ! -f $lang_dir/transcript_words.txt ]; then
+    log "Generate data to train phone based bigram P"
+    aishell_text=aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
+    cat ${dl_dir}/${aishell_text} | cut -d " " -f 2- > $lang_dir/transcript_words.txt
+  fi
+
+  if [ ! -f $lang_dir/transcript_tokens.txt ]; then
+    ./local/convert_transcript_words_to_tokens.py \
+      --lexicon $lang_dir/uniq_lexicon.txt \
+      --transcript $lang_dir/transcript_words.txt \
+      --oov "<UNK>" \
+      > $lang_dir/transcript_tokens.txt
+  fi
+
+  if [ ! -f $lang_dir/P.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 2 \
+      -text $lang_dir/transcript_tokens.txt \
+      -lm $lang_dir/P.arpa
+  fi
+
+  if [ ! -f $lang_dir/P.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_dir/tokens.txt" \
+      --disambig-symbol='#0' \
+      --max-order=2 \
+      $lang_dir/P.arpa > $lang_dir/P.fst.txt
   fi
 fi
 
