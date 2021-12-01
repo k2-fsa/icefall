@@ -39,6 +39,7 @@ from icefall.decode import (
 )
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
+from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -493,11 +494,12 @@ def main():
 
     logging.info(f"device: {device}")
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
+    graph_compiler = MmiTrainingGraphCompiler(
+        args.lang_dir,
         device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
+        oov="<UNK>",
+        sos_id=1,
+        eos_id=1,
     )
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
