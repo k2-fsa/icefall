@@ -28,7 +28,6 @@ import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
     get_lattice,

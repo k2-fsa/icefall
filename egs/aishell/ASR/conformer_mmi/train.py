@@ -21,7 +21,7 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import k2
 import torch
