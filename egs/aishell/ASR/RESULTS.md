@@ -28,13 +28,13 @@ cd egs/aishell/ASR
 ./prepare.sh
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7,8"
-python conformer_ctc/train.py --bucketing-sampler True \
+python conformer_mmi/train.py --bucketing-sampler True \
                               --max-duration 200 \
-			       --start-epoch 0 \
-                              --num-epoch 50 \
+                              --start-epoch 0 \
+                              --num-epochs 50 \
                               --world-size 8
 
-python3 conformer_ctc/decode.py --nbest-scale 0.5 \
+python conformer_mmi/decode.py --nbest-scale 0.5 \
                                --epoch 49 \
                                --avg 20 \
                                --method attention-decoder \
@@ -73,7 +73,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 python conformer_ctc/train.py --bucketing-sampler True \
                               --max-duration 200 \
                               --start-epoch 0 \
-                              --num-epoch 90 \
+                              --num-epochs 90 \
                               --world-size 4
 
 python conformer_ctc/decode.py --nbest-scale 0.5 \
