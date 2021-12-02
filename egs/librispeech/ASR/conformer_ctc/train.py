@@ -439,7 +439,7 @@ def compute_loss(
         info["att_loss"] = att_loss.detach().cpu().item()
 
     if params.codebook_weight != 0.0:
-        info["codebook_loss"] = cdidx_loss.detach().cpu().item()
+        info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     info["loss"] = loss.detach().cpu().item()
 

@@ -501,7 +501,8 @@ def save_results(
     for key, results in results_dict.items():
         recog_path = (
             params.exp_dir
-            / f"epoch-{params.epoch}-avg-{params.avg}-recogs-{test_set_name}-{key}.txt"
+            / f"epoch-{params.epoch}-avg-{params.avg}- \
+            recogs-{test_set_name}-{key}.txt"
         )
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
@@ -511,7 +512,8 @@ def save_results(
         # ref/hyp pairs.
         errs_filename = (
             params.exp_dir
-            / f"epoch-{params.epoch}-avg-{params.avg}-errs-{test_set_name}-{key}.txt"
+            / f"epoch-{params.epoch}-avg-{params.avg}- \
+            errs-{test_set_name}-{key}.txt"
         )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
@@ -527,7 +529,8 @@ def save_results(
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
         params.exp_dir
-        / f"epoch-{params.epoch}-avg-{params.avg}-wer-summary-{test_set_name}.txt"
+        / f"epoch-{params.epoch}-avg-{params.avg}- \
+                wer-summary-{test_set_name}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
