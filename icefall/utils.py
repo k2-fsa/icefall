@@ -126,7 +126,11 @@ def setup_logger(
         level = logging.CRITICAL
 
     logging.basicConfig(
-        filename=log_filename, format=formatter, level=level, filemode="w"
+        filename=log_filename,
+        format=formatter,
+        level=level,
+        filemode="w",
+        force=True,
     )
     if use_console:
         console = logging.StreamHandler()
