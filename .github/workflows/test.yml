@@ -113,6 +113,11 @@ jobs:
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
           pytest -v -s ./test
 
-          # runt tests for conformer ctc
+          pwd=$PWD
+          # run tests for conformer ctc
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
+
+          cd $PWD
+          cd egs/librispeech/ASR
+          pytest -v -s ./rnnt
