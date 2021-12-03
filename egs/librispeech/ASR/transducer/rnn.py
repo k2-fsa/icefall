@@ -30,7 +30,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# TODO(fangjun): Support projection, see https://arxiv.org/pdf/1402.1128.pdf
 class LayerNormLSTMCell(nn.Module):
     """This class places a `nn.LayerNorm` after the output of
     each gate (right before the activation).
@@ -60,6 +59,7 @@ class LayerNormLSTMCell(nn.Module):
         hidden_size: int,
         bias: bool = True,
         ln: nn.Module = nn.LayerNorm,
+        proj_size: int = 0,
         device=None,
         dtype=None,
     ):
@@ -70,7 +70,9 @@ class LayerNormLSTMCell(nn.Module):
             be of shape (batch_size, input_size).
           hidden_size:
             The number of features in the hidden state `h` and `c`.
-            Both `h` and `c` are of shape (batch_size, hidden_size).
+            Both `h` and `c` are of shape (batch_size, hidden_size) when
+            proj_size is 0. If proj_size is not zero, the shape of `h`
+            is (batch_size, proj_size).
           bias:
             If ``False``, then the cell does not use bias weights
             `bias_ih` and `bias_hh`.
@@ -78,19 +80,38 @@ class LayerNormLSTMCell(nn.Module):
             Defaults to `nn.LayerNorm`. The output of all gates are processed
             by `ln`. We pass it as an argument so that we can replace it
             with `nn.Identity` at the testing time.
+          proj_size:
+            If not zero, it applies an affine transform to the output. In this
+            case, the shape of `h` is (batch_size, proj_size).
+            See https://arxiv.org/pdf/1402.1128.pdf
         """
         super().__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bias = bias
+        self.proj_size = proj_size
+
+        if proj_size < 0:
+            raise ValueError(
+                f"proj_size {proj_size} should be a positive integer "
+                "or zero to disable projections"
+            )
+
+        if proj_size >= hidden_size:
+            raise ValueError(
+                f"proj_size {proj_size} has to be smaller "
+                f"than hidden_size {hidden_size}"
+            )
+
+        real_hidden_size = proj_size if proj_size > 0 else hidden_size
 
         self.weight_ih = nn.Parameter(
             torch.empty((4 * hidden_size, input_size), **factory_kwargs)
         )
 
         self.weight_hh = nn.Parameter(
-            torch.empty((4 * hidden_size, hidden_size), **factory_kwargs)
+            torch.empty((4 * hidden_size, real_hidden_size), **factory_kwargs)
         )
 
         if bias:
@@ -103,6 +124,13 @@ class LayerNormLSTMCell(nn.Module):
         else:
             self.register_parameter("bias_ih", None)
             self.register_parameter("bias_hh", None)
+
+        if proj_size > 0:
+            self.weight_hr = nn.Parameter(
+                torch.empty((proj_size, hidden_size), **factory_kwargs)
+            )
+        else:
+            self.register_parameter("weight_hr", None)
 
         self.layernorm_i = ln(hidden_size)
         self.layernorm_f = ln(hidden_size)
@@ -123,12 +151,15 @@ class LayerNormLSTMCell(nn.Module):
             A 2-D tensor of shape (batch_size, input_size).
           state:
             If not ``None``, it contains the hidden state (h, c) for each
-            element in the batch. Both are of shape (batch_size, hidden_size).
+            element in the batch. Both are of shape (batch_size, hidden_size)
+            if proj_size is 0. If proj_size is not zero, the shape of `h` is
+            (batch_size, proj_size).
             If ``None``, it uses zeros for `h` and `c`.
         Returns:
           Return two tensors:
-            - `next_h`: It is of shape (batch_size, hidden_size) containing the
-              next hidden state for each element in the batch.
+            - `next_h`: It is of shape (batch_size, hidden_size) if proj_size
+              is 0, else (batch_size, proj_size), containing the next hidden
+              state for each element in the batch.
             - `next_c`: It is of shape (batch_size, hidden_size) containing the
               next cell state for each element in the batch.
         """
@@ -162,6 +193,9 @@ class LayerNormLSTMCell(nn.Module):
         cy = self.layernorm_cy(cy)
         hy = out_gate * torch.tanh(cy)
 
+        if self.weight_hr is not None:
+            hy = torch.matmul(hy, self.weight_hr.t())
+
         return hy, cy
 
     def extra_repr(self) -> str:
@@ -172,8 +206,9 @@ class LayerNormLSTMCell(nn.Module):
 
     def reset_parameters(self) -> None:
         stdv = 1.0 / math.sqrt(self.hidden_size)
-        for weight in self.parameters():
-            nn.init.uniform_(weight, -stdv, stdv)
+        for name, weight in self.named_parameters():
+            if "layernorm" not in name:
+                nn.init.uniform_(weight, -stdv, stdv)
 
 
 class LayerNormLSTMLayer(nn.Module):
@@ -199,6 +234,7 @@ class LayerNormLSTMLayer(nn.Module):
         hidden_size: int,
         bias: bool = True,
         ln: nn.Module = nn.LayerNorm,
+        proj_size: int = 0,
         device=None,
         dtype=None,
     ):
@@ -211,6 +247,7 @@ class LayerNormLSTMLayer(nn.Module):
             hidden_size=hidden_size,
             bias=bias,
             ln=ln,
+            proj_size=proj_size,
             device=device,
             dtype=dtype,
         )
@@ -228,13 +265,14 @@ class LayerNormLSTMLayer(nn.Module):
               We use `batch_first=True` here.
           state:
             If not ``None``, it contains the hidden state (h, c) of this layer.
-            Both are of shape (batch_size, hidden_size).
+            Both are of shape (batch_size, hidden_size) if proj_size is 0.
+            If proj_size is not 0, the shape of `h` is (batch_size, proj_size).
             Note:
               We did not annotate `state` with `Optional[Tuple[...]]` since
               torchscript will complain.
         Return:
           - output, a tensor of shape (batch_size, seq_len, hidden_size)
-          - (next_h, next_c) containing the hidden state of this layer
+          - (next_h, next_c) containing the next hidden state
         """
         inputs = input.unbind(1)
         outputs = torch.jit.annotate(List[torch.Tensor], [])
@@ -270,6 +308,7 @@ class LayerNormLSTM(nn.Module):
         hidden_size: int,
         num_layers: int,
         bias: bool = True,
+        proj_size: int = 0,
         ln: nn.Module = nn.LayerNorm,
         device=None,
         dtype=None,
@@ -283,6 +322,7 @@ class LayerNormLSTM(nn.Module):
             hidden_size=hidden_size,
             bias=bias,
             ln=ln,
+            proj_size=proj_size,
             device=device,
             dtype=dtype,
         )
@@ -293,7 +333,7 @@ class LayerNormLSTM(nn.Module):
         for i in range(1, num_layers):
             layers.append(
                 LayerNormLSTMLayer(
-                    input_size=hidden_size,
+                    input_size=proj_size if proj_size > 0 else hidden_size,
                     **factory_kwargs,
                 )
             )
@@ -313,7 +353,9 @@ class LayerNormLSTM(nn.Module):
               We use `batch_first=True` here.
           states:
             One state per layer. Each entry contains the hidden state (h, c)
-            for a layer. Both are of shape (batch_size, hidden_size).
+            for a layer. Both are of shape (batch_size, hidden_size) if
+            proj_size is 0. If proj_size is not 0, the shape of `h` is
+            (batch_size, proj_size).
         Returns:
           Return a tuple containing:
 
