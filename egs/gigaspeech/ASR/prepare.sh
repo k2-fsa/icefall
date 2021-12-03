@@ -142,9 +142,9 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Combine features for XL"
-  if [ ! -f data/fbank/XL_split_${num_splits}/cuts_XL.json.gz ]; then
-    pieces=$(find data/fbank/XL_split_${num_splits} -name "cuts_XL.*.json.gz")
-    lhotse combine $pieces data/fbank/XL_split_${num_splits}/cuts_XL.json.gz
+  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
+    pieces=$(find data/fbank/XL_split_${num_splits} -name "cuts_XL.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
   fi
 fi
 
