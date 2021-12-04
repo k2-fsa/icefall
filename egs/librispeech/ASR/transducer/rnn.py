@@ -165,7 +165,6 @@ class LayerNormLSTMCell(nn.Module):
             - `next_c`: It is of shape (batch_size, hidden_size) containing the
               next cell state for each element in the batch.
         """
-        assert check_argument_types()
         if state is None:
             zeros = torch.zeros(
                 input.size(0),
