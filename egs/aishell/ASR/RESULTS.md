@@ -1,8 +1,8 @@
 ## Results
 
 ### Aishell training results (Conformer-MMI)
-#### 2021-12-01
-(Pingfeng Luo): Result of <https://github.com/k2-fsa/icefall/pull/137>
+#### 2021-12-04
+(Pingfeng Luo): Result of <https://github.com/k2-fsa/icefall/pull/140>
 
 The tensorboard log for training is available at <https://tensorboard.dev/experiment/PSRYVbptRGynqpPRSykp1g>
 
