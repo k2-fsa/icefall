@@ -4,19 +4,19 @@
 #### 2021-12-01
 (Pingfeng Luo): Result of <https://github.com/k2-fsa/icefall/pull/137>
 
-The tensorboard log for training is available at <https://tensorboard.dev/experiment/dyp3vWE9RE6SkqBAgLJjUw/>
+The tensorboard log for training is available at <https://tensorboard.dev/experiment/PSRYVbptRGynqpPRSykp1g>
 
-And pretrained model is available at <https://huggingface.co/pfluo/icefall_aishell_model>
+And pretrained model is available at <https://huggingface.co/pfluo/icefall_aishell_mmi_model>
 
-The best decoding results (CER) are listed below, we got this results by averaging models from epoch 20 to 49, and using `attention-decoder` decoder with num_paths equals to 100.
+The best decoding results (CER) are listed below, we got this results by averaging models from epoch 61 to 85, and using `attention-decoder` decoder with num_paths equals to 100.
 
 ||test|
 |--|--|
-|CER| 5.12% |
+|CER| 4.94% |
 
 ||lm_scale|attention_scale|
 |--|--|--|
-|test|1.5|0.5|
+|test|1.1|0.3|
 
 You can use the following commands to reproduce our results:
 
@@ -31,12 +31,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7,8"
 python conformer_mmi/train.py --bucketing-sampler True \
                               --max-duration 200 \
                               --start-epoch 0 \
-                              --num-epochs 50 \
+                              --num-epochs 90 \
                               --world-size 8
 
 python conformer_mmi/decode.py --nbest-scale 0.5 \
-                               --epoch 49 \
-                               --avg 20 \
+                               --epoch 85 \
+                               --avg 25 \
                                --method attention-decoder \
                                --max-duration 20 \
                                --num-paths 100
