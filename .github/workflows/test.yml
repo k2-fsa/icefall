@@ -103,6 +103,10 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
+          cd $PWD
+          cd egs/librispeech/ASR
+          pytest -v -s ./transducer
+
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
         run: |
@@ -120,4 +124,4 @@ jobs:
 
           cd $PWD
           cd egs/librispeech/ASR
-          pytest -v -s ./rnnt
+          pytest -v -s ./transducer
