@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                  Wei Kang)
+# Copyright    2021                       Pingfeng Luo
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -80,7 +81,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=50,
+        default=90,
         help="Number of epochs to train.",
     )
 
