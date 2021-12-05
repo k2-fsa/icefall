@@ -103,8 +103,7 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
-          cd $PWD
-          cd egs/librispeech/ASR
+          cd ..
           pytest -v -s ./transducer
 
       - name: Run tests
@@ -117,11 +116,9 @@ jobs:
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
           pytest -v -s ./test
 
-          pwd=$PWD
           # run tests for conformer ctc
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
-          cd $PWD
-          cd egs/librispeech/ASR
+          cd ..
           pytest -v -s ./transducer
