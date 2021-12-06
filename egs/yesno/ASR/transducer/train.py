@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import k2
 import torch
@@ -13,19 +28,40 @@ import torch.nn as nn
 import torch.optim as optim
 from asr_datamodule import YesNoAsrDataModule
 from lhotse.utils import fix_random_seed
-from model import Tdnn
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
+from transducer.decoder import Decoder
+from transducer.encoder import Tdnn
+from transducer.jointer import Jointer
+from transducer.model import Transducer
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.graph_compiler import CtcTrainingGraphCompiler
-from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+
+
+def get_labels(texts: List[str]) -> k2.RaggedTensor:
+    """
+    Args:
+      texts:
+        A list of transcripts. Each transcript contains spaces separated
+        "NO" or "YES".
+    Returns:
+      Return a ragged tensor containing the corresponding word ID.
+    """
+    # blank is 0
+    word2id = {"YES": 1, "NO": 2}
+    word_ids = []
+    for t in texts:
+        words = t.split()
+        ids = [word2id[w] for w in words]
+        word_ids.append(ids)
+
+    return k2.RaggedTensor(word_ids)
 
 
 def get_parser():
@@ -57,7 +93,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=15,
+        default=200,
         help="Number of epochs to train.",
     )
 
@@ -69,6 +105,13 @@ def get_parser():
         If it is positive, it will load checkpoint from
         tdnn/exp/epoch-{start_epoch-1}.pt
         """,
+    )
+
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="transducer/exp",
+        help="Directory to save results",
     )
 
     return parser
@@ -84,12 +127,6 @@ def get_params() -> AttributeDict:
     you can also access them via `params`.
 
     Explanation of options saved in `params`:
-
-        - exp_dir: It specifies the directory where all training related
-                   files, e.g., checkpoints, log, etc, are saved
-
-        - lang_dir: It contains language related input files such as
-                    "lexicon.txt"
 
         - lr: It specifies the initial learning rate
 
@@ -125,17 +162,11 @@ def get_params() -> AttributeDict:
 
         - reset_interval: Reset statistics if batch_idx % reset_interval is 0
 
-        - beam_size: It is used in k2.ctc_loss
 
-        - reduction: It is used in k2.ctc_loss
-
-        - use_double_scores: It is used in k2.ctc_loss
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn/exp"),
-            "lang_dir": Path("data/lang_phone"),
-            "lr": 1e-2,
+            "lr": 1e-3,
             "feature_dim": 23,
             "weight_decay": 1e-6,
             "start_epoch": 0,
@@ -147,9 +178,12 @@ def get_params() -> AttributeDict:
             "log_interval": 10,
             "reset_interval": 20,
             "valid_interval": 10,
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
+            # encoder/decoder params
+            "vocab_size": 3,  # blank, yes, no
+            "blank_id": 0,
+            "embedding_dim": 32,
+            "hidden_dim": 16,
+            "num_decoder_layers": 4,
         }
     )
 
@@ -247,11 +281,10 @@ def compute_loss(
     params: AttributeDict,
     model: nn.Module,
     batch: dict,
-    graph_compiler: CtcTrainingGraphCompiler,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -261,56 +294,29 @@ def compute_loss(
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       is_training:
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
     """
-    device = graph_compiler.device
+    device = model.device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
+    feature_lens = batch["supervisions"]["num_frames"].to(device)
+
+    texts = batch["supervisions"]["text"]
+    labels = get_labels(texts).to(device)
+
     with torch.set_grad_enabled(is_training):
-        nnet_output = model(feature)
-        # nnet_output is (N, T, C)
-
-    # NOTE: We need `encode_supervisions` to sort sequences with
-    # different duration in decreasing order, required by
-    # `k2.intersect_dense` called in `k2.ctc_loss`
-    supervisions = batch["supervisions"]
-    texts = supervisions["text"]
-
-    batch_size = nnet_output.shape[0]
-    supervision_segments = torch.tensor(
-        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
-        dtype=torch.int32,
-    )
-
-    decoding_graph = graph_compiler.compile(texts)
-
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-    )
-
-    loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
-    )
+        loss = model(x=feature, x_lens=feature_lens, y=labels)
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = supervision_segments[:, 2].sum().item()
+    info["frames"] = feature.size(0)
     info["loss"] = loss.detach().cpu().item()
 
     return loss, info
@@ -319,7 +325,6 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
-    graph_compiler: CtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -335,7 +340,6 @@ def compute_validation_loss(
             params=params,
             model=model,
             batch=batch,
-            graph_compiler=graph_compiler,
             is_training=False,
         )
         assert loss.requires_grad is False
@@ -358,7 +362,6 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: CtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
@@ -377,8 +380,6 @@ def train_one_epoch(
         The model for training.
       optimizer:
         The optimizer we are using.
-      graph_compiler:
-        It is used to convert transcripts to FSAs.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -400,7 +401,6 @@ def train_one_epoch(
             params=params,
             model=model,
             batch=batch,
-            graph_compiler=graph_compiler,
             is_training=True,
         )
         # summary stats.
@@ -431,7 +431,6 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -450,6 +449,26 @@ def train_one_epoch(
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
+
+
+def get_transducer_model(params: AttributeDict):
+    encoder = Tdnn(
+        num_features=params.feature_dim,
+        output_dim=params.hidden_dim,
+    )
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.embedding_dim,
+        blank_id=params.blank_id,
+        num_layers=params.num_decoder_layers,
+        hidden_dim=params.hidden_dim,
+        embedding_dropout=0.4,
+        rnn_dropout=0.4,
+    )
+    jointer = Jointer(input_dim=params.hidden_dim, output_dim=params.vocab_size)
+    transducer = Transducer(encoder=encoder, decoder=decoder, jointer=jointer)
+
+    return transducer
 
 
 def run(rank, world_size, args):
@@ -481,20 +500,11 @@ def run(rank, world_size, args):
     else:
         tb_writer = None
 
-    lexicon = Lexicon(params.lang_dir)
-    max_phone_id = max(lexicon.tokens)
-
-    device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
     logging.info(f"device: {device}")
 
-    graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-
-    model = Tdnn(
-        num_features=params.feature_dim,
-        num_classes=max_phone_id + 1,  # +1 for the blank symbol
-    )
+    model = get_transducer_model(params)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
@@ -502,7 +512,9 @@ def run(rank, world_size, args):
     if world_size > 1:
         model = DDP(model, device_ids=[rank])
 
-    optimizer = optim.SGD(
+    model.device = device
+
+    optimizer = optim.Adam(
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,
@@ -531,7 +543,6 @@ def run(rank, world_size, args):
             params=params,
             model=model,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
             train_dl=train_dl,
             valid_dl=valid_dl,
             tb_writer=tb_writer,
@@ -556,6 +567,7 @@ def main():
     parser = get_parser()
     YesNoAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
     assert world_size >= 1
