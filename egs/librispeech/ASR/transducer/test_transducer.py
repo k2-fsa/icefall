@@ -19,22 +19,40 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer/test_decoder.py
+    python ./transducer/test_transducer.py
 """
 
+
+import k2
 import torch
+from transducer.conformer import Conformer
 from transducer.decoder import Decoder
+from transducer.joiner import Joiner
+from transducer.model import Transducer
 
 
-def test_decoder():
+def test_transducer():
+    # encoder params
+    input_dim = 10
+    output_dim = 20
+
+    # decoder params
     vocab_size = 3
     blank_id = 0
     sos_id = 2
     embedding_dim = 128
     num_layers = 2
-    hidden_dim = 6
-    N = 3
-    U = 5
+
+    encoder = Conformer(
+        num_features=input_dim,
+        output_dim=output_dim,
+        subsampling_factor=4,
+        d_model=512,
+        nhead=8,
+        dim_feedforward=2048,
+        num_encoder_layers=12,
+        use_feat_batchnorm=True,
+    )
 
     decoder = Decoder(
         vocab_size=vocab_size,
@@ -42,25 +60,28 @@ def test_decoder():
         blank_id=blank_id,
         sos_id=sos_id,
         num_layers=num_layers,
-        hidden_dim=hidden_dim,
+        hidden_dim=output_dim,
         embedding_dropout=0.0,
         rnn_dropout=0.0,
     )
-    x = torch.randint(1, vocab_size, (N, U))
-    rnn_out, (h, c) = decoder(x)
 
-    assert rnn_out.shape == (N, U, hidden_dim)
-    assert h.shape == (num_layers, N, hidden_dim)
-    assert c.shape == (num_layers, N, hidden_dim)
+    joiner = Joiner(output_dim, vocab_size)
+    transducer = Transducer(encoder=encoder, decoder=decoder, joiner=joiner)
 
-    rnn_out, (h, c) = decoder(x, (h, c))
-    assert rnn_out.shape == (N, U, hidden_dim)
-    assert h.shape == (num_layers, N, hidden_dim)
-    assert c.shape == (num_layers, N, hidden_dim)
+    y = k2.RaggedTensor([[1, 2, 1], [1, 1, 1, 2, 1]])
+    N = y.dim0
+    T = 50
+
+    x = torch.rand(N, T, input_dim)
+    x_lens = torch.randint(low=30, high=T, size=(N,), dtype=torch.int32)
+    x_lens[0] = T
+
+    loss = transducer(x, x_lens, y)
+    print(loss)
 
 
 def main():
-    test_decoder()
+    test_transducer()
 
 
 if __name__ == "__main__":

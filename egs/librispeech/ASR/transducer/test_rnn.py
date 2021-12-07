@@ -15,6 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+To run this file, do:
+
+    cd icefall/egs/librispeech/ASR
+    python ./transducer/test_rnn.py
+"""
 import torch
 import torch.nn as nn
 from transducer.rnn import (

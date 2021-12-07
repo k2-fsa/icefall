@@ -19,31 +19,41 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer/test_joiner.py
+    python ./transducer/test_conformer.py
 """
 
-
 import torch
-from transducer.joiner import Joiner
+from transducer.conformer import Conformer
 
 
-def test_joiner():
-    N = 2
-    T = 3
-    C = 4
-    U = 5
+def test_conformer():
+    output_dim = 1024
+    conformer = Conformer(
+        num_features=80,
+        output_dim=output_dim,
+        subsampling_factor=4,
+        d_model=512,
+        nhead=8,
+        dim_feedforward=2048,
+        num_encoder_layers=12,
+        use_feat_batchnorm=True,
+    )
+    N = 3
+    T = 100
+    C = 80
+    x = torch.randn(N, T, C)
+    x_lens = torch.tensor([50, 100, 80])
+    logits, logit_lens = conformer(x, x_lens)
 
-    joiner = Joiner(C, 10)
-
-    encoder_out = torch.rand(N, T, C)
-    decoder_out = torch.rand(N, U, C)
-
-    joint = joiner(encoder_out, decoder_out)
-    assert joint.shape == (N, T, U, 10)
+    expected_T = ((T - 1) // 2 - 1) // 2
+    assert logits.shape == (N, expected_T, output_dim)
+    assert logit_lens.max().item() == expected_T
+    print(logits.shape)
+    print(logit_lens)
 
 
 def main():
-    test_joiner()
+    test_conformer()
 
 
 if __name__ == "__main__":

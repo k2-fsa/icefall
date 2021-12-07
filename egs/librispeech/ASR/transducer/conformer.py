@@ -22,20 +22,21 @@ from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from transformer import Supervisions, Transformer, encoder_padding_mask
+from transducer.transformer import Transformer
+
+from icefall.utils import make_pad_mask
 
 
 class Conformer(Transformer):
     """
     Args:
         num_features (int): Number of input features
-        num_classes (int): Number of output classes
+        output_dim (int): Number of output dimension
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
         d_model (int): attention dimension
         nhead (int): number of head
         dim_feedforward (int): feedforward dimention
         num_encoder_layers (int): number of encoder layers
-        num_decoder_layers (int): number of decoder layers
         dropout (float): dropout rate
         cnn_module_kernel (int): Kernel size of convolution module
         normalize_before (bool): whether to use layer_norm before the first block.
@@ -45,13 +46,12 @@ class Conformer(Transformer):
     def __init__(
         self,
         num_features: int,
-        num_classes: int,
+        output_dim: int,
         subsampling_factor: int = 4,
         d_model: int = 256,
         nhead: int = 4,
         dim_feedforward: int = 2048,
         num_encoder_layers: int = 12,
-        num_decoder_layers: int = 6,
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
@@ -60,13 +60,12 @@ class Conformer(Transformer):
     ) -> None:
         super(Conformer, self).__init__(
             num_features=num_features,
-            num_classes=num_classes,
+            output_dim=output_dim,
             subsampling_factor=subsampling_factor,
             d_model=d_model,
             nhead=nhead,
             dim_feedforward=dim_feedforward,
             num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
             dropout=dropout,
             normalize_before=normalize_before,
             vgg_frontend=vgg_frontend,
@@ -92,38 +91,45 @@ class Conformer(Transformer):
             #       and throws an error without this change.
             self.after_norm = identity
 
-    def run_encoder(
-        self, x: Tensor, supervisions: Optional[Supervisions] = None
-    ) -> Tuple[Tensor, Optional[Tensor]]:
+    def forward(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
-            The model input. Its shape is (N, T, C).
-          supervisions:
-            Supervision in lhotse format.
-            See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py#L32  # noqa
-            CAUTION: It contains length information, i.e., start and number of
-            frames, before subsampling
-            It is read directly from the batch, without any sorting. It is used
-            to compute encoder padding mask, which is used as memory key padding
-            mask for the decoder.
-
+            The input tensor. Its shape is (batch_size, seq_len, feature_dim).
+          x_lens:
+            A tensor of shape (batch_size,) containing the number of frames in
+            `x` before padding.
         Returns:
-            Tensor: Predictor tensor of dimension (input_length, batch_size, d_model).
-            Tensor: Mask tensor of dimension (batch_size, input_length)
+          Return a tuple containing 2 tensors:
+            - logits, its shape is (batch_size, output_seq_len, output_dim)
+            - logit_lens, a tensor of shape (batch_size,) containing the number
+              of frames in `logits` before padding.
         """
+        if self.use_feat_batchnorm:
+            x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
+            x = self.feat_batchnorm(x)
+            x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
+
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
-        x = x.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
-        mask = encoder_padding_mask(x.size(0), supervisions)
-        if mask is not None:
-            mask = mask.to(x.device)
-        x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, B, F)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+
+        # Caution: We assume the subsampling factor is 4!
+        lengths = ((x_lens - 1) // 2 - 1) // 2
+        assert x.size(0) == lengths.max().item()
+        mask = make_pad_mask(lengths)
+
+        x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, N, C)
 
         if self.normalize_before:
             x = self.after_norm(x)
 
-        return x, mask
+        logits = self.encoder_output_layer(x)
+        logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+
+        return logits, lengths
 
 
 class ConformerEncoderLayer(nn.Module):

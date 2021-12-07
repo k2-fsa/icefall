@@ -21,16 +21,6 @@ import torch.nn as nn
 
 
 class EncoderInterface(nn.Module):
-    def __init__(self, num_features: int, output_dim: int):
-        """
-        Args:
-          num_features:
-            The dimension of the input features.
-          output_dim:
-            Output dimension of the model.
-        """
-        super().__init__()
-
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
