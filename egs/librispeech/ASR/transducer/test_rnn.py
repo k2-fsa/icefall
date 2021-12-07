@@ -716,7 +716,7 @@ def test_layernorm_gru_forward(device="cpu"):
 
     s_state_sum.backward()
     t_state_sum.backward()
-    assert_allclose(x.grad, x_clone.grad, atol=1e-4)
+    assert_allclose(x.grad, x_clone.grad, atol=1e-2)
 
 
 def _test_lstm(device):
