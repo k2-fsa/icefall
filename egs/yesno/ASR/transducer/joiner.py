@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Jointer(nn.Module):
+class Joiner(nn.Module):
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
 

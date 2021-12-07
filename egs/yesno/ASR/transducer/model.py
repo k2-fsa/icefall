@@ -41,7 +41,7 @@ class Transducer(nn.Module):
         self,
         encoder: nn.Module,
         decoder: nn.Module,
-        jointer: nn.Module,
+        joiner: nn.Module,
     ):
         """
         Args:
@@ -54,7 +54,7 @@ class Transducer(nn.Module):
             It is the prediction network in the paper. Its input shape
             is (N, U) and its output shape is (N, U, C). It should contain
             one attribute: `blank_id`.
-          jointer:
+          joiner:
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
@@ -62,7 +62,7 @@ class Transducer(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.jointer = jointer
+        self.joiner = joiner
 
     def forward(
         self,
@@ -103,7 +103,7 @@ class Transducer(nn.Module):
 
         decoder_out, _ = self.decoder(sos_y_padded)
 
-        logits = self.jointer(encoder_out, decoder_out)
+        logits = self.joiner(encoder_out, decoder_out)
 
         # rnnt_loss requires 0 padded targets
         y_padded = y.pad(mode="constant", padding_value=0)

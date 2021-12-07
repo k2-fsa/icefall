@@ -19,31 +19,31 @@
 To run this file, do:
 
     cd icefall/egs/yesno/ASR
-    python ./transducer/test_jointer.py
+    python ./transducer/test_joiner.py
 """
 
 
 import torch
-from transducer.jointer import Jointer
+from transducer.joiner import Joiner
 
 
-def test_jointer():
+def test_joiner():
     N = 2
     T = 3
     C = 4
     U = 5
 
-    jointer = Jointer(C, 10)
+    joiner = Joiner(C, 10)
 
     encoder_out = torch.rand(N, T, C)
     decoder_out = torch.rand(N, U, C)
 
-    joint = jointer(encoder_out, decoder_out)
+    joint = joiner(encoder_out, decoder_out)
     assert joint.shape == (N, T, U, 10)
 
 
 def main():
-    test_jointer()
+    test_joiner()
 
 
 if __name__ == "__main__":

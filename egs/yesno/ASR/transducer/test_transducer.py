@@ -27,7 +27,7 @@ import k2
 import torch
 from transducer.decoder import Decoder
 from transducer.encoder import Tdnn
-from transducer.jointer import Jointer
+from transducer.joiner import Joiner
 from transducer.model import Transducer
 
 
@@ -54,8 +54,8 @@ def test_transducer():
         rnn_dropout=0.0,
     )
 
-    jointer = Jointer(output_dim, vocab_size)
-    transducer = Transducer(encoder=encoder, decoder=decoder, jointer=jointer)
+    joiner = Joiner(output_dim, vocab_size)
+    transducer = Transducer(encoder=encoder, decoder=decoder, joiner=joiner)
 
     y = k2.RaggedTensor([[1, 2, 1], [1, 1, 1, 2, 1]])
     N = y.dim0

@@ -34,7 +34,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transducer.decoder import Decoder
 from transducer.encoder import Tdnn
-from transducer.jointer import Jointer
+from transducer.joiner import Joiner
 from transducer.model import Transducer
 
 from icefall.checkpoint import load_checkpoint
@@ -465,8 +465,8 @@ def get_transducer_model(params: AttributeDict):
         embedding_dropout=0.4,
         rnn_dropout=0.4,
     )
-    jointer = Jointer(input_dim=params.hidden_dim, output_dim=params.vocab_size)
-    transducer = Transducer(encoder=encoder, decoder=decoder, jointer=jointer)
+    joiner = Joiner(input_dim=params.hidden_dim, output_dim=params.vocab_size)
+    transducer = Transducer(encoder=encoder, decoder=decoder, joiner=joiner)
 
     return transducer
 
