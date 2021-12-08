@@ -17,6 +17,7 @@
 
 import logging
 from pathlib import Path
+import os
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -77,6 +78,44 @@ def save_checkpoint(
             checkpoint[k] = v
 
     torch.save(checkpoint, filename)
+
+
+def load_checkpoint_from_hf(
+    model_id: str,
+    model: nn.Module,
+    optimizer: Optional[Optimizer] = None,
+    scheduler: Optional[_LRScheduler] = None,
+    scaler: Optional[GradScaler] = None,
+    cache_dir: Optional[str] = None,
+    subfolder: Optional[str] = None,
+    filename: str = "checkpoint.pt",
+    strict: bool = False,
+    **kwargs,
+) -> Dict[str, Any]:
+    """
+    TODO: document it
+    """
+    library_name = "icefall"
+    cache_dir = cache_dir or os.path.join(Path.home(), ".cache", "icefall")
+
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        raise ImportError(
+            "You need to install huggingface_hub to use `load_from_hf_hub`. "
+            "See https://pypi.org/project/huggingface-hub/ for installation."
+        )
+
+    cached_file = hf_hub_download(
+        model_id,
+        filename,
+        cache_dir=cache_dir,
+        subfolder=subfolder,
+        library_name=library_name,
+        **kwargs
+    )
+
+    return load_checkpoint(cached_file, model, optimizer, scheduler, scaler)
 
 
 def load_checkpoint(
