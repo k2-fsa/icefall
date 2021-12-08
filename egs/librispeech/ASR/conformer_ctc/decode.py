@@ -40,14 +40,13 @@ from icefall.decode import (
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
+from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
-    str2bool,
     write_error_stats,
 )
 
@@ -119,17 +118,6 @@ def get_parser():
         Used only when "method" is one of the following values:
         nbest, nbest-rescoring, attention-decoder, and nbest-oracle
         A smaller value results in more unique paths.
-        """,
-    )
-
-    parser.add_argument(
-        "--export",
-        type=str2bool,
-        default=False,
-        help="""When enabled, the averaged model is saved to
-        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
-        pretrained.pt contains a dict {"model": model.state_dict()},
-        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
         """,
     )
 
@@ -239,7 +227,7 @@ def decode_one_batch(
         is a 3-gram LM, while this G is a 4-gram LM.
     Returns:
       Return the decoding result. See above description for the format of
-      the returned dict.
+      the returned dict. Note: If it decodes to nothing, then return None.
     """
     if HLG is not None:
         device = HLG.device
@@ -392,8 +380,7 @@ def decode_one_batch(
             hyps = [[word_table[i] for i in ids] for ids in hyps]
             ans[lm_scale_str] = hyps
     else:
-        for lm_scale in lm_scale_list:
-            ans[f"{lm_scale}"] = [[] * lattice.shape[0]]
+        ans = None
     return ans
 
 
@@ -467,16 +454,29 @@ def decode_dataset(
             eos_id=eos_id,
         )
 
-        for lm_scale, hyps in hyps_dict.items():
+        if hyps_dict is not None:
+            for lm_scale, hyps in hyps_dict.items():
+                this_batch = []
+                assert len(hyps) == len(texts)
+                for hyp_words, ref_text in zip(hyps, texts):
+                    ref_words = ref_text.split()
+                    this_batch.append((ref_words, hyp_words))
+
+                results[lm_scale].extend(this_batch)
+        else:
+            assert (
+                len(results) > 0
+            ), "It should not decode to empty in the first batch!"
             this_batch = []
-            assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
+            hyp_words = []
+            for ref_text in texts:
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
 
-            results[lm_scale].extend(this_batch)
+            for lm_scale in results.keys():
+                results[lm_scale].extend(this_batch)
 
-        num_cuts += len(batch["supervisions"]["text"])
+        num_cuts += len(texts)
 
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
@@ -615,7 +615,7 @@ def main():
                 # Save a dummy value so that it can be loaded in C++.
                 # See https://github.com/pytorch/pytorch/issues/67902
                 # for why we need to do this.
-                G["dummy"] = 1
+                G.dummy = 1
 
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
@@ -659,27 +659,23 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
-    if params.export:
-        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
-        return
-
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     librispeech = LibriSpeechAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
+
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
     test_sets = ["test-clean", "test-other"]
-    for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+    test_dl = [test_clean_dl, test_other_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

@@ -12,10 +12,11 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide three recipes at present:
+We provide four recipes at present:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
+  - [Aishell][aishell]
   - [TIMIT][timit]
 
 ### yesno
@@ -57,6 +58,31 @@ The WER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
+### Aishell
+
+We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
+and [TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc].
+
+#### Conformer CTC Model
+
+The best CER we currently have is:
+
+|     | test |
+|-----|------|
+| CER | 4.26 |
+
+
+We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
+
+#### TDNN LSTM CTC Model
+
+The CER for this model is:
+
+|     | test  |
+|-----|-------|
+| CER | 10.16 |
+
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z?usp=sharing)
 
 ### TIMIT
 
@@ -99,9 +125,12 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
+[Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
+[aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [k2]: https://github.com/k2-fsa/k2

@@ -20,11 +20,14 @@ import k2
 import pytest
 import torch
 
+from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
+    add_eos,
+    add_sos,
     encode_supervisions,
-    get_env_info,
     get_texts,
+    make_pad_mask,
 )
 
 
@@ -130,3 +133,35 @@ def test_attribute_dict():
 def test_get_env_info():
     s = get_env_info()
     print(s)
+
+
+def test_makd_pad_mask():
+    lengths = torch.tensor([1, 3, 2])
+    mask = make_pad_mask(lengths)
+    expected = torch.tensor(
+        [
+            [False, True, True],
+            [False, False, False],
+            [False, False, True],
+        ]
+    )
+    assert torch.all(torch.eq(mask, expected))
+    assert (~expected).sum() == lengths.sum()
+
+
+def test_add_sos():
+    sos_id = 100
+    ragged = k2.RaggedTensor([[1, 2], [3], [0]])
+    sos_ragged = add_sos(ragged, sos_id)
+    expected = k2.RaggedTensor([[sos_id, 1, 2], [sos_id, 3], [sos_id, 0]])
+    assert str(sos_ragged) == str(expected)
+
+
+def test_add_eos():
+    eos_id = 30
+    ragged = k2.RaggedTensor([[1, 2], [3], [], [5, 8, 9]])
+    ragged_eos = add_eos(ragged, eos_id)
+    expected = k2.RaggedTensor(
+        [[1, 2, eos_id], [3, eos_id], [eos_id], [5, 8, 9, eos_id]]
+    )
+    assert str(ragged_eos) == str(expected)
