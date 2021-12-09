@@ -8,7 +8,13 @@ PYTORCH_VER=1.8.1
 CUDA_VER=11.1
 
 echo Installing k2 and PyTorch
-conda install -c k2-fsa -c pytorch -c conda-forge k2 python=$PYTHON_VER cudatoolkit=$CUDA_VER pytorch=$PYTORCH_VER
+conda install \
+  -c k2-fsa -c pytorch -c conda-forge \
+  k2 \
+  python=$PYTHON_VER \
+  cudatoolkit=$CUDA_VER \
+  pytorch=$PYTORCH_VER \
+  torchaudio
 
 echo Installing Lhotse
 pip install git+https://github.com/lhotse-speech/lhotse
