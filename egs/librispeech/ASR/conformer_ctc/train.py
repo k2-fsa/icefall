@@ -172,7 +172,7 @@ def get_params() -> AttributeDict:
         - subsampling_factor:  The subsampling factor for the model.
 
         - use_feat_batchnorm: Normalization for the input features, can be a
-                              boolean idicating whether to do batch
+                              boolean indicating whether to do batch
                               normalization, or a float which means just scaling
                               the input features with this float value.
                               If given a float value, we will remove batchnorm
