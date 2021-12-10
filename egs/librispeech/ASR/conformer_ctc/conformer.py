@@ -878,7 +878,7 @@ class ConvolutionModule(nn.Module):
             groups=channels,
             bias=bias,
         )
-        if self.use_bathnorm:
+        if self.use_batchnorm:
             self.norm = nn.BatchNorm1d(channels)
         self.pointwise_conv2 = nn.Conv1d(
             channels,
