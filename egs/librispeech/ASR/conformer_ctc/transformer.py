@@ -188,7 +188,7 @@ class Transformer(nn.Module):
             x = self.feat_batchnorm(x)
             x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         if isinstance(self.use_feat_batchnorm, float):
-            x *= 0.1
+            x *= self.use_feat_batchnorm
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision
         )
