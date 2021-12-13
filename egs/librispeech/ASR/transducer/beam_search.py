@@ -20,7 +20,7 @@ import torch
 from transducer.model import Transducer
 
 
-def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[str]:
+def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     """
     Args:
       model:
@@ -62,8 +62,5 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[str]:
             u += 1
         else:
             t += 1
-    id2word = {1: "YES", 2: "NO"}
-
-    hyp = [id2word[i] for i in hyp]
 
     return hyp
