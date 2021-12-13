@@ -428,8 +428,6 @@ def decode_dataset(
       The first is the reference transcript, and the second is the
       predicted result.
     """
-    results = []
-
     num_cuts = 0
 
     try:
