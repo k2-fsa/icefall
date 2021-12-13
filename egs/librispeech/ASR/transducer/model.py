@@ -121,7 +121,7 @@ class Transducer(nn.Module):
             logit_lengths=x_lens,
             target_lengths=y_lens,
             blank=blank_id,
-            reduction="mean",
+            reduction="sum",
         )
 
         return loss
