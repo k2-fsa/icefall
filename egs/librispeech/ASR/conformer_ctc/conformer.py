@@ -17,11 +17,11 @@
 
 
 import math
-import warnings
 from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
+from conv1d_abs_attention import Conv1dAbs
 from transformer import Supervisions, Transformer, encoder_padding_mask
 
 
@@ -178,8 +178,8 @@ class ConformerEncoderLayer(nn.Module):
             d_model
         )  # for the macaron style FNN module
         self.norm_ff = nn.LayerNorm(d_model)  # for the FNN module
-	
-	    #define layernorm for conv1d_abs
+
+        # define layernorm for conv1d_abs
         self.norm_conv_abs = nn.LayerNorm(d_model)
 
         self.ff_scale = 0.5
@@ -194,7 +194,8 @@ class ConformerEncoderLayer(nn.Module):
         self.normalize_before = normalize_before
 
         self.linear1 = nn.Linear(512, 1024)
-        self.conv1d_abs = ConvolutionModule_abs(1024, 64, kernel_size=21, padding=10)
+        self.conv1d_abs = Conv1dAbs(1024, 64, kernel_size=21, padding=10)
+        self.activation = nn.ReLU()
         self.linear2 = nn.Linear(64, 512)
 
     def forward(
@@ -231,13 +232,15 @@ class ConformerEncoderLayer(nn.Module):
         if not self.normalize_before:
             src = self.norm_ff_macaron(src)
 
-	    # modified-attention module
+        # modified-attention module
         residual = src
         if self.normalize_before:
             src = self.norm_conv_abs(src)
         src = self.linear1(src)
         src = torch.exp(src.clamp(max=75))
+        src = src.permute(1, 2, 0)
         src = self.conv1d_abs(src)
+        src = self.activation(src).permute(2, 0, 1)
         src = torch.log(src)
         src = self.linear2(src)
         src = residual + self.dropout(src)
@@ -396,7 +399,6 @@ class RelPositionalEncoding(torch.nn.Module):
         Returns:
             torch.Tensor: Encoded tensor (batch, time, `*`).
             torch.Tensor: Encoded tensor (batch, 2*time-1, `*`).
-
         """
         self.extend_pe(x)
         x = x * self.xscale
@@ -409,9 +411,11 @@ class RelPositionalEncoding(torch.nn.Module):
         ]
         return self.dropout(x), self.dropout(pos_emb)
 
+
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Conformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
+    Modified from
+    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.
@@ -478,54 +482,6 @@ class ConvolutionModule(nn.Module):
         x = self.activation(self.norm(x))
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
-
-        return x.permute(2, 0, 1)
-
-
-class ConvolutionModule_abs(nn.Module):
-    """ConvolutionModule in Conformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
-
-    Args:
-        channels (int): The number of channels of conv layers.
-        kernel_size (int): Kernerl size of conv layers.
-        bias (bool): Whether to use bias in conv layers (default=True).
-
-    """
-
-    def __init__(
-        self, channels: int, out_channels: int, kernel_size: int, padding: int, bias: bool = True
-    ) -> None:
-        """Construct an ConvolutionModule object."""
-        super(ConvolutionModule_abs, self).__init__()
-        # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
-
-        self.conv1 = nn.Conv1d_abs(
-            channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=padding,
-            bias=bias,
-        )
-        
-        self.activation = nn.ReLU()
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Compute convolution module.
-
-        Args:
-            x: Input tensor (#time, batch, channels).
-
-        Returns:
-            Tensor: Output tensor (#time, batch, channels).
-
-        """
-        # exchange the temporal dimension and the feature dimension
-        x = x.permute(1, 2, 0)  # (#batch, channels, time).
-        x = self.conv1(x)
-        x = self.activation(x)
 
         return x.permute(2, 0, 1)
 
