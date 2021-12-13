@@ -30,6 +30,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -176,7 +177,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
+            "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for conformer
             "feature_dim": 80,
             "encoder_out_dim": 512,
@@ -193,7 +194,7 @@ def get_params() -> AttributeDict:
             "decoder_hidden_dim": 512,
             # parameters for Noam
             "weight_decay": 1e-6,
-            "warm_step": 80000,
+            "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
     )
@@ -382,9 +383,8 @@ def compute_loss(
     info = MetricsTracker()
     info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
-    # We use reduction="sum" in computing the loss.
-    # The displayed loss is the average loss over the batch
-    info["loss"] = loss.detach().cpu().item() / feature.size(0)
+    # Note: We use reduction=sum while computing the loss.
+    info["loss"] = loss.detach().cpu().item()
 
     return loss, info
 
@@ -535,6 +535,9 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
+    if params.full_libri is False:
+        params.valid_interval = 800
+        params.warm_step = 8000
 
     fix_random_seed(42)
     if world_size > 1:
@@ -592,6 +595,23 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        return 1.0 <= c.duration <= 20.0
+
+    num_in_total = len(train_cuts)
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
+    num_left = len(train_cuts)
+    num_removed = num_in_total - num_left
+    removed_percent = num_removed / num_in_total * 100
+
+    logging.info(f"Before removing short and long utterances: {num_in_total}")
+    logging.info(f"After removing short and long utterances: {num_left}")
+    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+
     train_dl = librispeech.train_dataloaders(train_cuts)
 
     valid_cuts = librispeech.dev_clean_cuts()
