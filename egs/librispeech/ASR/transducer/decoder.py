@@ -30,6 +30,7 @@ class Decoder(nn.Module):
         sos_id: int,
         num_layers: int,
         hidden_dim: int,
+        output_dim: int,
         embedding_dropout: float = 0.0,
         rnn_dropout: float = 0.0,
     ):
@@ -47,6 +48,8 @@ class Decoder(nn.Module):
             Number of LSTM layers.
           hidden_dim:
             Hidden dimension of LSTM layers.
+          output_dim:
+            Output dimension of the decoder.
           embedding_dropout:
             Dropout rate for the embedding layer.
           rnn_dropout:
@@ -69,7 +72,7 @@ class Decoder(nn.Module):
         )
         self.blank_id = blank_id
         self.sos_id = sos_id
-        self.output_linear = nn.Linear(hidden_dim, hidden_dim)
+        self.output_linear = nn.Linear(hidden_dim, output_dim)
 
     def forward(
         self,

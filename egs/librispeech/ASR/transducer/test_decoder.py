@@ -33,6 +33,7 @@ def test_decoder():
     embedding_dim = 128
     num_layers = 2
     hidden_dim = 6
+    output_dim = 8
     N = 3
     U = 5
 
@@ -43,18 +44,19 @@ def test_decoder():
         sos_id=sos_id,
         num_layers=num_layers,
         hidden_dim=hidden_dim,
+        output_dim=output_dim,
         embedding_dropout=0.0,
         rnn_dropout=0.0,
     )
     x = torch.randint(1, vocab_size, (N, U))
-    rnn_out, (h, c) = decoder(x)
+    decoder_out, (h, c) = decoder(x)
 
-    assert rnn_out.shape == (N, U, hidden_dim)
+    assert decoder_out.shape == (N, U, output_dim)
     assert h.shape == (num_layers, N, hidden_dim)
     assert c.shape == (num_layers, N, hidden_dim)
 
-    rnn_out, (h, c) = decoder(x, (h, c))
-    assert rnn_out.shape == (N, U, hidden_dim)
+    decoder_out, (h, c) = decoder(x, (h, c))
+    assert decoder_out.shape == (N, U, output_dim)
     assert h.shape == (num_layers, N, hidden_dim)
     assert c.shape == (num_layers, N, hidden_dim)
 

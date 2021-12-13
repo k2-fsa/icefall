@@ -20,8 +20,8 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from subsampling import Conv2dSubsampling, VggSubsampling
 from transducer.encoder_interface import EncoderInterface
+from transducer.subsampling import Conv2dSubsampling, VggSubsampling
 
 from icefall.utils import make_pad_mask
 
