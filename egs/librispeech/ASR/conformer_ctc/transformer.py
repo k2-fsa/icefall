@@ -76,6 +76,7 @@ class Transformer(nn.Module):
         """
         super().__init__()
         self.use_feat_batchnorm = use_feat_batchnorm
+        assert isinstance(use_feat_batchnorm, (float, bool))
         if isinstance(use_feat_batchnorm, bool) and use_feat_batchnorm:
             self.feat_batchnorm = nn.BatchNorm1d(num_features)
 
