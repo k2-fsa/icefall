@@ -19,7 +19,12 @@ stop_stage=100
 #      speech recognition. 
 #      You can also download the GRID dataset form this url:
 #      https://zenodo.org/record/3625687#.Ybn7HagzY2w. 
-#       
+#     
+#     - audio_25k
+#     - lip
+#     - GRID_align_txt
+#     - unseen_train.txt
+#     - unseen_val.txt  
 #       
 #  - $dl_dir/lm
 #      This directory contains the language model(LM) downloaded from
