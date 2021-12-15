@@ -11,7 +11,16 @@ stop_stage=100
 #
 #  - $dl_dir/GRID
 #      You can find lip, audio, align_text inside it.
-#
+#      Here, for using easily and running our recipe quickily,
+#      we provide the processed lip data. 
+#      If you want to know more entails about the original GRID
+#      dataset, you can have a look about this paper: 
+#      An audio-visual corpus for speech perception and automatic 
+#      speech recognition. 
+#      You can also download the GRID dataset form this url:
+#      https://zenodo.org/record/3625687#.Ybn7HagzY2w. 
+#       
+#       
 #  - $dl_dir/lm
 #      This directory contains the language model(LM) downloaded from
 #      https://huggingface.co/luomingshuang/grid_lm.
