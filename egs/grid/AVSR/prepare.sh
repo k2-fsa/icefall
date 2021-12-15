@@ -103,8 +103,8 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   wget -P $dl_dir/GRID https://huggingface.co/datasets/luomingshuang/GRID_text/resolve/main/unseen_val.txt
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare character-based lang"
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  log "Stage 1: Prepare character-based lang"
   lang_dir=data/lang_character
   mkdir -p $lang_dir
 
@@ -118,8 +118,8 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 fi
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Prepare G"
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Prepare G"
   # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
@@ -143,7 +143,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Compile HLG"
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_character
 fi
