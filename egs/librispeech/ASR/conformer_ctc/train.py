@@ -17,7 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import logging
 from pathlib import Path
@@ -172,8 +171,12 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
+        - use_feat_batchnorm: Normalization for the input features, can be a
+                              boolean indicating whether to do batch
+                              normalization, or a float which means just scaling
+                              the input features with this float value.
+                              If given a float value, we will remove batchnorm
+                              layer in `ConvolutionModule` as well.
 
         - attention_dim: Hidden dim for multi-head attention model.
 
