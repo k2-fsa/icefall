@@ -11,7 +11,7 @@ stop_stage=100
 #
 #  - $dl_dir/GRID
 #      You can find lip, audio, align_text inside it.
-#      Here, for using easily and running our recipe quickily,
+#      Here, for using easily and running our recipe quickly,
 #      we provide the processed lip data. 
 #      If you want to know more entails about the original GRID
 #      dataset, you can have a look about this paper: 
