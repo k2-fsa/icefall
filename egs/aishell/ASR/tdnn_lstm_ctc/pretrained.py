@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import logging
 import math
@@ -191,7 +190,7 @@ def main():
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
