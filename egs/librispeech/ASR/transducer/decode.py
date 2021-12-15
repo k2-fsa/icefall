@@ -15,6 +15,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+(1) greedy search
+./transducer/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer/exp \
+        --max-duration 100 \
+        --decoding-method greedy_search
+(2) beam search
+
+./transducer/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer/exp \
+        --max-duration 100 \
+        --decoding-method beam_search \
+        --beam-size 8
+"""
 
 
 import argparse
@@ -27,7 +46,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from transducer.beam_search import greedy_search
+from transducer.beam_search import beam_search, greedy_search
 from transducer.conformer import Conformer
 from transducer.decoder import Decoder
 from transducer.joiner import Joiner
@@ -76,6 +95,23 @@ def get_parser():
         type=str,
         default="data/lang_bpe_500/bpe.model",
         help="Path to the BPE model",
+    )
+
+    parser.add_argument(
+        "--decoding-method",
+        type=str,
+        default="greedy_search",
+        help="""Possible values are:
+          - greedy_search
+          - beam_search
+        """,
+    )
+
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=5,
+        help="Used only when --decoding-method is beam_search",
     )
 
     return parser
@@ -205,11 +241,22 @@ def decode_one_batch(
         # fmt: off
         encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
         # fmt: on
-        hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+        if params.decoding_method == "greedy_search":
+            hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+        elif params.decoding_method == "beam_search":
+            hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        else:
+            raise ValueError(
+                f"Unsupported decoding method: {params.decoding_method}"
+            )
         hyps.append(sp.decode(hyp).split())
 
-    return {"greedy_search": hyps}
-    # TODO: Implement beam search
+    if params.decoding_method == "greedy_search":
+        return {"greedy_search": hyps}
+    else:
+        return {f"beam_{params.beam_size}": hyps}
 
 
 def decode_dataset(
@@ -243,6 +290,11 @@ def decode_dataset(
     except TypeError:
         num_batches = "?"
 
+    if params.decoding_method == "greedy_search":
+        log_interval = 100
+    else:
+        log_interval = 2
+
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
@@ -265,7 +317,7 @@ def decode_dataset(
 
         num_cuts += len(texts)
 
-        if batch_idx % 100 == 0:
+        if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(
@@ -327,8 +379,13 @@ def main():
 
     params = get_params()
     params.update(vars(args))
-    params.res_dir = params.exp_dir / "greedy_search"
+
+    assert params.decoding_method in ("greedy_search", "beam_search")
+    params.res_dir = params.exp_dir / params.decoding_method
+
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    if params.decoding_method == "beam_search":
+        params.suffix += f"-beam-{params.beam_size}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
