@@ -625,7 +625,7 @@ def run(rank, world_size, args):
     train_cuts = GigaSpeech.train_cuts()
     train_dl = GigaSpeech.train_dataloaders(train_cuts)
 
-    valid_cuts = GigaSpeech.dev_clean_cuts()
+    valid_cuts = GigaSpeech.dev_cuts()
     valid_dl = GigaSpeech.valid_dataloaders(valid_cuts)
 
     scan_pessimistic_batches_for_oom(

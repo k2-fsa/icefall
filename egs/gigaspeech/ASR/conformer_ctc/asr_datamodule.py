@@ -75,14 +75,14 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--max-duration",
             type=int,
-            default=600.0,
+            default=200.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
@@ -178,6 +178,12 @@ class GigaSpeechAsrDataModule:
             type=str,
             default="XL",
             help="Select the GigaSpeech subset (XS|S|M|L|XL)",
+        )
+        group.add_argument(
+            "--lazy-load",
+            type=str2bool,
+            default=True,
+            help="lazily open CutSets to avoid OOM (for L|XL subset)",
         )
         group.add_argument(
             "--small-dev",
@@ -354,9 +360,12 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info(f"About to get train_{self.args.subset} cuts")
-        return load_manifest(
-            self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
-        )
+        path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
+        if self.args.subset in ["L", "XL"] and self.args.lazy_load:
+            cuts_train = CutSet.from_jsonl_lazy(path)
+        else:
+            cuts_train = CutSet.from_file(path)
+        return cuts_train
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
