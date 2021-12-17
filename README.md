@@ -34,8 +34,11 @@ We do provide a Colab notebook for this recipe.
 
 ### LibriSpeech
 
-We provide two models for this recipe: [conformer CTC model][LibriSpeech_conformer_ctc]
-and [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc].
+We provide 3 models for this recipe:
+
+- [conformer CTC model][LibriSpeech_conformer_ctc]
+- [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc]
+- [RNN-T Conformer model][LibriSpeech_transducer]
 
 #### Conformer CTC Model
 
@@ -61,7 +64,7 @@ We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open I
 
 #### RNN-T Conformer model
 
-Using Conformer as encoder. See [egs/librispeech/ASR/transducer][egs/librispeech/ASR/transducer].
+Using Conformer as encoder.
 
 The best WER we currently have is:
 
@@ -137,6 +140,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[LibriSpeech_transducer]: egs/librispeech/ASR/transducer
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
