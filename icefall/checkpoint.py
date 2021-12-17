@@ -85,6 +85,7 @@ def load_checkpoint(
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[_LRScheduler] = None,
     scaler: Optional[GradScaler] = None,
+    strict: bool = False,
 ) -> Dict[str, Any]:
     """
     TODO: document it
@@ -101,9 +102,9 @@ def load_checkpoint(
             src_key = "{}.{}".format("module", key)
             dst_state_dict[key] = src_state_dict.pop(src_key)
         assert len(src_state_dict) == 0
-        model.load_state_dict(dst_state_dict, strict=False)
+        model.load_state_dict(dst_state_dict, strict=strict)
     else:
-        model.load_state_dict(checkpoint["model"], strict=False)
+        model.load_state_dict(checkpoint["model"], strict=strict)
 
     checkpoint.pop("model")
 

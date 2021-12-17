@@ -8,3 +8,5 @@ exp*/
 download
 dask-worker-space
 log
+*.bak
+*-bak

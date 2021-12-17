@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from label_smoothing import LabelSmoothingLoss
 from subsampling import Conv2dSubsampling, VggSubsampling
 from torch.nn.utils.rnn import pad_sequence
 
@@ -41,7 +41,7 @@ class Transformer(nn.Module):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        use_feat_batchnorm: bool = False,
+        use_feat_batchnorm: Union[float, bool] = 0.1,
     ) -> None:
         """
         Args:
@@ -71,10 +71,13 @@ class Transformer(nn.Module):
             True to use vgg style frontend for subsampling.
           use_feat_batchnorm:
             True to use batchnorm for the input layer.
+            Float value to scale the input layer.
+            False to do nothing.
         """
         super().__init__()
         self.use_feat_batchnorm = use_feat_batchnorm
-        if use_feat_batchnorm:
+        assert isinstance(use_feat_batchnorm, (float, bool))
+        if isinstance(use_feat_batchnorm, bool) and use_feat_batchnorm:
             self.feat_batchnorm = nn.BatchNorm1d(num_features)
 
         self.num_features = num_features
@@ -152,7 +155,7 @@ class Transformer(nn.Module):
                 d_model, self.decoder_num_class
             )
 
-            self.decoder_criterion = LabelSmoothingLoss(self.decoder_num_class)
+            self.decoder_criterion = LabelSmoothingLoss()
         else:
             self.decoder_criterion = None
 
@@ -178,10 +181,15 @@ class Transformer(nn.Module):
               memory_key_padding_mask for the decoder. Its shape is (N, T).
               It is None if `supervision` is None.
         """
-        if self.use_feat_batchnorm:
+        if (
+            isinstance(self.use_feat_batchnorm, bool)
+            and self.use_feat_batchnorm
+        ):
             x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
             x = self.feat_batchnorm(x)
             x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
+        if isinstance(self.use_feat_batchnorm, float):
+            x *= self.use_feat_batchnorm
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision
         )
@@ -311,7 +319,7 @@ class Transformer(nn.Module):
         self,
         memory: torch.Tensor,
         memory_key_padding_mask: torch.Tensor,
-        token_ids: List[List[int]],
+        token_ids: List[torch.Tensor],
         sos_id: int,
         eos_id: int,
     ) -> torch.Tensor:
@@ -334,6 +342,11 @@ class Transformer(nn.Module):
         """
         # The common part between this function and decoder_forward could be
         # extracted as a separate function.
+        if isinstance(token_ids[0], torch.Tensor):
+            # This branch is executed by torchscript in C++.
+            # See https://github.com/k2-fsa/k2/pull/870
+            # https://github.com/k2-fsa/k2/blob/3c1c18400060415b141ccea0115fd4bf0ad6234e/k2/torch/bin/attention_rescore.cu#L286
+            token_ids = [tolist(t) for t in token_ids]
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
@@ -660,7 +673,7 @@ class PositionalEncoding(nn.Module):
         self.xscale = math.sqrt(self.d_model)
         self.dropout = nn.Dropout(p=dropout)
         # not doing: self.pe = None because of errors thrown by torchscript
-        self.pe = torch.zeros(0, 0, dtype=torch.float32)
+        self.pe = torch.zeros(1, 0, self.d_model, dtype=torch.float32)
 
     def extend_pe(self, x: torch.Tensor) -> None:
         """Extend the time t in the positional encoding if required.
@@ -792,73 +805,6 @@ class Noam(object):
                 self.optimizer.load_state_dict(state_dict["optimizer"])
             else:
                 setattr(self, key, value)
-
-
-class LabelSmoothingLoss(nn.Module):
-    """
-    Label-smoothing loss. KL-divergence between
-    q_{smoothed ground truth prob.}(w)
-    and p_{prob. computed by model}(w) is minimized.
-    Modified from
-    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/label_smoothing_loss.py  # noqa
-
-    Args:
-        size: the number of class
-        padding_idx: padding_idx: ignored class id
-        smoothing: smoothing rate (0.0 means the conventional CE)
-        normalize_length: normalize loss by sequence length if True
-        criterion: loss function to be smoothed
-    """
-
-    def __init__(
-        self,
-        size: int,
-        padding_idx: int = -1,
-        smoothing: float = 0.1,
-        normalize_length: bool = False,
-        criterion: nn.Module = nn.KLDivLoss(reduction="none"),
-    ) -> None:
-        """Construct an LabelSmoothingLoss object."""
-        super(LabelSmoothingLoss, self).__init__()
-        self.criterion = criterion
-        self.padding_idx = padding_idx
-        assert 0.0 < smoothing <= 1.0
-        self.confidence = 1.0 - smoothing
-        self.smoothing = smoothing
-        self.size = size
-        self.true_dist = None
-        self.normalize_length = normalize_length
-
-    def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """
-        Compute loss between x and target.
-
-        Args:
-          x:
-            prediction of dimension
-            (batch_size, input_length, number_of_classes).
-          target:
-            target masked with self.padding_id of
-            dimension (batch_size, input_length).
-
-        Returns:
-          A scalar tensor containing the loss without normalization.
-        """
-        assert x.size(2) == self.size
-        #  batch_size = x.size(0)
-        x = x.view(-1, self.size)
-        target = target.view(-1)
-        with torch.no_grad():
-            true_dist = x.clone()
-            true_dist.fill_(self.smoothing / (self.size - 1))
-            ignore = target == self.padding_idx  # (B,)
-            total = len(target) - ignore.sum().item()
-            target = target.masked_fill(ignore, 0)  # avoid -1 index
-            true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
-        kl = self.criterion(torch.log_softmax(x, dim=1), true_dist)
-        #  denom = total if self.normalize_length else batch_size
-        denom = total if self.normalize_length else 1
-        return kl.masked_fill(ignore.unsqueeze(1), 0).sum() / denom
 
 
 def encoder_padding_mask(
@@ -1000,3 +946,8 @@ def add_eos(token_ids: List[List[int]], eos_id: int) -> List[List[int]]:
       with EOS ID.
     """
     return [utt + [eos_id] for utt in token_ids]
+
+
+def tolist(t: torch.Tensor) -> List[int]:
+    """Used by jit"""
+    return torch.jit.annotate(List[int], t.tolist())

@@ -40,14 +40,13 @@ from icefall.decode import (
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
+from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_env_info,
     get_texts,
     setup_logger,
     store_transcripts,
-    str2bool,
     write_error_stats,
 )
 
@@ -60,14 +59,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=34,
+        default=77,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=20,
+        default=55,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -123,17 +122,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--export",
-        type=str2bool,
-        default=False,
-        help="""When enabled, the averaged model is saved to
-        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
-        pretrained.pt contains a dict {"model": model.state_dict()},
-        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
-        """,
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
         default="conformer_ctc/exp",
@@ -143,8 +131,17 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_5000",
+        default="data/lang_bpe_500",
         help="The lang dir",
+    )
+
+    parser.add_argument(
+        "--lm-dir",
+        type=str,
+        default="data/lm",
+        help="""The LM dir.
+        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+        """,
     )
 
     return parser
@@ -153,7 +150,6 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "lm_dir": Path("data/lm"),
             # parameters for conformer
             "subsampling_factor": 4,
             "vgg_frontend": False,
@@ -231,7 +227,7 @@ def decode_one_batch(
         is a 3-gram LM, while this G is a 4-gram LM.
     Returns:
       Return the decoding result. See above description for the format of
-      the returned dict.
+      the returned dict. Note: If it decodes to nothing, then return None.
     """
     if HLG is not None:
         device = HLG.device
@@ -384,8 +380,7 @@ def decode_one_batch(
             hyps = [[word_table[i] for i in ids] for ids in hyps]
             ans[lm_scale_str] = hyps
     else:
-        for lm_scale in lm_scale_list:
-            ans[f"{lm_scale}"] = [[] * lattice.shape[0]]
+        ans = None
     return ans
 
 
@@ -459,16 +454,29 @@ def decode_dataset(
             eos_id=eos_id,
         )
 
-        for lm_scale, hyps in hyps_dict.items():
+        if hyps_dict is not None:
+            for lm_scale, hyps in hyps_dict.items():
+                this_batch = []
+                assert len(hyps) == len(texts)
+                for hyp_words, ref_text in zip(hyps, texts):
+                    ref_words = ref_text.split()
+                    this_batch.append((ref_words, hyp_words))
+
+                results[lm_scale].extend(this_batch)
+        else:
+            assert (
+                len(results) > 0
+            ), "It should not decode to empty in the first batch!"
             this_batch = []
-            assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
+            hyp_words = []
+            for ref_text in texts:
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
 
-            results[lm_scale].extend(this_batch)
+            for lm_scale in results.keys():
+                results[lm_scale].extend(this_batch)
 
-        num_cuts += len(batch["supervisions"]["text"])
+        num_cuts += len(texts)
 
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
@@ -532,6 +540,7 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
+    args.lm_dir = Path(args.lm_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -572,9 +581,8 @@ def main():
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
         )
-        HLG = HLG.to(device)
         assert HLG.requires_grad is False
 
         if not hasattr(HLG, "lm_scores"):
@@ -599,13 +607,21 @@ def main():
                 # Arcs entering the back-off state have label equal to #0.
                 # We have to change it to 0 here.
                 G.labels[G.labels >= first_word_disambig_id] = 0
+                # See https://github.com/k2-fsa/k2/issues/874
+                # for why we need to set G.properties to None
+                G.__dict__["_properties"] = None
                 G = k2.Fsa.from_fsas([G]).to(device)
                 G = k2.arc_sort(G)
+                # Save a dummy value so that it can be loaded in C++.
+                # See https://github.com/pytorch/pytorch/issues/67902
+                # for why we need to do this.
+                G.dummy = 1
+
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
-            G = k2.Fsa.from_dict(d).to(device)
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
+            G = k2.Fsa.from_dict(d)
 
         if params.method in ["whole-lattice-rescoring", "attention-decoder"]:
             # Add epsilon self-loops to G as we will compose
@@ -643,27 +659,23 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
-    if params.export:
-        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
-        return
-
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     librispeech = LibriSpeechAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
+
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
     test_sets = ["test-clean", "test-other"]
-    for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+    test_dl = [test_clean_dl, test_other_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
