@@ -281,8 +281,6 @@ def main():
 
         hyps.append(sp.decode(hyp).split())
 
-    print(hyps)
-
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
         words = " ".join(hyp)
