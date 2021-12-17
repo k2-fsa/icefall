@@ -24,8 +24,8 @@ Usage:
         --exp-dir ./transducer/exp \
         --max-duration 100 \
         --decoding-method greedy_search
-(2) beam search
 
+(2) beam search
 ./transducer/decode.py \
         --epoch 14 \
         --avg 7 \

@@ -15,5 +15,5 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir transducer/exp \
   --full-libri 1 \
   --max-duration 250 \
-  --lr-factor 2.5 \
+  --lr-factor 2.5
 ```
