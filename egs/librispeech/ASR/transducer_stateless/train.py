@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./transducer/train.py \
+./transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer/exp \
+  --exp-dir transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 250 \
   --lr-factor 2.5
@@ -44,17 +44,17 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
+from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transducer.conformer import Conformer
-from transducer.decoder import Decoder
-from transducer.joiner import Joiner
-from transducer.model import Transducer
-from transducer.transformer import Noam
+from transformer import Noam
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -102,14 +102,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer/exp",
+        default="transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -202,10 +202,6 @@ def get_params() -> AttributeDict:
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             "use_feat_batchnorm": True,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
-            "decoder_hidden_dim": 512,
             # parameters for Noam
             "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
@@ -235,12 +231,8 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
-        sos_id=params.sos_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
     )
     return decoder
 
@@ -575,7 +567,6 @@ def run(rank, world_size, args):
 
     # <blk> and <sos/eos> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)

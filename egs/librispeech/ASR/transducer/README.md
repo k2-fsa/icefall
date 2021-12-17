@@ -6,8 +6,6 @@ following command to start the training:
 ```bash
 cd egs/librispeech/ASR
 
-export CUDA_VISIBLE_DEVICES="0,1,2"
-
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer/train.py \
