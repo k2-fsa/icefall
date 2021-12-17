@@ -20,7 +20,7 @@ import torch
 from transducer.model import Transducer
 
 
-def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
+def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[str]:
     """
     Args:
       model:
@@ -42,7 +42,7 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     T = encoder_out.size(1)
     t = 0
     hyp = []
-    max_u = 1000  # terminte after this number of steps
+    max_u = 1000  # terminate after this number of steps
     u = 0
 
     while t < T and u < max_u:
