@@ -103,8 +103,10 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
-          cd ../transducer
-          pytest -v -s
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            cd ../transducer
+            pytest -v -s
+          fi
 
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
@@ -120,5 +122,7 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
-          cd ../transducer
-          pytest -v -s
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            cd ../transducer
+            pytest -v -s
+          fi
