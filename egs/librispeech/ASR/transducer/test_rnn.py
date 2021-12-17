@@ -505,7 +505,7 @@ def test_layernorm_lstm_with_projection_forward(device="cpu"):
     assert_allclose(x.grad, x_clone.grad)
 
 
-def test_lstm_forget_gate_bias(device):
+def test_lstm_forget_gate_bias(device="cpu"):
     input_size = 2
     hidden_size = 3
     num_layers = 4

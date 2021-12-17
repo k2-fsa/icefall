@@ -46,11 +46,11 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from transducer.beam_search import beam_search, greedy_search
-from transducer.conformer import Conformer
-from transducer.decoder import Decoder
-from transducer.joiner import Joiner
-from transducer.model import Transducer
+from beam_search import beam_search, greedy_search
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
@@ -70,14 +70,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=77,
+        default=26,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=55,
+        default=12,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",

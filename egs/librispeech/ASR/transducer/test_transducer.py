@@ -25,10 +25,10 @@ To run this file, do:
 
 import k2
 import torch
-from transducer.conformer import Conformer
-from transducer.decoder import Decoder
-from transducer.joiner import Joiner
-from transducer.model import Transducer
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from model import Transducer
 
 
 def test_transducer():
@@ -61,6 +61,7 @@ def test_transducer():
         sos_id=sos_id,
         num_layers=num_layers,
         hidden_dim=output_dim,
+        output_dim=output_dim,
         embedding_dropout=0.0,
         rnn_dropout=0.0,
     )

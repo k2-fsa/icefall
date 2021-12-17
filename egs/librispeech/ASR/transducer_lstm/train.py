@@ -93,7 +93,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=78,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -127,7 +127,7 @@ def get_parser():
     parser.add_argument(
         "--lr-factor",
         type=float,
-        default=5.0,
+        default=3.0,
         help="The lr_factor for Noam optimizer",
     )
 

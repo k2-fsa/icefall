@@ -58,6 +58,18 @@ The WER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
+
+#### RNN-T Conformer model
+
+Using Conformer as encoder. See [egs/librispeech/ASR/transducer][egs/librispeech/ASR/transducer].
+
+The best WER we currently have is:
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 3.16       | 7.71       |
+
+
 ### Aishell
 
 We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
