@@ -66,7 +66,7 @@ We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open I
 
 Using Conformer as encoder.
 
-The best WER we currently have is:
+The best WER with greedy search is:
 
 |     | test-clean | test-other |
 |-----|------------|------------|

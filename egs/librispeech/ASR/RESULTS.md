@@ -12,7 +12,7 @@ The best WER is
 |-----|------------|------------|
 | WER | 3.16       | 7.71       |
 
-using `--epoch 26 --avg 12` during decoding.
+using `--epoch 26 --avg 12` during decoding with greedy search.
 
 The training command to reproduce the above WER is:
 
