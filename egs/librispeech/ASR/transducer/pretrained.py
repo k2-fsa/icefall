@@ -276,6 +276,8 @@ def main():
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
+        else:
+            raise ValueError(f"Unsupported method: {params.method}")
 
         hyps.append(sp.decode(hyp).split())
 

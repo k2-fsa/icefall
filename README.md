@@ -72,6 +72,8 @@ The best WER we currently have is:
 |-----|------------|------------|
 | WER | 3.16       | 7.71       |
 
+We provide a Colab notebook to run a pre-trained RNN-T conformer model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1_u6yK9jDkPwG_NLrZMN2XK7Aeq4suMO2?usp=sharing)
+
 
 ### Aishell
 

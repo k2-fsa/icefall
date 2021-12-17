@@ -1,5 +1,51 @@
 ## Results
 
+### LibriSpeech BPE training results (RNN-T)
+
+#### 2021-12-17
+
+RNN-T + Conformer encoder
+
+The best WER is
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 3.16       | 7.71       |
+
+using `--epoch 26 --avg 12` during decoding.
+
+The training command to reproduce the above WER is:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir transducer/exp-lr-2.5-full \
+  --full-libri 1 \
+  --max-duration 250 \
+  --lr-factor 2.5
+```
+
+The decoding command is:
+
+```
+epoch=26
+avg=12
+
+./transducer/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer/exp-lr-2.5-full \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100
+```
+
+You can find the tensorboard log at: <https://tensorboard.dev/experiment/PYIbeD6zRJez1ViXaRqqeg/>
+
+
 ### LibriSpeech BPE training results (Conformer-CTC)
 
 #### 2021-11-09
