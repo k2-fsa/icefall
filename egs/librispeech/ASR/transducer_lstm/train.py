@@ -16,19 +16,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2"
 
-./transducer/train.py \
-  --world-size 4 \
+./transducer_lstm/train.py \
+  --world-size 3 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer/exp \
+  --exp-dir transducer_lstm/exp \
   --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 2.5
+  --max-duration 400 \
+  --lr-factor 3
 """
 
 
@@ -44,17 +45,17 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from decoder import Decoder
+from encoder import LstmEncoder
+from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
+from model import Transducer
+from noam import Noam
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transducer.conformer import Conformer
-from transducer.decoder import Decoder
-from transducer.joiner import Joiner
-from transducer.model import Transducer
-from transducer.transformer import Noam
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -102,14 +103,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer/exp/epoch-{start_epoch-1}.pt
+        transducer_lstm/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer/exp",
+        default="transducer_lstm/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -196,12 +197,10 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "encoder_out_dim": 512,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
+            "encoder_hidden_size": 1024,
+            "num_encoder_layers": 4,
+            "proj_size": 512,
             "vgg_frontend": False,
-            "use_feat_batchnorm": True,
             # decoder params
             "decoder_embedding_dim": 1024,
             "num_decoder_layers": 4,
@@ -217,17 +216,13 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict):
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = LstmEncoder(
         num_features=params.feature_dim,
+        hidden_size=params.encoder_hidden_size,
         output_dim=params.encoder_out_dim,
         subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
-        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -585,6 +580,9 @@ def run(rank, world_size, args):
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
+    num_param = sum([p.numel() for p in model.parameters() if p.requires_grad])
+    logging.info(f"Number of model parameters: {num_param}")
+
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
@@ -593,7 +591,7 @@ def run(rank, world_size, args):
 
     optimizer = Noam(
         model.parameters(),
-        model_size=params.attention_dim,
+        model_size=params.encoder_hidden_size,
         factor=params.lr_factor,
         warm_step=params.warm_step,
         weight_decay=params.weight_decay,

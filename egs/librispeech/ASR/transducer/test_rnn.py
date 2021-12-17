@@ -23,7 +23,7 @@ To run this file, do:
 """
 import torch
 import torch.nn as nn
-from transducer.rnn import (
+from rnn import (
     LayerNormGRU,
     LayerNormGRUCell,
     LayerNormGRULayer,
@@ -505,6 +505,28 @@ def test_layernorm_lstm_with_projection_forward(device="cpu"):
     assert_allclose(x.grad, x_clone.grad)
 
 
+def test_lstm_forget_gate_bias(device):
+    input_size = 2
+    hidden_size = 3
+    num_layers = 4
+    bias = True
+
+    lstm = LayerNormLSTM(
+        input_size=input_size,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        bias=bias,
+        ln=nn.Identity,
+        device=device,
+    )
+    for name, weight in lstm.named_parameters():
+        if "bias_hh" in name or "bias_ih" in name:
+            start = weight.numel() // 4
+            end = weight.numel() // 2
+            expected = torch.ones(hidden_size).to(weight)
+            assert torch.all(torch.eq(weight[start:end], expected))
+
+
 def test_layernorm_gru_cell_jit(device="cpu"):
     input_size = 10
     hidden_size = 20
@@ -741,6 +763,8 @@ def _test_lstm(device):
     test_layernorm_lstm_with_projection_jit(device)
     test_layernorm_lstm_forward(device)
     test_layernorm_lstm_with_projection_forward(device)
+    #
+    test_lstm_forget_gate_bias(device)
 
 
 def _test_gru(device):

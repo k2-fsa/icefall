@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from transducer.model import Transducer
+from model import Transducer
 
 
 def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
