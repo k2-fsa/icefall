@@ -866,7 +866,7 @@ class ConvolutionModule(nn.Module):
             groups=channels,
             bias=bias,
         )
-        self.norm = nn.BatchNorm1d(channels)
+        self.norm = nn.LayerNorm(channels)
         self.pointwise_conv2 = nn.Conv1d(
             channels,
             channels,
@@ -896,7 +896,12 @@ class ConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
-        x = self.activation(self.norm(x))
+        # x is (batch, channels, time)
+        x = x.permute(0, 2, 1)
+        x = self.norm(x)
+        x = x.permute(0, 2, 1)
+
+        x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
