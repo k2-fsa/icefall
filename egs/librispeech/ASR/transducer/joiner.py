@@ -48,7 +48,7 @@ class Joiner(nn.Module):
         # Now decoder_out is (N, 1, U, C)
 
         logit = encoder_out + decoder_out
-        logit = F.relu(logit)
+        logit = F.tanh(logit)
 
         output = self.output_linear(logit)
 
