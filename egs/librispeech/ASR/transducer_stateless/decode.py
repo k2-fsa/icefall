@@ -130,6 +130,8 @@ def get_params() -> AttributeDict:
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             "use_feat_batchnorm": True,
+            # parameters for decoder
+            "context_size": 2,  # tri-gram
             # decoder params
             "env_info": get_env_info(),
         }
@@ -158,6 +160,7 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
+        context_size=params.context_size,
     )
     return decoder
 
