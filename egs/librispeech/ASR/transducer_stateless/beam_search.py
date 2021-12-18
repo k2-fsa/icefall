@@ -39,14 +39,18 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     device = model.device
 
     sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-    decoder_out, (h, c) = model.decoder(sos)
+    decoder_out = model.decoder(sos)
     T = encoder_out.size(1)
     t = 0
     hyp = []
-    max_u = 1000  # terminate after this number of steps
-    u = 0
 
-    while t < T and u < max_u:
+    sym_per_frame = 0
+    sym_per_utt = 0
+
+    max_sym_per_utt = 1000
+    max_sym_per_frame = 3
+
+    while t < T and sym_per_utt < max_sym_per_utt:
         # fmt: off
         current_encoder_out = encoder_out[:, t:t+1, :]
         # fmt: on
@@ -60,9 +64,13 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
         if y != blank_id:
             hyp.append(y.item())
             y = y.reshape(1, 1)
-            decoder_out, (h, c) = model.decoder(y, (h, c))
-            u += 1
-        else:
+            decoder_out = model.decoder(y)
+
+            sym_per_utt += 1
+            sym_per_frame += 1
+
+        if y == blank_id or sym_per_frame > max_sym_per_frame:
+            sym_per_frame = 0
             t += 1
 
     return hyp

@@ -61,7 +61,7 @@ class Transducer(nn.Module):
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
-        assert isinstance(encoder, EncoderInterface)
+        assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
 
         self.encoder = encoder
