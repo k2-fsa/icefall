@@ -178,8 +178,6 @@ def get_params() -> AttributeDict:
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
-        - weight_decay:  The weight_decay for the optimizer.
-
         - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
@@ -207,7 +205,6 @@ def get_params() -> AttributeDict:
             "num_decoder_layers": 4,
             "decoder_hidden_dim": 512,
             # parameters for Noam
-            "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
@@ -599,7 +596,6 @@ def run(rank, world_size, args):
         model_size=params.attention_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
     if checkpoints and "optimizer" in checkpoints:
