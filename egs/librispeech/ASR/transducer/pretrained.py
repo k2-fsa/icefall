@@ -145,7 +145,6 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.decoder_embedding_dim,
         blank_id=params.blank_id,
-        sos_id=params.sos_id,
         num_layers=params.num_decoder_layers,
         hidden_dim=params.decoder_hidden_dim,
         output_dim=params.encoder_out_dim,
@@ -211,7 +210,6 @@ def main():
 
     # <blk> and <sos/eos> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(f"{params}")
