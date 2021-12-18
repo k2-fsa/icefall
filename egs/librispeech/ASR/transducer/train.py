@@ -198,7 +198,7 @@ def get_params() -> AttributeDict:
             "vgg_frontend": False,
             # decoder params
             "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
+            "num_decoder_layers": 2,
             "decoder_hidden_dim": 512,
             # parameters for Noam
             "warm_step": 80000,  # For the 100h subset, use 8k
