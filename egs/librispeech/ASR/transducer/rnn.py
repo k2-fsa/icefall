@@ -212,6 +212,24 @@ class LayerNormLSTMCell(nn.Module):
             if "layernorm" not in name:
                 nn.init.uniform_(weight, -stdv, stdv)
 
+            if "bias_ih" in name or "bias_hh" in name:
+                # See the paper
+                # An Empirical Exploration of Recurrent Network Architectures
+                # https://proceedings.mlr.press/v37/jozefowicz15.pdf
+                #
+                # It recommends initializing the bias of the forget gate to
+                # a large value, such as 1 or 2. In PyTorch, there are two
+                # biases for the forget gate, we set both of them to 1 here.
+                #
+                # See also https://arxiv.org/pdf/1804.04849.pdf
+                assert weight.ndim == 1
+                # Layout of the bias:
+                # | in_gate | forget_gate | cell_gate | output_gate |
+                start = weight.numel() // 4
+                end = weight.numel() // 2
+                with torch.no_grad():
+                    weight[start:end].fill_(1.0)
+
 
 class LayerNormLSTMLayer(nn.Module):
     """
