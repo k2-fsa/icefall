@@ -70,7 +70,7 @@ class Decoder(nn.Module):
                 bias=False,
             )
 
-    def forward(self, y: torch.Tensor) -> torch.Tensor:
+    def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
         Args:
           y:
@@ -81,7 +81,7 @@ class Decoder(nn.Module):
         embeding_out = self.embedding(y)
         if self.context_size > 1:
             embeding_out = embeding_out.permute(0, 2, 1)
-            if self.training is True:
+            if need_pad is True:
                 embeding_out = F.pad(
                     embeding_out, pad=(self.context_size - 1, 0)
                 )

@@ -47,9 +47,8 @@ def test_decoder():
     assert y.shape == (N, U, embedding_dim)
 
     # for inference
-    decoder.eval()
     x = torch.randint(low=0, high=vocab_size, size=(N, context_size))
-    y = decoder(x)
+    y = decoder(x, need_pad=False)
     assert y.shape == (N, 1, embedding_dim)
 
 
