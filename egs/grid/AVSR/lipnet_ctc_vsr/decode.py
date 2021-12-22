@@ -142,7 +142,7 @@ def get_params() -> AttributeDict:
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "val_list": Path("download/GRID/unseen_val.txt"),
             "vid_padding": 75,
-            "num_workers": 1,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )

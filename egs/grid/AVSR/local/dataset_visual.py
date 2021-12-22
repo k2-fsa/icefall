@@ -4,7 +4,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from cvtransforms import HorizontalFlip, ColorNormalize
+from .cvtransforms import HorizontalFlip, ColorNormalize
 
 
 class dataset_visual(Dataset):

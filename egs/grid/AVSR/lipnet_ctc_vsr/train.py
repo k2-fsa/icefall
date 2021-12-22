@@ -181,7 +181,7 @@ def get_params() -> AttributeDict:
             "train_list": Path("download/GRID/unseen_train.txt"),
             "vid_padding": 75,
             "aud_padding": 200,
-            "num_workers": 1,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )

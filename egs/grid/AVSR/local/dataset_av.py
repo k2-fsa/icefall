@@ -8,7 +8,7 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from cvtransforms import HorizontalFlip, ColorNormalize
+from .cvtransforms import HorizontalFlip, ColorNormalize
 
 
 class dataset_av(Dataset):
