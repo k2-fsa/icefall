@@ -89,6 +89,8 @@ The best WER with beam search with beam size 4 is:
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
 
+We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Lm37sNajIpkV4HTzMDF7sn9l0JpfmekN?usp=sharing)
+
 ### Aishell
 
 We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
