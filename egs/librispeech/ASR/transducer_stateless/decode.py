@@ -24,15 +24,15 @@ Usage:
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
-(2) beam search
 
+(2) beam search
 ./transducer_stateless/decode.py \
         --epoch 14 \
         --avg 7 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
-        --beam-size 8
+        --beam-size 4
 """
 
 
@@ -70,14 +70,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=77,
+        default=20,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=55,
+        default=10,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -110,7 +110,7 @@ def get_parser():
     parser.add_argument(
         "--beam-size",
         type=int,
-        default=5,
+        default=4,
         help="Used only when --decoding-method is beam_search",
     )
 
@@ -132,7 +132,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             # parameters for decoder
             "context_size": 2,  # tri-gram
-            # decoder params
             "env_info": get_env_info(),
         }
     )
@@ -395,9 +394,8 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
