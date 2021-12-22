@@ -3,8 +3,9 @@
 ### LibriSpeech BPE training results (RNN-T)
 
 #### 2021-12-17
+Using commit `cb04c8a7509425ab45fae888b0ca71bbbd23f0de`.
 
-RNN-T + Conformer encoder
+RNN-T + Conformer encoder.
 
 The best WER is
 
@@ -12,7 +13,7 @@ The best WER is
 |-----|------------|------------|
 | WER | 3.16       | 7.71       |
 
-using `--epoch 26 --avg 12` during decoding with greedy search.
+using `--epoch 26 --avg 12` with **greedy search**.
 
 The training command to reproduce the above WER is:
 
