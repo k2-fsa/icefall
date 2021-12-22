@@ -108,13 +108,16 @@ class Hypothesis:
 
 
 class HypothesisList(object):
-    def __init__(self, data: Optional[Dict[str, Hypothesis]] = {}):
+    def __init__(self, data: Optional[Dict[str, Hypothesis]] = None):
         """
         Args:
           data:
             A dict of Hypotheses. Its key is its `value.key`.
         """
-        self._data = data
+        if data is None:
+            self._data = {}
+        else:
+            self._data = data
 
     @property
     def data(self):
