@@ -1,11 +1,69 @@
 ## Results
 
-### LibriSpeech BPE training results (RNN-T)
+### LibriSpeech BPE training results (Transducer)
+
+#### 2021-12-22
+Conformer encoder + non-current decoder. The decoder
+contains only an embedding layer and a Conv1d (with kernel size 2).
+
+The WERs are
+
+|                           | test-clean | test-other | comment                                  |
+|---------------------------|------------|------------|------------------------------------------|
+| greedy search             | 2.99       | 7.52       | --epoch 20, --avg 10, --max-duration 100 |
+| beam search (beam size 2) | 2.95       | 7.43       |                                          |
+| beam search (beam size 3) | 2.94       | 7.37       |                                          |
+| beam search (beam size 4) | 2.92       | 7.37       |                                          |
+| beam search (beam size 5) | 2.93       | 7.38       |                                          |
+| beam search (beam size 8) | 2.92       | 7.38       |                                          |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless/exp-full \
+  --full-libri 1 \
+  --max-duration 250 \
+  --lr-factor 3
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/PsJ3LgkEQfOmzedAlYfVeg/#scalars&_smoothingWeight=0>
+
+The decoding command is:
+```
+epoch=20
+avg=10
+
+## greedy search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless/exp-full \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100
+
+## beam search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless/exp-full \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --decoding-method beam_search \
+  --beam-size 4
+```
+
 
 #### 2021-12-17
 Using commit `cb04c8a7509425ab45fae888b0ca71bbbd23f0de`.
 
-RNN-T + Conformer encoder.
+Conformer encoder + LSTM decoder.
 
 The best WER is
 
