@@ -13,5 +13,4 @@ The following table lists the differences among them.
 |------------------------|-----------|--------------------|
 | `transducer`           | Conformer | LSTM               |
 | `transducer_stateless` | Conformer | Conv1d + Embedding |
-
-
+| `transducer_lstm     ` | LSTM      | LSTM               |
