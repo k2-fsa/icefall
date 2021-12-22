@@ -24,7 +24,7 @@ on:
     types: [labeled]
 
 jobs:
-  run_pre_trained_conformer_ctc:
+  run_pre_trained_transducer_stateless:
     if: github.event.label.name == 'ready' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:

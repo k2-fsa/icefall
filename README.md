@@ -80,7 +80,7 @@ We provide a Colab notebook to run a pre-trained RNN-T conformer model: [![Open 
 Using Conformer as encoder. The decoder consists of 1 embedding layer
 and 1 convolutional layer.
 
-The best WER with beam search with beam size 4 is:
+The best WER using beam search with beam size 4 is:
 
 |     | test-clean | test-other |
 |-----|------------|------------|
