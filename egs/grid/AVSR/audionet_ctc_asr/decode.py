@@ -30,8 +30,8 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from local.dataset_audio import MyDataset
-from model import TdnnLstm
+from local.dataset_audio import dataset_audio
+from model import AudioNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -143,8 +143,9 @@ def get_params() -> AttributeDict:
             "video_path": Path("download/GRID/lip/"),
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "val_list": Path("download/GRID/unseen_val.txt"),
-            "aud_padding": 200,
-            "num_workers": 1,
+            "aud_padding": 480,
+            "sample_rate": 16000,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )
@@ -440,7 +441,7 @@ def main():
     else:
         G = None
 
-    model = TdnnLstm(
+    model = AudioNet(
         num_features=params.feature_dim,
         num_classes=max_token_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
@@ -466,14 +467,14 @@ def main():
     model.to(device)
     model.eval()
 
-    grid = MyDataset(
+    grid = dataset_audio(
         params.video_path,
         params.anno_path,
         params.val_list,
         params.aud_padding,
-        "test",
-        16000,
+        params.sample_rate,
         params.feature_dim,
+        "test",
     )
     test_dl = DataLoader(
         grid,

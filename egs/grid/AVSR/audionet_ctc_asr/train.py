@@ -32,9 +32,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from local.dataset_audio import MyDataset
+from local.dataset_audio import dataset_audio
 from lhotse.utils import fix_random_seed
-from model import TdnnLstm
+from model import AudioNet
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -179,8 +179,9 @@ def get_params() -> AttributeDict:
             "video_path": Path("download/GRID/lip/"),
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "train_list": Path("download/GRID/unseen_train.txt"),
-            "aud_padding": 200,
-            "num_workers": 1,
+            "aud_padding": 480,
+            "sample_rate": 16000,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )
@@ -510,7 +511,7 @@ def run(rank, world_size, args):
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
 
-    model = TdnnLstm(
+    model = AudioNet(
         num_features=params.feature_dim,
         num_classes=max_token_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
@@ -532,14 +533,14 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
         scheduler.load_state_dict(checkpoints["scheduler"])
 
-    grid = MyDataset(
+    grid = dataset_audio(
         params.video_path,
         params.anno_path,
         params.train_list,
-        params.vid_padding,
-        "train",
-        16000,
+        params.aud_padding,
+        params.sample_rate,
         params.feature_dim,
+        "train",
     )
 
     train_dl = DataLoader(

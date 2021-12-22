@@ -32,9 +32,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from local.dataset_visual import dataset_visual
+from local.dataset_av import dataset_av
 from lhotse.utils import fix_random_seed
-from model import LipNet
+from model import CombineNet
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -94,7 +94,7 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        tdnn_lstm_ctc/exp/epoch-{start_epoch-1}.pt
+        audionet_ctc_asr/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
@@ -157,7 +157,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("lipnet_ctc_vsr/exp"),
+            "exp_dir": Path("combinenet_ctc_avsr/exp"),
             "lang_dir": Path("data/lang_character"),
             "lr": 4e-4,
             "feature_dim": 80,
@@ -179,9 +179,10 @@ def get_params() -> AttributeDict:
             "video_path": Path("download/GRID/lip/"),
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "train_list": Path("download/GRID/unseen_train.txt"),
-            "vid_padding": 75,
-            "aud_padding": 200,
-            "num_workers": 1,
+            "vid_padding": 80,
+            "aud_padding": 480,
+            "sample_rate": 16000,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )
@@ -304,23 +305,34 @@ def compute_loss(
         disables autograd.
     """
     device = graph_compiler.device
-    feature = batch["vid"]
-    assert feature.ndim == 5
-    feature = feature.to(device)
+    audio_feature = batch["aud"]
+    video_feature = batch["vid"]
+
+    audio_feature = audio_feature.permute(
+        0, 2, 1
+    )  # now feature size is (N, C, T)
+    assert audio_feature.ndim == 3
+    audio_feature = audio_feature.to(device)
+
+    assert video_feature.ndim == 5
+    video_feature = video_feature.to(device)
 
     with torch.set_grad_enabled(is_training):
-        nnet_output = model(feature)
+        nnet_output = model(
+            video_feature, audio_feature
+        )  # nnet_output size is (N, T, C)
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
     supervision_segments, texts = encode_supervisions(nnet_output.size(), batch)
+
     decoding_graph = graph_compiler.compile(texts)
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
         supervision_segments,
+        allow_truncate=params.subsampling_factor - 1,
     )
-
     loss = k2.ctc_loss(
         decoding_graph=decoding_graph,
         dense_fsa_vec=dense_fsa_vec,
@@ -328,7 +340,6 @@ def compute_loss(
         reduction=params.reduction,
         use_double_scores=params.use_double_scores,
     )
-
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -503,14 +514,19 @@ def run(rank, world_size, args):
         tb_writer = None
 
     lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-    model = LipNet()
 
+    model = CombineNet(
+        num_features=params.feature_dim,
+        num_classes=max_token_id + 1,  # +1 for the blank symbol
+        subsampling_factor=params.subsampling_factor,
+    )
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
@@ -528,12 +544,14 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
         scheduler.load_state_dict(checkpoints["scheduler"])
 
-    grid = dataset_visual(
+    grid = dataset_av(
         params.video_path,
         params.anno_path,
         params.train_list,
+        params.feature_dim,
         params.vid_padding,
-        params.txt_padding,
+        params.aud_padding,
+        params.sample_rate,
         "train",
     )
 
@@ -544,10 +562,10 @@ def run(rank, world_size, args):
         num_workers=params.num_workers,
         drop_last=False,
     )
-    # Here, we use train_dl as valid_dl because we don't have extra valid data.
     valid_dl = train_dl
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        # train_dl.sampler.set_epoch(epoch)
 
         if epoch > params.start_epoch:
             logging.info(f"epoch {epoch}, lr: {scheduler.get_last_lr()[0]}")
@@ -592,6 +610,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
+    # TimitAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     world_size = args.world_size

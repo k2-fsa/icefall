@@ -30,8 +30,8 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from local.dataset_visual import dataset_visual
-from model import LipNet
+from local.dataset_av import dataset_av
+from model import CombineNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -129,9 +129,11 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("lipnet_ctc_vsr/exp"),
+            "exp_dir": Path("combinenet_ctc_avsr/exp"),
             "lang_dir": Path("data/lang_character"),
             "lm_dir": Path("data/lm"),
+            "feature_dim": 80,
+            "subsampling_factor": 3,
             "search_beam": 20,
             "output_beam": 5,
             "min_active_states": 30,
@@ -142,7 +144,9 @@ def get_params() -> AttributeDict:
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "val_list": Path("download/GRID/unseen_val.txt"),
             "vid_padding": 75,
-            "num_workers": 1,
+            "aud_padding": 450,
+            "sample_rate": 16000,
+            "num_workers": 16,
             "batch_size": 120,
         }
     )
@@ -197,11 +201,18 @@ def decode_one_batch(
       the returned dict.
     """
     device = HLG.device
-    feature = batch["vid"]
-    assert feature.ndim == 5
-    feature = feature.to(device)
+    audio_feature = batch["aud"]
+    video_feature = batch["vid"]
 
-    nnet_output = model(feature)
+    audio_feature = audio_feature.permute(0, 2, 1)
+    assert audio_feature.ndim == 3
+    audio_feature = audio_feature.to(device)
+
+    assert video_feature.ndim == 5
+    video_feature = video_feature.to(device)
+
+    nnet_output = model(video_feature, audio_feature)
+
     nnet_output_shape = nnet_output.size()
     supervision_segments, text = encode_supervisions(nnet_output_shape, batch)
 
@@ -229,10 +240,8 @@ def decode_one_batch(
                 nbest_scale=params.nbest_scale,
             )
             key = f"no_rescore-{params.num_paths}"
-
         hyps = get_texts(best_path)
         hyps = [[lexicon.word_table[i] for i in ids] for ids in hyps]
-
         return {key: hyps}
 
     assert params.method in ["nbest-rescoring", "whole-lattice-rescoring"]
@@ -324,6 +333,7 @@ def decode_dataset(
             for hyp_words, ref_text in zip(hyps, texts):
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
+
             results[lm_scale].extend(this_batch)
 
         num_cuts += len(batch["txt"])
@@ -334,7 +344,6 @@ def decode_dataset(
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
-
     return results
 
 
@@ -386,6 +395,7 @@ def main():
     logging.info(params)
 
     lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -439,7 +449,11 @@ def main():
     else:
         G = None
 
-    model = LipNet()
+    model = CombineNet(
+        num_features=params.feature_dim,
+        num_classes=max_token_id + 1,  # +1 for the blank symbol
+        subsampling_factor=params.subsampling_factor,
+    )
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
@@ -461,11 +475,14 @@ def main():
     model.to(device)
     model.eval()
 
-    grid = dataset_visual(
+    grid = dataset_av(
         params.video_path,
         params.anno_path,
         params.val_list,
+        params.feature_dim,
         params.vid_padding,
+        params.aud_padding,
+        params.sample_rate,
         "test",
     )
     test_dl = DataLoader(

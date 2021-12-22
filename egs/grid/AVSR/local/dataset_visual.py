@@ -7,17 +7,17 @@ from torch.utils.data import Dataset
 from cvtransforms import HorizontalFlip, ColorNormalize
 
 
-class dataset_GRID(Dataset):
+class dataset_visual(Dataset):
     def __init__(
         self,
         video_path,
         anno_path,
         file_list,
-        vid_pad,
+        vid_padding,
         phase,
     ):
         self.anno_path = anno_path
-        self.vid_pad = vid_pad
+        self.vid_padding = vid_padding
         self.phase = phase
         with open(file_list, "r") as f:
             self.videos = [
@@ -44,7 +44,7 @@ class dataset_GRID(Dataset):
             vid = HorizontalFlip(vid)
         vid = ColorNormalize(vid)
 
-        vid = self._padding(vid, self.vid_pad)
+        vid = self._padding(vid, self.vid_padding)
 
         return {
             "vid": torch.FloatTensor(vid.transpose(3, 0, 1, 2)),
