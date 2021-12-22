@@ -76,8 +76,8 @@ class Decoder(nn.Module):
           y:
             A 2-D tensor of shape (N, U) with blank prepended.
           need_pad:
-            True to left padding the input. Should be True during training.
-            False to not pad the input. Used only during inference.
+            True to left pad the input. Should be True during training.
+            False to not pad the input. Should be False during inference.
         Returns:
           Return a tensor of shape (N, U, embedding_dim).
         """
