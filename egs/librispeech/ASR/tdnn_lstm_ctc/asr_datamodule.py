@@ -31,7 +31,7 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import AudioSamples, OnTheFlyFeatures
 from torch.utils.data import DataLoader
 
 from icefall.dataset.datamodule import DataModule
@@ -73,6 +73,21 @@ class LibriSpeechAsrDataModule(DataModule):
             help="When enabled, use 960h LibriSpeech. "
             "Otherwise, use 100h subset.",
         )
+        parser.add_argument(
+            "--subset",
+            type=Path,
+            default=None,
+            help="which subset to extract codebook index"
+            "clean-100, clean-360, other-500",
+        )
+
+        group.add_argument(
+            "--enable-augmentation",
+            type=str2bool,
+            default=True,
+            help="Set to False to disable all augmentaion."
+            "Used when extracting codebook_indexes.",
+        )
         group.add_argument(
             "--feature-dir",
             type=Path,
@@ -99,6 +114,13 @@ class LibriSpeechAsrDataModule(DataModule):
             default=30,
             help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
+        )
+        group.add_argument(
+            "--time-warp-factor",
+            type=int,
+            default=80,
+            help="Set None or less than 1 to disable"
+            "details in lhotse.lhotse.dataset.signal_transform",
         )
         group.add_argument(
             "--concatenate-cuts",
@@ -154,7 +176,16 @@ class LibriSpeechAsrDataModule(DataModule):
             "collect the batches.",
         )
 
+        group.add_argument(
+            "--input-strategy",
+            type=str,
+            default=PrecomputedFeatures,
+            help="The number of training dataloader workers that "
+            "collect the batches.",
+        )
+
     def train_dataloaders(self) -> DataLoader:
+        logging.info(f"enable-augmentation: {self.args.enable_augmentation}")
         logging.info("About to get train cuts")
         cuts_train = self.train_cuts()
 
@@ -181,6 +212,7 @@ class LibriSpeechAsrDataModule(DataModule):
 
         input_transforms = [
             SpecAugment(
+                time_warp_factor=self.args.time_warp_factor,
                 num_frame_masks=2,
                 features_mask_size=27,
                 num_feature_masks=2,
@@ -189,12 +221,21 @@ class LibriSpeechAsrDataModule(DataModule):
         ]
 
         train = K2SpeechRecognitionDataset(
-            cut_transforms=transforms,
-            input_transforms=input_transforms,
+            input_strategy=AudioSamples()
+            if self.args.input_strategy == "AudioSamples"
+            else PrecomputedFeatures(),
+            cut_transforms=transforms
+            if self.args.enable_augmentation
+            else None,
+            input_transforms=input_transforms
+            if self.args.enable_augmentation
+            else None,
             return_cuts=self.args.return_cuts,
         )
 
         if self.args.on_the_fly_feats:
+            assert self.args.enable_aug_mentation
+            # self.args.enable_aug_mentation==False is only tested with precomputed features.  # noqa
             # NOTE: the PerturbSpeed transform should be added only if we
             # remove it from data prep stage.
             # Add on-the-fly speed perturbation; since originally it would
@@ -222,7 +263,7 @@ class LibriSpeechAsrDataModule(DataModule):
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 bucket_method="equal_duration",
-                drop_last=True,
+                drop_last=True if self.args.enable_augmentation else False,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -294,14 +335,20 @@ class LibriSpeechAsrDataModule(DataModule):
 
         for cuts_test in cuts:
             logging.debug("About to create test dataset")
-            test = K2SpeechRecognitionDataset(
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
+            if self.args.input_strategy == "AudioSamples":
+                test = K2SpeechRecognitionDataset(
+                    input_strategy=AudioSamples(),
+                    return_cuts=self.args.return_cuts,
                 )
-                if self.args.on_the_fly_feats
-                else PrecomputedFeatures(),
-                return_cuts=self.args.return_cuts,
-            )
+            else:
+                test = K2SpeechRecognitionDataset(
+                    input_strategy=OnTheFlyFeatures(
+                        Fbank(FbankConfig(num_mel_bins=80))
+                    )
+                    if self.args.on_the_fly_feats
+                    else PrecomputedFeatures(),
+                    return_cuts=self.args.return_cuts,
+                )
             sampler = BucketingSampler(
                 cuts_test, max_duration=self.args.max_duration, shuffle=False
             )
@@ -322,18 +369,25 @@ class LibriSpeechAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(
-            self.args.feature_dir / "cuts_train-clean-100.json.gz"
-        )
         if self.args.full_libri:
+            assert self.args.subset is None
+            cuts_train = load_manifest(
+                self.args.feature_dir / "cuts_train-clean-100.json"
+            )
             cuts_train = (
                 cuts_train
                 + load_manifest(
-                    self.args.feature_dir / "cuts_train-clean-360.json.gz"
+                    self.args.feature_dir / "cuts_train-clean-360.json"
                 )
                 + load_manifest(
-                    self.args.feature_dir / "cuts_train-other-500.json.gz"
+                    self.args.feature_dir / "cuts_train-other-500.json"
                 )
+            )
+        if self.args.subset is not None:
+            assert not self.args.full_libri
+            assert self.args.subset in ["clean-100", "clean-360", "other-500"]
+            cuts_train = load_manifest(
+                self.args.feature_dir / f"cuts_train-{self.args.subset}.json.gz"
             )
         return cuts_train
 

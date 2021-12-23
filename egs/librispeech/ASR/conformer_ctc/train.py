@@ -30,6 +30,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from lhotse.cut import MonoCut
 from lhotse.utils import fix_random_seed
 from lhotse.dataset.collation import collate_custom_field
 from torch import Tensor
@@ -66,6 +67,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--bytes-per-frame",
+        type=int,
+        default=4,
+        help="number of code books",
+    )
+
+    parser.add_argument(
         "--master-port",
         type=int,
         default=12354,
@@ -77,6 +85,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--predictor",
+        type=str,
+        default=None,
+        help="simple_linear predictor ckpnt_predictor",
     )
 
     parser.add_argument(
@@ -103,6 +118,7 @@ def get_parser():
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
+        Note: no tailing "/".
         """,
     )
 
@@ -128,7 +144,7 @@ def get_parser():
     parser.add_argument(
         "--codebook-weight",
         type=float,
-        default=0.1,
+        default=0.3,
         help="""The weight of code book loss.
         Note: Currently rate of ctc_loss +  rate of att_loss = 1.0
         codebook_weight is independent with previous two.
@@ -140,6 +156,14 @@ def get_parser():
         type=float,
         default=5.0,
         help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--model-id",
+        type=str,
+        default=None,
+        help="a short str to introduce which models the embeddings come from"
+        "e.g. icefall or wav2vec2",
     )
 
     return parser
@@ -406,27 +430,42 @@ def compute_loss(
             )
         loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
 
-    if params.codebook_weight != 0.0:
+    if params.codebook_weight > 0.0 and is_training:
 
         cuts = batch["supervisions"]["cut"]
         # -100 is identical to ignore_value in CE loss computation.
+        cuts_pre_mixed = [
+            c if isinstance(c, MonoCut) else c.tracks[0].cut for c in cuts
+        ]
         codebook_indices, codebook_indices_lens = collate_custom_field(
-            cuts, "codebook_indices", pad_value=-100
+            cuts_pre_mixed, "codebook_indices", pad_value=-100
         )
 
+        # import pdb; pdb.set_trace()
         assert (
             codebook_indices.shape[0] == encoder_memory.shape[1]
         )  # N: batch_size
-        assert (
-            codebook_indices.shape[1] == encoder_memory.shape[0]
-        )  # T: num frames
+
+        if "wav2vec" == params.model_id:
+            # frame rate of wav2vec codebooks_indices is 50
+            # while for conformer is 25
+            t_expected = encoder_memory.shape[0] * 2
+            assert codebook_indices.shape[1] >= t_expected
+            codebook_indices = codebook_indices[:, 0:t_expected:2, :]
+        encoder_memory = encoder_memory.transpose(0, 1)  # T, N, C --> N, T, C
         codebook_indices = codebook_indices.to(encoder_memory.device).long()
-        codebook_loss = mmodel.cdidxnet.loss(
-            encoder_memory, target=codebook_indices
-        )
+        if (
+            params.predictor == "ckpnt_predictor"
+            or params.predictor == "powerful"
+        ):
+            codebook_loss = mmodel.cdidxnet(encoder_memory, codebook_indices)
+        else:
+            total_logprob, _ = mmodel.cdidxnet(encoder_memory, codebook_indices)
+            codebook_loss = -total_logprob
 
         loss += params.codebook_weight * codebook_loss
-    else:
+
+    if params.codebook_weight == 0.0 and params.att_rate == 0.0:
         loss = ctc_loss
         att_loss = torch.tensor([0])
 
@@ -438,7 +477,7 @@ def compute_loss(
     if params.att_rate != 0.0:
         info["att_loss"] = att_loss.detach().cpu().item()
 
-    if params.codebook_weight != 0.0:
+    if params.codebook_weight > 0.0 and is_training:
         info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     info["loss"] = loss.detach().cpu().item()
@@ -633,6 +672,9 @@ def run(rank, world_size, args):
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,
         use_feat_batchnorm=params.use_feat_batchnorm,
+        use_codebook_loss=True if params.codebook_weight > 0.0 else False,
+        num_codebooks=params.bytes_per_frame,
+        predictor=params.predictor,
     )
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
@@ -747,7 +789,12 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
+    if 0.0 != args.codebook_weight:
+        assert -1 == args.time_warp_factor
+        assert not args.exp_dir.endswith("/")
+        args.exp_dir = Path(
+            f"{args.exp_dir}-time_warp_factor{args.time_warp_factor}-bytes_per_frame{args.bytes_per_frame}-cdweight{args.codebook_weight}-predictor{args.predictor}-maxduration{args.max_duration}"  # noqa: E501
+        )
     args.lang_dir = Path(args.lang_dir)
 
     world_size = args.world_size
