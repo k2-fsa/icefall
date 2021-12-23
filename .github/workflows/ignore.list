@@ -1,2 +1,5 @@
-egs/librispeech/ASR/conformer_ctc/test_label_smoothing.py
-egs/librispeech/ASR/conformer_ctc/test_subsampling.py
+egs/librispeech/ASR/conformer_ctc/checkpoint.py
+egs/librispeech/ASR/conformer_ctc/ckpnt_prediction.py
+egs/librispeech/ASR/conformer_ctc/powerful_prediction.py
+egs/librispeech/ASR/conformer_ctc/prediction.py
+egs/librispeech/ASR/conformer_ctc/quantization.py
