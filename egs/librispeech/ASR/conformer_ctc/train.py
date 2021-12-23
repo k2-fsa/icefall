@@ -30,6 +30,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.utils import fix_random_seed
+from lhotse.dataset.collation import collate_custom_field
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -120,6 +121,16 @@ def get_parser():
         default=0.8,
         help="""The attention rate.
         The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
+        """,
+    )
+
+    parser.add_argument(
+        "--codebook-weight",
+        type=float,
+        default=0.1,
+        help="""The weight of code book loss.
+        Note: Currently rate of ctc_loss +  rate of att_loss = 1.0
+        codebook_weight is independent with previous two.
         """,
     )
 
@@ -397,6 +408,27 @@ def compute_loss(
                 eos_id=graph_compiler.eos_id,
             )
         loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
+
+    if params.codebook_weight != 0.0:
+
+        cuts = batch["supervisions"]["cut"]
+        # -100 is identical to ignore_value in CE loss computation.
+        codebook_indices, codebook_indices_lens = collate_custom_field(
+            cuts, "codebook_indices", pad_value=-100
+        )
+
+        assert (
+            codebook_indices.shape[0] == encoder_memory.shape[1]
+        )  # N: batch_size
+        assert (
+            codebook_indices.shape[1] == encoder_memory.shape[0]
+        )  # T: num frames
+        codebook_indices = codebook_indices.to(encoder_memory.device).long()
+        codebook_loss = mmodel.cdidxnet.loss(
+            encoder_memory, target=codebook_indices
+        )
+
+        loss += params.codebook_weight * codebook_loss
     else:
         loss = ctc_loss
         att_loss = torch.tensor([0])
@@ -408,6 +440,9 @@ def compute_loss(
     info["ctc_loss"] = ctc_loss.detach().cpu().item()
     if params.att_rate != 0.0:
         info["att_loss"] = att_loss.detach().cpu().item()
+
+    if params.codebook_weight != 0.0:
+        info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     info["loss"] = loss.detach().cpu().item()
 

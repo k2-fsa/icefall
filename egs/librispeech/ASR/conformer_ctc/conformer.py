@@ -24,6 +24,64 @@ from torch import Tensor, nn
 from transformer import Supervisions, Transformer, encoder_padding_mask
 
 
+class CodeIndicesNet(nn.Module):
+    """Used to compute codebook indices and codebook loss."""
+
+    def __init__(
+        self,
+        d_model=512,
+        quantizer_dim=512,
+        num_codebooks=4,
+    ):
+        """
+        Args:
+        d_model:
+            The dimention of memory embeddings(input).
+        quantizer_dim:
+            The dimention of quantizer, i.e. num-classes of CE loss;
+        num_codebooks:
+            Number of codebooks used, i.e. number of CE losses actually used.
+        """
+
+        super().__init__()
+        self.linear1 = nn.Linear(d_model, num_codebooks * quantizer_dim)
+        # Default reduction is 'mean'
+        self.ce = nn.CrossEntropyLoss(ignore_index=-100, reduction="sum")
+        self.num_codebooks = num_codebooks
+        self.quantizer_dim = quantizer_dim
+
+    def forward(self, memory):
+        """
+        Args:
+        memory:
+            memory embeddings, with shape[T, N, C]
+        output:
+            shape [N, T, num_codebooks*quantizer_dim]
+        """
+        x = self.linear1(memory)
+        return x
+
+    def loss(self, memory: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+        memory:
+            memory embeddings, with shape[T, N, C]
+        target:
+            codebook indices, with shape[N, T, num_codebooks]
+
+        output:
+            codebook loss;
+            actually it's the sum of num_codebooks CE losses
+        """
+
+        memory = memory.transpose(0, 1)  # T, N, C --> N, T, C
+        x = self.forward(memory)
+        x = x.reshape(-1, self.quantizer_dim)
+        target = target.reshape(-1)
+        ret = self.ce(x, target)
+        return ret
+
+
 class Conformer(Transformer):
     """
     Args:
@@ -94,6 +152,8 @@ class Conformer(Transformer):
             # Note: TorchScript detects that self.after_norm could be used inside forward()
             #       and throws an error without this change.
             self.after_norm = identity
+
+        self.cdidxnet = CodeIndicesNet()
 
     def run_encoder(
         self, x: Tensor, supervisions: Optional[Supervisions] = None
