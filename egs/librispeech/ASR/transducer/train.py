@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 35 \
   --start-epoch 0 \
   --exp-dir transducer/exp \
   --full-libri 1 \
@@ -92,7 +92,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=30,
+        default=35,
         help="Number of epochs to train.",
     )
 

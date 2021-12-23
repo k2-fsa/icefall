@@ -23,8 +23,8 @@ Usage:
 ./transducer/export.py \
   --exp-dir ./transducer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 26 \
-  --avg 12
+  --epoch 34 \
+  --avg 11
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -66,7 +66,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=26,
+        default=34,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -74,7 +74,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=12,
+        default=11,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",

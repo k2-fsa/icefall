@@ -2,7 +2,10 @@
 
 ### LibriSpeech BPE training results (Transducer)
 
-#### 2021-12-22
+#### Conformer encoder + embedding decoder
+
+Using commit `fb6a57e9e01dd8aae2af2a6b4568daad8bc8ab32`.
+
 Conformer encoder + non-current decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
 
@@ -60,8 +63,8 @@ avg=10
 ```
 
 
-#### 2021-12-17
-Using commit `cb04c8a7509425ab45fae888b0ca71bbbd23f0de`.
+#### Conformer encoder + LSTM decoder
+Using commit `TODO`.
 
 Conformer encoder + LSTM decoder.
 
@@ -69,9 +72,9 @@ The best WER is
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 3.16       | 7.71       |
+| WER | 3.07       | 7.51       |
 
-using `--epoch 26 --avg 12` with **greedy search**.
+using `--epoch 34 --avg 11` with **greedy search**.
 
 The training command to reproduce the above WER is:
 
@@ -80,19 +83,19 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 35 \
   --start-epoch 0 \
   --exp-dir transducer/exp-lr-2.5-full \
   --full-libri 1 \
-  --max-duration 250 \
+  --max-duration 180 \
   --lr-factor 2.5
 ```
 
 The decoding command is:
 
 ```
-epoch=26
-avg=12
+epoch=34
+avg=11
 
 ./transducer/decode.py \
   --epoch $epoch \
@@ -102,7 +105,7 @@ avg=12
   --max-duration 100
 ```
 
-You can find the tensorboard log at: <https://tensorboard.dev/experiment/PYIbeD6zRJez1ViXaRqqeg/>
+You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3xqTpyVmWi5FnWjrA>
 
 
 ### LibriSpeech BPE training results (Conformer-CTC)
