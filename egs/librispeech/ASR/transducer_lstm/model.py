@@ -27,11 +27,6 @@ from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
 
-assert hasattr(torchaudio.functional, "rnnt_loss"), (
-    f"Current torchaudio version: {torchaudio.__version__}\n"
-    "Please install a version >= 0.10.0"
-)
-
 
 class Transducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
@@ -114,6 +109,11 @@ class Transducer(nn.Module):
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
+
+        assert hasattr(torchaudio.functional, "rnnt_loss"), (
+            f"Current torchaudio version: {torchaudio.__version__}\n"
+            "Please install a version >= 0.10.0"
+        )
 
         loss = torchaudio.functional.rnnt_loss(
             logits=logits,
