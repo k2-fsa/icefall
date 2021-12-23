@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-pre-trained-tranducer
+name: run-pre-trained-transducer
 
 on:
   push:
@@ -86,7 +86,7 @@ jobs:
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./transducer/pretrained.py \
             --method greedy_search \
             --checkpoint ./tmp/icefall-asr-librispeech-transducer-bpe-500-2021-12-23/exp/pretrained.pt \
             --bpe-model ./tmp/icefall-asr-librispeech-transducer-bpe-500-2021-12-23/data/lang_bpe_500/bpe.model \
@@ -99,7 +99,7 @@ jobs:
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./transducer/pretrained.py \
             --method beam_search \
             --beam-size 4 \
             --checkpoint ./tmp/icefall-asr-librispeech-transducer-bpe-500-2021-12-23/exp/pretrained.pt \
