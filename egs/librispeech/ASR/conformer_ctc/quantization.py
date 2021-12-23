@@ -1,3 +1,4 @@
+# copied from https://github.com/danpovey/quantization
 import binascii
 import h5py
 import math
