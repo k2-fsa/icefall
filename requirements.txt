@@ -2,3 +2,4 @@ kaldilm
 kaldialign
 sentencepiece>=0.1.96
 tensorboard
+typeguard

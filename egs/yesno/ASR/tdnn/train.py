@@ -487,6 +487,7 @@ def run(rank, world_size, args):
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
+    logging.info(f"device: {device}")
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
 

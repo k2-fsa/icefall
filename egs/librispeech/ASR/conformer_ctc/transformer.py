@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -42,7 +41,7 @@ class Transformer(nn.Module):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        use_feat_batchnorm: bool = False,
+        use_feat_batchnorm: Union[float, bool] = 0.1,
     ) -> None:
         """
         Args:
@@ -72,10 +71,13 @@ class Transformer(nn.Module):
             True to use vgg style frontend for subsampling.
           use_feat_batchnorm:
             True to use batchnorm for the input layer.
+            Float value to scale the input layer.
+            False to do nothing.
         """
         super().__init__()
         self.use_feat_batchnorm = use_feat_batchnorm
-        if use_feat_batchnorm:
+        assert isinstance(use_feat_batchnorm, (float, bool))
+        if isinstance(use_feat_batchnorm, bool) and use_feat_batchnorm:
             self.feat_batchnorm = nn.BatchNorm1d(num_features)
 
         self.num_features = num_features
@@ -179,10 +181,15 @@ class Transformer(nn.Module):
               memory_key_padding_mask for the decoder. Its shape is (N, T).
               It is None if `supervision` is None.
         """
-        if self.use_feat_batchnorm:
+        if (
+            isinstance(self.use_feat_batchnorm, bool)
+            and self.use_feat_batchnorm
+        ):
             x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
             x = self.feat_batchnorm(x)
             x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
+        if isinstance(self.use_feat_batchnorm, float):
+            x *= self.use_feat_batchnorm
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision
         )
