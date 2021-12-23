@@ -1,0 +1,2 @@
+egs/librispeech/ASR/conformer_ctc/test_label_smoothing.py
+egs/librispeech/ASR/conformer_ctc/test_subsampling.py

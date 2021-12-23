@@ -52,8 +52,13 @@ jobs:
         working-directory: ${{github.workspace}}
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --show-source --statistics
-          flake8 .
+
+          while read -r line; do
+            exclude_list=${exclude_list}" $line";
+          done < .github/workflows/ignore.list
+
+          flake8 . --count --show-source --statistics --extend-exclude="${exclude_list}"
+          flake8 . --extend-exclude="${exclude_list}"
 
       - name: Run black
         shell: bash
