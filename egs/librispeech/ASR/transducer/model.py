@@ -14,15 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Note we use `rnnt_loss` from torchaudio, which exists only in
-torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
-"""
 import k2
 import torch
 import torch.nn as nn
-import torchaudio
-import torchaudio.functional
 from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
@@ -102,24 +96,34 @@ class Transducer(nn.Module):
 
         decoder_out, _ = self.decoder(sos_y_padded)
 
-        logits = self.joiner(encoder_out, decoder_out)
-
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        assert hasattr(torchaudio.functional, "rnnt_loss"), (
-            f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0"
-        )
+        boundary = torch.zeros((x.size(0), 4),
+                dtype=torch.int64, device=x.device)
+        boundary[:, 2] = y_lens
+        boundary[:, 3] = x_lens
 
-        loss = torchaudio.functional.rnnt_loss(
-            logits=logits,
-            targets=y_padded,
-            logit_lengths=x_lens,
-            target_lengths=y_lens,
-            blank=blank_id,
-            reduction="sum",
-        )
+        y_padded = y_padded.to(torch.int64)
+
+        simple_loss, (px_grad, py_grad) = k2.rnnt_loss_simple(
+                decoder_out, encoder_out, y_padded, blank_id, boundary, True)
+
+        # TODO: make s_range configurable
+        ranges = k2.get_rnnt_prune_ranges(px_grad, py_grad, x_lens, s_range=5)
+
+        am_pruned, lm_pruned = k2.do_rnnt_pruning(
+                encoder_out, decoder_out, ranges)
+
+        logits = self.joiner(am_pruned, lm_pruned)
+
+        # boundary may change after pruning
+        boundary[:, 2] = ranges[:,-1,-1]
+
+        pruned_loss = k2.rnnt_loss_pruned(
+                logits, y_padded, ranges, blank_id, boundary)
+
+        loss =  -(torch.sum(simple_loss) + torch.sum(pruned_loss))
 
         return loss

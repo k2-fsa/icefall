@@ -54,7 +54,8 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
         # fmt: off
         current_encoder_out = encoder_out[:, t:t+1, :]
         # fmt: on
-        logits = model.joiner(current_encoder_out, decoder_out)
+        logits = model.joiner(
+                current_encoder_out.unsqueeze(2), decoder_out.unsqueeze(1))
         # logits is (1, 1, 1, vocab_size)
 
         log_prob = logits.log_softmax(dim=-1)
