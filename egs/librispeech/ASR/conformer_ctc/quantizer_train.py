@@ -59,7 +59,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--output-layer-index",
+        "--mem-layer",
         type=int,
         default=None,
         help="which layer to extract memory embedding"
@@ -69,14 +69,10 @@ def get_parser():
     return parser
 
 
-def initialize_memory_dataloader(
-    mem_dir: Path = None, output_layer_index: int = None
-):
+def initialize_memory_dataloader(mem_dir: Path = None, mem_layer: int = None):
     assert mem_dir is not None
-    assert output_layer_index is not None
-    mem_manifest_file = (
-        mem_dir / f"{output_layer_index}layer-memory_manifest.json"
-    )
+    assert mem_layer is not None
+    mem_manifest_file = mem_dir / f"{mem_layer}layer-memory_manifest.json"
     assert os.path.isfile(
         mem_manifest_file
     ), f"{mem_manifest_file} does not exist."
@@ -95,14 +91,14 @@ def initialize_memory_dataloader(
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    assert args.output_layer_index is not None
+    assert args.mem_layer is not None
     setup_logger(f"{args.mem_dir}/log/quantizer_train")
     trainer = quantization.QuantizerTrainer(
         dim=args.memory_embedding_dim,
         bytes_per_frame=args.bytes_per_frame,
         device=torch.device("cuda"),
     )
-    dl = initialize_memory_dataloader(args.mem_dir, args.output_layer_index)
+    dl = initialize_memory_dataloader(args.mem_dir, args.mem_layer)
     num_cuts = 0
     done_flag = False
     epoch = 0
@@ -125,12 +121,10 @@ def main():
             break
         else:
             epoch += 1
-            dl = initialize_memory_dataloader(
-                args.mem_dir, args.output_layer_index
-            )
+            dl = initialize_memory_dataloader(args.mem_dir, args.mem_layer)
     quantizer = trainer.get_quantizer()
     quantizer_fn = (
-        f"{args.output_layer_index}layer-"
+        f"{args.mem_layer}layer-"
         + quantizer.get_id()
         + f"-bytes_per_frame_{args.bytes_per_frame}-quantizer.pt"
     )
