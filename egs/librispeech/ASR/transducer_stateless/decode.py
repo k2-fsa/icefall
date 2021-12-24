@@ -114,6 +114,14 @@ def get_parser():
         help="Used only when --decoding-method is beam_search",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -129,8 +137,6 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            # parameters for decoder
-            "context_size": 2,  # tri-gram
             "env_info": get_env_info(),
         }
     )
@@ -379,6 +385,8 @@ def main():
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if params.decoding_method == "beam_search":
         params.suffix += f"-beam-{params.beam_size}"
+    else:
+        params.suffix += f"-context-{params.context_size}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")

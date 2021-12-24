@@ -130,6 +130,14 @@ def get_parser():
         help="The lr_factor for Noam optimizer",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -196,8 +204,6 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            # parameters for decoder
-            "context_size": 2,  # tri-gram
             # parameters for Noam
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
