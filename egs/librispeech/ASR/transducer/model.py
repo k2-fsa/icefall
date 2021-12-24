@@ -27,11 +27,6 @@ from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
 
-assert hasattr(torchaudio.functional, "rnnt_loss"), (
-    f"Current torchaudio version: {torchaudio.__version__}\n"
-    "Please install a version >= 0.10.0"
-)
-
 
 class Transducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
@@ -54,7 +49,7 @@ class Transducer(nn.Module):
           decoder:
             It is the prediction network in the paper. Its input shape
             is (N, U) and its output shape is (N, U, C). It should contain
-            two attributes: `blank_id` and `sos_id`.
+            one attribute: `blank_id`.
           joiner:
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
@@ -63,7 +58,6 @@ class Transducer(nn.Module):
         super().__init__()
         assert isinstance(encoder, EncoderInterface)
         assert hasattr(decoder, "blank_id")
-        assert hasattr(decoder, "sos_id")
 
         self.encoder = encoder
         self.decoder = decoder
@@ -102,8 +96,7 @@ class Transducer(nn.Module):
         y_lens = row_splits[1:] - row_splits[:-1]
 
         blank_id = self.decoder.blank_id
-        sos_id = self.decoder.sos_id
-        sos_y = add_sos(y, sos_id=sos_id)
+        sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
@@ -114,6 +107,11 @@ class Transducer(nn.Module):
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
+
+        assert hasattr(torchaudio.functional, "rnnt_loss"), (
+            f"Current torchaudio version: {torchaudio.__version__}\n"
+            "Please install a version >= 0.10.0"
+        )
 
         loss = torchaudio.functional.rnnt_loss(
             logits=logits,

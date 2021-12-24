@@ -20,22 +20,22 @@
 # to a single one using model averaging.
 """
 Usage:
-./transducer/export.py \
-  --exp-dir ./transducer/exp \
+./transducer_stateless/export.py \
+  --exp-dir ./transducer_stateless/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 34 \
-  --avg 11
+  --epoch 20 \
+  --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `transducer/decode.py`, you can do:
+To use the generated file with `transducer_stateless/decode.py`, you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./transducer/decode.py \
-        --exp-dir ./transducer/exp \
+    ./transducer_stateless/decode.py \
+        --exp-dir ./transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 1 \
@@ -66,7 +66,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=34,
+        default=20,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -74,7 +74,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=11,
+        default=10,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -83,7 +83,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer/exp",
+        default="transducer_stateless/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -119,10 +119,9 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 2,
-            "decoder_hidden_dim": 512,
+            "use_feat_batchnorm": True,
+            # parameters for decoder
+            "context_size": 2,  # tri-gram
             "env_info": get_env_info(),
         }
     )
@@ -139,6 +138,7 @@ def get_encoder_model(params: AttributeDict):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
+        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -146,11 +146,9 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
+        context_size=params.context_size,
     )
     return decoder
 
@@ -194,7 +192,7 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 

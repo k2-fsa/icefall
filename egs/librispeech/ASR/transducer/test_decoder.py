@@ -29,7 +29,6 @@ from decoder import Decoder
 def test_decoder():
     vocab_size = 3
     blank_id = 0
-    sos_id = 2
     embedding_dim = 128
     num_layers = 2
     hidden_dim = 6
@@ -41,7 +40,6 @@ def test_decoder():
         vocab_size=vocab_size,
         embedding_dim=embedding_dim,
         blank_id=blank_id,
-        sos_id=sos_id,
         num_layers=num_layers,
         hidden_dim=hidden_dim,
         output_dim=output_dim,

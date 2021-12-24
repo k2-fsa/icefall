@@ -1,18 +1,80 @@
 ## Results
 
-### LibriSpeech BPE training results (RNN-T)
+### LibriSpeech BPE training results (Transducer)
 
-#### 2021-12-17
+#### Conformer encoder + embedding decoder
 
-RNN-T + Conformer encoder
+Using commit `fb6a57e9e01dd8aae2af2a6b4568daad8bc8ab32`.
+
+Conformer encoder + non-current decoder. The decoder
+contains only an embedding layer and a Conv1d (with kernel size 2).
+
+The WERs are
+
+|                           | test-clean | test-other | comment                                  |
+|---------------------------|------------|------------|------------------------------------------|
+| greedy search             | 2.99       | 7.52       | --epoch 20, --avg 10, --max-duration 100 |
+| beam search (beam size 2) | 2.95       | 7.43       |                                          |
+| beam search (beam size 3) | 2.94       | 7.37       |                                          |
+| beam search (beam size 4) | 2.92       | 7.37       |                                          |
+| beam search (beam size 5) | 2.93       | 7.38       |                                          |
+| beam search (beam size 8) | 2.92       | 7.38       |                                          |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless/exp-full \
+  --full-libri 1 \
+  --max-duration 250 \
+  --lr-factor 3
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/PsJ3LgkEQfOmzedAlYfVeg/#scalars&_smoothingWeight=0>
+
+The decoding command is:
+```
+epoch=20
+avg=10
+
+## greedy search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless/exp-full \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100
+
+## beam search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless/exp-full \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --decoding-method beam_search \
+  --beam-size 4
+```
+
+
+#### Conformer encoder + LSTM decoder
+Using commit `TODO`.
+
+Conformer encoder + LSTM decoder.
 
 The best WER is
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 3.16       | 7.71       |
+| WER | 3.07       | 7.51       |
 
-using `--epoch 26 --avg 12` during decoding with greedy search.
+using `--epoch 34 --avg 11` with **greedy search**.
 
 The training command to reproduce the above WER is:
 
@@ -21,19 +83,19 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 35 \
   --start-epoch 0 \
   --exp-dir transducer/exp-lr-2.5-full \
   --full-libri 1 \
-  --max-duration 250 \
+  --max-duration 180 \
   --lr-factor 2.5
 ```
 
 The decoding command is:
 
 ```
-epoch=26
-avg=12
+epoch=34
+avg=11
 
 ./transducer/decode.py \
   --epoch $epoch \
@@ -43,7 +105,7 @@ avg=12
   --max-duration 100
 ```
 
-You can find the tensorboard log at: <https://tensorboard.dev/experiment/PYIbeD6zRJez1ViXaRqqeg/>
+You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3xqTpyVmWi5FnWjrA>
 
 
 ### LibriSpeech BPE training results (Conformer-CTC)

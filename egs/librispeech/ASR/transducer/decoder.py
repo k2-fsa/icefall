@@ -27,7 +27,6 @@ class Decoder(nn.Module):
         vocab_size: int,
         embedding_dim: int,
         blank_id: int,
-        sos_id: int,
         num_layers: int,
         hidden_dim: int,
         output_dim: int,
@@ -42,8 +41,6 @@ class Decoder(nn.Module):
             Dimension of the input embedding.
           blank_id:
             The ID of the blank symbol.
-          sos_id:
-            The ID of the SOS symbol.
           num_layers:
             Number of LSTM layers.
           hidden_dim:
@@ -71,7 +68,6 @@ class Decoder(nn.Module):
             dropout=rnn_dropout,
         )
         self.blank_id = blank_id
-        self.sos_id = sos_id
         self.output_linear = nn.Linear(hidden_dim, output_dim)
 
     def forward(

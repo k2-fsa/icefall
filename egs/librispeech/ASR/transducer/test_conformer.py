@@ -36,7 +36,6 @@ def test_conformer():
         nhead=8,
         dim_feedforward=2048,
         num_encoder_layers=12,
-        use_feat_batchnorm=True,
     )
     N = 3
     T = 100
