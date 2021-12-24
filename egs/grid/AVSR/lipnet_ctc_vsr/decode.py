@@ -440,7 +440,7 @@ def main():
     else:
         G = None
 
-    model = LipNet(num_classes=max_token_id+1)
+    model = LipNet(num_classes=max_token_id + 1)
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:

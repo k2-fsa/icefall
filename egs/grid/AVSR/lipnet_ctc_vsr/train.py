@@ -509,7 +509,7 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-    model = LipNet(num_classes=max_token_id+1)
+    model = LipNet(num_classes=max_token_id + 1)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
