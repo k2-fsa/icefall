@@ -114,6 +114,13 @@ def get_parser():
         help="Used only when --decoding-method is beam_search",
     )
 
+    parser.add_argument(
+        "--max-sym-per-frame",
+        type=int,
+        default=3,
+        help="Maximum number of symbols per frame",
+    )
+
     return parser
 
 
@@ -237,7 +244,11 @@ def decode_one_batch(
         encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
         # fmt: on
         if params.decoding_method == "greedy_search":
-            hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
@@ -381,6 +392,8 @@ def main():
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if params.decoding_method == "beam_search":
         params.suffix += f"-beam-{params.beam_size}"
+    else:
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
