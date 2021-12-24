@@ -180,7 +180,6 @@ def get_params() -> AttributeDict:
             "anno_path": Path("download/GRID/GRID_align_txt"),
             "train_list": Path("download/GRID/unseen_train.txt"),
             "vid_padding": 75,
-            "aud_padding": 200,
             "num_workers": 16,
             "batch_size": 120,
         }
@@ -503,13 +502,14 @@ def run(rank, world_size, args):
         tb_writer = None
 
     lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-    model = LipNet()
+    model = LipNet(num_classes=max_token_id+1)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 

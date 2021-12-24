@@ -386,6 +386,7 @@ def main():
     logging.info(params)
 
     lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -439,7 +440,7 @@ def main():
     else:
         G = None
 
-    model = LipNet()
+    model = LipNet(num_classes=max_token_id+1)
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:

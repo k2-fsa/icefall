@@ -4,8 +4,9 @@ import torch.nn as nn
 
 
 class LipNet(torch.nn.Module):
-    def __init__(self, dropout_p=0.1):
+    def __init__(self, num_classes, dropout_p=0.1):
         super(LipNet, self).__init__()
+        self.num_classes = num_classes
         self.conv1 = nn.Conv3d(3, 32, (3, 5, 5), (1, 2, 2), (1, 2, 2))
         self.pool1 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
 
@@ -18,7 +19,7 @@ class LipNet(torch.nn.Module):
         self.gru1 = nn.GRU(96 * 4 * 8, 256, 1, bidirectional=True)
         self.gru2 = nn.GRU(512, 256, 1, bidirectional=True)
 
-        self.FC = nn.Linear(512, 28)
+        self.FC = nn.Linear(512, self.num_classes)
         self.dropout_p = dropout_p
 
         self.relu = nn.ReLU(inplace=True)
