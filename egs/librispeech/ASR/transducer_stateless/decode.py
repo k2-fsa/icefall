@@ -121,6 +121,12 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+    parser.add_argument(
+        "--max-sym-per-frame",
+        type=int,
+        default=3,
+        help="Maximum number of symbols per frame",
+    )
 
     return parser
 
@@ -241,7 +247,11 @@ def decode_one_batch(
         encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
         # fmt: on
         if params.decoding_method == "greedy_search":
-            hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
@@ -387,6 +397,7 @@ def main():
         params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
