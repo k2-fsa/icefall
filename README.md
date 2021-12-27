@@ -150,7 +150,7 @@ and [Conv3d ResNet18 BiGRU CTC model][GRID_conv3d_resnet18_bigru_ctc].
 
 #### Conv3d Map BiGRU CTC Model
 
-The best WER we currently have is:
+The WER for this model is:
 
 ||TEST|
 |--|--|
@@ -172,7 +172,7 @@ For the ASR (automatic speech recognition) task, we provide one model: [Tdnn Lst
 
 #### Tdnn Lstm CTC Model
 
-The best WER we currently have is:
+The WER for this model is:
 
 ||TEST|
 |--|--|
@@ -184,7 +184,7 @@ For the AVSR (audio-visual speech recognition) task, we provide one model: [Comb
 
 #### CombineNet CTC Model
 
-The best WER we currently have is:
+The WER for this model is:
 
 ||TEST|
 |--|--|
