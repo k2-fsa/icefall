@@ -39,7 +39,6 @@ class Transformer(EncoderInterface):
         dropout: float = 0.1,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        use_feat_batchnorm: bool = False,
     ) -> None:
         """
         Args:
@@ -65,13 +64,8 @@ class Transformer(EncoderInterface):
             If True, use pre-layer norm; False to use post-layer norm.
           vgg_frontend:
             True to use vgg style frontend for subsampling.
-          use_feat_batchnorm:
-            True to use batchnorm for the input layer.
         """
         super().__init__()
-        self.use_feat_batchnorm = use_feat_batchnorm
-        if use_feat_batchnorm:
-            self.feat_batchnorm = nn.BatchNorm1d(num_features)
 
         self.num_features = num_features
         self.output_dim = output_dim
@@ -131,11 +125,6 @@ class Transformer(EncoderInterface):
             - logit_lens, a tensor of shape (batch_size,) containing the number
               of frames in `logits` before padding.
         """
-        if self.use_feat_batchnorm:
-            x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
-            x = self.feat_batchnorm(x)
-            x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
-
         x = self.encoder_embed(x)
         x = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)

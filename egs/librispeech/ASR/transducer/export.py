@@ -23,8 +23,8 @@ Usage:
 ./transducer/export.py \
   --exp-dir ./transducer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 26 \
-  --avg 12
+  --epoch 34 \
+  --avg 11
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -66,7 +66,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=26,
+        default=34,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -74,7 +74,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=12,
+        default=11,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -119,10 +119,9 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            "use_feat_batchnorm": True,
             # decoder params
             "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
+            "num_decoder_layers": 2,
             "decoder_hidden_dim": 512,
             "env_info": get_env_info(),
         }
@@ -140,7 +139,6 @@ def get_encoder_model(params: AttributeDict):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
-        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -150,7 +148,6 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.decoder_embedding_dim,
         blank_id=params.blank_id,
-        sos_id=params.sos_id,
         num_layers=params.num_decoder_layers,
         hidden_dim=params.decoder_hidden_dim,
         output_dim=params.encoder_out_dim,
@@ -197,9 +194,8 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)

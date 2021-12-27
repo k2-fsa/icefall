@@ -111,7 +111,6 @@ def beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
-    sos_id = model.decoder.sos_id
     device = model.device
 
     sos = torch.tensor([blank_id], device=device).reshape(1, 1)
@@ -192,7 +191,7 @@ def beam_search(
 
             # Second, choose other labels
             for i, v in enumerate(log_prob.tolist()):
-                if i in (blank_id, sos_id):
+                if i == blank_id:
                     continue
                 new_ys = y_star.ys + [i]
                 new_log_prob = y_star.log_prob + v

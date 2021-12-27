@@ -39,7 +39,6 @@ def test_transducer():
     # decoder params
     vocab_size = 3
     blank_id = 0
-    sos_id = 2
     embedding_dim = 128
     num_layers = 2
 
@@ -51,14 +50,12 @@ def test_transducer():
         nhead=8,
         dim_feedforward=2048,
         num_encoder_layers=12,
-        use_feat_batchnorm=True,
     )
 
     decoder = Decoder(
         vocab_size=vocab_size,
         embedding_dim=embedding_dim,
         blank_id=blank_id,
-        sos_id=sos_id,
         num_layers=num_layers,
         hidden_dim=output_dim,
         output_dim=output_dim,

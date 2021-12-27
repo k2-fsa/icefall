@@ -20,13 +20,14 @@ import torch.nn.functional as F
 
 
 class Decoder(nn.Module):
-    """This class implements the stateless decoder from the following paper:
+    """This class modifies the stateless decoder from the following paper:
 
         RNN-transducer with stateless prediction network
         https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419
 
     It removes the recurrent connection from the decoder, i.e., the prediction
-    network.
+    network. Different from the above paper, it adds an extra Conv1d
+    right after the embedding layer.
 
     TODO: Implement https://arxiv.org/pdf/2109.07513.pdf
     """
