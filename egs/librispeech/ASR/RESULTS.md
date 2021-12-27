@@ -4,7 +4,7 @@
 
 #### Conformer encoder + embedding decoder
 
-Using commit `fb6a57e9e01dd8aae2af2a6b4568daad8bc8ab32`.
+Using commit `TODO`.
 
 Conformer encoder + non-current decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
@@ -13,12 +13,8 @@ The WERs are
 
 |                           | test-clean | test-other | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.99       | 7.52       | --epoch 20, --avg 10, --max-duration 100 |
-| beam search (beam size 2) | 2.95       | 7.43       |                                          |
-| beam search (beam size 3) | 2.94       | 7.37       |                                          |
-| beam search (beam size 4) | 2.92       | 7.37       |                                          |
-| beam search (beam size 5) | 2.93       | 7.38       |                                          |
-| beam search (beam size 8) | 2.92       | 7.38       |                                          |
+| greedy search             | 2.85       | 7.30       | --epoch 29, --avg 13, --max-duration 100 |
+| beam search (beam size 4) | 2.83       | 7.19       |                                          |
 
 The training command for reproducing is given below:
 
@@ -36,12 +32,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/PsJ3LgkEQfOmzedAlYfVeg/#scalars&_smoothingWeight=0>
+<https://tensorboard.dev/experiment/Mjx7MeTgR3Oyr1yBCwjozw/>
 
 The decoding command is:
 ```
-epoch=20
-avg=10
+epoch=29
+avg=13
 
 ## greedy search
 ./transducer_stateless/decode.py \
@@ -64,7 +60,7 @@ avg=10
 
 
 #### Conformer encoder + LSTM decoder
-Using commit `TODO`.
+Using commit `8187d6236c2926500da5ee854f758e621df803cc`.
 
 Conformer encoder + LSTM decoder.
 
