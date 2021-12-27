@@ -221,4 +221,5 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
+[grid]: egs/grid/AVSR
 [k2]: https://github.com/k2-fsa/k2
