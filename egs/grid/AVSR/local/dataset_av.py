@@ -1,8 +1,25 @@
-# encoding: utf-8
+#!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Mingshuang Luo)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import cv2
-import os
 import kaldifeat
 import numpy as np
+import os
 
 import torch
 import torchaudio
@@ -18,14 +35,14 @@ class dataset_av(Dataset):
         anno_path,
         file_list,
         feature_dim,
-        vid_pad,
-        aud_pad,
+        vid_pading,
+        aud_pading,
         sample_rate,
         phase,
     ):
         self.anno_path = anno_path
-        self.vid_pad = vid_pad
-        self.aud_pad = aud_pad
+        self.vid_pading = vid_pading
+        self.aud_pading = aud_pading
         self.feature_dim = feature_dim
         self.sample_rate = sample_rate
         self.phase = phase
@@ -48,8 +65,8 @@ class dataset_av(Dataset):
 
         vid = self._load_vid(vid)
         aud = self._load_aud(aud)
-        vid = self._padding(vid, self.vid_pad)
-        aud = self._padding(aud, self.aud_pad)
+        vid = self._padding(vid, self.vid_pading)
+        aud = self._padding(aud, self.aud_pading)
         anno = self._load_anno(
             os.path.join(self.anno_path, spk, "align", name + ".align")
         )
@@ -58,8 +75,8 @@ class dataset_av(Dataset):
             vid = HorizontalFlip(vid)
         vid = ColorNormalize(vid)
 
-        vid = self._padding(vid, self.vid_pad)
-        aud = self._padding(aud, self.aud_pad)
+        vid = self._padding(vid, self.vid_pading)
+        aud = self._padding(aud, self.aud_pading)
 
         return {
             "vid": torch.FloatTensor(vid.transpose(3, 0, 1, 2)),

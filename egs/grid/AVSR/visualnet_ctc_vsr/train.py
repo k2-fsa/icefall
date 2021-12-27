@@ -34,7 +34,7 @@ from torch.utils.data import DataLoader
 
 from local.dataset_visual import dataset_visual
 from lhotse.utils import fix_random_seed
-from model import LipNet
+from model import VisualNet
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -157,7 +157,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("lipnet_ctc_vsr/exp"),
+            "exp_dir": Path("visualnet_ctc_vsr/exp"),
             "lang_dir": Path("data/lang_character"),
             "lr": 4e-4,
             "feature_dim": 80,
@@ -509,7 +509,7 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-    model = LipNet(num_classes=max_token_id + 1)
+    model = VisualNet(num_classes=max_token_id + 1)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 

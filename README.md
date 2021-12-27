@@ -18,6 +18,7 @@ We provide four recipes at present:
   - [LibriSpeech][librispeech]
   - [Aishell][aishell]
   - [TIMIT][timit]
+  - [GRID][grid]
 
 ### yesno
 
@@ -142,6 +143,54 @@ The PER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb?usp=sharing)
 
+### GRID
+
+For the VSR (visual speech recognition) task, we provide two models: [Conv3d Map BiGRU CTC model][GRID_conv3d_map_bigru_ctc]
+and [Conv3d ResNet18 BiGRU CTC model][GRID_conv3d_resnet18_bigru_ctc].
+
+#### Conv3d Map BiGRU CTC Model
+
+The best WER we currently have is:
+
+||TEST|
+|--|--|
+|WER| 15.68% |
+
+We provide a Colab notebook to run a pre-trained Conv3d Map BiGRU CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1X1U2VsHD3AmRQ4UvdVEuj2y8HKJ0ZJgS?usp=sharing)
+
+#### Conv3d ResNet18 BiGRU CTC Model
+
+The WER for this model is:
+
+||TEST|
+|--|--|
+|WER| 13.63% |
+
+We provide a Colab notebook to run a pre-trained Conv3d ResNet18 BiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1PC9Fd7QcOOONFKUQqwLODwjztCuI-Oh1?usp=sharing)
+
+For the ASR (automatic speech recognition) task, we provide one model: [Tdnn Lstm CTC model][GRID_tdnn_lstm_ctc].
+
+#### Tdnn Lstm CTC Model
+
+The best WER we currently have is:
+
+||TEST|
+|--|--|
+|WER| 2.35% |
+
+We provide a Colab notebook to run a pre-trained Tdnn Lstm CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1bkDyVDVBhGJS5TuvjNsJ1yJ3vlCoFk9p?usp=sharing)
+
+For the AVSR (audio-visual speech recognition) task, we provide one model: [CombineNet CTC model][GRID_combinenet_ctc].
+
+#### CombineNet CTC Model
+
+The best WER we currently have is:
+
+||TEST|
+|--|--|
+|WER| 1.71% |
+
+We provide a Colab notebook to run a pre-trained CombineNet CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1UmCYX7GwbQ3Ms6SnoAuB8Tov46OD82hb?usp=sharing)
 
 ## Deployment with C++
 
@@ -164,6 +213,10 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
+[GRID_conv3d_map_bigru_ctc]: egs/grid/AVSR/visualnet_ctc_vsr
+[GRID_conv3d_resnet18_bigru_ctc]:egs/grid/AVSR/visualnet2_ctc_vsr
+[GRID_tdnn_lstm_ctc]: egs/grid/AVSR/audionet_ctc_asr
+[GRID_combinenet_ctc]: egs/grid/AVSR/combinenet_ctc_avsr
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR

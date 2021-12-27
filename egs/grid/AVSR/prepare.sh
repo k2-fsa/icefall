@@ -60,12 +60,13 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   #git clone https://huggingface.co/luomingshuang/grid_lm $dl_dir/lm
   #cd $dl_dir/lm && git lfs pull
 
-  # You can also use the following commands to download the lm files
-  wget -P $dl_dir/lm https://huggingface.co/luomingshuang/grid_lm/resolve/main/lm_3_gram.arpa
-  wget -P $dl_dir/lm https://huggingface.co/luomingshuang/grid_lm/resolve/main/lm_4_gram.arpa
-
+  # You can also use the following commands to download the lm files.
   # Because the texts among the samples in GRID are very similar,
   # the lm_4_gram.arpa is nearly no use for decoding when use LM.
+  # In our experiments, the decoding results based on 1best is better
+  # than based on whole-lattice-rescoring.
+  wget -P $dl_dir/lm https://huggingface.co/luomingshuang/grid_lm/resolve/main/lm_3_gram.arpa
+  wget -P $dl_dir/lm https://huggingface.co/luomingshuang/grid_lm/resolve/main/lm_4_gram.arpa
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then

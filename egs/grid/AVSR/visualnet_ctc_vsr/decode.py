@@ -31,7 +31,7 @@ import torch.nn as nn
 
 from torch.utils.data import DataLoader
 from local.dataset_visual import dataset_visual
-from model import LipNet
+from model import VisualNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -129,7 +129,7 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            "exp_dir": Path("lipnet_ctc_vsr/exp"),
+            "exp_dir": Path("visualnet_ctc_vsr/exp"),
             "lang_dir": Path("data/lang_character"),
             "lm_dir": Path("data/lm"),
             "search_beam": 20,
@@ -440,7 +440,7 @@ def main():
     else:
         G = None
 
-    model = LipNet(num_classes=max_token_id + 1)
+    model = VisualNet(num_classes=max_token_id + 1)
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:

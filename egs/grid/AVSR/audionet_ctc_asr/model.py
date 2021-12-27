@@ -59,7 +59,6 @@ class AudioNet(nn.Module):
                 in_channels=512,
                 out_channels=512,
                 kernel_size=3,
-                # stride=self.subsampling_factor,  # stride: subsampling_factor!
                 stride=1,
                 padding=1,
             ),

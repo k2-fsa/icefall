@@ -1,11 +1,28 @@
 #!/usr/bin/env python3
+# Copyright      2021  Xiaomi Corp.        (authors: Mingshuang Luo)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import torch
 import torch.nn as nn
 
 
-class LipNet(torch.nn.Module):
+class VisualNet(torch.nn.Module):
     def __init__(self, num_classes, dropout_p=0.1):
-        super(LipNet, self).__init__()
+        super(VisualNet, self).__init__()
         self.num_classes = num_classes
         self.conv1 = nn.Conv3d(3, 32, (3, 5, 5), (1, 2, 2), (1, 2, 2))
         self.pool1 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
