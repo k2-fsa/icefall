@@ -130,6 +130,14 @@ def get_parser():
         help="The lr_factor for Noam optimizer",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -171,14 +179,9 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
-
         - attention_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - weight_decay:  The weight_decay for the optimizer.
 
         - warm_step: The warm_step for Noam optimizer.
     """
@@ -201,11 +204,7 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            "use_feat_batchnorm": True,
-            # parameters for decoder
-            "context_size": 2,  # tri-gram
             # parameters for Noam
-            "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
@@ -225,7 +224,6 @@ def get_encoder_model(params: AttributeDict):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
-        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -568,7 +566,7 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
@@ -593,7 +591,6 @@ def run(rank, world_size, args):
         model_size=params.attention_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
     if checkpoints and "optimizer" in checkpoints:
