@@ -14,24 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple
-
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
-# TODO(fangjun): Support switching between LSTM and GRU
 class Decoder(nn.Module):
+    """This class modifies the stateless decoder from the following paper:
+
+        RNN-transducer with stateless prediction network
+        https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419
+
+    It removes the recurrent connection from the decoder, i.e., the prediction
+    network. Different from the above paper, it adds an extra Conv1d
+    right after the embedding layer.
+
+    TODO: Implement https://arxiv.org/pdf/2109.07513.pdf
+    """
+
     def __init__(
         self,
         vocab_size: int,
         embedding_dim: int,
         blank_id: int,
-        num_layers: int,
-        hidden_dim: int,
-        output_dim: int,
-        embedding_dropout: float = 0.0,
-        rnn_dropout: float = 0.0,
+        context_size: int,
     ):
         """
         Args:
@@ -41,16 +47,9 @@ class Decoder(nn.Module):
             Dimension of the input embedding.
           blank_id:
             The ID of the blank symbol.
-          num_layers:
-            Number of LSTM layers.
-          hidden_dim:
-            Hidden dimension of LSTM layers.
-          output_dim:
-            Output dimension of the decoder.
-          embedding_dropout:
-            Dropout rate for the embedding layer.
-          rnn_dropout:
-            Dropout for LSTM layers.
+          context_size:
+            Number of previous words to use to predict the next word.
+            1 means bigram; 2 means trigram. n means (n+1)-gram.
         """
         super().__init__()
         self.embedding = nn.Embedding(
@@ -58,40 +57,42 @@ class Decoder(nn.Module):
             embedding_dim=embedding_dim,
             padding_idx=blank_id,
         )
-        self.embedding_dropout = nn.Dropout(embedding_dropout)
-        # TODO(fangjun): Use layer normalized LSTM
-        self.rnn = nn.LSTM(
-            input_size=embedding_dim,
-            hidden_size=hidden_dim,
-            num_layers=num_layers,
-            batch_first=True,
-            dropout=rnn_dropout,
-        )
         self.blank_id = blank_id
-        self.output_linear = nn.Linear(hidden_dim, output_dim)
 
-    def forward(
-        self,
-        y: torch.Tensor,
-        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        assert context_size >= 1, context_size
+        self.context_size = context_size
+        if context_size > 1:
+            self.conv = nn.Conv1d(
+                in_channels=embedding_dim,
+                out_channels=embedding_dim,
+                kernel_size=context_size,
+                padding=0,
+                groups=embedding_dim,
+                bias=False,
+            )
+
+    def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
         Args:
           y:
-            A 2-D tensor of shape (N, U) with BOS prepended.
-          states:
-            A tuple of two tensors containing the states information of
-            LSTM layers in this decoder.
+            A 2-D tensor of shape (N, U) with blank prepended.
+          need_pad:
+            True to left pad the input. Should be True during training.
+            False to not pad the input. Should be False during inference.
         Returns:
-          Return a tuple containing:
-
-            - rnn_output, a tensor of shape (N, U, C)
-            - (h, c), containing the state information for LSTM layers.
-              Both are of shape (num_layers, N, C)
+          Return a tensor of shape (N, U, embedding_dim).
         """
         embeding_out = self.embedding(y)
-        embeding_out = self.embedding_dropout(embeding_out)
-        rnn_out, (h, c) = self.rnn(embeding_out, states)
-        out = self.output_linear(rnn_out)
-
-        return out, (h, c)
+        if self.context_size > 1:
+            embeding_out = embeding_out.permute(0, 2, 1)
+            if need_pad is True:
+                embeding_out = F.pad(
+                    embeding_out, pad=(self.context_size - 1, 0)
+                )
+            else:
+                # During inference time, there is no need to do extra padding
+                # as we only need one output
+                assert embeding_out.size(-1) == self.context_size
+            embeding_out = self.conv(embeding_out)
+            embeding_out = embeding_out.permute(0, 2, 1)
+        return embeding_out

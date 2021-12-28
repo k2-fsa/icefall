@@ -131,6 +131,14 @@ def get_parser():
         help="The lr_factor for Noam optimizer",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -172,9 +180,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
-
         - attention_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
@@ -195,14 +200,10 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "encoder_out_dim": 512,
             "subsampling_factor": 4,
-            "encoder_hidden_size": 1024,
-            "num_encoder_layers": 4,
+            "encoder_hidden_size": 2048,
+            "num_encoder_layers": 6,
             "proj_size": 512,
             "vgg_frontend": False,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
-            "decoder_hidden_dim": 512,
             # parameters for Noam
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
@@ -227,12 +228,11 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
+        context_size=params.context_size,
     )
+
     return decoder
 
 
@@ -573,10 +573,10 @@ def run(rank, world_size, args):
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
-
     num_param = sum([p.numel() for p in model.parameters() if p.requires_grad])
     logging.info(f"Number of model parameters: {num_param}")
+
+    checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:

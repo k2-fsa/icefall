@@ -114,6 +114,14 @@ def get_parser():
         help="Used only when --decoding-method is beam_search",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -124,14 +132,10 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "encoder_out_dim": 512,
             "subsampling_factor": 4,
-            "encoder_hidden_size": 1024,
-            "num_encoder_layers": 4,
+            "encoder_hidden_size": 2048,
+            "num_encoder_layers": 6,
             "proj_size": 512,
             "vgg_frontend": False,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
-            "decoder_hidden_dim": 512,
             "env_info": get_env_info(),
         }
     )
@@ -153,11 +157,9 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
+        context_size=params.context_size,
     )
     return decoder
 
