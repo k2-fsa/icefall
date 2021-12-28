@@ -32,7 +32,7 @@ Usage:
         --exp-dir ./transducer_lstm/exp \
         --max-duration 100 \
         --decoding-method beam_search \
-        --beam-size 8
+        --beam-size 4
 """
 
 
@@ -70,14 +70,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=77,
+        default=29,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=55,
+        default=13,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -110,7 +110,7 @@ def get_parser():
     parser.add_argument(
         "--beam-size",
         type=int,
-        default=5,
+        default=4,
         help="Used only when --decoding-method is beam_search",
     )
 
@@ -120,6 +120,13 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--max-sym-per-frame",
+        type=int,
+        default=3,
+        help="Maximum number of symbols per frame",
     )
 
     return parser
@@ -132,8 +139,8 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "encoder_out_dim": 512,
             "subsampling_factor": 4,
-            "encoder_hidden_size": 2048,
-            "num_encoder_layers": 6,
+            "encoder_hidden_size": 1024,
+            "num_encoder_layers": 7,
             "proj_size": 512,
             "vgg_frontend": False,
             "env_info": get_env_info(),
@@ -237,7 +244,11 @@ def decode_one_batch(
         encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
         # fmt: on
         if params.decoding_method == "greedy_search":
-            hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
@@ -381,6 +392,9 @@ def main():
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if params.decoding_method == "beam_search":
         params.suffix += f"-beam-{params.beam_size}"
+    else:
+        params.suffix += f"-context-{params.context_size}"
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")

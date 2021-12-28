@@ -13,7 +13,7 @@ The following table lists the differences among them.
 |------------------------|-----------|--------------------|
 | `transducer`           | Conformer | LSTM               |
 | `transducer_stateless` | Conformer | Embedding + Conv1d |
-| `transducer_lstm     ` | LSTM      | LSTM               |
+| `transducer_lstm     ` | LSTM      | Embedding + Conv1d |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
