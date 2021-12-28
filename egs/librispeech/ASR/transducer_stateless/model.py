@@ -14,15 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Note we use `rnnt_loss` from torchaudio, which exists only in
-torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
-"""
 import k2
 import torch
 import torch.nn as nn
-import torchaudio
-import torchaudio.functional
 from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
@@ -102,18 +96,24 @@ class Transducer(nn.Module):
 
         decoder_out = self.decoder(sos_y_padded)
 
-        logits = self.joiner(encoder_out, decoder_out)
+        # +1 here since a blank is prepended to each utterance.
+        logits = self.joiner(
+            encoder_out=encoder_out,
+            decoder_out=decoder_out,
+            encoder_out_len=x_lens,
+            decoder_out_len=y_lens + 1,
+        )
 
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        assert hasattr(torchaudio.functional, "rnnt_loss"), (
-            f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0"
-        )
+        # We don't put this `import` at the beginning of the file
+        # as it is required only in the training, not during the
+        # reference stage
+        import optimized_transducer
 
-        loss = torchaudio.functional.rnnt_loss(
+        loss = optimized_transducer.transducer_loss(
             logits=logits,
             targets=y_padded,
             logit_lengths=x_lens,
