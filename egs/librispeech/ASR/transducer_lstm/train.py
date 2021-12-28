@@ -179,8 +179,6 @@ def get_params() -> AttributeDict:
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
-        - weight_decay:  The weight_decay for the optimizer.
-
         - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
@@ -206,7 +204,6 @@ def get_params() -> AttributeDict:
             "num_decoder_layers": 4,
             "decoder_hidden_dim": 512,
             # parameters for Noam
-            "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
@@ -232,7 +229,6 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.decoder_embedding_dim,
         blank_id=params.blank_id,
-        sos_id=params.sos_id,
         num_layers=params.num_decoder_layers,
         hidden_dim=params.decoder_hidden_dim,
         output_dim=params.encoder_out_dim,
@@ -568,9 +564,8 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -594,7 +589,6 @@ def run(rank, world_size, args):
         model_size=params.encoder_hidden_size,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
     if checkpoints and "optimizer" in checkpoints:
