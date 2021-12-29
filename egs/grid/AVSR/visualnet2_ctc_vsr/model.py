@@ -115,9 +115,10 @@ class ResNet(nn.Module):
 
 
 class VisualNet2(nn.Module):
-    def __init__(self, inputDim=512):
+    def __init__(self, num_classes):
         super(VisualNet2, self).__init__()
-        self.inputDim = inputDim
+        self.num_classes = num_classes
+        self.inputDim = 512
         self.conv3d = nn.Conv3d(
             3,
             64,
@@ -143,7 +144,7 @@ class VisualNet2(nn.Module):
         self.dropout = nn.Dropout(p=0.5)
 
         # fc
-        self.linear = nn.Linear(1024, 28)
+        self.linear = nn.Linear(1024, self.num_classes)
 
         # initialize
         self._initialize_weights()

@@ -503,13 +503,14 @@ def run(rank, world_size, args):
         tb_writer = None
 
     lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
     graph_compiler = CtcTrainingGraphCompiler(lexicon=lexicon, device=device)
-    model = VisualNet2()
+    model = VisualNet2(num_classes=max_token_id + 1)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
