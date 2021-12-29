@@ -65,8 +65,8 @@ class Joiner(nn.Module):
         x = [p.reshape(-1, self.input_dim) for p in x]
         x = torch.cat(x)
 
-        logit = torch.tanh(x)
+        activations = torch.tanh(x)
 
-        output = self.output_linear(logit)
+        logits = self.output_linear(activations)
 
-        return output
+        return logits
