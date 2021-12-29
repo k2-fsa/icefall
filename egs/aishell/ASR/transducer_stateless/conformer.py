@@ -56,7 +56,6 @@ class Conformer(Transformer):
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        use_feat_batchnorm: bool = False,
     ) -> None:
         super(Conformer, self).__init__(
             num_features=num_features,
@@ -69,7 +68,6 @@ class Conformer(Transformer):
             dropout=dropout,
             normalize_before=normalize_before,
             vgg_frontend=vgg_frontend,
-            use_feat_batchnorm=use_feat_batchnorm,
         )
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
@@ -107,11 +105,6 @@ class Conformer(Transformer):
             - logit_lens, a tensor of shape (batch_size,) containing the number
               of frames in `logits` before padding.
         """
-        if self.use_feat_batchnorm:
-            x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
-            x = self.feat_batchnorm(x)
-            x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
-
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
@@ -873,7 +866,7 @@ class ConvolutionModule(nn.Module):
             groups=channels,
             bias=bias,
         )
-        self.norm = nn.BatchNorm1d(channels)
+        self.norm = nn.LayerNorm(channels)
         self.pointwise_conv2 = nn.Conv1d(
             channels,
             channels,
@@ -903,7 +896,12 @@ class ConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
-        x = self.activation(self.norm(x))
+        # x is (batch, channels, time)
+        x = x.permute(0, 2, 1)
+        x = self.norm(x)
+        x = x.permute(0, 2, 1)
+
+        x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 

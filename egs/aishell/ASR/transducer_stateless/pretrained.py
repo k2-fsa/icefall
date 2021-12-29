@@ -110,6 +110,22 @@ def get_parser():
         help="Used only when --method is beam_search",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+    parser.add_argument(
+        "--max-sym-per-frame",
+        type=int,
+        default=3,
+        help="""Maximum number of symbols per frame. Used only when
+        --method is greedy_search.
+        """,
+    )
+
     return parser
 
 
@@ -126,9 +142,6 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            "use_feat_batchnorm": True,
-            # parameters for decoder
-            "context_size": 2,  # tri-gram
             "env_info": get_env_info(),
         }
     )
@@ -145,7 +158,6 @@ def get_encoder_model(params: AttributeDict):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
-        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -279,7 +291,11 @@ def main():
         encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
         # fmt: on
         if params.method == "greedy_search":
-            hyp = greedy_search(model=model, encoder_out=encoder_out_i)
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
         elif params.method == "beam_search":
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size

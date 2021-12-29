@@ -318,7 +318,7 @@ class AishellAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
-        is_list = isinstance(cuts, list)
+        logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
@@ -328,40 +328,27 @@ class AishellAsrDataModule:
         sampler = BucketingSampler(
             cuts, max_duration=self.args.max_duration, shuffle=False
         )
-        logging.debug("About to create test dataloader")
         test_dl = DataLoader(
             test,
             batch_size=None,
             sampler=sampler,
             num_workers=self.args.num_workers,
         )
+        return test_dl
 
-        if is_list:
-            return test_dl
-        else:
-            return test_dl[0]
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(self.args.feature_dir / "cuts_train.json.gz")
+        cuts_train = load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(self.args.feature_dir / "cuts_dev.json.gz")
-        return cuts_valid
+        return load_manifest(self.args.manifest_dir / "cuts_dev.json.gz")
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
-        test_sets = ["test"]
-        cuts = []
-        for test_set in test_sets:
-            logging.debug("About to get test cuts")
-            cuts.append(
-                load_manifest(
-                    self.args.feature_dir / f"cuts_{test_set}.json.gz"
-                )
-            )
-        return cuts
+        logging.info("About to get test cuts")
+        return load_manifest(self.args.manifest_dir / f"cuts_test.json.gz")

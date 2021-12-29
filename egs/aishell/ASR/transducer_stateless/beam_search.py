@@ -22,13 +22,18 @@ import torch
 from model import Transducer
 
 
-def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
+def greedy_search(
+    model: Transducer, encoder_out: torch.Tensor, max_sym_per_frame: int
+) -> List[int]:
     """
     Args:
       model:
         An instance of `Transducer`.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
+      max_sym_per_frame:
+        Maximum number of symbols per frame. If it is set to 0, the WER
+        would be 100%.
     Returns:
       Return the decoded result.
     """
@@ -55,10 +60,6 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     # Maximum symbols per utterance.
     max_sym_per_utt = 1000
 
-    # If at frame t, it decodes more than this number of symbols,
-    # it will move to the next step t+1
-    max_sym_per_frame = 3
-
     # symbols per frame
     sym_per_frame = 0
 
@@ -66,6 +67,11 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     sym_per_utt = 0
 
     while t < T and sym_per_utt < max_sym_per_utt:
+        if sym_per_frame >= max_sym_per_frame:
+            sym_per_frame = 0
+            t += 1
+            continue
+
         # fmt: off
         current_encoder_out = encoder_out[:, t:t+1, :]
         # fmt: on
@@ -83,8 +89,7 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
 
             sym_per_utt += 1
             sym_per_frame += 1
-
-        if y == blank_id or sym_per_frame > max_sym_per_frame:
+        else:
             sym_per_frame = 0
             t += 1
     hyp = hyp[context_size:]  # remove blanks

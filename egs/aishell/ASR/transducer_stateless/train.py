@@ -2,6 +2,7 @@
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                  Wei Kang
 #                                                  Mingshuang Luo)
+# Copyright    2021                      (Pingfeng Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -120,6 +121,14 @@ def get_parser():
         help="The lr_factor for Noam optimizer",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -161,14 +170,9 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
-
         - attention_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - weight_decay:  The weight_decay for the optimizer.
 
         - warm_step: The warm_step for Noam optimizer.
     """
@@ -191,11 +195,7 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            "use_feat_batchnorm": True,
-            # parameters for decoder
-            "context_size": 2,  # tri-gram
             # parameters for Noam
-            "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
@@ -215,7 +215,6 @@ def get_encoder_model(params: AttributeDict):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
-        use_feat_batchnorm=params.use_feat_batchnorm,
     )
     return encoder
 
@@ -556,11 +555,10 @@ def run(rank, world_size, args):
     graph_compiler = CharCtcTrainingGraphCompiler(
         lexicon=lexicon,
         device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
+        oov='<unk>',
     )
 
-    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0]
+    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
     params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
@@ -584,7 +582,6 @@ def run(rank, world_size, args):
         model_size=params.attention_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
     if checkpoints and "optimizer" in checkpoints:
@@ -611,8 +608,7 @@ def run(rank, world_size, args):
     logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
     train_dl = aishell.train_dataloaders(train_cuts)
-
-    valid_dl = aishell.valid_dataloaders(aishell.dev_cuts())
+    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)

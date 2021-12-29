@@ -33,6 +33,7 @@ consisting of words and tokens (i.e., phones) and does the following:
 
 5. Generate L_disambig.pt, in k2 format.
 """
+import argparse
 import math
 from collections import defaultdict
 from pathlib import Path
@@ -314,8 +315,14 @@ def lexicon_to_fst(
     return fsa
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang-dir", type=str, help="The lang dir, data/lang_phone or data/lang_syllable")
+    return parser.parse_args()
+
+
 def main():
-    out_dir = Path("data/lang_phone")
+    out_dir = Path(get_args().lang_dir)
     lexicon_filename = out_dir / "lexicon.txt"
     sil_token = "SIL"
     sil_prob = 0.5
