@@ -72,9 +72,13 @@ def compute_fbank_gigaspeech_dev_test():
             batch_duration=batch_duration,
             storage_type=LilcomHdf5Writer,
         )
+        cut_set = cut_set.trim_to_supervisions(
+            keep_overlapping=False, min_duration=None
+        )
 
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
+        logging.info(f"Saved to {cuts_path}")
 
 
 def main():
