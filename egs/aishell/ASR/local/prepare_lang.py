@@ -317,7 +317,8 @@ def lexicon_to_fst(
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lang-dir", type=str, help="The lang dir, data/lang_phone or data/lang_syllable")
+    parser.add_argument("--lang-dir", type=str,
+                        help="The lang dir, data/lang_phone")
     return parser.parse_args()
 
 
