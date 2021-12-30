@@ -36,22 +36,22 @@ def process_line(
     word_syllables = []
     word_syllables_num = 1
     inited = False
-    for char_syllables in pinyins :
+    for char_syllables in pinyins:
         new_char_syllables_num = len(char_syllables)
-        if not inited and len(char_syllables) :
+        if not inited and len(char_syllables):
             word_syllables = [char_syllables[0]]
             inited = True
-        elif new_char_syllables_num == 1 :
-            for i in range(word_syllables_num) :
+        elif new_char_syllables_num == 1:
+            for i in range(word_syllables_num):
                 word_syllables[i] += " " + str(char_syllables)
-        elif new_char_syllables_num > 1 :
+        elif new_char_syllables_num > 1:
             word_syllables = word_syllables * new_char_syllables_num
-            for pre_index in range(word_syllables_num) :
-                for expand_index in range(new_char_syllables_num) :
+            for pre_index in range(word_syllables_num):
+                for expand_index in range(new_char_syllables_num):
                     word_syllables[pre_index * new_char_syllables_num + expand_index] += " " + char_syllables[expand_index]
             word_syllables_num *= new_char_syllables_num
 
-    for word_syallable in word_syllables :
+    for word_syallable in word_syllables:
         print("{} {}".format(chars.strip(),  str(word_syallable).strip()))
 
 
