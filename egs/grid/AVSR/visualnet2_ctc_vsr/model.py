@@ -116,7 +116,12 @@ class ResNet(nn.Module):
 
 class VisualNet2(nn.Module):
     def __init__(self, num_classes):
-        super(VisualNet2, self).__init__()
+        """
+        Args:
+          num_classes:
+            The output dimension of the visualnet2 model.
+        """
+        super().__init__()
         self.num_classes = num_classes
         self.inputDim = 512
         self.conv3d = nn.Conv3d(

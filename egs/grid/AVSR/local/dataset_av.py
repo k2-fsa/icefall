@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+"""
+This script is to load the pair of audio-visual data in GRID.
+The class dataset_av makes each audio-visual batch data have the same shape.
+"""
 import cv2
 import kaldifeat
 import numpy as np
@@ -40,6 +43,25 @@ class dataset_av(Dataset):
         sample_rate,
         phase,
     ):
+        """
+        Args:
+          video_path:
+            The dir path of the visual data.
+          anno_path:
+            The dir path of the texts data.
+          file_list:
+            The file which listing all samples for training or testing.
+          feature_dim:
+            The dimension for fbank feature.
+          vid_padding:
+            The padding for each visual sample.
+          aud_padding:
+            The padding for each audio sample.
+          sample_rate:
+            The sample rate for extracting fbank feature.
+          phase:
+            "train" or "test".
+        """
         self.anno_path = anno_path
         self.vid_pading = vid_pading
         self.aud_pading = aud_pading

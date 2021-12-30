@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+"""
+This script is to load the audio data in GRID.
+The class dataset_audio makes each audio batch data have the same shape.
+"""
 import kaldifeat
 import numpy as np
 import os
@@ -28,14 +31,31 @@ from torch.utils.data import Dataset
 class dataset_audio(Dataset):
     def __init__(
         self,
-        video_path,
-        anno_path,
-        file_list,
-        aud_padding,
-        sample_rate,
-        feature_dim,
-        phase,
-    ):
+        video_path: str,
+        anno_path: str,
+        file_list: str,
+        aud_padding: int,
+        sample_rate: int,
+        feature_dim: int,
+        phase: str,
+    ) -> None:
+        """
+        Args:
+          video_path:
+            The dir path of the visual data.
+          anno_path:
+            The dir path of the texts data.
+          file_list:
+            The file which listing all samples for training or testing.
+          aud_padding:
+            The padding for each audio sample.
+          sample_rate:
+            The sample rate for extracting fbank feature.
+          feature_dim:
+            The dim for fbank feature.
+          phase:
+            "train" or "test".
+        """
         self.anno_path = anno_path
         self.aud_padding = aud_padding
         self.sample_rate = sample_rate

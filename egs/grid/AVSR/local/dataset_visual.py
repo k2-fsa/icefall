@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+"""
+This script is to load the visual data in GRID.
+The class dataset_visual makes each visual batch data have the same shape.
+"""
 import cv2
 import os
 import numpy as np
@@ -27,12 +30,25 @@ from .cvtransforms import HorizontalFlip, ColorNormalize
 class dataset_visual(Dataset):
     def __init__(
         self,
-        video_path,
-        anno_path,
-        file_list,
-        vid_padding,
-        phase,
+        video_path: str,
+        anno_path: str,
+        file_list: str,
+        vid_padding: int,
+        phase: str,
     ):
+        """
+        Args:
+          video_path:
+            The dir path of the visual data.
+          anno_path:
+            The dir path of the texts data.
+          file_list:
+            The file which listing all samples for training or testing.
+          vid_padding:
+            The padding for each visual sample.
+          phase:
+            "train" or "test".
+        """
         self.anno_path = anno_path
         self.vid_padding = vid_padding
         self.phase = phase

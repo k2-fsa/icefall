@@ -135,7 +135,7 @@ class CombineNet(nn.Module):
         """
         Args:
           x_v:
-            Its shape is [N, 3, H, W]
+            Its shape is [N, 3, T, H, W]
           x_a:
             Its shape is [N, C, T]
         Returns:

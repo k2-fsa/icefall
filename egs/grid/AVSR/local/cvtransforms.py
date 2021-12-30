@@ -15,7 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+In this script, there are two functions:
+the function HorizontalFlip is to flip the images,
+the function ColorNormalize is to normalize the images.
+The above two functions is to augment the images.
 
+The input for the above functions is a sequence of images.
+"""
 import random
 
 

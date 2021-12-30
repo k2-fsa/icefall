@@ -209,7 +209,7 @@ def main():
 
     logging.info("Decoding started")
     features = fbank(waves)
-
+    # aud_padding = 480
     features_new = torch.zeros(len(features), 480, params.feature_dim).to(
         device
     )

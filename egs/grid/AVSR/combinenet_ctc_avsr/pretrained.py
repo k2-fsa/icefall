@@ -200,6 +200,8 @@ def main():
         vid.append(array)
 
     L, H, W, C = vid[0].shape
+    # vid_padding = 75
+    # aud_padding = 480
     features_v = torch.zeros(len(vid), 75, H, W, C).to(device)
     for i in range(len(vid)):
         length = vid[i].shape[0]
