@@ -7,6 +7,7 @@ per-file-ignores =
     egs/librispeech/ASR/*/conformer.py: E501,
     egs/aishell/ASR/*/conformer.py: E501,
     egs/wenetspeech/ASR/*/conformer.py: E501,
+    egs/wenetspeech/ASR/local/text2token.py: E501,
 
 exclude =
   .git,
