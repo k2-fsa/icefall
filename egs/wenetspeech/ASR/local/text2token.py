@@ -89,7 +89,7 @@ def main():
     while line:
         x = line.split()
         print(" ".join(x[: args.skip_ncols]), end=" ")
-        a = " ".join(x[args.skip_ncols:])
+        a = " ".join(x[args.skip_ncols :])
 
         # get all matched positions
         match_pos = []
@@ -119,7 +119,7 @@ def main():
                         i += 1
                 a = chars
 
-            a = [a[j: j + n] for j in range(0, len(a), n)]
+            a = [a[j : j + n] for j in range(0, len(a), n)]
 
         a_flat = []
         for z in a:
