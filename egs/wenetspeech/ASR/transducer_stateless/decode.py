@@ -40,6 +40,7 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     write_error_stats,
+    str2bool,
 )
 
 
@@ -107,6 +108,16 @@ def get_parser():
         type=int,
         default=3,
         help="Maximum number of symbols per frame",
+    )
+    parser.add_argument(
+        "--export",
+        type=str2bool,
+        default=False,
+        help="""When enabled, the averaged model is saved to
+        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        pretrained.pt contains a dict {"model": model.state_dict()},
+        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
+        """,
     )
 
     return parser
@@ -417,6 +428,13 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
+    if params.export:
+        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
+        torch.save(
+            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
+        )
+        return
+
     model.to(device)
     model.eval()
     model.device = device
@@ -427,7 +445,9 @@ def main():
     wenetspeech = WenetSpeechDataModule(args)
 
     test_net_dl = wenetspeech.test_dataloaders(wenetspeech.test_net_cuts())
-    test_meetting_dl = wenetspeech.test_dataloaders(wenetspeech.test_meetting_cuts())
+    test_meetting_dl = wenetspeech.test_dataloaders(
+                           wenetspeech.test_meetting_cuts()
+                       )
 
     test_sets = ["TEST_NET", "TEST_MEETTING"]
     test_dls = [test_net_dl, test_meetting_dl]

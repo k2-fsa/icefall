@@ -29,7 +29,7 @@ from lhotse.recipes.utils import read_manifests_if_cached
 
 def normalize_text(
     utt: str,
-    #punct_pattern=re.compile(r"<(COMMA|PERIOD|QUESTIONMARK|EXCLAMATIONPOINT)>"),
+    # punct_pattern=re.compile(r"<(COMMA|PERIOD|QUESTIONMARK|EXCLAMATIONPOINT)>"),
     punct_pattern=re.compile(r"<(PERIOD|QUESTIONMARK|EXCLAMATIONPOINT)>"),
     whitespace_pattern=re.compile(r"\s\s+"),
 ) -> str:
