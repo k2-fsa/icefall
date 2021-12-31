@@ -446,8 +446,8 @@ def main():
 
     test_net_dl = wenetspeech.test_dataloaders(wenetspeech.test_net_cuts())
     test_meetting_dl = wenetspeech.test_dataloaders(
-                           wenetspeech.test_meetting_cuts()
-                       )
+        wenetspeech.test_meetting_cuts()
+    )
 
     test_sets = ["TEST_NET", "TEST_MEETTING"]
     test_dls = [test_net_dl, test_meetting_dl]

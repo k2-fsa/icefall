@@ -370,5 +370,5 @@ class WenetSpeechDataModule:
     def test_meetting_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_MEETTING cuts")
         return load_manifest(
-                   self.args.manifest_dir / "cuts_TEST_MEETTING.jsonl.gz"
-               )
+            self.args.manifest_dir / "cuts_TEST_MEETTING.jsonl.gz"
+        )

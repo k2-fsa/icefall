@@ -128,7 +128,12 @@ def compute_fbank_wenetspeech(args):
     output_dir = Path("data/fbank")
 
     dataset_parts = (
-        "L", "M", "S", "DEV", "TEST_NET", "TEST_MEETING",
+        "L",
+        "M",
+        "S",
+        "DEV",
+        "TEST_NET",
+        "TEST_MEETING",
     )
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,

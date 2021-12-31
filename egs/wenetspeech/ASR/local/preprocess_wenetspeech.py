@@ -49,7 +49,12 @@ def preprocess_wenet_speech():
     output_dir.mkdir(exist_ok=True)
 
     dataset_parts = (
-        "L", "M", "S", "DEV", "TEST_NET", "TEST_MEETING",
+        "L",
+        "M",
+        "S",
+        "DEV",
+        "TEST_NET",
+        "TEST_MEETING",
     )
 
     logging.info("Loading manifest (may take 10 minutes)")
