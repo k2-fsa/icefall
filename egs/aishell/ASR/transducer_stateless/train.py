@@ -555,7 +555,7 @@ def run(rank, world_size, args):
     graph_compiler = CharCtcTrainingGraphCompiler(
         lexicon=lexicon,
         device=device,
-        oov='<unk>',
+        oov="<unk>",
     )
 
     params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
