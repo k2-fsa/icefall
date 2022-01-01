@@ -114,7 +114,7 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""When enabled, the averaged model is saved to
-        conformer_ctc/exp/pretrained.pt. Note: only model.state_dict() is saved.
+        transducer_stateless/exp/pretrained.pt. Note: only model.state_dict() is saved.
         pretrained.pt contains a dict {"model": model.state_dict()},
         which can be loaded by `icefall.checkpoint.load_checkpoint()`.
         """,
