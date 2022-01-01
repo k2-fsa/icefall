@@ -107,6 +107,17 @@ The best CER we currently have is:
 
 We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
 
+#### Transducer Stateless Model
+
+The best CER we currently have is:
+
+|     | test |
+|-----|------|
+| CER | 5.7 |
+
+
+We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
+
 #### TDNN LSTM CTC Model
 
 The CER for this model is:

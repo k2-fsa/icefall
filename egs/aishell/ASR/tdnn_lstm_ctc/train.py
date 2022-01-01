@@ -553,8 +553,8 @@ def run(rank, world_size, args):
         scheduler.load_state_dict(checkpoints["scheduler"])
 
     aishell = AishellAsrDataModule(args)
-    train_dl = aishell.train_dataloaders()
-    valid_dl = aishell.valid_dataloaders()
+    train_dl = aishell.train_dataloaders(aishell.train_cuts())
+    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)
