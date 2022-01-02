@@ -17,11 +17,18 @@
 
 import argparse
 import logging
+import torch
 from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    load_manifest,
+    set_caching_enabled,
+)
 from lhotse.dataset import (
     DynamicBucketingSampler,
     CutConcatenate,
@@ -35,6 +42,10 @@ from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
+
+
+set_caching_enabled(False)
+torch.set_num_threads(1)
 
 
 class WenetSpeechDataModule:
