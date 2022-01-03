@@ -243,10 +243,8 @@ class NgramCounts:
                         for u in a_counts_for_hist.word_to_count.keys():  # Should be careful here: what is Z1
                             sum_z1_f_z += _counts_for_hist.word_to_f[u]
 
-                        # I assume the following to be true:
-                        # assert sum_z1_f_z <= 1.0
-                        # assert sum_z1_f_a_z <= 1.0
                         if sum_z1_f_z < 1:
+                            # assert sum_z1_f_a_z < 1
                             counts_for_hist.word_to_bow[w] = (1.0 - sum_z1_f_a_z) / (1.0 - sum_z1_f_z)
                         else:
                             counts_for_hist.word_to_bow[w] = None
