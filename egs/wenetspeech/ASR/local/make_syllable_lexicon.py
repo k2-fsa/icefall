@@ -49,8 +49,9 @@ def process_line(
             word_syllables = word_syllables * new_char_syllables_num
             for pre_index in range(word_syllables_num):
                 for expand_index in range(new_char_syllables_num):
-                    word_syllables[pre_index * new_char_syllables_num
-                                   + expand_index] += " "
+                    word_syllables[
+                        pre_index * new_char_syllables_num + expand_index
+                    ] += " "
                     + str(char_syllables[expand_index])
         word_syllables_num *= new_char_syllables_num
 
