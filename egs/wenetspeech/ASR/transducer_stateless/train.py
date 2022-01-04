@@ -129,13 +129,6 @@ def get_parser():
         "2 means tri-gram",
     )
 
-    parser.add_argument(
-        "--on-the-fly",
-        type=str2bool,
-        default=True,
-        help="Use on-the-fly feature extraction",
-    )
-
     return parser
 
 
