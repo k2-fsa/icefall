@@ -158,7 +158,8 @@ class Transformer(nn.Module):
             self.decoder_criterion = None
 
     def forward(
-        self, x: torch.Tensor, supervision: Optional[Supervisions] = None
+        self, x: torch.Tensor, supervision: Optional[Supervisions] = None,
+        mid_layer_list: List[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Args:
@@ -183,10 +184,18 @@ class Transformer(nn.Module):
             x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
             x = self.feat_batchnorm(x)
             x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
-        encoder_memory, memory_key_padding_mask = self.run_encoder(
-            x, supervision
-        )
+        if mid_layer_list is not None:
+            encoder_memory, memory_key_padding_mask, mid_mem_embeddings = self.run_encoder(
+                x, supervision, mid_layer_list,
+            )
+        else:
+            encoder_memory, memory_key_padding_mask = self.run_encoder(
+                x, supervision,
+            )
         x = self.ctc_output(encoder_memory)
+
+        if mid_layer_list is not None:
+            return x, encoder_memory, memory_key_padding_mask, mid_mem_embeddings
         return x, encoder_memory, memory_key_padding_mask
 
     def run_encoder(

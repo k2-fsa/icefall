@@ -18,7 +18,7 @@
 
 import math
 import warnings
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
@@ -172,7 +172,8 @@ class Conformer(Transformer):
                 )
 
     def run_encoder(
-        self, x: Tensor, supervisions: Optional[Supervisions] = None
+        self, x: Tensor, supervisions: Optional[Supervisions] = None,
+        mid_layer_list: List[int] = None,
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Args:
@@ -197,10 +198,21 @@ class Conformer(Transformer):
         mask = encoder_padding_mask(x.size(0), supervisions)
         if mask is not None:
             mask = mask.to(x.device)
-        x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, B, F)
+        if  mid_layer_list is not None:
+            x,  mid_mem_embeddings = self.encoder(x, pos_emb, src_key_padding_mask=mask, mid_layer_list=mid_layer_list)  # (T, B, F)
+            assert len(mid_layer_list) == len(mid_mem_embeddings)
+            # note tenosr_a == torch.cat([x]),
+            # so following code also works when len(mid_mem_embeddings) == 1
+            mid_mem_embeddings = torch.cat(mid_mem_embeddings, dim=-1)
+        else:
+            x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, B, F)
+
 
         if self.normalize_before:
             x = self.after_norm(x)
+
+        if mid_layer_list is not None:
+            return x, mask, mid_mem_embeddings
 
         return x, mask
 
@@ -405,7 +417,7 @@ class ConformerEncoder(nn.TransformerEncoder):
                 src_mask=mask,
                 src_key_padding_mask=src_key_padding_mask,
             )
-            if mod_idx in mid_layer_list:
+            if mid_layer_list is not None and mod_idx in mid_layer_list:
                 mid_mem_embeddings.append(output)
 
         if self.norm is not None:

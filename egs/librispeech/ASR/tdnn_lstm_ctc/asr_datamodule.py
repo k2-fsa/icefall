@@ -75,7 +75,7 @@ class LibriSpeechAsrDataModule(DataModule):
         )
         parser.add_argument(
             "--subset",
-            type=Path,
+            type=str,
             default=None,
             help="which subset to extract codebook index"
             "clean-100, clean-360, other-500",
