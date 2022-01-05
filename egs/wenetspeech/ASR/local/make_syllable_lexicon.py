@@ -52,11 +52,11 @@ def process_line(
                     word_syllables[
                         pre_index * new_char_syllables_num + expand_index
                     ] += " "
-                    + str(char_syllables[expand_index])
+                    +str(char_syllables[expand_index])
         word_syllables_num *= new_char_syllables_num
 
     for word_syallable in word_syllables:
-        print("{} {}".format(chars.strip(),  str(word_syallable).strip()))
+        print("{} {}".format(chars.strip(), str(word_syallable).strip()))
 
 
 def main():
