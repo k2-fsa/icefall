@@ -15,9 +15,7 @@ def get_args():
     return parser.parse_args()
 
 
-def process_line(
-    line: str
-) -> None:
+def process_line(line: str) -> None:
     """
     Args:
       line:
