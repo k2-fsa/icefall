@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import logging
 from collections import defaultdict
@@ -177,7 +176,7 @@ def decode_one_batch(
 
     lattice = get_lattice(
         nnet_output=nnet_output,
-        HLG=HLG,
+        decoding_graph=HLG,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
         output_beam=params.output_beam,
@@ -367,6 +366,8 @@ def main():
     model.eval()
 
     aishell = AishellAsrDataModule(args)
+    test_cuts = aishell.test_cuts()
+    test_dl = aishell.test_dataloaders(test_cuts)
     # CAUTION: `test_sets` is for displaying only.
     # If you want to skip test-clean, you have to skip
     # it inside the for loop. That is, use
@@ -374,7 +375,9 @@ def main():
     #   if test_set == 'test-clean': continue
     #
     test_sets = ["test"]
-    for test_set, test_dl in zip(test_sets, aishell.test_dataloaders()):
+    test_dls = [test_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

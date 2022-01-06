@@ -111,30 +111,67 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   ./local/compute_fbank_musan.py
 fi
 
+lang_phone_dir=data/lang_phone
+lang_char_dir=data/lang_char
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  mkdir -p data/lang_phone
+  mkdir -p $lang_phone_dir
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
     cat - $dl_dir/aishell/resource_aishell/lexicon.txt |
-    sort | uniq > data/lang_phone/lexicon.txt
+    sort | uniq > $lang_phone_dir/lexicon.txt
 
-  if [ ! -f data/lang_phone/L_disambig.pt ]; then
-    ./local/prepare_lang.py
+  ./local/generate_unique_lexicon.py --lang-dir $lang_phone_dir
+
+  if [ ! -f $lang_phone_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_phone_dir
+  fi
+
+  # Train a bigram P for MMI training
+  if [ ! -f $lang_phone_dir/transcript_words.txt ]; then
+    log "Generate data to train phone based bigram P"
+    aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
+    aishell_train_uid=$dl_dir/aishell/data_aishell/transcript/aishell_train_uid
+    find data/aishell/data_aishell/wav/train -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_train_uid
+    awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_train_uid $aishell_text |
+	cut -d " " -f 2- > $lang_phone_dir/transcript_words.txt
+  fi
+
+  if [ ! -f $lang_phone_dir/transcript_tokens.txt ]; then
+    ./local/convert_transcript_words_to_tokens.py \
+      --lexicon $lang_phone_dir/uniq_lexicon.txt \
+      --transcript $lang_phone_dir/transcript_words.txt \
+      --oov "<UNK>" \
+      > $lang_phone_dir/transcript_tokens.txt
+  fi
+
+  if [ ! -f $lang_phone_dir/P.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 2 \
+      -text $lang_phone_dir/transcript_tokens.txt \
+      -lm $lang_phone_dir/P.arpa
+  fi
+
+  if [ ! -f $lang_phone_dir/P.fst.txt ]; then
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_phone_dir/tokens.txt" \
+      --disambig-symbol='#0' \
+      --max-order=2 \
+      $lang_phone_dir/P.arpa > $lang_phone_dir/P.fst.txt
   fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare char based lang"
-  mkdir -p data/lang_char
+  mkdir -p $lang_char_dir
   # We reuse words.txt from phone based lexicon
   # so that the two can share G.pt later.
-  cp data/lang_phone/words.txt data/lang_char
+  cp $lang_phone_dir/words.txt $lang_char_dir
 
   cat $dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt |
-  cut -d " " -f 2- | sed -e 's/[ \t\r\n]*//g' > data/lang_char/text
+  cut -d " " -f 2- | sed -e 's/[ \t\r\n]*//g' > $lang_char_dir/text
 
-  if [ ! -f data/lang_char/L_disambig.pt ]; then
+  if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py
   fi
 fi
@@ -148,7 +185,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   if [ ! -f data/lm/G_3_gram.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
+      --read-symbol-table="$lang_phone_dir/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
       $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
@@ -157,6 +194,6 @@ fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 8: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
-  ./local/compile_hlg.py --lang-dir data/lang_char
+  ./local/compile_hlg.py --lang-dir $lang_phone_dir
+  ./local/compile_hlg.py --lang-dir $lang_char_dir
 fi

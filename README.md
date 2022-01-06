@@ -34,8 +34,12 @@ We do provide a Colab notebook for this recipe.
 
 ### LibriSpeech
 
-We provide two models for this recipe: [conformer CTC model][LibriSpeech_conformer_ctc]
-and [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc].
+We provide 4 models for this recipe:
+
+- [conformer CTC model][LibriSpeech_conformer_ctc]
+- [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc]
+- [Transducer: Conformer encoder + LSTM decoder][LibriSpeech_transducer]
+- [Transducer: Conformer encoder + Embedding decoder][LibriSpeech_transducer_stateless]
 
 #### Conformer CTC Model
 
@@ -58,6 +62,35 @@ The WER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
 
+
+#### Transducer: Conformer encoder + LSTM decoder
+
+Using Conformer as encoder and LSTM as decoder.
+
+The best WER with greedy search is:
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 3.07       | 7.51       |
+
+We provide a Colab notebook to run a pre-trained RNN-T conformer model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1_u6yK9jDkPwG_NLrZMN2XK7Aeq4suMO2?usp=sharing)
+
+#### Transducer: Conformer encoder + Embedding decoder
+
+Using Conformer as encoder. The decoder consists of 1 embedding layer
+and 1 convolutional layer.
+
+The best WER using beam search with beam size 4 is:
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.83       | 7.19       |
+
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
+
+We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Lm37sNajIpkV4HTzMDF7sn9l0JpfmekN?usp=sharing)
+
 ### Aishell
 
 We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
@@ -73,6 +106,17 @@ The best CER we currently have is:
 
 
 We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
+
+#### Transducer Stateless Model
+
+The best CER we currently have is:
+
+|     | test |
+|-----|------|
+| CER | 5.7 |
+
+
+We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
 
 #### TDNN LSTM CTC Model
 
@@ -125,6 +169,8 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
+[LibriSpeech_transducer]: egs/librispeech/ASR/transducer
+[LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc

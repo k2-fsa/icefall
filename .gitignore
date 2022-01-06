@@ -6,3 +6,6 @@ exp
 exp*/
 *.pt
 download
+*.bak
+*-bak
+*bak.py

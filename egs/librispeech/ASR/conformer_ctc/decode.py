@@ -428,8 +428,6 @@ def decode_dataset(
       The first is the reference transcript, and the second is the
       predicted result.
     """
-    results = []
-
     num_cuts = 0
 
     try:
@@ -615,7 +613,7 @@ def main():
                 # Save a dummy value so that it can be loaded in C++.
                 # See https://github.com/pytorch/pytorch/issues/67902
                 # for why we need to do this.
-                G["dummy"] = 1
+                G.dummy = 1
 
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
@@ -665,14 +663,17 @@ def main():
     logging.info(f"Number of model parameters: {num_param}")
 
     librispeech = LibriSpeechAsrDataModule(args)
-    # CAUTION: `test_sets` is for displaying only.
-    # If you want to skip test-clean, you have to skip
-    # it inside the for loop. That is, use
-    #
-    #   if test_set == 'test-clean': continue
-    #
+
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
     test_sets = ["test-clean", "test-other"]
-    for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+    test_dl = [test_clean_dl, test_other_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
