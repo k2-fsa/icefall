@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from local.dataset_av import dataset_av
+from local.dataset_av import AudioVisualDataset
 from model import CombineNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -475,7 +475,7 @@ def main():
     model.to(device)
     model.eval()
 
-    grid = dataset_av(
+    grid = AudioVisualDataset(
         params.video_path,
         params.anno_path,
         params.val_list,

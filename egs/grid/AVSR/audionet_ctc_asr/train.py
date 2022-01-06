@@ -32,7 +32,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from local.dataset_audio import dataset_audio
+from local.dataset_audio import AudioDataSet
 from lhotse.utils import fix_random_seed
 from model import AudioNet
 from torch import Tensor
@@ -533,7 +533,7 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
         scheduler.load_state_dict(checkpoints["scheduler"])
 
-    grid = dataset_audio(
+    grid = AudioDataSet(
         params.video_path,
         params.anno_path,
         params.train_list,

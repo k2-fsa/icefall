@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from local.dataset_audio import dataset_audio
+from local.dataset_audio import AudioDataSet
 from model import AudioNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -467,7 +467,7 @@ def main():
     model.to(device)
     model.eval()
 
-    grid = dataset_audio(
+    grid = AudioDataSet(
         params.video_path,
         params.anno_path,
         params.val_list,

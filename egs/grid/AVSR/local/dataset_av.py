@@ -20,7 +20,6 @@ This script is to load the pair of audio-visual data in GRID.
 The class dataset_av makes each audio-visual batch data have the same shape.
 """
 import cv2
-import kaldifeat
 import numpy as np
 import os
 
@@ -28,10 +27,11 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from .cvtransforms import HorizontalFlip, ColorNormalize
+import kaldifeat
+from .cvtransforms import horizontal_flip, color_normalize
 
 
-class dataset_av(Dataset):
+class AudioVisualDataset(Dataset):
     def __init__(
         self,
         video_path,
@@ -94,8 +94,8 @@ class dataset_av(Dataset):
         )
 
         if self.phase == "train":
-            vid = HorizontalFlip(vid)
-        vid = ColorNormalize(vid)
+            vid = horizontal_flip(vid)
+        vid = color_normalize(vid)
 
         vid = self._padding(vid, self.vid_pading)
         aud = self._padding(aud, self.aud_pading)
@@ -110,6 +110,14 @@ class dataset_av(Dataset):
         return len(self.data)
 
     def _load_vid(self, p):
+        """Load the visual data.
+        Args:
+            p:
+                A directory which contains a sequence of frames
+            for a visual sample.
+        Return:
+            The array of a visual sample.
+        """
         files = os.listdir(p)
         files = list(filter(lambda file: file.find(".jpg") != -1, files))
         files = sorted(files, key=lambda file: int(os.path.splitext(file)[0]))
@@ -123,6 +131,13 @@ class dataset_av(Dataset):
         return array
 
     def _load_aud(self, filename):
+        """Load the audio data.
+        Args:
+            filename:
+                The full path of a wav file.
+        Return:
+            The fbank feature array.
+        """
         opts = kaldifeat.FbankOptions()
         opts.frame_opts.dither = 0
         opts.frame_opts.snip_edges = False
@@ -135,6 +150,13 @@ class dataset_av(Dataset):
         return features
 
     def _load_anno(self, name):
+        """Load the text file.
+        Args:
+            name:
+                The file which records the text.
+        Return:
+            A sequence of words.
+        """
         with open(name, "r") as f:
             lines = [line.strip().split(" ") for line in f.readlines()]
             txt = [line[2] for line in lines]
@@ -143,6 +165,15 @@ class dataset_av(Dataset):
         return txt
 
     def _padding(self, array, length):
+        """Pad zeros for the feature array.
+        Args:
+            array:
+                The feature arry. (Audio or Visual feature)
+            length:
+                The length for padding.
+        Return:
+            A new feature array after padding.
+        """
         array = [array[_] for _ in range(array.shape[0])]
         size = array[0].shape
         for i in range(length - len(array)):

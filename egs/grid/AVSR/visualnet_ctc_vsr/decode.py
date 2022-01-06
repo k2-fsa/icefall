@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from local.dataset_visual import dataset_visual
+from local.dataset_visual import VisualDataset
 from model import VisualNet
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -462,7 +462,7 @@ def main():
     model.to(device)
     model.eval()
 
-    grid = dataset_visual(
+    grid = VisualDataset(
         params.video_path,
         params.anno_path,
         params.val_list,

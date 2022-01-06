@@ -19,24 +19,20 @@ import torch
 
 def encode_supervisions(nnet_output_shape, batch):
     """
-    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    Encodes the output of net and texts into
     a pair of torch Tensor, and a list of transcription strings.
 
     The supervision tensor has shape ``(batch_size, 3)``.
     Its second dimension contains information about sequence index [0],
     start frames [1] and num frames [2].
 
-    The batch items might become re-ordered during this operation -- the
-    returned tensor and list of strings are guaranteed to be consistent with
-    each other.
+    In GRID, the start frame of each audio sample is 0.
     """
     N, T, D = nnet_output_shape
 
-    supervisions_idx = torch.arange(0, N).to(torch.int32)
-    start_frames = [0 for _ in range(N)]
-    supervisions_start_frame = torch.tensor(start_frames).to(torch.int32)
-    num_frames = [T for _ in range(N)]
-    supervisions_num_frames = torch.tensor(num_frames).to(torch.int32)
+    supervisions_idx = torch.arange(0, N, dtype=torch.int32)
+    supervisions_start_frame = torch.full((1, N), 0, dtype=torch.int32)[0]
+    supervisions_num_frames = torch.full((1, N), T, dtype=torch.int32)[0]
 
     supervision_segments = torch.stack(
         (
@@ -45,7 +41,7 @@ def encode_supervisions(nnet_output_shape, batch):
             supervisions_num_frames,
         ),
         1,
-    ).to(torch.int32)
+    )
     texts = batch["txt"]
 
     return supervision_segments, texts

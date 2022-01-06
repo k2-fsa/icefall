@@ -32,7 +32,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from local.dataset_av import dataset_av
+from local.dataset_av import AudioVisualDataset
 from lhotse.utils import fix_random_seed
 from model import CombineNet
 from torch import Tensor
@@ -544,7 +544,7 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
         scheduler.load_state_dict(checkpoints["scheduler"])
 
-    grid = dataset_av(
+    grid = AudioVisualDataset(
         params.video_path,
         params.anno_path,
         params.train_list,

@@ -24,10 +24,13 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from .cvtransforms import HorizontalFlip, ColorNormalize
+from .cvtransforms import (
+    color_normalize,
+    horizontal_flip,
+)
 
 
-class dataset_visual(Dataset):
+class VisualDataset(Dataset):
     def __init__(
         self,
         video_path: str,
@@ -74,8 +77,8 @@ class dataset_visual(Dataset):
         )
 
         if self.phase == "train":
-            vid = HorizontalFlip(vid)
-        vid = ColorNormalize(vid)
+            vid = horizontal_flip(vid, p=0.5)
+        vid = color_normalize(vid)
 
         vid = self._padding(vid, self.vid_padding)
 
@@ -88,6 +91,14 @@ class dataset_visual(Dataset):
         return len(self.data)
 
     def _load_vid(self, p):
+        """Load the visual data.
+        Args:
+            p:
+                A directory which contains a sequence of frames
+            for a visual sample.
+        Return:
+            The array of a visual sample.
+        """
         files = os.listdir(p)
         files = list(filter(lambda file: file.find(".jpg") != -1, files))
         files = sorted(files, key=lambda file: int(os.path.splitext(file)[0]))
@@ -101,6 +112,13 @@ class dataset_visual(Dataset):
         return array
 
     def _load_anno(self, name):
+        """Load the text file.
+        Args:
+            name:
+                The file which records the text.
+        Return:
+            A sequence of words.
+        """
         with open(name, "r") as f:
             lines = [line.strip().split(" ") for line in f.readlines()]
             txt = [line[2] for line in lines]
@@ -109,6 +127,15 @@ class dataset_visual(Dataset):
         return txt
 
     def _padding(self, array, length):
+        """Pad zeros for the feature array.
+        Args:
+            array:
+                The feature arry. (Audio or Visual feature)
+            length:
+                The length for padding.
+        Return:
+            A new feature array after padding.
+        """
         array = [array[_] for _ in range(array.shape[0])]
         size = array[0].shape
         for i in range(length - len(array)):

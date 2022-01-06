@@ -19,7 +19,6 @@
 This script is to load the audio data in GRID.
 The class dataset_audio makes each audio batch data have the same shape.
 """
-import kaldifeat
 import numpy as np
 import os
 
@@ -27,8 +26,10 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
+import kaldifeat
 
-class dataset_audio(Dataset):
+
+class AudioDataSet(Dataset):
     def __init__(
         self,
         video_path: str,
@@ -46,7 +47,7 @@ class dataset_audio(Dataset):
           anno_path:
             The dir path of the texts data.
           file_list:
-            The file which listing all samples for training or testing.
+            A txt file which listing all samples for training or testing.
           aud_padding:
             The padding for each audio sample.
           sample_rate:
@@ -61,6 +62,15 @@ class dataset_audio(Dataset):
         self.sample_rate = sample_rate
         self.feature_dim = feature_dim
         self.phase = phase
+
+        opts = kaldifeat.FbankOptions()
+        opts.device = "cpu"
+        opts.frame_opts.dither = 0
+        opts.frame_opts.snip_edges = False
+        opts.frame_opts.samp_freq = self.sample_rate
+        opts.mel_opts.num_bins = self.feature_dim
+        self.fbank = kaldifeat.Fbank(opts)
+
         with open(file_list, "r") as f:
             self.videos = [
                 os.path.join(video_path, line.strip()) for line in f.readlines()
@@ -92,19 +102,26 @@ class dataset_audio(Dataset):
         return len(self.data)
 
     def _load_aud(self, filename):
-        opts = kaldifeat.FbankOptions()
-        opts.device = "cpu"
-        opts.frame_opts.dither = 0
-        opts.frame_opts.snip_edges = False
-        opts.frame_opts.samp_freq = self.sample_rate
-        opts.mel_opts.num_bins = self.feature_dim
-        fbank = kaldifeat.Fbank(opts)
-        wave, sr = torchaudio.load(filename)
+        """Load the audio data.
+        Args:
+            filename:
+                The full path of a wav file.
+        Return:
+            The fbank feature array.
+        """
+        wave, _ = torchaudio.load(filename)
         wave = wave[0]
-        features = fbank(wave)
+        features = self.fbank(wave)
         return features
 
     def _load_anno(self, name):
+        """Load the text file.
+        Args:
+            name:
+                The file which records the text.
+        Return:
+            A sequence of words.
+        """
         with open(name, "r") as f:
             lines = [line.strip().split(" ") for line in f.readlines()]
             txt = [line[2] for line in lines]
@@ -113,6 +130,15 @@ class dataset_audio(Dataset):
         return txt
 
     def _padding(self, array, length):
+        """Pad zeros for the feature array.
+        Args:
+            array:
+                The feature arry. (Audio or Visual feature)
+            length:
+                The length for padding.
+        Return:
+            A new feature array after padding.
+        """
         array = [array[_] for _ in range(array.shape[0])]
         size = array[0].shape
         for i in range(length - len(array)):

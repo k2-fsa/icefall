@@ -14,27 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script is to encodes the supervisions as Tuple list.
+The supervision tensor has shape ``(batch_size, 3)``.
+Its second dimension contains information about sequence index [0],
+start frames [1] and num frames [2].
+In GRID, the start frame of each audio sample is 0.
+"""
 import torch
 
 
-def encode_supervisions(nnet_output_shape, batch):
+def encode_supervisions(nnet_output_shape: int, batch: dict):
     """
-    Encodes the output of net and texts into
-    a pair of torch Tensor, and a list of transcription strings.
-
-    The supervision tensor has shape ``(batch_size, 3)``.
-    Its second dimension contains information about sequence index [0],
-    start frames [1] and num frames [2].
-
-    In GRID, the start frame of each audio sample is 0.
+    Args:
+      nnet_output_shape:
+        The shape of nnet_output, e.g: (N, T, D).
+      batch:
+        A batch of dataloader, it's a dict file
+        including text and aud/vid arrays.
+    Return:
+      The tuple list of supervisions and the text in batch.
     """
     N, T, D = nnet_output_shape
 
-    supervisions_idx = torch.arange(0, N).to(torch.int32)
-    start_frames = [0 for _ in range(N)]
-    supervisions_start_frame = torch.tensor(start_frames).to(torch.int32)
-    num_frames = [T for _ in range(N)]
-    supervisions_num_frames = torch.tensor(num_frames).to(torch.int32)
+    supervisions_idx = torch.arange(0, N, dtype=torch.int32)
+    supervisions_start_frame = torch.full((1, N), 0, dtype=torch.int32)[0]
+    supervisions_num_frames = torch.full((1, N), T, dtype=torch.int32)[0]
 
     supervision_segments = torch.stack(
         (
@@ -43,7 +48,7 @@ def encode_supervisions(nnet_output_shape, batch):
             supervisions_num_frames,
         ),
         1,
-    ).to(torch.int32)
+    )
     texts = batch["txt"]
 
     return supervision_segments, texts

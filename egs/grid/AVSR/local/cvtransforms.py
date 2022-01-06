@@ -26,13 +26,31 @@ The input for the above functions is a sequence of images.
 import random
 
 
-def HorizontalFlip(batch_img, p=0.5):
-    # (T, H, W, C)
+def horizontal_flip(batch_img: float, p: float):
+    """
+    Args:
+      batch_img:
+        The float array of a sequence of images, the shape of the
+        arrat is (T, H, W, C).
+      p:
+        The probability of implementing horizontal flip, the defaults
+        value is 0.5.
+    Return:
+      A new float array of the sequence of images after flipping.
+    """
     if random.random() > p:
         batch_img = batch_img[:, :, ::-1, ...]
     return batch_img
 
 
-def ColorNormalize(batch_img):
+def color_normalize(batch_img: float):
+    """
+    Args:
+      batch_img:
+        The float array of a sequence of images, the shape of the
+        arrat is (T, H, W, C).
+    Return:
+      A new float array of the sequence of images after normalizing.
+    """
     batch_img = batch_img / 255.0
     return batch_img
