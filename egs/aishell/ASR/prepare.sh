@@ -132,7 +132,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     log "Generate data to train phone based bigram P"
     aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
     aishell_train_uid=$dl_dir/aishell/data_aishell/transcript/aishell_train_uid
-    find data/aishell/data_aishell/wav/train -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_train_uid
+    find $dl_dir/aishell/data_aishell/wav/train -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_train_uid
     awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_train_uid $aishell_text |
 	cut -d " " -f 2- > $lang_phone_dir/transcript_words.txt
   fi
