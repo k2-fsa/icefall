@@ -30,21 +30,14 @@ class Joiner(nn.Module):
         """
         Args:
           encoder_out:
-            Output from the encoder. Its shape is (N, T, C).
+            Output from the encoder. Its shape is (N, T, s_range, C).
           decoder_out:
-            Output from the decoder. Its shape is (N, U, C).
+            Output from the decoder. Its shape is (N, T, s_range, C).
         Returns:
-          Return a tensor of shape (N, T, U, C).
+          Return a tensor of shape (N, T, s_range, C).
         """
-        assert encoder_out.ndim == decoder_out.ndim == 3
-        assert encoder_out.size(0) == decoder_out.size(0)
-        assert encoder_out.size(2) == decoder_out.size(2)
-
-        encoder_out = encoder_out.unsqueeze(2)
-        # Now encoder_out is (N, T, 1, C)
-
-        decoder_out = decoder_out.unsqueeze(1)
-        # Now decoder_out is (N, 1, U, C)
+        assert encoder_out.ndim == decoder_out.ndim == 4
+        assert encoder_out.shape == decoder_out.shape
 
         logit = encoder_out + decoder_out
         logit = torch.tanh(logit)

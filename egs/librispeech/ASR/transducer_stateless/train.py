@@ -60,7 +60,15 @@ from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    measure_gradient_norms,
+    measure_weight_norms,
+    optim_step_and_measure_param_change,
+    setup_logger,
+    str2bool,
+)
 
 
 def get_parser():
@@ -138,6 +146,14 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--prune-range",
+        type=int,
+        default=3,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
     return parser
 
 
@@ -195,6 +211,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
+            "log_diagnostics": False,
             # parameters for conformer
             "feature_dim": 80,
             "encoder_out_dim": 512,
@@ -383,7 +400,8 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(x=feature, x_lens=feature_lens, y=y)
+        simple_loss, pruned_loss = model(x=feature, x_lens=feature_lens, y=y)
+        loss = simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -392,6 +410,8 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
@@ -466,6 +486,45 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
+    def maybe_log_gradients(tag: str):
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            tb_writer.add_scalars(
+                tag,
+                measure_gradient_norms(model, norm="l2"),
+                global_step=params.batch_idx_train,
+            )
+
+    def maybe_log_weights(tag: str):
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            tb_writer.add_scalars(
+                tag,
+                measure_weight_norms(model, norm="l2"),
+                global_step=params.batch_idx_train,
+            )
+
+    def maybe_log_param_relative_changes():
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            deltas = optim_step_and_measure_param_change(model, optimizer)
+            tb_writer.add_scalars(
+                "train/relative_param_change_per_minibatch",
+                deltas,
+                global_step=params.batch_idx_train,
+            )
+        else:
+            optimizer.step()
+
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -483,10 +542,13 @@ def train_one_epoch(
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
 
-        optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
-        optimizer.step()
+
+        maybe_log_weights("train/param_norms")
+        maybe_log_gradients("train/grad_norms")
+        maybe_log_param_relative_changes()
+
+        optimizer.zero_grad()
 
         if batch_idx % params.log_interval == 0:
             logging.info(
