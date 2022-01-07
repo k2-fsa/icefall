@@ -25,13 +25,15 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, TextIO, Optional, Tuple, Union
 
 import k2
 import k2.version
 import kaldialign
 import torch
+import torch.nn as nn
 import torch.distributed as dist
+from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
 Pathlike = Union[str, Path]
