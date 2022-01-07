@@ -138,6 +138,13 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--label-smoothing-factor",
+        type=float,
+        default=0.1,
+        help="The factor for label smoothing",
+    )
+
     return parser
 
 
@@ -383,7 +390,12 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(x=feature, x_lens=feature_lens, y=y)
+        loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            label_smoothing_factor=params.label_smoothing_factor,
+        )
 
     assert loss.requires_grad == is_training
 
