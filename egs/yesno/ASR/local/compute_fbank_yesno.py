@@ -42,7 +42,9 @@ def compute_fbank_yesno():
     )
     assert manifests is not None
 
-    extractor = Fbank(FbankConfig(sampling_rate=8000, num_mel_bins=num_mel_bins))
+    extractor = Fbank(
+        FbankConfig(sampling_rate=8000, num_mel_bins=num_mel_bins)
+    )
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
