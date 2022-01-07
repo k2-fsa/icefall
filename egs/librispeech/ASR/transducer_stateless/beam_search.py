@@ -294,7 +294,7 @@ def beam_search(
             cached_key += f"-t-{t}"
             if cached_key not in joint_cache:
                 logits = model.joiner(
-                        current_encoder_out, decoder_out.unsqueeze(1)
+                    current_encoder_out, decoder_out.unsqueeze(1)
                 )
 
                 # TODO(fangjun): Cache the blank posterior
