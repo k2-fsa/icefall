@@ -17,7 +17,7 @@
 
 
 """
-This script takes as input lang_dir and generates HLG from
+This script takes as input lang_dir and generates LG from
 
     - L, the lexicon, built from lang_dir/L_disambig.pt
 
@@ -66,7 +66,7 @@ def compile_LG(lang_dir: str) -> kaldifst.StdVectorFst:
     assert "#0" in tokens
     assert "#0" in words
 
-    token_disambig_id = tokens.find("#02")
+    token_disambig_id = tokens.find("#0")
     word_disambig_id = words.find("#0")
 
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
@@ -84,7 +84,7 @@ def compile_LG(lang_dir: str) -> kaldifst.StdVectorFst:
         )
     kaldifst.arcsort(G, sort_type="ilabel")
 
-    logging.info(f"Composing LG")
+    logging.info("Composing LG")
     LG = kaldifst.compose(
         L,
         G,
@@ -93,10 +93,10 @@ def compile_LG(lang_dir: str) -> kaldifst.StdVectorFst:
         connect=True,
     )
 
-    logging.info(f"Determinize star LG")
+    logging.info("Determinize star LG")
     kaldifst.determinize_star(LG)
 
-    logging.info(f"minimizeencoded")
+    logging.info("minimizeencoded")
     kaldifst.minimize_encoded(LG)
 
     # Set all disambig IDs to eps
