@@ -84,12 +84,12 @@ The best WER using beam search with beam size 4 is:
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.83       | 7.19       |
+| WER | 2.76       | 6.97       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
 
-We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Lm37sNajIpkV4HTzMDF7sn9l0JpfmekN?usp=sharing)
+We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Rc4Is-3Yp9LbcEz_Iy8hfyenyHsyjvqE?usp=sharing)
 
 ### Aishell
 
