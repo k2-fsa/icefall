@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang)
-# Copyright    2021                       Pingfeng Luo
+#                                                  Wei Kang
+#                                                  Mingshuang Luo)
+# Copyright    2021                      (Pingfeng Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -30,26 +31,24 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
+from model import Transducer
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
-from icefall.mmi import LFMMILoss
-from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 
 def get_parser():
@@ -81,7 +80,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=90,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -91,14 +90,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        conformer_mmi/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_mmi/exp",
+        default="transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -108,7 +107,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_phone",
+        default="data/lang_char",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
@@ -116,12 +115,18 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--att-rate",
+        "--lr-factor",
         type=float,
-        default=0.7,
-        help="""The attention rate.
-        The total loss is (1 -  att_rate) * mmi_loss + att_rate * att_loss
-        """,
+        default=5.0,
+        help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
 
     return parser
@@ -137,6 +142,10 @@ def get_params() -> AttributeDict:
     you can also access them via `params`.
 
     Explanation of options saved in `params`:
+
+        - best_train_loss: Best training loss so far. It is used to select
+                           the model that has the lowest training loss. It is
+                           updated during the training.
 
         - best_valid_loss: Best validation loss so far. It is used to select
                            the model that has the lowest validation loss. It is
@@ -156,33 +165,16 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - beam_size: It is used in k2.ctc_loss
-
-        - reduction: It is used in k2.ctc_loss
-
-        - use_double_scores: It is used in k2.ctc_loss
-
-        - subsampling_factor:  The subsampling factor for the model.
-
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
 
-        - attention_dim: Attention dimension.
+        - subsampling_factor:  The subsampling factor for the model.
 
-        - nhead: Number of heads in multi-head attention.
-                 Must satisfy attention_dim // nhead == 0.
+        - attention_dim: Hidden dim for multi-head attention model.
 
-        - num_encoder_layers: Number of attention encoder layers.
+        - num_decoder_layers: Number of decoder layer of transformer decoder.
 
-        - num_decoder_layers: Number of attention decoder layers.
-
-        - use_feat_batchnorm: Whether to do normalization in the input layer.
-
-        - weight_decay:  The weight_decay for the optimizer.
-
-        - lr_factor: The lr_factor for the optimizer.
-
-        - warm_step: The warm_step for the optimizer.
+        - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
         {
@@ -193,30 +185,69 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
-            # parameters for k2.ctc_loss
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
+            "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for conformer
-            "subsampling_factor": 4,
             "feature_dim": 80,
+            "encoder_out_dim": 512,
+            "subsampling_factor": 4,
             "attention_dim": 512,
-            "nhead": 4,
+            "nhead": 8,
+            "dim_feedforward": 2048,
             "num_encoder_layers": 12,
-            "num_decoder_layers": 6,
-            "use_feat_batchnorm": True,
+            "vgg_frontend": False,
             # parameters for Noam
-            "weight_decay": 1e-6,
-            "lr_factor": 5.0,
-            "warm_step": 80000,
-            "use_pruned_intersect": False,
-            "den_scale": 1.0,
+            "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
     )
 
     return params
+
+
+def get_encoder_model(params: AttributeDict):
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        output_dim=params.encoder_out_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.attention_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        vgg_frontend=params.vgg_frontend,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict):
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.encoder_out_dim,
+        blank_id=params.blank_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict):
+    joiner = Joiner(
+        input_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict):
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+    )
+    return model
 
 
 def load_checkpoint_if_available(
@@ -309,12 +340,12 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: nn.Module,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
-    graph_compiler: MmiTrainingGraphCompiler,
     is_training: bool,
-) -> Tuple[torch.Tensor, MetricsTracker]:
+) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute LF-MMI loss given the model and its inputs.
+    Compute CTC loss given the model and its inputs.
 
     Args:
       params:
@@ -324,71 +355,33 @@ def compute_loss(
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       is_training:
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
     """
-    device = graph_compiler.device
+    device = model.device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
+    feature_lens = supervisions["num_frames"].to(device)
+
+    texts = batch["supervisions"]["text"]
+    y = graph_compiler.texts_to_ids(texts)
+    y = k2.RaggedTensor(y).to(device)
+
     with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is (N, T, C)
-
-        # NOTE: We need `encode_supervisions` to sort sequences with
-        # different duration in decreasing order, required by
-        # `k2.intersect_dense` called in `LFMMILoss.forward()`
-        supervision_segments, texts = encode_supervisions(
-            supervisions, subsampling_factor=params.subsampling_factor
-        )
-
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
-
-    loss_fn = LFMMILoss(
-        graph_compiler=graph_compiler,
-        den_scale=params.den_scale,
-        use_pruned_intersect=params.use_pruned_intersect,
-    )
-
-    mmi_loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
-
-    if params.att_rate != 0.0:
-        token_ids = graph_compiler.texts_to_ids(supervisions["text"])
-        with torch.set_grad_enabled(is_training):
-            mmodel = model.module if hasattr(model, "module") else model
-            att_loss = mmodel.decoder_forward(
-                encoder_memory,
-                memory_mask,
-                token_ids=token_ids,
-                sos_id=graph_compiler.sos_id,
-                eos_id=graph_compiler.eos_id,
-            )
-        loss = (1.0 - params.att_rate) * mmi_loss + params.att_rate * att_loss
-    else:
-        loss = mmi_loss
-        att_loss = torch.tensor([0])
+        loss = model(x=feature, x_lens=feature_lens, y=y)
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = supervision_segments[:, 2].sum().item()
-    info["mmi_loss"] = mmi_loss.detach().cpu().item()
-    if params.att_rate != 0.0:
-        info["att_loss"] = att_loss.detach().cpu().item()
+    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
+    # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
 
     return loss, info
@@ -397,13 +390,11 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
-    graph_compiler: MmiTrainingGraphCompiler,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
-    """Run the validation process. The validation loss
-    is saved in `params.valid_loss`.
-    """
+    """Run the validation process."""
     model.eval()
 
     tot_loss = MetricsTracker()
@@ -412,8 +403,8 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            batch=batch,
             graph_compiler=graph_compiler,
+            batch=batch,
             is_training=False,
         )
         assert loss.requires_grad is False
@@ -434,7 +425,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: MmiTrainingGraphCompiler,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
@@ -453,8 +444,6 @@ def train_one_epoch(
         The model for training.
       optimizer:
         The optimizer we are using.
-      graph_compiler:
-        It is used to convert transcripts to FSAs.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -475,11 +464,10 @@ def train_one_epoch(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            batch=batch,
             graph_compiler=graph_compiler,
+            batch=batch,
             is_training=True,
         )
-
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
@@ -558,57 +546,67 @@ def run(rank, world_size, args):
     else:
         tb_writer = None
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    num_classes = max_token_id + 1  # +1 for the blank
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
+    logging.info(f"Device: {device}")
 
-    graph_compiler = MmiTrainingGraphCompiler(
-        params.lang_dir,
+    lexicon = Lexicon(params.lang_dir)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
         device=device,
-        oov="<UNK>",
-        sos_id=1,
-        eos_id=1,
+        oov="<unk>",
     )
+
+    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    params.vocab_size = max(lexicon.tokens) + 1
+
+    logging.info(params)
 
     logging.info("About to create model")
-    if params.att_rate == 0:
-        assert params.num_decoder_layers == 0, f"{params.num_decoder_layers}"
+    model = get_transducer_model(params)
 
-    model = Conformer(
-        num_features=params.feature_dim,
-        nhead=params.nhead,
-        d_model=params.attention_dim,
-        num_classes=num_classes,
-        subsampling_factor=params.subsampling_factor,
-        num_encoder_layers=params.num_encoder_layers,
-        num_decoder_layers=params.num_decoder_layers,
-        vgg_frontend=False,
-        use_feat_batchnorm=params.use_feat_batchnorm,
-    )
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:
+        logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
+    model.device = device
 
     optimizer = Noam(
         model.parameters(),
         model_size=params.attention_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
-    if checkpoints and checkpoints["optimizer"]:
+    if checkpoints and "optimizer" in checkpoints:
+        logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
     aishell = AishellAsrDataModule(args)
     train_cuts = aishell.train_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        return 1.0 <= c.duration <= 20.0
+
+    num_in_total = len(train_cuts)
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
+    num_left = len(train_cuts)
+    num_removed = num_in_total - num_left
+    removed_percent = num_removed / num_in_total * 100
+
+    logging.info(f"Before removing short and long utterances: {num_in_total}")
+    logging.info(f"After removing short and long utterances: {num_left}")
+    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+
     train_dl = aishell.train_dataloaders(train_cuts)
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 

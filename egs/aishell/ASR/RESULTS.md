@@ -1,5 +1,37 @@
 ## Results
 
+### Aishell training results (Transducer-stateless)
+#### 2021-12-29
+(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/sPEDmAQ3QcWuDAWGiKprVg/>
+
+||test|
+|--|--|
+|CER| 5.7% |
+
+You can use the following commands to reproduce our results:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7,8"
+./transducer_stateless/train.py \
+  --bucketing-sampler True \
+  --world-size 8 \
+  --lang-dir data/lang_char \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless/exp_char \
+  --max-duration 160 \
+  --lr-factor 3
+
+./transducer_stateless/decode.py \
+  --epoch 39 \
+  --avg 10 \
+  --lang-dir data/lang_char \
+  --exp-dir transducer_stateless/exp_char \
+  --max-duration 100 \
+  --decoding-method beam_search \
+  --beam-size 4
+```
+
 ### Aishell training results (Conformer-MMI)
 #### 2021-12-04
 (Pingfeng Luo): Result of <https://github.com/k2-fsa/icefall/pull/140>
