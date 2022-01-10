@@ -4,7 +4,7 @@
 
 #### Conformer encoder + embedding decoder
 
-Using commit `14c93add507982306f5a478cd144e0e32e0f970d`.
+Using commit `TODO`.
 
 Conformer encoder + non-current decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
@@ -13,8 +13,8 @@ The WERs are
 
 |                           | test-clean | test-other | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.85       | 7.30       | --epoch 29, --avg 13, --max-duration 100 |
-| beam search (beam size 4) | 2.83       | 7.19       |                                          |
+| greedy search             | 2.77       | 7.07       | --epoch 30, --avg 13, --max-duration 100 |
+| beam search (beam size 4) | 2.76       | 6.97       |                                          |
 
 The training command for reproducing is given below:
 
@@ -32,11 +32,11 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/Mjx7MeTgR3Oyr1yBCwjozw/>
+<https://tensorboard.dev/experiment/6fnVojoUQTmEJVq1yG34Vw/>
 
 The decoding command is:
 ```
-epoch=29
+epoch=36
 avg=13
 
 ## greedy search
