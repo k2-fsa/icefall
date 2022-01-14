@@ -29,6 +29,7 @@ from lhotse import (
     load_manifest,
     set_caching_enabled,
 )
+from lhotse.cut import Cut
 from lhotse.dataset import (
     DynamicBucketingSampler,
     CutConcatenate,
@@ -101,7 +102,7 @@ class WenetSpeechDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=30,
+            default=300,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -285,6 +286,11 @@ class WenetSpeechDataModule:
             )
         logging.info("About to create train dataloader")
 
+        def remove_short_and_long_utt(c: Cut):
+            # Keep only utterances with duration between 1 second and 20 seconds
+            return 1.0 <= c.duration <= 16.0
+
+        train_sampler.filter(remove_short_and_long_utt)
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
