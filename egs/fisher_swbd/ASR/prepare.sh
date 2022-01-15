@@ -92,7 +92,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the LibriSpeech corpus
   # to $dl_dir/LibriSpeech
   mkdir -p data/manifests/fisher
-  lhotse prepare fisher-english $dl_dir data/manifests/fisher
+  lhotse prepare fisher-english --absolute-paths 1 $dl_dir data/manifests/fisher
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -100,7 +100,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # We assume that you have downloaded the LibriSpeech corpus
   # to $dl_dir/LibriSpeech
   mkdir -p data/manifests/swbd
-  lhotse prepare switchboard --omit-silence $dl_dir/LDC97S62 data/manifests/swbd
+  lhotse prepare switchboard --absolute-paths 1 --omit-silence $dl_dir/LDC97S62 data/manifests/swbd
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
