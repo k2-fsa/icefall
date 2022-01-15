@@ -135,7 +135,7 @@ def main():
     sups = load_manifest_lazy_or_eager(args.input_sups)
     assert isinstance(sups, SupervisionSet)
 
-    normalizer = Normalizer()
+    normalizer = FisherSwbdNormalizer()
 
     tot, skip = 0, 0
     with SupervisionSet.open_writer(args.output_sups) as writer:
@@ -155,7 +155,7 @@ def main():
 
 
 def test():
-    normalizer = Normalizer()
+    normalizer = FisherSwbdNormalizer()
     for text in [
         "[laughterr]",
         "[laugh] oh this is great [silence] <B_ASIDE> yes",
