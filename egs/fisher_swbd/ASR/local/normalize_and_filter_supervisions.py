@@ -17,15 +17,34 @@ def get_args():
     return parser.parse_args()
 
 
-# Note: the functions "normalize" and "keep" implement the logic similar to
-# Kaldi's data prep scripts for Fisher:
-#   https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/fisher_data_prep.sh
-# and for SWBD:
-#   https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/swbd1_data_prep.sh
+class FisherSwbdNormalizer:
+    """
+    Note: the functions "normalize" and "keep" implement the logic similar to
+    Kaldi's data prep scripts for Fisher:
+      https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/fisher_data_prep.sh
+    and for SWBD:
+      https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/swbd1_data_prep.sh
+
+    One notable difference is that we don't change [cough], [lipsmack], etc. to [noise]. 
+    We also don't implement all the edge cases of normalization from Kaldi 
+    (hopefully won't make too much difference).
+    """
 
 
-class Normalizer:
     def __init__(self) -> None:
+
+        self.remove_regexp_before = re.compile(
+            r"|".join([
+                # special symbols
+                r"\[\[SKIP.*\]\]",
+                r"\[SKIP.*\]",
+                r"\[PAUSE.*\]",
+                r"\[SILENCE\]",
+                r"<B_ASIDE>",
+                r"<E_ASIDE>",
+            ])
+        )
+
         # tuples of (pattern, replacement)
         # note: Kaldi replaces sighs, coughs, etc with [noise].
         #       We don't do that here.
@@ -63,19 +82,12 @@ class Normalizer:
             (re.compile(r"\s-\s"), r" "),
             (re.compile(r"\s-\s"), r" "),
             # special symbol with trailing dash
-            (re.compile(r"(\[\w+\])-"), r"\1"),
+            (re.compile(r"(\[.*?\])-"), r"\1"),
         ]
 
         # unwanted symbols in the transcripts
-        self.remove_regexp = re.compile(
+        self.remove_regexp_after = re.compile(
             r"|".join([
-                # special symbols
-                r"\[\[SKIP.*\]\]",
-                r"\[SKIP.*\]",
-                r"\[PAUSE.*\]",
-                r"\[SILENCE\]",
-                r"<B_ASIDE>",
-                r"<E_ASIDE>",
                 # remaining punctuation
                 r"\.",
                 r",",
@@ -92,12 +104,15 @@ class Normalizer:
     def normalize(self, text: str) -> str:
         text = text.upper()
 
-        # first replace
+        # first remove
+        text = self.remove_regexp_before.sub("", text)
+
+        # then replace
         for pattern, sub in self.replace_regexps:
             text = pattern.sub(sub, text)
 
         # then remove
-        text = self.remove_regexp.sub("", text)
+        text = self.remove_regexp_after.sub("", text)
 
         # then clean up whitespace
         text = self.whitespace_regexp.sub(" ", text).strip()
@@ -159,6 +174,8 @@ def test():
         "-[ADV]AN[TAGE]",
         "-[ADV]AN[TAGE]-",
         "[WEA[SONABLE]-/REASONABLE]",
+        "[VOCALIZED-NOISE]-",
+        "~BULL",
     ]:
         print(text)
         print(normalizer.normalize(text))

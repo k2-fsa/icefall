@@ -56,12 +56,6 @@ log() {
 
 log "dl_dir: $dl_dir"
 
-if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "Stage -1: Download LM"
-  #[ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
-  #./local/download_lm.py --out-dir=$dl_dir/lm
-fi
-
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
 
@@ -116,34 +110,59 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 
   set -x
 
+  # Combine Fisher and SWBD recordings and supervisions
   lhotse combine \
    data/manifests/fisher/recordings.jsonl.gz \
    data/manifests/swbd/swbd_recordings.jsonl \
    data/manifests/fisher-swbd_recordings.jsonl.gz
-
   lhotse combine \
    data/manifests/fisher/supervisions.jsonl.gz \
    data/manifests/swbd/swbd_supervisions.jsonl \
    data/manifests/fisher-swbd_supervisions.jsonl.gz
 
+  # Normalize text and remove supervisions that are not useful / hard to handle.
   python local/normalize_and_filter_supervisions.py \
     data/manifests/fisher-swbd_supervisions.jsonl.gz \
     data/manifests/fisher-swbd_supervisions_norm.jsonl.gz \
   
+  # Create cuts that span whole recording sessions.
   lhotse cut simple \
     -r data/manifests/fisher-swbd_recordings.jsonl.gz \
     -s data/manifests/fisher-swbd_supervisions_norm.jsonl.gz \
     data/manifests/fisher-swbd_cuts_unshuf.jsonl.gz
   
+  # Shuffle the cuts (pure bash pipes are fast).
+  # We could technically skip this step but this helps ensure
+  # SWBD is not only seen towards the end of training.
   gunzip -c data/manifests/fisher-swbd_cuts_unshuf.jsonl.gz \
     | shuf \
     | gzip -c \
     > data/manifests/fisher-swbd_cuts.jsonl.gz
 
+  # Create train/dev split -- 20 sessions for dev is about ~2h, should be good.
+  num_cuts="$(gunzip -c data/manifests/fisher-swbd_cuts.jsonl.gz | wc -l)"
+  num_dev_sessions=20
+  lhotse subset --first $num_dev_sessions \
+    data/manifests/fisher-swbd_cuts.jsonl.gz \
+    data/manifests/dev_fisher-swbd_cuts.jsonl.gz
+  lhotse subset --last $((num_cuts-num_dev_sessions)) \
+    data/manifests/fisher-swbd_cuts.jsonl.gz \
+    data/manifests/train_fisher-swbd_cuts.jsonl.gz
+
+  # Finally, split the full-session cuts into one cut per supervision segment.
+  # In case any segments are overlapping we would discard the info about overlaps.
+  # (overlaps are unlikely for this dataset because each cut sees only one channel).
+  lhotse cut trim-to-supervisions \
+    --discard-overlapping \
+    data/manifests/train_fisher-swbd_cuts.jsonl.gz \
+    data/manifests/train_utterances_fisher-swbd_cuts.jsonl.gz
+  lhotse cut trim-to-supervisions \
+    --discard-overlapping \
+    data/manifests/dev_fisher-swbd_cuts.jsonl.gz \
+    data/manifests/dev_utterances_fisher-swbd_cuts.jsonl.gz
+
   set +x
 fi
-
-# TODO: optional stage 5, compute features
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Dump transcripts for LM training"
@@ -153,18 +172,6 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     | sed 's:"::g' \
     > data/lm/transcript_words.txt
 fi
-
-#if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-#  log "Stage 3: Compute fbank for librispeech"
-#  mkdir -p data/fbank
-#  ./local/compute_fbank_librispeech.py
-#fi
-#
-#if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-#  log "Stage 4: Compute fbank for musan"
-#  mkdir -p data/fbank
-#  ./local/compute_fbank_musan.py
-#fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Prepare lexicon using g2p_en"
@@ -185,6 +192,12 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     | uniq \
     | awk '{print $0,NR+2}' \
     >> $lang_dir/words.txt
+
+  # Add remaining special word symbols expected by LM scripts.
+  num_words=$(wc -l $lang_dir/words.txt)
+  echo "<s> $((num_words))"
+  echo "</s> $((num_words+1))"
+  echo "#0 $((num_words+2))"
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     pip install g2p_en
