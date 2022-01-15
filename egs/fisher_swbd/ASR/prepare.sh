@@ -181,7 +181,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   # Add special words to words.txt
   echo "<eps> 0" > $lang_dir/words.txt
   echo "!SIL 1" >> $lang_dir/words.txt
-  echo "<UNK> 2" >> $lang_dir/words.txt
+  echo "[UNK] 2" >> $lang_dir/words.txt
 
   # Add regular words to words.txt
   gunzip -c data/manifests/fisher-swbd_supervisions_norm.jsonl.gz \
@@ -195,9 +195,11 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 
   # Add remaining special word symbols expected by LM scripts.
   num_words=$(wc -l $lang_dir/words.txt)
-  echo "<s> $((num_words))"
-  echo "</s> $((num_words+1))"
-  echo "#0 $((num_words+2))"
+  echo "<s> ${num_words}" >> $lang_dir/words.txt
+  num_words=$(wc -l $lang_dir/words.txt)
+  echo "</s> ${num_words}" >> $lang_dir/words.txt
+  num_words=$(wc -l $lang_dir/words.txt)
+  echo "#0 ${num_words}" >> $lang_dir/words.txt
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     pip install g2p_en
