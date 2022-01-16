@@ -103,6 +103,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   # to data/musan
   mkdir -p data/manifests
   lhotse prepare musan $dl_dir/musan data/manifests
+  lhotse combine data/manifests/recordings_{music,speech,noise}.json data/manifests/recordings_musan.jsonl.gz
+  lhotse cut simple -r data/manifests/recordings_musan.jsonl.gz data/manifests/musan_cuts.jsonl.gz 
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
@@ -194,11 +196,11 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     >> $lang_dir/words.txt
 
   # Add remaining special word symbols expected by LM scripts.
-  num_words=$(wc -l $lang_dir/words.txt)
+  num_words=$(cat $lang_dir/words.txt | wc -l)
   echo "<s> ${num_words}" >> $lang_dir/words.txt
-  num_words=$(wc -l $lang_dir/words.txt)
+  num_words=$(cat $lang_dir/words.txt | wc -l)
   echo "</s> ${num_words}" >> $lang_dir/words.txt
-  num_words=$(wc -l $lang_dir/words.txt)
+  num_words=$(cat $lang_dir/words.txt | wc -l)
   echo "#0 ${num_words}" >> $lang_dir/words.txt
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then

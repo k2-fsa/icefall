@@ -167,6 +167,7 @@ class AsrDataModule:
             num_buckets=self.args.num_buckets,
             drop_last=True,
         )
+        train_sampler.filter(lambda cut: 1.0 <= cut.duration <= 15.0)
 
         logging.info("About to create train dataloader")
         train_dl = DataLoader(
