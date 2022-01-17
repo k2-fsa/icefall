@@ -5,25 +5,18 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=100
+swbd_only=false
 
 # We assume dl_dir (download dir) contains the following
-# directories and files. If not, they will be downloaded
-# by this script automatically.
+# directories and files. Most of them can't be downloaded automatically
+# as they are not publically available and require a license purchased 
+# from the LDC.
 #
-#  - $dl_dir/LibriSpeech
-#      You can find BOOKS.TXT, test-clean, train-clean-360, etc, inside it.
-#      You can download them from https://www.openslr.org/12
+#  - $dl_dir/{LDC2004S13,LDC2004T19,LDC2005S13,LDC2005T19}
+#      Fisher LDC packages.
 #
-#  - $dl_dir/lm
-#      This directory contains the following files downloaded from
-#       http://www.openslr.org/resources/11
-#
-#        - 3-gram.pruned.1e-7.arpa.gz
-#        - 3-gram.pruned.1e-7.arpa
-#        - 4-gram.arpa.gz
-#        - 4-gram.arpa
-#        - librispeech-vocab.txt
-#        - librispeech-lexicon.txt
+#  - $dl_dir/LDC97S62
+#      Switchboard LDC audio package (transcripts are auto-downloaded)
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -81,18 +74,14 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   fi
 fi
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ] && ! $swbd_only; then
   log "Stage 1: Prepare Fisher manifests"
-  # We assume that you have downloaded the LibriSpeech corpus
-  # to $dl_dir/LibriSpeech
   mkdir -p data/manifests/fisher
   lhotse prepare fisher-english --absolute-paths 1 $dl_dir data/manifests/fisher
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare SWBD manifests"
-  # We assume that you have downloaded the LibriSpeech corpus
-  # to $dl_dir/LibriSpeech
   mkdir -p data/manifests/swbd
   lhotse prepare switchboard --absolute-paths 1 --omit-silence $dl_dir/LDC97S62 data/manifests/swbd
 fi
@@ -113,14 +102,21 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   set -x
 
   # Combine Fisher and SWBD recordings and supervisions
-  lhotse combine \
-   data/manifests/fisher/recordings.jsonl.gz \
-   data/manifests/swbd/swbd_recordings.jsonl \
-   data/manifests/fisher-swbd_recordings.jsonl.gz
-  lhotse combine \
-   data/manifests/fisher/supervisions.jsonl.gz \
-   data/manifests/swbd/swbd_supervisions.jsonl \
-   data/manifests/fisher-swbd_supervisions.jsonl.gz
+  if $swbd_only; then
+    cp data/manifests/swbd/swbd_recordings.jsonl \
+      data/manifests/fisher-swbd_recordings.jsonl.gz
+    cp data/manifests/swbd/swbd_supervisions.jsonl \
+      data/manifests/fisher-swbd_supervisions.jsonl.gz
+  else
+    lhotse combine \
+      data/manifests/fisher/recordings.jsonl.gz \
+      data/manifests/swbd/swbd_recordings.jsonl \
+      data/manifests/fisher-swbd_recordings.jsonl.gz
+    lhotse combine \
+      data/manifests/fisher/supervisions.jsonl.gz \
+      data/manifests/swbd/swbd_supervisions.jsonl \
+      data/manifests/fisher-swbd_supervisions.jsonl.gz
+  fi
 
   # Normalize text and remove supervisions that are not useful / hard to handle.
   python local/normalize_and_filter_supervisions.py \
