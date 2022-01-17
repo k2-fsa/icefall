@@ -135,7 +135,8 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   
   # Shuffle the cuts (pure bash pipes are fast).
   # We could technically skip this step but this helps ensure
-  # SWBD is not only seen towards the end of training.
+  # SWBD is not only seen towards the end of training 
+  # (we concatenated it after Fisher).
   gunzip -c data/manifests/fisher-swbd_cuts_unshuf.jsonl.gz \
     | shuf \
     | gzip -c \
@@ -163,6 +164,9 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     data/manifests/dev_fisher-swbd_cuts.jsonl.gz \
     data/manifests/dev_utterances_fisher-swbd_cuts.jsonl.gz
 
+  # Display some statistics about the data.
+  lhotse cut describe data/manifests/train_utterances_fisher-swbd_cuts.jsonl.gz
+  lhotse cut describe data/manifests/dev_utterances_fisher-swbd_cuts.jsonl.gz
   set +x
 fi
 
@@ -204,6 +208,9 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   echo "#0 ${num_words}" >> $lang_dir/words.txt
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
+    # We discard SWBD's lexicon and just use g2p_en
+    # It was trained on CMUdict and looks it up before
+    # resorting to an LSTM G2P model.
     pip install g2p_en
     ./local/prepare_lang_g2pen.py --lang-dir $lang_dir
   fi
