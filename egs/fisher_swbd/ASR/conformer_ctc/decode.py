@@ -665,7 +665,9 @@ def main():
     datamodule = AsrDataModule(args)
 
     fisher_swbd_dev_cuts = datamodule.dev_cuts()
-    fisher_swbd_dev_dataloader = datamodule.test_dataloaders(fisher_swbd_dev_cuts)
+    fisher_swbd_dev_dataloader = datamodule.test_dataloaders(
+        fisher_swbd_dev_cuts
+    )
 
     test_sets = ["dev-fisher-swbd"]
     test_dl = [fisher_swbd_dev_dataloader]

@@ -40,7 +40,7 @@ from icefall.utils import str2bool
 
 class Resample16kHz:
     def __call__(self, cuts: CutSet) -> CutSet:
-        return cuts.resample(16000).with_recording_path_prefix('download')
+        return cuts.resample(16000).with_recording_path_prefix("download")
 
 
 class AsrDataModule:
@@ -282,5 +282,5 @@ def test():
             break
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test()

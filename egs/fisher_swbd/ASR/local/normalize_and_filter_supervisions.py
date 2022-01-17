@@ -17,6 +17,7 @@ def get_args():
     return parser.parse_args()
 
 
+# fmt: off
 class FisherSwbdNormalizer:
     """
     Note: the functions "normalize" and "keep" implement the logic similar to
@@ -118,6 +119,7 @@ class FisherSwbdNormalizer:
         text = self.whitespace_regexp.sub(" ", text).strip()
 
         return text
+# fmt: on
 
 
 def keep(sup: SupervisionSegment) -> bool:
@@ -180,6 +182,7 @@ def test():
         print(text)
         print(normalizer.normalize(text))
         print()
+
 
 if __name__ == "__main__":
     # test()

@@ -106,7 +106,6 @@ def get_g2p_sym2int():
     return sym2int
 
 
-
 def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
     """Write a symbol to ID mapping to a file.
 
@@ -382,7 +381,17 @@ def main():
     lexicon_filename = lang_dir / "lexicon.txt"
     sil_token = "SIL"
     sil_prob = 0.5
-    special_symbols = ["[UNK]", "[BREATH]", "[COUGH]", "[LAUGHTER]", "[LIPSMACK]", "[NOISE]", "[SIGH]", "[SNEEZE]", "[VOCALIZED-NOISE]"]
+    special_symbols = [
+        "[UNK]",
+        "[BREATH]",
+        "[COUGH]",
+        "[LAUGHTER]",
+        "[LIPSMACK]",
+        "[NOISE]",
+        "[SIGH]",
+        "[SNEEZE]",
+        "[VOCALIZED-NOISE]",
+    ]
 
     g2p = G2p()
     token2id = get_g2p_sym2int()
@@ -407,8 +416,15 @@ def main():
             (
                 word,
                 [
-                    phn for phn in g2p(word)
-                    if phn not in ("'", " ", "-", ",")  # g2p_en has these symbols as phones
+                    phn
+                    for phn in g2p(word)
+                    if phn
+                    not in (
+                        "'",
+                        " ",
+                        "-",
+                        ",",
+                    )  # g2p_en has these symbols as phones
                 ],
             )
             for word in tqdm(vocab, desc="Processing vocab with G2P")
@@ -437,9 +453,9 @@ def main():
     token2id = dict(sorted(token2id.items(), key=lambda tpl: tpl[1]))
     print(token2id)
     word2id = {"<eps>": 0}
-    word2id.update({
-        word: int(id_) for id_, (word, pron) in enumerate(lexicon, start=1)
-    })
+    word2id.update(
+        {word: int(id_) for id_, (word, pron) in enumerate(lexicon, start=1)}
+    )
     for symbol in ["<s>", "</s>", "#0"]:
         word2id[symbol] = len(word2id)
 
