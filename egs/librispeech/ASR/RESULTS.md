@@ -13,8 +13,8 @@ The WERs are
 
 |                           | test-clean | test-other | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.77       | 7.07       | --epoch 30, --avg 13, --max-duration 100 |
-| beam search (beam size 4) | 2.76       | 6.97       |                                          |
+| greedy search             | 2.69       | 6.81       | --epoch 71, --avg 15, --max-duration 100 |
+| beam search (beam size 4) | 2.68       | 6.72       | --epoch 71, --avg 15, --max-duration 100 |
 
 The training command for reproducing is given below:
 
@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer_stateless/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 76 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp-full \
   --full-libri 1 \
@@ -32,12 +32,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/6fnVojoUQTmEJVq1yG34Vw/>
+<https://tensorboard.dev/experiment/qGdqzHnxS0WJ695OXfZDzA/#scalars&_smoothingWeight=0>
 
 The decoding command is:
 ```
-epoch=36
-avg=13
+epoch=71
+avg=15
 
 ## greedy search
 ./transducer_stateless/decode.py \
@@ -57,6 +57,9 @@ avg=13
   --decoding-method beam_search \
   --beam-size 4
 ```
+
+You can find a pretrained model by visiting
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-bpe-500-2022-01-10>
 
 
 #### Conformer encoder + LSTM decoder
