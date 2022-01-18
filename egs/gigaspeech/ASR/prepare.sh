@@ -19,6 +19,13 @@ num_splits=2000
 #      You can apply for the download credentials by following
 #      https://github.com/SpeechColab/GigaSpeech#download
 #
+#  - $dl_dir/lm
+#      This directory contains the language model downloaded from
+#        https://huggingface.co/wgb14/gigaspeech_lm
+#
+#        - 4gram.arpa.gz
+#        - lexicon.txt
+#
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
 #       http://www.openslr.org/17/
@@ -34,7 +41,7 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  # 5000
+  5000
   500
 )
 
@@ -49,6 +56,15 @@ log() {
 }
 
 log "dl_dir: $dl_dir"
+
+if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
+  log "stage -1: Download LM"
+  # We assume that you have installed the git-lfs, if not, you could install it
+  # using: `sudo apt-get install git-lfs && git-lfs install`
+  [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
+  git clone https://huggingface.co/wgb14/gigaspeech_lm $dl_dir/lm
+  gunzip -c $dl_dir/lm/4gram.arpa.gz > $dl_dir/lm/4gram.arpa
+fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
@@ -159,13 +175,14 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
 
-  # (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
-  #   cat - $dl_dir/lm/librispeech-lexicon.txt |
-  #   sort | uniq > $lang_dir/lexicon.txt
+  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+    cat - $dl_dir/lm/lexicon.txt |
+    sort | uniq > $lang_dir/lexicon.txt
 
-  # if [ ! -f $lang_dir/L_disambig.pt ]; then
-  #   ./local/prepare_lang.py --lang-dir $lang_dir
-  # fi
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir
+  fi
+
   if [ ! -f $lang_dir/transcript_words.txt ]; then
     gunzip -c "data/manifests/gigaspeech_supervisions_XL.jsonl.gz" \
       | jq '.text' \
@@ -225,14 +242,6 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     # so that the two can share G.pt later.
     cp data/lang_phone/{words.txt,transcript_words.txt} $lang_dir
 
-    if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate data for BPE training"
-      gunzip -c "data/manifests/gigaspeech_supervisions_XL.jsonl.gz" \
-        | jq '.text' \
-        | sed 's/"//g' \
-        > $lang_dir/transcript_words.txt
-    fi
-
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
@@ -283,42 +292,20 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   # it using: pip install kaldilm
 
   mkdir -p data/lm
-  if [ ! -f data/lm/3-gram.arpa ]; then
-    ./shared/make_kn_lm.py \
-      -ngram-order 3 \
-      -text "data/lang_phone/transcript_words.txt" \
-      -lm data/lm/3-gram.arpa
-  fi
 
-  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
-      --max-order=3 \
-      data/lm/3-gram.arpa > data/lm/G_3_gram.fst.txt
-  fi
-
-  if [ ! -f data/lm/4-gram.arpa ]; then
-    ./shared/make_kn_lm.py \
-      -ngram-order 4 \
-      -text "data/lang_phone/transcript_words.txt" \
-      -lm data/lm/4-gram.arpa
-  fi
-
-  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
-    # It is used for LM rescoring
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
       --max-order=4 \
-      data/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+      $dl_dir/lm/4gram.arpa > data/lm/G_4_gram.fst.txt
   fi
 fi
 
 if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
   log "Stage 13: Compile HLG"
-  # ./local/compile_hlg.py --lang-dir data/lang_phone
+  ./local/compile_hlg.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
