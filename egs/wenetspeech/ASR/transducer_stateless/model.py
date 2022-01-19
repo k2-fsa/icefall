@@ -115,6 +115,7 @@ class Transducer(nn.Module):
         ]
         assert encoder_out.size(2) >= (max_sym_id + 1), [
             encoder_out.size(),
+            decoder_out.size(),
             max_sym_id,
         ]
 
