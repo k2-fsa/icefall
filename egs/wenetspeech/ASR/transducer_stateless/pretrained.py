@@ -45,9 +45,9 @@ import argparse
 import logging
 import math
 from typing import List
+from pathlib import Path
 
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import beam_search, greedy_search
@@ -59,6 +59,8 @@ from torch.nn.utils.rnn import pad_sequence
 
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict
+from icefall.lexicon import Lexicon
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 
 
 def get_parser():
@@ -76,9 +78,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        help="""Path to bpe.model.
+        help="""Path to lang.
         Used only when method is ctc-decoding.
         """,
     )
@@ -220,18 +222,10 @@ def read_sound_files(
 def main():
     parser = get_parser()
     args = parser.parse_args()
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
-
     params.update(vars(args))
-
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
-
     logging.info(f"{params}")
 
     device = torch.device("cpu")
@@ -239,6 +233,15 @@ def main():
         device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
+
+    lexicon = Lexicon(params.lang_dir)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
+
+    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info("Creating model")
     model = get_transducer_model(params)
@@ -303,7 +306,7 @@ def main():
         else:
             raise ValueError(f"Unsupported method: {params.method}")
 
-        hyps.append(sp.decode(hyp).split())
+        hyps.append([lexicon.token_table[i] for i in hyp])
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
