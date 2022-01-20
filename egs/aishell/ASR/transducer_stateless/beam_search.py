@@ -73,9 +73,9 @@ def greedy_search(
             continue
 
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :]
+        current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
         # fmt: on
-        logits = model.joiner(current_encoder_out, decoder_out)
+        logits = model.joiner(current_encoder_out, decoder_out.unsqueeze(1))
         # logits is (1, 1, 1, vocab_size)
 
         y = logits.argmax().item()

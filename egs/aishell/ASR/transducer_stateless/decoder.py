@@ -70,6 +70,7 @@ class Decoder(nn.Module):
                 groups=embedding_dim,
                 bias=False,
             )
+        self.output_linear = nn.Linear(embedding_dim, vocab_size)
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
@@ -80,7 +81,7 @@ class Decoder(nn.Module):
             True to left pad the input. Should be True during training.
             False to not pad the input. Should be False during inference.
         Returns:
-          Return a tensor of shape (N, U, embedding_dim).
+          Return a tensor of shape (N, U, vocab_size).
         """
         embeding_out = self.embedding(y)
         if self.context_size > 1:
@@ -95,4 +96,5 @@ class Decoder(nn.Module):
                 assert embeding_out.size(-1) == self.context_size
             embeding_out = self.conv(embeding_out)
             embeding_out = embeding_out.permute(0, 2, 1)
+        embeding_out = self.output_linear(embeding_out)
         return embeding_out

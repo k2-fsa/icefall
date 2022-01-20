@@ -38,7 +38,6 @@ from lhotse.utils import fix_random_seed
 from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
@@ -129,6 +128,28 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--prune-range",
+        type=int,
+        default=5,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with lm (output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network) part.",
+    )
+
     return parser
 
 
@@ -185,18 +206,19 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "valid_interval": 800,
             # parameters for conformer
             "feature_dim": 80,
-            "encoder_out_dim": 512,
             "subsampling_factor": 4,
             "attention_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            # parameters for decoder
+            "embedding_dim": 256,
             # parameters for Noam
-            "warm_step": 80000,  # For the 100h subset, use 8k
+            "warm_step": 30000,
             "env_info": get_env_info(),
         }
     )
@@ -208,7 +230,7 @@ def get_encoder_model(params: AttributeDict):
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -222,7 +244,7 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
+        embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
     )
@@ -231,7 +253,8 @@ def get_decoder_model(params: AttributeDict):
 
 def get_joiner_model(params: AttributeDict):
     joiner = Joiner(
-        input_dim=params.encoder_out_dim,
+        input_dim=params.vocab_size,
+        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner
@@ -246,6 +269,9 @@ def get_transducer_model(params: AttributeDict):
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        prune_range=params.prune_range,
+        lm_scale=params.lm_scale,
+        am_scale=params.am_scale,
     )
     return model
 
@@ -374,7 +400,8 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(x=feature, x_lens=feature_lens, y=y)
+        simple_loss, pruned_loss = model(x=feature, x_lens=feature_lens, y=y)
+        loss = simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -383,6 +410,8 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
@@ -476,7 +505,6 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         if batch_idx % params.log_interval == 0:
@@ -555,10 +583,9 @@ def run(rank, world_size, args):
     graph_compiler = CharCtcTrainingGraphCompiler(
         lexicon=lexicon,
         device=device,
-        oov="<unk>",
     )
 
-    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)

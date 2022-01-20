@@ -19,10 +19,12 @@ import torch.nn as nn
 
 
 class Joiner(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int):
+    def __init__(self, input_dim: int, inner_dim: int, output_dim: int):
         super().__init__()
 
-        self.output_linear = nn.Linear(input_dim, output_dim)
+        self.output_linear = nn.Sequential(
+            nn.Linear(input_dim, inner_dim), nn.Linear(inner_dim, output_dim)
+        )
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
@@ -36,15 +38,8 @@ class Joiner(nn.Module):
         Returns:
           Return a tensor of shape (N, T, U, C).
         """
-        assert encoder_out.ndim == decoder_out.ndim == 3
-        assert encoder_out.size(0) == decoder_out.size(0)
-        assert encoder_out.size(2) == decoder_out.size(2)
-
-        encoder_out = encoder_out.unsqueeze(2)
-        # Now encoder_out is (N, T, 1, C)
-
-        decoder_out = decoder_out.unsqueeze(1)
-        # Now decoder_out is (N, 1, U, C)
+        assert encoder_out.ndim == decoder_out.ndim == 4
+        assert encoder_out.shape == decoder_out.shape
 
         logit = encoder_out + decoder_out
         logit = torch.tanh(logit)
