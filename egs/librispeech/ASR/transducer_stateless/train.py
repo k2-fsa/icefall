@@ -138,6 +138,17 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--modified-transducer-prob",
+        type=float,
+        default=0.25,
+        help="""The probability to use modified transducer loss.
+        In modified transduer, it limits the maximum number of symbols
+        per frame to 1. See also the option --max-sym-per-frame in
+        transducer_stateless/decode.py
+        """,
+    )
+
     return parser
 
 
@@ -383,7 +394,12 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(x=feature, x_lens=feature_lens, y=y)
+        loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            modified_transducer_prob=params.modified_transducer_prob,
+        )
 
     assert loss.requires_grad == is_training
 
