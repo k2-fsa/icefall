@@ -10,3 +10,4 @@ dask-worker-space
 log
 *.bak
 *-bak
+*bak.py
