@@ -140,14 +140,16 @@ def get_parser():
         "--lm-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with lm (output of prediction network) part.",
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
     )
 
     parser.add_argument(
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network) part.",
+        help="The scale to smooth the loss with am (output of encoder network)"
+        "part.",
     )
 
     return parser
