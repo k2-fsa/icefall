@@ -588,6 +588,10 @@ def run(rank, world_size, args):
             eos_token="<sos/eos>",
         )
     elif "lang_phone" in params.lang_dir:
+        assert params.att_rate == 0, (
+            "Attention decoder training does not support phone lang dirs at this time due to a missing "
+            "<sos/eos> symbol. Set --att-rate=0 for pure CTC training when using a phone-based lang dir."
+        )
         graph_compiler = CtcTrainingGraphCompiler(
             lexicon,
             device=device,
