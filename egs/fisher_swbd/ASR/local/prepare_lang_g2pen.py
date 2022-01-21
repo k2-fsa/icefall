@@ -17,21 +17,10 @@
 
 
 """
-This script takes as input a lexicon file "data/lang_phone/lexicon.txt"
-consisting of words and tokens (i.e., phones) and does the following:
-
-1. Add disambiguation symbols to the lexicon and generate lexicon_disambig.txt
-
-2. Generate tokens.txt, the token table mapping a token to a unique integer.
-
-3. Generate words.txt, the word table mapping a word to a unique integer.
-
-4. Generate L.pt, in k2 format. It can be loaded by
-
-        d = torch.load("L.pt")
-        lexicon = k2.Fsa.from_dict(d)
-
-5. Generate L_disambig.pt, in k2 format.
+This script takes as input a wors.txt file "data/lang_phone/words.txt"
+consisting of words and their IDs and creates a lexicon with g2p_en python package
+(it's CMUdict based). It also creates rest of the files typically expected in a lang 
+dir, including L.pt and Linv.pt.
 """
 import argparse
 import math

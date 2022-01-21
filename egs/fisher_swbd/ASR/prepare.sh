@@ -103,10 +103,10 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 
   # Combine Fisher and SWBD recordings and supervisions
   if $swbd_only; then
-    cp data/manifests/swbd/swbd_recordings.jsonl \
-      data/manifests/fisher-swbd_recordings.jsonl.gz
-    cp data/manifests/swbd/swbd_supervisions.jsonl \
-      data/manifests/fisher-swbd_supervisions.jsonl.gz
+    gunzip -c data/manifests/swbd/swbd_recordings.jsonl \
+      > data/manifests/fisher-swbd_recordings.jsonl.gz
+    gunzip -c data/manifests/swbd/swbd_supervisions.jsonl \
+      > data/manifests/fisher-swbd_supervisions.jsonl.gz
   else
     lhotse combine \
       data/manifests/fisher/recordings.jsonl.gz \
