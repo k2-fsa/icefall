@@ -136,6 +136,7 @@ class Transducer(nn.Module):
             blank=blank_id,
             reduction="sum",
             one_sym_per_frame=one_sym_per_frame,
+            from_log_softmax=False,
         )
 
         return loss
