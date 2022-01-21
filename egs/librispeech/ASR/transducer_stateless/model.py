@@ -120,6 +120,7 @@ class Transducer(nn.Module):
             target_lengths=y_lens,
             blank=blank_id,
             reduction="sum",
+            from_log_softmax=False,
         )
 
         return loss
