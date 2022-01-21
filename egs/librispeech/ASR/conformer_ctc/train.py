@@ -38,6 +38,7 @@ from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
+from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
@@ -350,9 +351,15 @@ def compute_loss(
         supervisions, subsampling_factor=params.subsampling_factor
     )
 
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
+    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
+        # Works with a BPE model
+        token_ids = graph_compiler.texts_to_ids(texts)
+        decoding_graph = graph_compiler.compile(token_ids)
+    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
+        # Works with a phone lexicon
+        decoding_graph = graph_compiler.compile(texts)
+    else:
+        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -379,9 +386,7 @@ def compute_loss(
             #
             # See https://github.com/k2-fsa/icefall/issues/97
             # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(
-                supervisions["text"]
-            )
+            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
             att_loss = mmodel.decoder_forward(
                 encoder_memory,
                 memory_mask,
@@ -514,9 +519,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -577,12 +580,27 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
+    if "lang_bpe" in params.lang_dir:
+        graph_compiler = BpeCtcTrainingGraphCompiler(
+            params.lang_dir,
+            device=device,
+            sos_token="<sos/eos>",
+            eos_token="<sos/eos>",
+        )
+    elif "lang_phone" in params.lang_dir:
+        graph_compiler = CtcTrainingGraphCompiler(
+            lexicon,
+            device=device,
+        )
+        # Manually add the sos/eos ID with their default values
+        # from the BPE recipe which we're adapting here.
+        graph_compiler.sos_id = 1
+        graph_compiler.eos_id = 1
+    else:
+        raise ValueError(
+            f"Unsupported type of lang dir (we expected it to have 'lang_bpe' or 'lang_phone' "
+            f"in its name): {params.lang_dir}"
+        )
 
     logging.info("About to create model")
     model = Conformer(
@@ -600,7 +618,9 @@ def run(rank, world_size, args):
 
     model.to(device)
     if world_size > 1:
-        model = DDP(model, device_ids=[rank])
+        # Note: find_unused_parameters=True is needed in case we
+        # want to set params.att_rate = 0 (i.e. att decoder is not trained)
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = Noam(
         model.parameters(),
@@ -630,9 +650,7 @@ def run(rank, world_size, args):
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:
