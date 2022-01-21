@@ -38,11 +38,11 @@ from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
-from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -595,8 +595,9 @@ def run(rank, world_size, args):
         )
     elif "lang_phone" in params.lang_dir:
         assert params.att_rate == 0, (
-            "Attention decoder training does not support phone lang dirs at this time due to a missing "
-            "<sos/eos> symbol. Set --att-rate=0 for pure CTC training when using a phone-based lang dir."
+            "Attention decoder training does not support phone lang dirs "
+            "at this time due to a missing <sos/eos> symbol. Set --att-rate=0 "
+            "for pure CTC training when using a phone-based lang dir."
         )
         graph_compiler = CtcTrainingGraphCompiler(
             lexicon,
@@ -608,8 +609,8 @@ def run(rank, world_size, args):
         graph_compiler.eos_id = 1
     else:
         raise ValueError(
-            f"Unsupported type of lang dir (we expected it to have 'lang_bpe' or 'lang_phone' "
-            f"in its name): {params.lang_dir}"
+            f"Unsupported type of lang dir (we expected it to have "
+            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
         )
 
     logging.info("About to create model")
