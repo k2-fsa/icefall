@@ -132,7 +132,7 @@ def get_parser():
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
     )
-    
+
     parser.add_argument(
         "--lr-factor",
         type=float,
