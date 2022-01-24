@@ -17,7 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import logging
 from pathlib import Path
@@ -133,6 +132,13 @@ def get_parser():
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
     )
+    
+    parser.add_argument(
+        "--lr-factor",
+        type=float,
+        default=5.0,
+        help="The lr_factor for Noam optimizer",
+    )
 
     return parser
 
@@ -175,8 +181,12 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
+        - use_feat_batchnorm: Normalization for the input features, can be a
+                              boolean indicating whether to do batch
+                              normalization, or a float which means just scaling
+                              the input features with this float value.
+                              If given a float value, we will remove batchnorm
+                              layer in `ConvolutionModule` as well.
 
         - attention_dim: Hidden dim for multi-head attention model.
 
@@ -191,8 +201,6 @@ def get_params() -> AttributeDict:
         - use_double_scores: It is used in k2.ctc_loss
 
         - weight_decay:  The weight_decay for the optimizer.
-
-        - lr_factor: The lr_factor for Noam optimizer.
 
         - warm_step: The warm_step for Noam optimizer.
     """
@@ -218,7 +226,6 @@ def get_params() -> AttributeDict:
             "use_double_scores": True,
             # parameters for Noam
             "weight_decay": 1e-6,
-            "lr_factor": 5.0,
             "warm_step": 80000,
             "env_info": get_env_info(),
         }
@@ -659,8 +666,16 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
 
     librispeech = LibriSpeechAsrDataModule(args)
-    train_dl = librispeech.train_dataloaders()
-    valid_dl = librispeech.valid_dataloaders()
+
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
+    train_dl = librispeech.train_dataloaders(train_cuts)
+
+    valid_cuts = librispeech.dev_clean_cuts()
+    valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     scan_pessimistic_batches_for_oom(
         model=model,

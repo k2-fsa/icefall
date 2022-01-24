@@ -32,7 +32,7 @@ jobs:
         # os: [ubuntu-18.04, macos-10.15]
         # disable macOS test for now.
         os: [ubuntu-18.04]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8]
         torch: ["1.8.0", "1.10.0"]
         torchaudio: ["0.8.0", "0.10.0"]
         k2-version: ["1.9.dev20211101"]
@@ -103,6 +103,17 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            cd ../transducer
+            pytest -v -s
+
+            cd ../transducer_stateless
+            pytest -v -s
+
+            cd ../transducer_lstm
+            pytest -v -s
+          fi
+
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
         run: |
@@ -113,6 +124,17 @@ jobs:
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
           pytest -v -s ./test
 
-          # runt tests for conformer ctc
+          # run tests for conformer ctc
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
+
+          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+            cd ../transducer
+            pytest -v -s
+
+            cd ../transducer_stateless
+            pytest -v -s
+
+            cd ../transducer_lstm
+            pytest -v -s
+          fi

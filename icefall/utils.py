@@ -224,8 +224,8 @@ def get_texts(
         return aux_labels.tolist()
 
 
-def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
-    """Extract the token IDs (from best_paths.labels) from the best-path FSAs.
+def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
+    """Extract labels or aux_labels from the best-path FSAs.
 
     Args:
       best_paths:
@@ -233,17 +233,34 @@ def get_alignments(best_paths: k2.Fsa) -> List[List[int]]:
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
         be meaningful).
+      kind:
+        Possible values are: "labels" and "aux_labels". Caution: When it is
+        "labels", the resulting alignments contain repeats.
     Returns:
       Returns a list of lists of int, containing the token sequences we
       decoded. For `ans[i]`, its length equals to the number of frames
       after subsampling of the i-th utterance in the batch.
+
+    Example:
+      When `kind` is `labels`, one possible alignment example is (with
+      repeats)::
+
+        c c c blk a a blk blk t t t blk blk
+
+     If `kind` is `aux_labels`, the above example changes to::
+
+        c blk blk blk a blk blk blk t blk blk blk blk
+
     """
+    assert kind in ("labels", "aux_labels")
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
-    label_shape = best_paths.arcs.shape().remove_axis(1)
-    # label_shape has axes [fsa][arc]
-    labels = k2.RaggedTensor(label_shape, best_paths.labels.contiguous())
-    labels = labels.remove_values_eq(-1)
-    return labels.tolist()
+    token_shape = best_paths.arcs.shape().remove_axis(1)
+    # token_shape has axes [fsa][arc]
+    tokens = k2.RaggedTensor(
+        token_shape, getattr(best_paths, kind).contiguous()
+    )
+    tokens = tokens.remove_values_eq(-1)
+    return tokens.tolist()
 
 
 def save_alignments(
@@ -548,3 +565,128 @@ class MetricsTracker(collections.defaultdict):
         """
         for k, v in self.norm_items():
             tb_writer.add_scalar(prefix + k, v, batch_idx)
+
+
+def concat(
+    ragged: k2.RaggedTensor, value: int, direction: str
+) -> k2.RaggedTensor:
+    """Prepend a value to the beginning of each sublist or append a value.
+    to the end of each sublist.
+
+    Args:
+      ragged:
+        A ragged tensor with two axes.
+      value:
+        The value to prepend or append.
+      direction:
+        It can be either "left" or "right". If it is "left", we
+        prepend the value to the beginning of each sublist;
+        if it is "right", we append the value to the end of each
+        sublist.
+
+    Returns:
+      Return a new ragged tensor, whose sublists either start with
+      or end with the given value.
+
+    >>> a = k2.RaggedTensor([[1, 3], [5]])
+    >>> a
+    [ [ 1 3 ] [ 5 ] ]
+    >>> concat(a, value=0, direction="left")
+    [ [ 0 1 3 ] [ 0 5 ] ]
+    >>> concat(a, value=0, direction="right")
+    [ [ 1 3 0 ] [ 5 0 ] ]
+
+    """
+    dtype = ragged.dtype
+    device = ragged.device
+
+    assert ragged.num_axes == 2, f"num_axes: {ragged.num_axes}"
+    pad_values = torch.full(
+        size=(ragged.tot_size(0), 1),
+        fill_value=value,
+        device=device,
+        dtype=dtype,
+    )
+    pad = k2.RaggedTensor(pad_values)
+
+    if direction == "left":
+        ans = k2.ragged.cat([pad, ragged], axis=1)
+    elif direction == "right":
+        ans = k2.ragged.cat([ragged, pad], axis=1)
+    else:
+        raise ValueError(
+            f'Unsupported direction: {direction}. " \
+            "Expect either "left" or "right"'
+        )
+    return ans
+
+
+def add_sos(ragged: k2.RaggedTensor, sos_id: int) -> k2.RaggedTensor:
+    """Add SOS to each sublist.
+
+    Args:
+      ragged:
+        A ragged tensor with two axes.
+      sos_id:
+        The ID of the SOS symbol.
+
+    Returns:
+      Return a new ragged tensor, where each sublist starts with SOS.
+
+    >>> a = k2.RaggedTensor([[1, 3], [5]])
+    >>> a
+    [ [ 1 3 ] [ 5 ] ]
+    >>> add_sos(a, sos_id=0)
+    [ [ 0 1 3 ] [ 0 5 ] ]
+
+    """
+    return concat(ragged, sos_id, direction="left")
+
+
+def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
+    """Add EOS to each sublist.
+
+    Args:
+      ragged:
+        A ragged tensor with two axes.
+      eos_id:
+        The ID of the EOS symbol.
+
+    Returns:
+      Return a new ragged tensor, where each sublist ends with EOS.
+
+    >>> a = k2.RaggedTensor([[1, 3], [5]])
+    >>> a
+    [ [ 1 3 ] [ 5 ] ]
+    >>> add_eos(a, eos_id=0)
+    [ [ 1 3 0 ] [ 5 0 ] ]
+
+    """
+    return concat(ragged, eos_id, direction="right")
+
+
+def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
+    """
+    Args:
+      lengths:
+        A 1-D tensor containing sentence lengths.
+    Returns:
+      Return a 2-D bool tensor, where masked positions
+      are filled with `True` and non-masked positions are
+      filled with `False`.
+
+    >>> lengths = torch.tensor([1, 3, 2, 5])
+    >>> make_pad_mask(lengths)
+    tensor([[False,  True,  True,  True,  True],
+            [False, False, False,  True,  True],
+            [False, False,  True,  True,  True],
+            [False, False, False, False, False]])
+    """
+    assert lengths.ndim == 1, lengths.ndim
+
+    max_len = lengths.max()
+    n = lengths.size(0)
+
+    expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
+
+    return expaned_lengths >= lengths.unsqueeze(1)

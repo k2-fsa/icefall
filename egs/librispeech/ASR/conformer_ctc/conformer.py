@@ -15,10 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import math
 import warnings
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import Tensor, nn
@@ -56,7 +55,7 @@ class Conformer(Transformer):
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
         vgg_frontend: bool = False,
-        use_feat_batchnorm: bool = False,
+        use_feat_batchnorm: Union[float, bool] = 0.1,
     ) -> None:
         super(Conformer, self).__init__(
             num_features=num_features,
@@ -75,6 +74,9 @@ class Conformer(Transformer):
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
+        use_conv_batchnorm = True
+        if isinstance(use_feat_batchnorm, float):
+            use_conv_batchnorm = False
         encoder_layer = ConformerEncoderLayer(
             d_model,
             nhead,
@@ -82,6 +84,7 @@ class Conformer(Transformer):
             dropout,
             cnn_module_kernel,
             normalize_before,
+            use_conv_batchnorm,
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
         self.normalize_before = normalize_before
@@ -154,6 +157,7 @@ class ConformerEncoderLayer(nn.Module):
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
+        use_conv_batchnorm: bool = False,
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
         self.self_attn = RelPositionMultiheadAttention(
@@ -174,7 +178,9 @@ class ConformerEncoderLayer(nn.Module):
             nn.Linear(dim_feedforward, d_model),
         )
 
-        self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module = ConvolutionModule(
+            d_model, cnn_module_kernel, use_batchnorm=use_conv_batchnorm
+        )
 
         self.norm_ff_macaron = nn.LayerNorm(
             d_model
@@ -843,12 +849,17 @@ class ConvolutionModule(nn.Module):
     """
 
     def __init__(
-        self, channels: int, kernel_size: int, bias: bool = True
+        self,
+        channels: int,
+        kernel_size: int,
+        bias: bool = True,
+        use_batchnorm: bool = False,
     ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0
+        self.use_batchnorm = use_batchnorm
 
         self.pointwise_conv1 = nn.Conv1d(
             channels,
@@ -867,7 +878,8 @@ class ConvolutionModule(nn.Module):
             groups=channels,
             bias=bias,
         )
-        self.norm = nn.BatchNorm1d(channels)
+        if self.use_batchnorm:
+            self.norm = nn.BatchNorm1d(channels)
         self.pointwise_conv2 = nn.Conv1d(
             channels,
             channels,
@@ -897,7 +909,9 @@ class ConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
-        x = self.activation(self.norm(x))
+        if self.use_batchnorm:
+            x = self.norm(x)
+        x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
