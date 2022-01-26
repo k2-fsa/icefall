@@ -207,7 +207,7 @@ class ConformerEncoderLayer(nn.Module):
         # kernel size=21, self.conv1d_channels=768
         # kernel size=5, self.conv1d_channels=1024
         self.linear1 = nn.Linear(512, self.in_conv1d_channels)
-        self.conv1d_abs = Conv1dAbs(self.in_conv1d_channels, self.out_conv1d_channels, kernel_size=self.kernel_size, padding=self.padding, padding_mode="replicate")
+        self.conv1d_abs = Conv1dAbs(self.in_conv1d_channels, self.out_conv1d_channels, kernel_size=self.kernel_size, padding=self.padding, padding_mode="constant")
         self.linear2 = nn.Linear(self.out_conv1d_channels, 512)
 
     def forward(
@@ -333,7 +333,6 @@ class ConformerEncoder(nn.TransformerEncoder):
         src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
-
         Args:
             src: the sequence to the encoder (required).
             pos_emb: Positional embedding tensor (required).

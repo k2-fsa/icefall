@@ -153,10 +153,6 @@ class _ConvNd(Module):
         if not hasattr(self, "padding_mode"):
             self.padding_mode = "zeros"
 
-import torch
-import torch.nn as nn
-m = nn.Tanh()
-
 def padding(input, padding_length):
     # input shape : (B, T, D)
     device = input.device
@@ -201,12 +197,13 @@ class Conv1dAbs(_ConvNd):
     def forward(self, input: Tensor) -> Tensor:
         if self.padding_mode != "zeros":
             return F.conv1d(
-                # F.pad(
-                #    input,
-                #    self._reversed_padding_repeated_twice,
-                #    mode=self.padding_mode,
-                # ),
-                padding(input, self.padding),
+                F.pad(
+                   input,
+                   (0, 0, self.padding, self.padding),
+                   self.padding_mode,
+                   1,
+                ).permute(0, 2, 1),
+                #padding(input, self.padding),
                 torch.exp(self.weight),
                 torch.exp(self.bias),
                 self.stride,
