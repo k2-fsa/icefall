@@ -23,6 +23,7 @@ import torch
 from torch import Tensor, nn
 from conv1d_abs_attention import Conv1dAbs
 from transformer import Supervisions, Transformer, encoder_padding_mask
+import logging
 
 
 class Conformer(Transformer):
@@ -157,6 +158,7 @@ class ConformerEncoderLayer(nn.Module):
         normalize_before: bool = True,
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
+        
         self.self_attn = RelPositionMultiheadAttention(
             d_model, nhead, dropout=0.0
         )
@@ -180,6 +182,7 @@ class ConformerEncoderLayer(nn.Module):
             d_model
         )  # for the macaron style FNN module
         self.norm_ff = nn.LayerNorm(d_model)  # for the FNN module
+        
         self.norm_mha = nn.LayerNorm(d_model)  # for the MHA module
 
         # define layernorm for conv1d_abs
@@ -198,16 +201,13 @@ class ConformerEncoderLayer(nn.Module):
         self.normalize_before = normalize_before
 
         self.kernel_size = 31
-        self.padding = int((self.kernel_size - 1) / 2)
-        self.in_conv1d_channels = 768
-        self.out_conv1d_channels = 768
+        self.padding = int((self.kernel_size-1)/2)
+        self.in_conv1d_channels = 768 
+        self.out_conv1d_channels = 768 
+        # kernel size=21, self.conv1d_channels=768
+        # kernel size=5, self.conv1d_channels=1024
         self.linear1 = nn.Linear(512, self.in_conv1d_channels)
-        self.conv1d_abs = Conv1dAbs(
-            self.in_conv1d_channels,
-            self.out_conv1d_channels,
-            kernel_size=self.kernel_size,
-            padding=self.padding,
-        )
+        self.conv1d_abs = Conv1dAbs(self.in_conv1d_channels, self.out_conv1d_channels, kernel_size=self.kernel_size, padding=self.padding, padding_mode="replicate")
         self.linear2 = nn.Linear(self.out_conv1d_channels, 512)
 
     def forward(
@@ -233,7 +233,7 @@ class ConformerEncoderLayer(nn.Module):
             src_key_padding_mask: (N, S).
             S is the source sequence length, N is the batch size, E is the feature number
         """
-
+        
         # macaron style feed forward module
         residual = src
         if self.normalize_before:
@@ -244,7 +244,7 @@ class ConformerEncoderLayer(nn.Module):
         if not self.normalize_before:
             src = self.norm_ff_macaron(src)
 
-        # multi-head attention module
+        # multi-head attention
         residual = src
         if self.normalize_before:
             src = self.norm_mha(src)
@@ -260,20 +260,21 @@ class ConformerEncoderLayer(nn.Module):
         if not self.normalize_before:
             src = self.norm_mha(src)
 
-        # conv1dabs modified attention module
+        # conv1dabs modified attention
         residual = src
         if self.normalize_before:
             src = self.norm_conv_abs(src)
-
-        # src = self.linear1(src * 0.25)
-        src = 0.01 * self.linear1(src * 0.25)
+        
+        #src = self.linear1(src*0.25)
+        src = 0.01*self.linear1(src*0.25)
         src = torch.exp(src.clamp(min=-75, max=75))
-        src = src.permute(1, 2, 0)
+        src = src.permute(1, 2, 0)  # (B, D, T)
+        src = src.permute(0, 2, 1)  # (B, T, D)
         src = self.conv1d_abs(src) / self.kernel_size
         src = src.permute(2, 0, 1)
-        src = torch.log(src.clamp(min=1e-20))
+        src = torch.log(0.01 + src.clamp(min=1e-20))
         src = self.linear2(src)
-        src = 0.25 * self.layernorm(src)
+        src = 0.25*self.layernorm(src)
 
         src = residual + self.dropout(src)
         if not self.normalize_before:
@@ -415,8 +416,8 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_negative[:, 1::2] = torch.cos(-1 * position * div_term)
 
         # Reserve the order of positive indices and concat both positive and
-        # negative indices. This is used to support the shifting trick as in "T
-        # ransformer-XL:Attentive Language Models Beyond a Fixed-Length Context"
+        # negative indices. This is used to support the shifting trick
+        # as in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
         pe_positive = torch.flip(pe_positive, [0]).unsqueeze(0)
         pe_negative = pe_negative[1:].unsqueeze(0)
         pe = torch.cat([pe_positive, pe_negative], dim=1)
@@ -443,19 +444,14 @@ class RelPositionalEncoding(torch.nn.Module):
         ]
         return self.dropout(x), self.dropout(pos_emb)
 
-
 class RelPositionMultiheadAttention(nn.Module):
     r"""Multi-Head Attention layer with relative position encoding
-
     See reference: "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
-
     Args:
         embed_dim: total dimension of the model.
         num_heads: parallel attention heads.
         dropout: a Dropout layer on attn_output_weights. Default: 0.0.
-
     Examples::
-
         >>> rel_pos_multihead_attn = RelPositionMultiheadAttention(embed_dim, num_heads)
         >>> attn_output, attn_output_weights = multihead_attn(query, key, value, pos_emb)
     """
@@ -517,7 +513,6 @@ class RelPositionMultiheadAttention(nn.Module):
             need_weights: output attn_output_weights.
             attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
                 the batches while a 3D mask allows to specify a different mask for the entries of each batch.
-
         Shape:
             - Inputs:
             - query: :math:`(L, N, E)` where L is the target sequence length, N is the batch size, E is
@@ -539,7 +534,6 @@ class RelPositionMultiheadAttention(nn.Module):
             while the zero positions will be unchanged. If a BoolTensor is provided, positions with ``True``
             is not allowed to attend while ``False`` values will be unchanged. If a FloatTensor
             is provided, it will be added to the attention weight.
-
             - Outputs:
             - attn_output: :math:`(L, N, E)` where L is the target sequence length, N is the batch size,
             E is the embedding dimension.
@@ -566,11 +560,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
     def rel_shift(self, x: Tensor) -> Tensor:
         """Compute relative positional encoding.
-
         Args:
             x: Input tensor (batch, head, time1, 2*time1-1).
                 time1 means the length of query vector.
-
         Returns:
             Tensor: tensor of shape (batch, head, time1, time2)
           (note: time2 has the same value as time1, but it is for
@@ -623,7 +615,6 @@ class RelPositionMultiheadAttention(nn.Module):
             need_weights: output attn_output_weights.
             attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
                 the batches while a 3D mask allows to specify a different mask for the entries of each batch.
-
         Shape:
             Inputs:
             - query: :math:`(L, N, E)` where L is the target sequence length, N is the batch size, E is
@@ -645,7 +636,6 @@ class RelPositionMultiheadAttention(nn.Module):
             while the zero positions will be unchanged. If a BoolTensor is provided, positions with ``True``
             are not allowed to attend while ``False`` values will be unchanged. If a FloatTensor
             is provided, it will be added to the attention weight.
-
             Outputs:
             - attn_output: :math:`(L, N, E)` where L is the target sequence length, N is the batch size,
             E is the embedding dimension.
@@ -864,7 +854,6 @@ class RelPositionMultiheadAttention(nn.Module):
             return attn_output, attn_output_weights.sum(dim=1) / num_heads
         else:
             return attn_output, None
-
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Conformer model.
