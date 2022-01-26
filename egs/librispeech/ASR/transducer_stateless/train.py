@@ -154,6 +154,22 @@ def get_parser():
         "we are using to compute the loss",
     )
 
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network)"
+        "part.",
+    )
+
     return parser
 
 
@@ -245,12 +261,13 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict, backward: bool = False):
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
+        backward=backward,
     )
     return decoder
 
@@ -267,11 +284,18 @@ def get_transducer_model(params: AttributeDict):
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
+    backward_decoder = get_decoder_model(params, backward=True)
+    backward_joiner = get_joiner_model(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
+        backward_decoder=backward_decoder,
         joiner=joiner,
+        backward_joiner=backward_joiner,
+        prune_range=params.prune_range,
+        lm_scale=params.lm_scale,
+        am_scale=params.am_scale,
     )
     return model
 
@@ -400,8 +424,10 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(x=feature, x_lens=feature_lens, y=y)
-        loss = simple_loss + pruned_loss
+        simple_loss, pruned_loss, backward_pruned_loss = model(
+            x=feature, x_lens=feature_lens, y=y
+        )
+        loss = simple_loss + pruned_loss + backward_pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -412,6 +438,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["backward_pruned_loss"] = backward_pruned_loss.detach().cpu().item()
 
     return loss, info
 

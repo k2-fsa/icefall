@@ -32,8 +32,12 @@ class Transducer(nn.Module):
         self,
         encoder: EncoderInterface,
         decoder: nn.Module,
+        backward_decoder: nn.Module,
         joiner: nn.Module,
+        backward_joiner: nn.Module,
         prune_range: int = 3,
+        lm_scale: float = 0.0,
+        am_scale: float = 0.0,
     ):
         """
         Args:
@@ -57,8 +61,12 @@ class Transducer(nn.Module):
 
         self.encoder = encoder
         self.decoder = decoder
+        self.backward_decoder = backward_decoder
         self.joiner = joiner
+        self.backward_joiner = backward_joiner
         self.prune_range = prune_range
+        self.lm_scale = lm_scale
+        self.am_scale = am_scale
 
     def forward(
         self,
@@ -109,22 +117,46 @@ class Transducer(nn.Module):
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
-        simple_loss, (px_grad, py_grad) = k2.rnnt_loss_simple(
-            decoder_out, encoder_out, y_padded, blank_id, boundary, True
+        # calculate prune ranges
+        simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+            decoder_out,
+            encoder_out,
+            y_padded,
+            blank_id,
+            lm_only_scale=self.lm_scale,
+            am_only_scale=self.am_scale,
+            boundary=boundary,
+            return_grad=True,
         )
-
         ranges = k2.get_rnnt_prune_ranges(
             px_grad, py_grad, boundary, self.prune_range
         )
 
-        am_pruning, lm_pruning = k2.do_rnnt_pruning(
+        # forward loss
+        am_pruned, lm_pruned = k2.do_rnnt_pruning(
             encoder_out, decoder_out, ranges
         )
-
-        logits = self.joiner(am_pruning, lm_pruning)
-
-        pruning_loss = k2.rnnt_loss_pruned(
+        logits = self.joiner(am_pruned, lm_pruned)
+        pruned_loss = k2.rnnt_loss_pruned(
             logits, y_padded, ranges, blank_id, boundary
         )
 
-        return (-torch.sum(simple_loss), -torch.sum(pruning_loss))
+        # backward loss
+        assert self.backward_decoder is not None
+        assert self.backward_joiner is not None
+        backward_decoder_out = self.backward_decoder(sos_y_padded)
+        backward_am_pruned, backward_lm_pruned = k2.do_rnnt_pruning(
+            encoder_out, backward_decoder_out, ranges
+        )
+        backward_logits = self.backward_joiner(
+            backward_am_pruned, backward_lm_pruned
+        )
+        backward_pruned_loss = k2.rnnt_loss_pruned(
+            backward_logits, y_padded, ranges, blank_id, boundary
+        )
+
+        return (
+            -torch.sum(simple_loss),
+            -torch.sum(pruned_loss),
+            -torch.sum(backward_pruned_loss),
+        )

@@ -38,6 +38,7 @@ class Decoder(nn.Module):
         embedding_dim: int,
         blank_id: int,
         context_size: int,
+        backward: bool = False,
     ):
         """
         Args:
@@ -61,6 +62,7 @@ class Decoder(nn.Module):
 
         assert context_size >= 1, context_size
         self.context_size = context_size
+        self.backward = backward
         if context_size > 1:
             self.conv = nn.Conv1d(
                 in_channels=embedding_dim,
@@ -86,13 +88,20 @@ class Decoder(nn.Module):
         if self.context_size > 1:
             embeding_out = embeding_out.permute(0, 2, 1)
             if need_pad is True:
-                embeding_out = F.pad(
-                    embeding_out, pad=(self.context_size - 1, 0)
-                )
+                if self.backward:
+                    assert self.context_size == 2
+                    embeding_out = F.pad(
+                        embeding_out, pad=(0, self.context_size - 1)
+                    )
+                else:
+                    embeding_out = F.pad(
+                        embeding_out, pad=(self.context_size - 1, 0)
+                    )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
                 assert embeding_out.size(-1) == self.context_size
+                assert self.backward is False
             embeding_out = self.conv(embeding_out)
             embeding_out = embeding_out.permute(0, 2, 1)
         return embeding_out
