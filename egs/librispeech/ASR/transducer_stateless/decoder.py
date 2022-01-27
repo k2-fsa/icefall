@@ -84,24 +84,30 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, embedding_dim).
         """
-        embeding_out = self.embedding(y)
+        embedding_out = self.embedding(y)
         if self.context_size > 1:
-            embeding_out = embeding_out.permute(0, 2, 1)
+            embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:
+                # If the input is [sos, a, b, c, d] and output is
+                # [a, b, c, d, eos], padding left and using kernel-size 2,
+                # it uses left context.
+                # If the input is [a, b, c, d, eos] and output is
+                # [sos, a, b, c, d], padding right and using kernel-size 2,
+                # it uses right context.
                 if self.backward:
                     assert self.context_size == 2
-                    embeding_out = F.pad(
-                        embeding_out, pad=(0, self.context_size - 1)
+                    embedding_out = F.pad(
+                        embedding_out, pad=(0, self.context_size - 1)
                     )
                 else:
-                    embeding_out = F.pad(
-                        embeding_out, pad=(self.context_size - 1, 0)
+                    embedding_out = F.pad(
+                        embedding_out, pad=(self.context_size - 1, 0)
                     )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
-                assert embeding_out.size(-1) == self.context_size
+                assert embedding_out.size(-1) == self.context_size
                 assert self.backward is False
-            embeding_out = self.conv(embeding_out)
-            embeding_out = embeding_out.permute(0, 2, 1)
-        return embeding_out
+            embedding_out = self.conv(embedding_out)
+            embedding_out = embedding_out.permute(0, 2, 1)
+        return embedding_out

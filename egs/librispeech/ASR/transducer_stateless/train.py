@@ -227,7 +227,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            "log_diagnostics": False,
+            "log_diagnostics": True,
             # parameters for conformer
             "feature_dim": 80,
             "encoder_out_dim": 512,
@@ -246,7 +246,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
@@ -261,7 +261,9 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict, backward: bool = False):
+def get_decoder_model(
+    params: AttributeDict, backward: bool = False
+) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -272,7 +274,7 @@ def get_decoder_model(params: AttributeDict, backward: bool = False):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -280,7 +282,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)

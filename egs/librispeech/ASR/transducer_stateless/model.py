@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 
-from icefall.utils import add_sos
+from icefall.utils import add_eos, add_sos
 
 
 class Transducer(nn.Module):
@@ -50,10 +50,30 @@ class Transducer(nn.Module):
             It is the prediction network in the paper. Its input shape
             is (N, U) and its output shape is (N, U, C). It should contain
             one attribute: `blank_id`.
+          backward_decoder:
+            Almost the same as decoder, except that it uses right context and
+            the decoder uses left context.
           joiner:
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
+          backward_joiner:
+            The same as joiner, it intends for backward_decoder.
+          prune_range:
+            The prune range for rnnt loss, it means how many symbols(context)
+            we are considering for each frame to compute the loss.
+          am_scale:
+            The scale to smooth the loss with am (output of encoder network)
+            part
+          lm_scale:
+            The scale to smooth the loss with lm (output of predictor network)
+            part
+
+        Note:
+           Regarding am_scale & lm_scale, it will make the loss-function one of
+           the form:
+              lm_scale * lm_probs + am_scale * am_probs +
+              (1-lm_scale-am_scale) * combined_probs
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -110,7 +130,6 @@ class Transducer(nn.Module):
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        y_padded = y_padded.to(torch.int64)
         boundary = torch.zeros(
             (x.size(0), 4), dtype=torch.int64, device=x.device
         )
@@ -121,7 +140,7 @@ class Transducer(nn.Module):
         simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
             decoder_out,
             encoder_out,
-            y_padded,
+            y_padded.to(torch.int64),
             blank_id,
             lm_only_scale=self.lm_scale,
             am_only_scale=self.am_scale,
@@ -138,13 +157,15 @@ class Transducer(nn.Module):
         )
         logits = self.joiner(am_pruned, lm_pruned)
         pruned_loss = k2.rnnt_loss_pruned(
-            logits, y_padded, ranges, blank_id, boundary
+            logits, y_padded.to(torch.int64), ranges, blank_id, boundary
         )
 
+        eos_y = add_eos(y, eos_id=blank_id)
+        eos_y_padded = eos_y.pad(mode="constant", padding_value=blank_id)
         # backward loss
         assert self.backward_decoder is not None
         assert self.backward_joiner is not None
-        backward_decoder_out = self.backward_decoder(sos_y_padded)
+        backward_decoder_out = self.backward_decoder(eos_y_padded)
         backward_am_pruned, backward_lm_pruned = k2.do_rnnt_pruning(
             encoder_out, backward_decoder_out, ranges
         )
@@ -152,7 +173,11 @@ class Transducer(nn.Module):
             backward_am_pruned, backward_lm_pruned
         )
         backward_pruned_loss = k2.rnnt_loss_pruned(
-            backward_logits, y_padded, ranges, blank_id, boundary
+            backward_logits,
+            sos_y_padded.to(torch.int64),
+            ranges,
+            blank_id,
+            boundary,
         )
 
         return (

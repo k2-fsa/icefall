@@ -297,7 +297,7 @@ def beam_search(
                     current_encoder_out, decoder_out.unsqueeze(1)
                 )
 
-                # TODO(fangjun): Cache the blank posterior
+                # TODO(fangjun): Scale the blank posterior
 
                 log_prob = logits.log_softmax(dim=-1)
                 # log_prob is (1, 1, 1, vocab_size)
