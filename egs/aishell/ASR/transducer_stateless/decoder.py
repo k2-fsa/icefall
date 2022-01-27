@@ -96,5 +96,5 @@ class Decoder(nn.Module):
                 assert embeding_out.size(-1) == self.context_size
             embeding_out = self.conv(embeding_out)
             embeding_out = embeding_out.permute(0, 2, 1)
-        embeding_out = self.output_linear(embeding_out)
+        embeding_out = self.output_linear(F.relu(embeding_out))
         return embeding_out

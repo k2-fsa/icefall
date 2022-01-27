@@ -31,7 +31,6 @@ from decoder import Decoder
 from joiner import Joiner
 from model import Transducer
 
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
@@ -39,8 +38,8 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
-    write_error_stats,
     str2bool,
+    write_error_stats,
 )
 
 
@@ -130,9 +129,9 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "embedding_dim": 256,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
+            "attention_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             "env_info": get_env_info(),
@@ -141,7 +140,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
@@ -156,7 +155,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.embedding_dim,
@@ -166,16 +165,16 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.vocab_size,
-        output_dim=params.vocab_size,
         inner_dim=params.embedding_dim,
+        output_dim=params.vocab_size,
     )
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -404,10 +403,6 @@ def main():
     logging.info(f"Device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
 
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1

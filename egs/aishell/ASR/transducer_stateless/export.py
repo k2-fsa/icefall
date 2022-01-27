@@ -22,7 +22,7 @@
 Usage:
 ./transducer_stateless/export.py \
   --exp-dir ./transducer_stateless/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 20 \
   --avg 10
 
@@ -39,15 +39,15 @@ To use the generated file with `transducer_stateless/decode.py`, you can do:
         --epoch 9999 \
         --avg 1 \
         --max-duration 1 \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --lang-dir data/lang_char
 """
 
 import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
 import torch
+import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -55,6 +55,7 @@ from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
+from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, str2bool
 
 
@@ -90,10 +91,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -120,11 +121,11 @@ def get_params() -> AttributeDict:
         {
             # parameters for conformer
             "feature_dim": 80,
-            "encoder_out_dim": 512,
+            "embedding_dim": 256,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
+            "attention_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             "env_info": get_env_info(),
@@ -133,10 +134,10 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -147,25 +148,26 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
+        embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
     )
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.encoder_out_dim,
+        input_dim=params.vocab_size,
+        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -193,12 +195,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 

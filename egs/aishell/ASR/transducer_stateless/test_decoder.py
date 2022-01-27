@@ -42,12 +42,12 @@ def test_decoder():
     U = 20
     x = torch.randint(low=0, high=vocab_size, size=(N, U))
     y = decoder(x)
-    assert y.shape == (N, U, embedding_dim)
+    assert y.shape == (N, U, vocab_size)
 
     # for inference
     x = torch.randint(low=0, high=vocab_size, size=(N, context_size))
     y = decoder(x, need_pad=False)
-    assert y.shape == (N, 1, embedding_dim)
+    assert y.shape == (N, 1, vocab_size)
 
 
 def main():

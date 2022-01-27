@@ -296,7 +296,7 @@ def beam_search(
             if cached_key not in joint_cache:
                 logits = model.joiner(current_encoder_out, decoder_out)
 
-                # TODO(fangjun): Ccale the blank posterior
+                # TODO(fangjun): Scale the blank posterior
 
                 log_prob = logits.log_softmax(dim=-1)
                 # log_prob is (1, 1, 1, vocab_size)

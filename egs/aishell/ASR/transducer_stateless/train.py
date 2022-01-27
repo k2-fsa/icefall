@@ -131,7 +131,7 @@ def get_parser():
     parser.add_argument(
         "--prune-range",
         type=int,
-        default=5,
+        default=3,
         help="The prune range for rnnt loss, it means how many symbols(context)"
         "we are using to compute the loss",
     )
@@ -139,7 +139,7 @@ def get_parser():
     parser.add_argument(
         "--lm-scale",
         type=float,
-        default=0.0,
+        default=0.5,
         help="The scale to smooth the loss with lm "
         "(output of prediction network) part.",
     )
@@ -212,9 +212,9 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
+            "attention_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             # parameters for decoder
@@ -228,7 +228,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
@@ -243,7 +243,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.embedding_dim,
@@ -253,7 +253,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.vocab_size,
         inner_dim=params.embedding_dim,
@@ -262,7 +262,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
