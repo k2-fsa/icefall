@@ -28,7 +28,8 @@ Usage:
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless/decode.py`, you can do:
+To use the generated file with `pruned_transducer_stateless/decode.py`,
+you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
@@ -48,6 +49,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner

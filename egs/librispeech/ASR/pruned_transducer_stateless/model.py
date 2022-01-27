@@ -136,11 +136,14 @@ class Transducer(nn.Module):
             lm_only_scale=self.lm_scale,
             am_only_scale=self.am_scale,
             boundary=boundary,
-            return_grad=True
+            return_grad=True,
         )
 
         ranges = k2.get_rnnt_prune_ranges(
-            px_grad=px_grad, py_grad=py_grad, boundary=boundary, s_range=self.prune_range
+            px_grad=px_grad,
+            py_grad=py_grad,
+            boundary=boundary,
+            s_range=self.prune_range,
         )
 
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
@@ -150,7 +153,11 @@ class Transducer(nn.Module):
         logits = self.joiner(am_pruned, lm_pruned)
 
         pruned_loss = k2.rnnt_loss_pruned(
-            joint=logits, symbols=y_padded, ranges=ranges, termination_symbol=blank_id, boundary=boundary
+            joint=logits,
+            symbols=y_padded,
+            ranges=ranges,
+            termination_symbol=blank_id,
+            boundary=boundary,
         )
 
         return (-torch.sum(simple_loss), -torch.sum(pruned_loss))

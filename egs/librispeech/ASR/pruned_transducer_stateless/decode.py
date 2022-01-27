@@ -143,7 +143,7 @@ def get_params() -> AttributeDict:
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             # parameters for decoder
-            "embedding_dim" : 512,
+            "embedding_dim": 512,
             "env_info": get_env_info(),
         }
     )

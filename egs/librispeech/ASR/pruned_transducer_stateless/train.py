@@ -116,7 +116,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="pruned_transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -271,7 +271,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
     return decoder
 
 
-def get_joiner_model(params: AttributeDict) -> nn.Module :
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.vocab_size,
         inner_dim=params.embedding_dim,
@@ -280,7 +280,7 @@ def get_joiner_model(params: AttributeDict) -> nn.Module :
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) ->nn.Module:
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
