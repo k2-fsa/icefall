@@ -82,17 +82,17 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, embedding_dim).
         """
-        embeding_out = self.embedding(y)
+        embedding_out = self.embedding(y)
         if self.context_size > 1:
-            embeding_out = embeding_out.permute(0, 2, 1)
+            embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:
-                embeding_out = F.pad(
-                    embeding_out, pad=(self.context_size - 1, 0)
+                embedding_out = F.pad(
+                    embedding_out, pad=(self.context_size - 1, 0)
                 )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
-                assert embeding_out.size(-1) == self.context_size
-            embeding_out = self.conv(embeding_out)
-            embeding_out = embeding_out.permute(0, 2, 1)
-        return embeding_out
+                assert embedding_out.size(-1) == self.context_size
+            embedding_out = self.conv(embedding_out)
+            embedding_out = embedding_out.permute(0, 2, 1)
+        return embedding_out
