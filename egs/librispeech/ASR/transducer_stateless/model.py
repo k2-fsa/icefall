@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from encoder_interface import EncoderInterface
 
-from icefall.utils import add_eos, add_sos
+from icefall.utils import add_sos
 
 
 class Transducer(nn.Module):
@@ -124,11 +124,14 @@ class Transducer(nn.Module):
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
 
+        # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
+        # decoder_out: [B, S + 1, C]
         decoder_out = self.decoder(sos_y_padded)
 
         # Note: y does not start with SOS
+        # y_padded : [B, S]
         y_padded = y.pad(mode="constant", padding_value=0)
 
         boundary = torch.zeros(
@@ -148,33 +151,49 @@ class Transducer(nn.Module):
             boundary=boundary,
             return_grad=True,
         )
+
+        # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
             px_grad, py_grad, boundary, self.prune_range
         )
 
         # forward loss
+        # am_pruned : [B, T, prune_range, C]
+        # lm_pruned : [B, T, prune_range, C]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
             encoder_out, decoder_out, ranges
         )
+        # logits : [B, T, prune_range, C]
         logits = self.joiner(am_pruned, lm_pruned)
+
         pruned_loss = k2.rnnt_loss_pruned(
             logits, y_padded.to(torch.int64), ranges, blank_id, boundary
         )
 
-        eos_y = add_eos(y, eos_id=blank_id)
-        eos_y_padded = eos_y.pad(mode="constant", padding_value=blank_id)
-        eos_y_padded = F.pad(eos_y_padded[:, 1:], pad=(0, 1), value=blank_id)
+        # y_padded shape : [B, S]
+        # we skip the first symbol(a shift trick for right context),
+        # so we have to pad 2 blank to the right to make the output shape of
+        # deocder to be [B, S + 1, C],
+        # backward_y shape : [B, S + 1]
+        backward_y = F.pad(y_padded[:, 1:], pad=(0, 2), value=blank_id)
 
         # backward loss
         assert self.backward_decoder is not None
         assert self.backward_joiner is not None
-        backward_decoder_out = self.backward_decoder(eos_y_padded)
+        # backward_decoder_out : [B, S + 1, C]
+        backward_decoder_out = self.backward_decoder(backward_y)
+
+        # backward_am_pruned : [B, T, prune_range, C]
+        # backward_lm_pruned : [B, T, prune_range, C]
         backward_am_pruned, backward_lm_pruned = k2.do_rnnt_pruning(
             encoder_out, backward_decoder_out, ranges
         )
+
+        # backward_logits : [B, T, prune_range, C]
         backward_logits = self.backward_joiner(
             backward_am_pruned, backward_lm_pruned
         )
+
         backward_pruned_loss = k2.rnnt_loss_pruned(
             backward_logits,
             y_padded.to(torch.int64),
