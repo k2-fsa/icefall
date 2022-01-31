@@ -78,7 +78,7 @@ class Decoder(nn.Module):
         """
         Args:
           y:
-            A 2-D tensor of shape (N, U) with BOS prepended.
+            A 2-D tensor of shape (N, U) with blank prepended.
           states:
             A tuple of two tensors containing the states information of
             LSTM layers in this decoder.

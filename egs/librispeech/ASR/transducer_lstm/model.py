@@ -49,16 +49,15 @@ class Transducer(nn.Module):
           decoder:
             It is the prediction network in the paper. Its input shape
             is (N, U) and its output shape is (N, U, C). It should contain
-            two attributes: `blank_id` and `sos_id`.
+            one attribute: `blank_id`.
           joiner:
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
-        assert isinstance(encoder, EncoderInterface)
+        assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
-        assert hasattr(decoder, "sos_id")
 
         self.encoder = encoder
         self.decoder = decoder
@@ -97,12 +96,11 @@ class Transducer(nn.Module):
         y_lens = row_splits[1:] - row_splits[:-1]
 
         blank_id = self.decoder.blank_id
-        sos_id = self.decoder.sos_id
-        sos_y = add_sos(y, sos_id=sos_id)
+        sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
-        decoder_out, _ = self.decoder(sos_y_padded)
+        decoder_out = self.decoder(sos_y_padded)
 
         logits = self.joiner(encoder_out, decoder_out)
 

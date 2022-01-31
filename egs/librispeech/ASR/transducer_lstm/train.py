@@ -131,6 +131,14 @@ def get_parser():
         help="The lr_factor for Noam optimizer",
     )
 
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
     return parser
 
 
@@ -172,14 +180,9 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - use_feat_batchnorm: Whether to do batch normalization for the
-                              input features.
-
         - attention_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - weight_decay:  The weight_decay for the optimizer.
 
         - warm_step: The warm_step for Noam optimizer.
     """
@@ -198,15 +201,10 @@ def get_params() -> AttributeDict:
             "encoder_out_dim": 512,
             "subsampling_factor": 4,
             "encoder_hidden_size": 1024,
-            "num_encoder_layers": 4,
+            "num_encoder_layers": 7,
             "proj_size": 512,
             "vgg_frontend": False,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 4,
-            "decoder_hidden_dim": 512,
             # parameters for Noam
-            "weight_decay": 1e-6,
             "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
@@ -230,13 +228,11 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
-        sos_id=params.sos_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
+        context_size=params.context_size,
     )
+
     return decoder
 
 
@@ -568,9 +564,8 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -578,10 +573,10 @@ def run(rank, world_size, args):
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
-
     num_param = sum([p.numel() for p in model.parameters() if p.requires_grad])
     logging.info(f"Number of model parameters: {num_param}")
+
+    checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:
@@ -594,7 +589,6 @@ def run(rank, world_size, args):
         model_size=params.encoder_hidden_size,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
     if checkpoints and "optimizer" in checkpoints:
