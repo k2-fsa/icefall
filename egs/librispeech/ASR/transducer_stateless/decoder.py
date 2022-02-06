@@ -82,6 +82,7 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, embedding_dim).
         """
+        y = y.to(torch.int64)
         embedding_out = self.embedding(y)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
