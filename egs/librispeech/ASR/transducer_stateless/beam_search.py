@@ -48,7 +48,7 @@ def greedy_search(
     device = model.device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device
+        [blank_id] * context_size, device=device, dtype=torch.int64
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
