@@ -311,7 +311,7 @@ def main():
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
-        elif params.decoding_method == "modified_beam_search":
+        elif params.method == "modified_beam_search":
             hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
