@@ -265,8 +265,8 @@ class ConformerEncoderLayer(nn.Module):
         if self.normalize_before:
             src = self.norm_conv_abs(src)
         
-        #src = self.linear1(src*0.25)
-        src = 0.01*self.linear1(src*0.25)
+        #src = 0.01*self.linear1(src*0.25)
+        src = self.linear1(src*0.25)
         src = torch.exp(src.clamp(min=-75, max=75))
         src = src.permute(1, 2, 0)  # (B, D, T)
         src = src.permute(0, 2, 1)  # (B, T, D)
