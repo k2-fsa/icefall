@@ -46,6 +46,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
+from frame_shift import apply_frame_shift
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
@@ -136,6 +137,13 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--apply-frame-shift",
+        type=str2bool,
+        default=False,
+        help="If enabled, apply random frame shift along the time axis",
     )
 
     return parser
@@ -620,7 +628,17 @@ def run(rank, world_size, args):
     logging.info(f"After removing short and long utterances: {num_left}")
     logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
-    train_dl = librispeech.train_dataloaders(train_cuts)
+    if params.apply_frame_shift:
+        logging.info("Enable random frame shift")
+        extra_input_transforms = [apply_frame_shift]
+    else:
+        logging.info("Disable random frame shift")
+        extra_input_transforms = None
+
+    train_dl = librispeech.train_dataloaders(
+        train_cuts,
+        extra_input_transforms=extra_input_transforms,
+    )
 
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()

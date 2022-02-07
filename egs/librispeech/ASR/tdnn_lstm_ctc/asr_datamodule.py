@@ -19,7 +19,9 @@ import argparse
 import logging
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable, List, Optional
 
+import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
     BucketingSampler,
@@ -179,7 +181,27 @@ class LibriSpeechAsrDataModule:
             "with training dataset. ",
         )
 
-    def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
+    def train_dataloaders(
+        self,
+        cuts_train: CutSet,
+        extra_input_transforms: Optional[
+            List[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]
+        ],
+    ) -> DataLoader:
+        """
+        Args:
+          cuts_train:
+            The cutset for training.
+          extra_input_transforms:
+            The extra input transforms that will be applied after all input
+            transforms, e.g., after SpecAugment if there is any.
+            Each input transform accepts two input arguments:
+                - A 3-D torch.Tensor of shape (N, T, C)
+                - A 2-D torch.Tensor of shape (num_seqs, 3), where the
+                  first column is `sequence_idx`, the second column is
+                  `start_frame`, and the third column is `num_frames`.
+            and returns a 3-D torch.Tensor of shape (N, T, C).
+        """
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(
             self.args.manifest_dir / "cuts_musan.json.gz"
@@ -227,6 +249,10 @@ class LibriSpeechAsrDataModule:
             )
         else:
             logging.info("Disable SpecAugment")
+
+        if extra_input_transforms is not None:
+            input_transforms += extra_input_transforms
+            logging.info(f"Input transforms: {input_transforms}")
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
