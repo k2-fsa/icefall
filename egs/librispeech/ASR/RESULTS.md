@@ -4,62 +4,73 @@
 
 #### Conformer encoder + embedding decoder
 
-Using commit `4c1b3665ee6efb935f4dd93a80ff0e154b13efb6`.
+Using commit `TODO`.
 
 Conformer encoder + non-recurrent decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
 
 The WERs are
 
-|                           | test-clean | test-other | comment                                  |
-|---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.69       | 6.81       | --epoch 71, --avg 15, --max-duration 100 |
-| beam search (beam size 4) | 2.68       | 6.72       | --epoch 71, --avg 15, --max-duration 100 |
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.68       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.67       | 6.64       | --epoch 61, --avg 18, --max-duration 100 |
+
 
 The training command for reproducing is given below:
 
 ```
+cd egs/librispeech/ASR/
+./prepare.sh
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
-
 ./transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 76 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp-full \
   --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 3
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/qGdqzHnxS0WJ695OXfZDzA/#scalars&_smoothingWeight=0>
+<https://tensorboard.dev/experiment/qgvWkbF2R46FYA6ZMNmOjA/#scalars>
 
 The decoding command is:
 ```
-epoch=71
-avg=15
+epoch=61
+avg=18
 
 ## greedy search
-./transducer_stateless/decode.py \
-  --epoch $epoch \
-  --avg $avg \
-  --exp-dir transducer_stateless/exp-full \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
-  --max-duration 100
+for sym in 1 2 3; do
+  ./transducer_stateless/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless/exp-full \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --max-duration 100 \
+    --max-sym-per-frame $sym
+done
 
-## beam search
+## modified beam search
+
 ./transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir transducer_stateless/exp-full \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   --max-duration 100 \
-  --decoding-method beam_search \
+  --context-size 2 \
+  --decoding-method modified_beam_search \
   --beam-size 4
 ```
 
 You can find a pretrained model by visiting
-<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-bpe-500-2022-01-10>
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-bpe-500-2022-02-07>
 
 
 #### Conformer encoder + LSTM decoder
