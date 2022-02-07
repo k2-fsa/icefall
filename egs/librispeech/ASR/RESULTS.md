@@ -4,7 +4,7 @@
 
 #### Conformer encoder + embedding decoder
 
-Using commit `TODO`.
+Using commit `a8150021e01d34ecbd6198fe03a57eacf47a16f2`.
 
 Conformer encoder + non-recurrent decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
