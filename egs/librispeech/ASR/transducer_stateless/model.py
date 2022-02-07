@@ -79,7 +79,10 @@ class Transducer(nn.Module):
           modified_transducer_prob:
             The probability to use modified transducer loss.
         Returns:
-          Return the transducer loss.
+          Return a tuple containing:
+            - the transducer loss, a tensor containing only one entry
+            - encoder_out, a tensor of shape (N, num_frames, encoder_out_dim)
+            - encoder_out_lens, a tensor of shape (N,)
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
@@ -140,4 +143,8 @@ class Transducer(nn.Module):
             from_log_softmax=False,
         )
 
-        return loss
+        return (
+            loss,
+            encoder_out,
+            x_lens,
+        )
