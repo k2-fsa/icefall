@@ -38,7 +38,9 @@ def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[int]:
     blank_id = model.decoder.blank_id
     device = model.device
 
-    sos = torch.tensor([blank_id], device=device).reshape(1, 1)
+    sos = torch.tensor([blank_id], device=device, dtype=torch.int64).reshape(
+        1, 1
+    )
     decoder_out, (h, c) = model.decoder(sos)
     T = encoder_out.size(1)
     t = 0
