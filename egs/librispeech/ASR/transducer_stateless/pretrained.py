@@ -228,6 +228,7 @@ def read_sound_files(
     return ans
 
 
+@torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
