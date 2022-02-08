@@ -99,6 +99,7 @@ class Transducer(nn.Module):
         sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+        sos_y_padded = sos_y_padded.to(torch.int64)
 
         decoder_out, _ = self.decoder(sos_y_padded)
 

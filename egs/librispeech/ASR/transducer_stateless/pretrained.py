@@ -22,14 +22,24 @@ Usage:
         --checkpoint ./transducer_stateless/exp/pretrained.pt \
         --bpe-model ./data/lang_bpe_500/bpe.model \
         --method greedy_search \
+        --max-sym-per-frame 1 \
         /path/to/foo.wav \
         /path/to/bar.wav \
 
-(1) beam search
+(2) beam search
 ./transducer_stateless/pretrained.py \
         --checkpoint ./transducer_stateless/exp/pretrained.pt \
         --bpe-model ./data/lang_bpe_500/bpe.model \
         --method beam_search \
+        --beam-size 4 \
+        /path/to/foo.wav \
+        /path/to/bar.wav \
+
+(3) modified beam search
+./transducer_stateless/pretrained.py \
+        --checkpoint ./transducer_stateless/exp/pretrained.pt \
+        --bpe-model ./data/lang_bpe_500/bpe.model \
+        --method modified_beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
         /path/to/bar.wav \
@@ -49,8 +59,9 @@ from typing import List
 import kaldifeat
 import sentencepiece as spm
 import torch
+import torch.nn as nn
 import torchaudio
-from beam_search import beam_search, greedy_search
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -90,6 +101,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - beam_search
+          - modified_beam_search
         """,
     )
 
@@ -107,7 +119,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --method is beam_search",
+        help="Used only when --method is beam_search and modified_beam_search ",
     )
 
     parser.add_argument(
@@ -148,7 +160,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.encoder_out_dim,
@@ -162,7 +174,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -172,7 +184,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -180,7 +192,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -217,6 +229,7 @@ def read_sound_files(
     return ans
 
 
+@torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -298,6 +311,10 @@ def main():
             )
         elif params.method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
