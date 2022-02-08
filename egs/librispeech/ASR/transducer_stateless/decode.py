@@ -40,8 +40,9 @@ import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -131,6 +132,13 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--LG",
+        type=str,
+        help="""Path to LG.pt for shallow fusion.
+        Used only when --decoding-method is modified_beam_search.""",
+    )
+
     return parser
 
 
@@ -203,6 +211,7 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    LG: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -225,6 +234,9 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      LG:
+        Optional. Used for shallow fusion. Used only when params.decoding_method
+        is modified_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -257,17 +269,24 @@ def decode_one_batch(
             )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+                model=model,
+                encoder_out=encoder_out_i,
+                beam=params.beam_size,
             )
         elif params.decoding_method == "modified_beam_search":
             hyp = modified_beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+                model=model,
+                encoder_out=encoder_out_i,
+                beam=params.beam_size,
+                LG=LG,
             )
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
             )
         hyps.append(sp.decode(hyp).split())
+    for h in hyps:
+        print(" ".join(h))
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -280,6 +299,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    LG: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -292,6 +312,9 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
+      LG:
+        Optional. Used for shallow fusion. Used only when params.decoding_method
+        is modified_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -320,6 +343,7 @@ def decode_dataset(
             model=model,
             sp=sp,
             batch=batch,
+            LG=LG,
         )
 
         for name, hyps in hyps_dict.items():
@@ -419,6 +443,21 @@ def main():
 
     logging.info(f"Device: {device}")
 
+    if params.LG is not None:
+        assert (
+            params.decoding_method == "modified_beam_search"
+        ), "--LG is used only when --decoding_method=modified_beam_search"
+        logging.info(f"Loading LG from {params.LG}")
+        LG = k2.Fsa.from_dict(torch.load(params.LG, map_location=device))
+        logging.info(f"LG properties: {LG.properties_str}")
+        logging.info(f"LG num_states: {LG.shape[0]}, num_arcs: {LG.num_arcs}")
+        # If LG is created by local/compile_lg.py, then it should be epsilon
+        # free as well as arc sorted
+        assert "ArcSorted" in LG.properties_str
+        assert "EpsilonFree" in LG.properties_str
+    else:
+        LG = None
+
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
@@ -467,6 +506,7 @@ def main():
             params=params,
             model=model,
             sp=sp,
+            LG=LG,
         )
 
         save_results(

@@ -17,8 +17,10 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import k2
 import torch
 from model import Transducer
+from shallow_fusion import shallow_fusion
 
 
 def greedy_search(
@@ -111,6 +113,13 @@ class Hypothesis:
     # It contains only one entry.
     log_prob: torch.Tensor
 
+    # Used for shallow fusion
+    # The key of the dict is a state index into LG
+    # while the corresponding value is the LM score
+    # reaching this state.
+    # Note: The value tensor contains only a single entry
+    ngram_state_and_scores: Optional[Dict[int, torch.Tensor]] = (None,)
+
     @property
     def key(self) -> str:
         """Return a string representation of self.ys"""
@@ -149,6 +158,15 @@ class HypothesisList(object):
             torch.logaddexp(
                 old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
             )
+            if hyp.ngram_state_and_scores is not None:
+                for state, score in hyp.ngram_state_and_scores.items():
+                    if (
+                        state in old_hyp.ngram_state_and_scores
+                        and score > old_hyp.ngram_state_and_scores[state]
+                    ):
+                        old_hyp.ngram_state_and_scores[state] = score
+                    else:
+                        old_hyp.ngram_state_and_scores[state] = score
         else:
             self._data[key] = hyp
 
@@ -318,6 +336,7 @@ def modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     beam: int = 4,
+    LG: Optional[k2.Fsa] = None,
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -328,9 +347,13 @@ def modified_beam_search(
         A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
       beam:
         Beam size.
+      LG:
+        Optional. Used for shallow fusion.
     Returns:
       Return the decoded result.
     """
+    enable_shallow_fusion = LG is not None
+    ngram_lm_scale = 0.8
 
     assert encoder_out.ndim == 3
 
@@ -350,10 +373,19 @@ def modified_beam_search(
     T = encoder_out.size(1)
 
     B = HypothesisList()
+
+    if enable_shallow_fusion:
+        ngram_state_and_scores = {
+            0: torch.zeros(1, dtype=torch.float32, device=device)
+        }
+    else:
+        ngram_state_and_scores = None
+
     B.add(
         Hypothesis(
             ys=[blank_id] * context_size,
             log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+            ngram_state_and_scores=ngram_state_and_scores,
         )
     )
 
@@ -411,9 +443,33 @@ def modified_beam_search(
             new_token = topk_token_indexes[i]
             if new_token != blank_id:
                 new_ys.append(new_token)
+            else:
+                ngram_state_and_scores = hyp.ngram_state_and_scores
+
             new_log_prob = topk_log_probs[i]
-            new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+
+            if enable_shallow_fusion and new_token != blank_id:
+                ngram_state_and_scores = shallow_fusion(
+                    LG, new_token, hyp.ngram_state_and_scores
+                )
+                if len(ngram_state_and_scores) == 0:
+                    continue
+                max_ngram_score = max(ngram_state_and_scores.values())
+                new_log_prob += ngram_lm_scale * max_ngram_score
+
+                # TODO: Get the maximum scores in ngram_state_and_scores
+                # and add it to new_log_prob
+
+            new_hyp = Hypothesis(
+                ys=new_ys,
+                log_prob=new_log_prob,
+                ngram_state_and_scores=ngram_state_and_scores,
+            )
+
             B.add(new_hyp)
+        if len(B) == 0:
+            for h in A:
+                B.add(h)
 
     best_hyp = B.get_most_probable(length_norm=True)
     ys = best_hyp.ys[context_size:]  # [context_size:] to remove blanks
