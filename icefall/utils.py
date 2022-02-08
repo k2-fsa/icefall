@@ -521,8 +521,8 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.norm_items():
             norm_value = "%.4g" % v
             ans += str(k) + "=" + str(norm_value) + ", "
-        frames = str(self["frames"])
-        ans += "over " + frames + " frames."
+        frames = "%.2f" % self["frames"]
+        ans += "over " + str(frames) + " frames."
         return ans
 
     def norm_items(self) -> List[Tuple[str, float]]:
