@@ -13,10 +13,10 @@ The WERs are
 
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
-| greedy search (max sym per frame 1) | 2.68       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| greedy search (max sym per frame 2) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| greedy search (max sym per frame 3) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.67       | 6.64       | --epoch 61, --avg 18, --max-duration 100 |
+| greedy search (max sym per frame 1) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.67       | 6.57       | --epoch 63, --avg 19, --max-duration 100 |
 
 
 The training command for reproducing is given below:
@@ -42,8 +42,8 @@ The tensorboard training log can be found at
 
 The decoding command is:
 ```
-epoch=61
-avg=18
+epoch=63
+avg=19
 
 ## greedy search
 for sym in 1 2 3; do
