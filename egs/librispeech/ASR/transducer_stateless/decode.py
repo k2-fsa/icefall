@@ -441,7 +441,9 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.to(device)
     model.eval()
