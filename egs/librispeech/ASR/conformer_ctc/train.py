@@ -650,8 +650,6 @@ def run(rank, world_size, args):
 
     model.to(device)
     if world_size > 1:
-        # Note: find_unused_parameters=True is needed in case we
-        # want to set params.att_rate = 0 (i.e. att decoder is not trained)
         model = DDP(model, device_ids=[rank])
 
     optimizer = Noam(
