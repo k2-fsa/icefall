@@ -220,9 +220,9 @@ class LibriSpeechAsrDataModule:
                     time_warp_factor=self.args.spec_aug_time_warp_factor,
                     num_frame_masks=10,
                     features_mask_size=27,
-                    num_feature_masks=10,
+                    num_feature_masks=2,
                     frames_mask_size=100,
-                    max_frames_mask_fraction=0.4,
+                    max_frames_mask_fraction=0.3,
                 )
             )
         else:
