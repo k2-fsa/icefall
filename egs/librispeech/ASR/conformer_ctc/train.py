@@ -601,14 +601,14 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    if "lang_bpe" in params.lang_dir:
+    if "lang_bpe" in str(params.lang_dir):
         graph_compiler = BpeCtcTrainingGraphCompiler(
             params.lang_dir,
             device=device,
             sos_token="<sos/eos>",
             eos_token="<sos/eos>",
         )
-    elif "lang_phone" in params.lang_dir:
+    elif "lang_phone" in str(params.lang_dir):
         assert params.att_rate == 0, (
             "Attention decoder training does not support phone lang dirs "
             "at this time due to a missing <sos/eos> symbol. Set --att-rate=0 "
@@ -650,9 +650,7 @@ def run(rank, world_size, args):
 
     model.to(device)
     if world_size > 1:
-        # Note: find_unused_parameters=True is needed in case we
-        # want to set params.att_rate = 0 (i.e. att decoder is not trained)
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank])
 
     optimizer = Noam(
         model.parameters(),
