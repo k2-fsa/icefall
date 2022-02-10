@@ -105,31 +105,15 @@ def compile_LG(lang_dir: str) -> k2.Fsa:
         f"LG shape after k2.connect: {LG.shape}, num_arcs: {LG.num_arcs}"
     )
 
-    logging.info("Removing disambiguation symbols on LG")
-    LG.labels[LG.labels >= first_token_disambig_id] = 0
-    # See https://github.com/k2-fsa/k2/issues/874
-    # for why we need to set LG.properties to None
-    LG.__dict__["_properties"] = None
-
-    logging.info("Removing epsilons")
-    LG = k2.remove_epsilon(LG)
-    logging.info(
-        f"LG shape after k2.remove_epsilon: {LG.shape}, num_arcs: {LG.num_arcs}"
-    )
-
-    logging.info("Connecting")
-    LG = k2.connect(LG)
-    logging.info(
-        f"LG shape after k2.connect: {LG.shape}, num_arcs: {LG.num_arcs}"
-    )
-
     logging.info("Arc sorting LG")
     LG = k2.arc_sort(LG)
 
     logging.info(f"LG properties: {LG.properties_str}")
     # Possible properties is:
-    # "Valid|Nonempty|ArcSorted|EpsilonFree|MaybeAccessible|MaybeCoaccessible"
-    logging.info("Caution: LG is not deterministic!!!")
+    # "Valid|Nonempty|ArcSorted|ArcSortedAndDeterministic|EpsilonFree|MaybeAccessible|MaybeCoaccessible"  # noqa
+    logging.info(
+        "Caution: LG is deterministic and contains disambig symbols!!!"
+    )
 
     return LG
 

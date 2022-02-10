@@ -155,9 +155,14 @@ class HypothesisList(object):
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
+
+            if True:
+                old_hyp.log_prob = torch.logaddexp(
+                    old_hyp.log_prob, hyp.log_prob
+                )
+            else:
+                old_hyp.log_prob = max(old_hyp.log_prob, hyp.log_prob)
+
             if hyp.ngram_state_and_scores is not None:
                 for state, score in hyp.ngram_state_and_scores.items():
                     if (
@@ -337,6 +342,7 @@ def modified_beam_search(
     encoder_out: torch.Tensor,
     beam: int = 4,
     LG: Optional[k2.Fsa] = None,
+    ngram_lm_scale: float = 0.1,
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -349,11 +355,13 @@ def modified_beam_search(
         Beam size.
       LG:
         Optional. Used for shallow fusion.
+      ngram_lm_scale:
+        Used only when LG is not None. The total score of a path is
+        am_score + ngram_lm_scale * ngram_lm_scale
     Returns:
       Return the decoded result.
     """
     enable_shallow_fusion = LG is not None
-    ngram_lm_scale = 0.8
 
     assert encoder_out.ndim == 3
 
@@ -422,6 +430,7 @@ def modified_beam_search(
             encoder_out_len.expand(decoder_out.size(0)),
             decoder_out_len.expand(decoder_out.size(0)),
         )
+        vocab_size = logits.size(-1)
         # logits is of shape (num_hyps, vocab_size)
         log_probs = logits.log_softmax(dim=-1)
 
@@ -437,6 +446,9 @@ def modified_beam_search(
         topk_hyp_indexes = topk_hyp_indexes.tolist()
         topk_token_indexes = topk_token_indexes.tolist()
 
+        #  import pdb
+        #
+        #  pdb.set_trace()
         for i in range(len(topk_hyp_indexes)):
             hyp = A[topk_hyp_indexes[i]]
             new_ys = hyp.ys[:]
@@ -450,12 +462,15 @@ def modified_beam_search(
 
             if enable_shallow_fusion and new_token != blank_id:
                 ngram_state_and_scores = shallow_fusion(
-                    LG, new_token, hyp.ngram_state_and_scores
+                    LG,
+                    new_token,
+                    hyp.ngram_state_and_scores,
+                    vocab_size,
                 )
                 if len(ngram_state_and_scores) == 0:
                     continue
                 max_ngram_score = max(ngram_state_and_scores.values())
-                new_log_prob += ngram_lm_scale * max_ngram_score
+                new_log_prob = new_log_prob + ngram_lm_scale * max_ngram_score
 
                 # TODO: Get the maximum scores in ngram_state_and_scores
                 # and add it to new_log_prob
@@ -468,6 +483,9 @@ def modified_beam_search(
 
             B.add(new_hyp)
         if len(B) == 0:
+            import logging
+
+            logging.info("\n*****\nEmpty states!\n***\n")
             for h in A:
                 B.add(h)
 

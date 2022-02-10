@@ -139,6 +139,15 @@ def get_parser():
         Used only when --decoding-method is modified_beam_search.""",
     )
 
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.1,
+        help="""Used when only --LG is provided.
+        The total score of a path is am_score + ngram_lm_scale * ngram_lm_score.
+        """,
+    )
+
     return parser
 
 
@@ -279,14 +288,18 @@ def decode_one_batch(
                 encoder_out=encoder_out_i,
                 beam=params.beam_size,
                 LG=LG,
+                ngram_lm_scale=params.ngram_lm_scale,
             )
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
             )
         hyps.append(sp.decode(hyp).split())
+    s = "\n"
     for h in hyps:
-        print(" ".join(h))
+        s += " ".join(h)
+        s += "\n"
+    logging.info(s)
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -336,6 +349,8 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
+        if batch_idx > 10:
+            break
         texts = batch["supervisions"]["text"]
 
         hyps_dict = decode_one_batch(
@@ -452,9 +467,10 @@ def main():
         logging.info(f"LG properties: {LG.properties_str}")
         logging.info(f"LG num_states: {LG.shape[0]}, num_arcs: {LG.num_arcs}")
         # If LG is created by local/compile_lg.py, then it should be epsilon
-        # free as well as arc sorted
+        # free, deterministic, and arc sorted
         assert "ArcSorted" in LG.properties_str
         assert "EpsilonFree" in LG.properties_str
+        assert "Deterministic" in LG.properties_str
     else:
         LG = None
 
@@ -501,6 +517,8 @@ def main():
     test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
+        if test_set == "test-other":
+            break
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
