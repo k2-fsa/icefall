@@ -223,7 +223,7 @@ class LibriSpeechAsrDataModule:
                     num_feature_masks=2,
                     frames_mask_size=100,
                     max_frames_mask_fraction=0.2,
-                    p=0.9
+                    p=0.8
                 )
             )
         else:
