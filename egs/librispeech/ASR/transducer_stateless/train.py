@@ -109,7 +109,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp-100h-relu-specaugmod_p0.9_0.15_fix",
+        default="transducer_stateless/exp-100h-specaugmod_p0.9_0.15_fix",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
