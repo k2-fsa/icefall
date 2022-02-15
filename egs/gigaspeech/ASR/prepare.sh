@@ -23,6 +23,7 @@ num_splits=2000
 #      This directory contains the language model downloaded from
 #        https://huggingface.co/wgb14/gigaspeech_lm
 #
+#        - 3gram_pruned_1e7.arpa.gz
 #        - 4gram.arpa.gz
 #        - lexicon.txt
 #
@@ -63,6 +64,7 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   # using: `sudo apt-get install git-lfs && git-lfs install`
   [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
   git clone https://huggingface.co/wgb14/gigaspeech_lm $dl_dir/lm
+  gunzip -c $dl_dir/lm/3gram_pruned_1e7.arpa.gz > $dl_dir/lm/3gram_pruned_1e7.arpa
   gunzip -c $dl_dir/lm/4gram.arpa.gz > $dl_dir/lm/4gram.arpa
 fi
 
@@ -293,8 +295,17 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
 
   mkdir -p data/lm
 
-  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
     # It is used in building HLG
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang_phone/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $dl_dir/lm/3gram_pruned_1e7.arpa > data/lm/G_3_gram.fst.txt
+  fi
+
+  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
+    # It is used for LM rescoring
     python3 -m kaldilm \
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
