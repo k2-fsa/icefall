@@ -121,7 +121,12 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       --lang-dir $lang_dir \
       --manifests-dir data/manifests
 
-  cat download/tedlium3/TEDLIUM.152k.dic | grep -v -w "<s>" | grep -v -w "</s>" | grep -v -w "<unk>" |   LANG= LC_ALL= sort | sed 's:([0-9])::g' > $lang_dir/lexicon_words.txt
+  cat download/tedlium3/TEDLIUM.152k.dic | 
+  grep -v -w "<s>" | 
+  grep -v -w "</s>" | 
+  grep -v -w "<unk>" |   
+  LANG= LC_ALL= sort | 
+  sed 's:([0-9])::g' > $lang_dir/lexicon_words.txt
 
   (echo '<UNK> <UNK>'; ) |
     cat - $lang_dir/lexicon_words.txt |
@@ -146,6 +151,9 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       log "Generate data for BPE training"
       cat data/lang_phone/train.text | cut -d " " -f 2- 
       > $lang_dir/transcript_words.txt
+      sed -i 's/ <unk>//g' $lang_dir/transcript_words.txt
+      sed -i 's/<unk> //g' $lang_dir/transcript_words.txt
+      sed -i 's/<unk>//g' $lang_dir/transcript_words.txt
     fi
 
     ./local/train_bpe_model.py \
