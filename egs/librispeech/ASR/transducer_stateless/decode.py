@@ -47,7 +47,12 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import beam_search, greedy_search, modified_beam_search
+from beam_search import (
+    beam_search,
+    greedy_search,
+    modified_beam_search,
+    modified_beam_search_with_shallow_fusion,
+)
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -283,23 +288,25 @@ def decode_one_batch(
                 beam=params.beam_size,
             )
         elif params.decoding_method == "modified_beam_search":
-            hyp = modified_beam_search(
-                model=model,
-                encoder_out=encoder_out_i,
-                beam=params.beam_size,
-                LG=LG,
-                ngram_lm_scale=params.ngram_lm_scale,
-            )
+            if LG is None:
+                hyp = modified_beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            else:
+                hyp = modified_beam_search_with_shallow_fusion(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                    LG=LG,
+                    ngram_lm_scale=params.ngram_lm_scale,
+                )
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
             )
         hyps.append(sp.decode(hyp).split())
-    s = "\n"
-    for h in hyps:
-        s += " ".join(h)
-        s += "\n"
-    logging.info(s)
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -349,8 +356,6 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        if batch_idx > 10:
-            break
         texts = batch["supervisions"]["text"]
 
         hyps_dict = decode_one_batch(
@@ -464,6 +469,9 @@ def main():
         ), "--LG is used only when --decoding_method=modified_beam_search"
         logging.info(f"Loading LG from {params.LG}")
         LG = k2.Fsa.from_dict(torch.load(params.LG, map_location=device))
+        logging.info(
+            f"max: {LG.scores.max()}, min: {LG.scores.min()}, mean: {LG.scores.mean()}"
+        )
         logging.info(f"LG properties: {LG.properties_str}")
         logging.info(f"LG num_states: {LG.shape[0]}, num_arcs: {LG.num_arcs}")
         # If LG is created by local/compile_lg.py, then it should be epsilon
@@ -517,8 +525,6 @@ def main():
     test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
-        if test_set == "test-other":
-            break
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
