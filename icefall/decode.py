@@ -735,7 +735,10 @@ def rescore_with_whole_lattice(
         except RuntimeError as e:
             logging.info(f"Caught exception:\n{e}\n")
             if loop_count >= max_loop_count:
-                logging.info("Return None as the resulting lattice is too large")
+                logging.info(
+                    "Return None as the resulting lattice "
+                    "is too large"
+                )
                 return None
             logging.info(
                 f"num_arcs before pruning: {inv_lattice.arcs.num_elements()}"
