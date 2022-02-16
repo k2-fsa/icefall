@@ -86,12 +86,11 @@ def test_dataset():
             batch_idx += 1
 
             print("dl idx", idx, "batch_idx", batch_idx)
-            batch = next(dl)
-            cuts = batch["supervisions"]["cut"]
-            for c in cuts:
-                print(c.id)
-
-            if batch_idx > 10:
+            try:
+                _ = next(dl)
+            except StopIteration:
+                print("dl idx", idx)
+                print("Go to the next epoch")
                 break
 
 
