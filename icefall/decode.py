@@ -748,7 +748,6 @@ def rescore_with_whole_lattice(
                 "is too large, or the input sound file is difficult to "
                 "decode, you will meet this exception."
             )
-            logging.info(f"{loop_count} {prune_th_list[loop_count]}\n")
             inv_lattice = k2.prune_on_arc_post(
                 inv_lattice,
                 prune_th_list[loop_count],
