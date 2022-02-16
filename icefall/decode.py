@@ -736,8 +736,7 @@ def rescore_with_whole_lattice(
             logging.info(f"Caught exception:\n{e}\n")
             if loop_count >= max_loop_count:
                 logging.info(
-                    "Return None as the resulting lattice "
-                    "is too large"
+                    "Return None as the resulting lattice is too large."
                 )
                 return None
             logging.info(
