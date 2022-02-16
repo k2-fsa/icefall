@@ -133,6 +133,15 @@ class AsrDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
 
+        group.add_argument(
+            "--on-the-fly-feats",
+            type=str2bool,
+            default=False,
+            help="When enabled, use on-the-fly cut mixing and feature "
+            "extraction. Will drop existing precomputed feature manifests "
+            "if available. Used only in dev/test CutSet",
+        )
+
     def train_dataloaders(
         self,
         cuts_train: CutSet,
@@ -240,3 +249,56 @@ class AsrDataModule:
             persistent_workers=False,
         )
         return train_dl
+
+    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+        transforms = []
+
+        logging.info("About to create dev dataset")
+        if self.args.on_the_fly_feats:
+            validate = K2SpeechRecognitionDataset(
+                cut_transforms=transforms,
+                input_strategy=OnTheFlyFeatures(
+                    Fbank(FbankConfig(num_mel_bins=80))
+                ),
+                return_cuts=self.args.return_cuts,
+            )
+        else:
+            validate = K2SpeechRecognitionDataset(
+                cut_transforms=transforms,
+                return_cuts=self.args.return_cuts,
+            )
+        valid_sampler = BucketingSampler(
+            cuts_valid,
+            max_duration=self.args.max_duration,
+            shuffle=False,
+        )
+        logging.info("About to create dev dataloader")
+        valid_dl = DataLoader(
+            validate,
+            sampler=valid_sampler,
+            batch_size=None,
+            num_workers=2,
+            persistent_workers=False,
+        )
+
+        return valid_dl
+
+    def test_dataloaders(self, cuts: CutSet) -> DataLoader:
+        logging.debug("About to create test dataset")
+        test = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+            if self.args.on_the_fly_feats
+            else PrecomputedFeatures(),
+            return_cuts=self.args.return_cuts,
+        )
+        sampler = BucketingSampler(
+            cuts, max_duration=self.args.max_duration, shuffle=False
+        )
+        logging.debug("About to create test dataloader")
+        test_dl = DataLoader(
+            test,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
+        )
+        return test_dl
