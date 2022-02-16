@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import logging
-from typing import Path
+from pathlib import Path
 
 from lhotse import CutSet, load_manifest
 

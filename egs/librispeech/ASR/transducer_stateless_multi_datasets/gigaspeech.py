@@ -17,7 +17,7 @@
 
 
 import logging
-from typing import Path
+from pathlib import Path
 
 from lhotse import CutSet, load_manifest
 
@@ -29,29 +29,47 @@ class GigaSpeech:
           manifest_dir:
             It is expected to contain the following files::
 
-                - cuts_L.jsonl.gz
-                - cuts_XL.jsonl.gz
-                - cuts_TEST.jsonl.gz
-                - cuts_DEV.jsonl.gz
+                - cuts_XL_raw.jsonl.gz
+                - cuts_L_raw.jsonl.gz
+                - cuts_M_raw.jsonl.gz
+                - cuts_S_raw.jsonl.gz
+                - cuts_XS_raw.jsonl.gz
+                - cuts_DEV_raw.jsonl.gz
+                - cuts_TEST_raw.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
-    def train_L_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_L.json.gz"
-        logging.info(f"About to get train-L cuts from {f}")
-        return CutSet.from_jsonl_lazy(f)
-
     def train_XL_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_XL.json.gz"
+        f = self.manifest_dir / "cuts_XL_raw.jsonl.gz"
         logging.info(f"About to get train-XL cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
+    def train_L_cuts(self) -> CutSet:
+        f = self.manifest_dir / "cuts_L_raw.jsonl.gz"
+        logging.info(f"About to get train-L cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_M_cuts(self) -> CutSet:
+        f = self.manifest_dir / "cuts_M_raw.jsonl.gz"
+        logging.info(f"About to get train-M cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_S_cuts(self) -> CutSet:
+        f = self.manifest_dir / "cuts_S_raw.jsonl.gz"
+        logging.info(f"About to get train-S cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_XS_cuts(self) -> CutSet:
+        f = self.manifest_dir / "cuts_XS_raw.jsonl.gz"
+        logging.info(f"About to get train-XS cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
     def test_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_TEST.json.gz"
+        f = self.manifest_dir / "cuts_TEST.jsonl.gz"
         logging.info(f"About to get TEST cuts from {f}")
         return load_manifest(f)
 
     def dev_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_DEV.json.gz"
+        f = self.manifest_dir / "cuts_DEV.jsonl.gz"
         logging.info(f"About to get DEV cuts from {f}")
         return load_manifest(f)

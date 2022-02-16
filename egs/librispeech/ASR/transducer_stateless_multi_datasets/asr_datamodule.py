@@ -16,12 +16,28 @@
 # limitations under the License.
 
 import argparse
+import logging
+from pathlib import Path
+from typing import Optional
 
-from lhotse import CutSet
+from lhotse import CutSet, Fbank, FbankConfig
+from lhotse.dataset import (
+    BucketingSampler,
+    CutMix,
+    DynamicBucketingSampler,
+    K2SpeechRecognitionDataset,
+    SpecAugment,
+)
+from lhotse.dataset.input_strategies import (
+    OnTheFlyFeatures,
+    PrecomputedFeatures,
+)
+from torch.utils.data import DataLoader
+
 from icefall.utils import str2bool
 
 
-class AsrDataset:
+class AsrDataModule:
     def __init__(self, args: argparse.Namespace):
         self.args = args
 
@@ -55,17 +71,9 @@ class AsrDataset:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the BucketingSampler"
+            help="The number of buckets for the BucketingSampler "
+            "and DynamicBucketingSampler."
             "(you might want to increase it for larger datasets).",
-        )
-
-        group.add_argument(
-            "--on-the-fly-feats",
-            type=str2bool,
-            default=False,
-            help="When enabled, use on-the-fly cut mixing and feature "
-            "extraction. Will drop existing precomputed feature manifests "
-            "if available.",
         )
 
         group.add_argument(
@@ -126,8 +134,25 @@ class AsrDataset:
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, cuts_musan: Optional[CutSet] = None
+        self,
+        cuts_train: CutSet,
+        dynamic_bucketing: bool,
+        on_the_fly_feats: bool,
+        cuts_musan: Optional[CutSet] = None,
     ) -> DataLoader:
+        """
+        Args:
+          cuts_train:
+            Cuts for training.
+          cuts_musan:
+            If not None, it is the cuts for mixing.
+          dynamic_bucketing:
+            True to use DynamicBucketingSampler;
+            False to use BucketingSampler.
+          on_the_fly_feats:
+            True to use OnTheFlyFeatures;
+            False to use PrecomputedFeatures.
+        """
         transforms = []
         if cuts_musan is not None:
             logging.info("Enable MUSAN")
@@ -177,21 +202,34 @@ class AsrDataset:
         # Drop feats to be on the safe side.
         train = K2SpeechRecognitionDataset(
             cut_transforms=transforms,
-            input_strategy=OnTheFlyFeatures(
-                Fbank(FbankConfig(num_mel_bins=80))
+            input_strategy=(
+                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+                if on_the_fly_feats
+                else PrecomputedFeatures()
             ),
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
         )
 
-        logging.info("Using DynamicBucketingSampler.")
-        train_sampler = DynamicBucketingSampler(
-            cuts_train,
-            max_duration=self.args.max_duration,
-            shuffle=self.args.shuffle,
-            num_buckets=self.args.num_buckets,
-            drop_last=True,
-        )
+        if dynamic_bucketing:
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
+                cuts_train,
+                max_duration=self.args.max_duration,
+                shuffle=self.args.shuffle,
+                num_buckets=self.args.num_buckets,
+                drop_last=True,
+            )
+        else:
+            logging.info("Using BucketingSampler.")
+            train_sampler = BucketingSampler(
+                cuts_train,
+                max_duration=self.args.max_duration,
+                shuffle=self.args.shuffle,
+                num_buckets=self.args.num_buckets,
+                bucket_method="equal_duration",
+                drop_last=True,
+            )
 
         logging.info("About to create train dataloader")
         train_dl = DataLoader(
