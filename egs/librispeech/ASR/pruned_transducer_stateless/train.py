@@ -148,7 +148,7 @@ def get_parser():
     parser.add_argument(
         "--prune-range",
         type=int,
-        default=3,
+        default=5,
         help="The prune range for rnnt loss, it means how many symbols(context)"
         "we are using to compute the loss",
     )
@@ -156,7 +156,7 @@ def get_parser():
     parser.add_argument(
         "--lm-scale",
         type=float,
-        default=0.5,
+        default=0.25,
         help="The scale to smooth the loss with lm "
         "(output of prediction network) part.",
     )
@@ -167,6 +167,16 @@ def get_parser():
         default=0.0,
         help="The scale to smooth the loss with am (output of encoder network)"
         "part.",
+    )
+
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
     )
 
     return parser
@@ -289,9 +299,6 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        prune_range=params.prune_range,
-        lm_scale=params.lm_scale,
-        am_scale=params.am_scale,
     )
     return model
 
@@ -420,8 +427,15 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(x=feature, x_lens=feature_lens, y=y)
-        loss = simple_loss + pruned_loss
+        simple_loss, pruned_loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
+        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 

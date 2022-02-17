@@ -19,16 +19,16 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless/decode.py \
-        --epoch 14 \
-        --avg 7 \
+        --epoch 28 \
+        --avg 15 \
         --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
 ./pruned_transducer_stateless/decode.py \
-        --epoch 14 \
-        --avg 7 \
+        --epoch 28 \
+        --avg 15 \
         --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
@@ -70,14 +70,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=29,
+        default=28,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=13,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",

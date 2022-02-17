@@ -1,5 +1,53 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Transducer)
+
+#### Conformer encoder + embedding decoder
+
+Conformer encoder + non-current decoder. The decoder
+contains only an embedding layer, a Conv1d (with kernel size 2) and a linear
+layer (to transform tensor dim).
+
+The WERs are
+
+|                           | test-clean | test-other | comment                                  |
+|---------------------------|------------|------------|------------------------------------------|
+| greedy search             | 2.85       | 6.98       | --epoch 28, --avg 15, --max-duration 100 |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --prune-range 5 \
+  --lr-factor 5 \
+  --lm-scale 0.25 \
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/ejG7VpakRYePNNj6AbDEUw/#scalars>
+
+The decoding command is:
+```
+epoch=28
+avg=15
+
+## greedy search
+./pruned_transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir pruned_transducer_stateless/exp \
+  --max-duration 100
+```
+
+
 ### LibriSpeech BPE training results (Transducer)
 
 #### Conformer encoder + embedding decoder

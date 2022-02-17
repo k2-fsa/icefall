@@ -33,9 +33,6 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
-        prune_range: int = 3,
-        am_scale: float = 0.0,
-        lm_scale: float = 0.0,
     ):
         """
         Args:
@@ -52,21 +49,6 @@ class Transducer(nn.Module):
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
-          prune_range:
-            The prune range for rnnt loss, it means how many symbols(context)
-            we are considering for each frame to compute the loss.
-          am_scale:
-            The scale to smooth the loss with am (output of encoder network)
-            part
-          lm_scale:
-            The scale to smooth the loss with lm (output of predictor network)
-            part
-
-        Note:
-           Regarding am_scale & lm_scale, it will make the loss-function one of
-           the form:
-              lm_scale * lm_probs + am_scale * am_probs +
-              (1-lm_scale-am_scale) * combined_probs
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -75,15 +57,15 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
-        self.prune_range = prune_range
-        self.lm_scale = lm_scale
-        self.am_scale = am_scale
 
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        prune_range: int = 5,
+        am_scale: float = 0.0,
+        lm_scale: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -95,8 +77,23 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          prune_range:
+            The prune range for rnnt loss, it means how many symbols(context)
+            we are considering for each frame to compute the loss.
+          am_scale:
+            The scale to smooth the loss with am (output of encoder network)
+            part
+          lm_scale:
+            The scale to smooth the loss with lm (output of predictor network)
+            part
         Returns:
           Return the transducer loss.
+
+        Note:
+           Regarding am_scale & lm_scale, it will make the loss-function one of
+           the form:
+              lm_scale * lm_probs + am_scale * am_probs +
+              (1-lm_scale-am_scale) * combined_probs
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
@@ -114,11 +111,14 @@ class Transducer(nn.Module):
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
 
+        # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
+        # decoder_out: [B, S + 1, C]
         decoder_out = self.decoder(sos_y_padded)
 
         # Note: y does not start with SOS
+        # y_padded : [B, S]
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
@@ -133,31 +133,37 @@ class Transducer(nn.Module):
             am=encoder_out,
             symbols=y_padded,
             termination_symbol=blank_id,
-            lm_only_scale=self.lm_scale,
-            am_only_scale=self.am_scale,
+            lm_only_scale=lm_scale,
+            am_only_scale=am_scale,
             boundary=boundary,
+            reduction="sum",
             return_grad=True,
         )
 
+        # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
             px_grad=px_grad,
             py_grad=py_grad,
             boundary=boundary,
-            s_range=self.prune_range,
+            s_range=prune_range,
         )
 
+        # am_pruned : [B, T, prune_range, C]
+        # lm_pruned : [B, T, prune_range, C]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
             am=encoder_out, lm=decoder_out, ranges=ranges
         )
 
+        # logits : [B, T, prune_range, C]
         logits = self.joiner(am_pruned, lm_pruned)
 
         pruned_loss = k2.rnnt_loss_pruned(
-            joint=logits,
+            logits=logits,
             symbols=y_padded,
             ranges=ranges,
             termination_symbol=blank_id,
             boundary=boundary,
+            reduction="sum",
         )
 
-        return (-torch.sum(simple_loss), -torch.sum(pruned_loss))
+        return (simple_loss, pruned_loss)

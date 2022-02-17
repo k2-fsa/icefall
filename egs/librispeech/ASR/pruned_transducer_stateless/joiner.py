@@ -16,6 +16,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Joiner(nn.Module):
@@ -42,10 +43,8 @@ class Joiner(nn.Module):
 
         logit = encoder_out + decoder_out
 
-        logit = self.inner_linear(logit)
+        logit = self.inner_linear(torch.tanh(logit))
 
-        logit = torch.tanh(logit)
-
-        output = self.output_linear(logit)
+        output = self.output_linear(F.relu(logit))
 
         return output
