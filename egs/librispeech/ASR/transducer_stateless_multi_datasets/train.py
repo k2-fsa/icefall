@@ -161,6 +161,13 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--giga-prob",
+        type=float,
+        default=0.2,
+        help="The probability to select a batch from the GigaSpeech dataset",
+    )
+
     return parser
 
 
@@ -523,7 +530,7 @@ def train_one_epoch(
     # index 0: for LibriSpeech
     # index 1: for GigaSpeech
     # This sets the probabilities for choosing which datasets
-    dl_weights = [0.8, 0.2]
+    dl_weights = [1 - params.giga_prob, params.giga_prob]
 
     iter_libri = iter(train_dl)
     iter_giga = iter(giga_train_dl)
@@ -860,6 +867,8 @@ def main():
     AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+
+    assert 0 < args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size
     assert world_size >= 1
