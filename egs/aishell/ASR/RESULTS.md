@@ -1,7 +1,7 @@
 ## Results
 
 ### Aishell training results (Transducer-stateless)
-#### 2021-12-29
+#### 2022-02-18
 (Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/SG1KV62hRzO5YZswwMQnoQ/>
 
 ||test|
