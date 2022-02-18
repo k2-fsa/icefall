@@ -2,11 +2,11 @@
 
 ### Aishell training results (Transducer-stateless)
 #### 2021-12-29
-(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/sPEDmAQ3QcWuDAWGiKprVg/>
+(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/SG1KV62hRzO5YZswwMQnoQ/>
 
 ||test|
 |--|--|
-|CER| 5.7% |
+|CER| 5.4% |
 
 You can use the following commands to reproduce our results:
 
