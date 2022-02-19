@@ -180,3 +180,9 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [k2]: https://github.com/k2-fsa/k2
+
+## Multi-GPU training server configurations
+
+If compiled with compatible versions of CUDA, CUDNN and NCCL libraries, the ICEFALL reference training recipes can operate across pools of GPUs by splitting and balancing the training load among multiple GPU devices. The environment variable CUDA_VISIBLE_DEVICES defines a list of the local GPUs accessible from within the given environment. Device identification in the list assigned to CUDA_VISIBLE_DEVICES follows their indexes in "cuda/samples/1_Utilities/deviceQuery/deviceQuery" utility (e.g. 'export CUDA_VISIBLE_DEVICES="0,2,3"').
+
+It was observed that enabling hardware virtualization (BIOS settings) may lead to a situation when the GPU devices stall without progress but referred as 100% utilized by the 'nvidia-smi' utility. A software-only remedy (one that doesn't require hardware reconfiguration, or restart) is possible through setting the environment variable 'NCCL_P2P_DISABLE=1'. Alternatively, in order to achieve higher memory transfer throughput rates, one can disable BIOS virtualization options like "Virtualization Technology" and/or "VT-d".
