@@ -1,8 +1,8 @@
 ## Results
 ### Aishell training result(Transducer-stateless) 
 #### 2022-2-19
-(Duo Ma): The tensorboard log for training is available at https://tensorboard.dev/experiment/25PmX3MxSVGTdvIdhOwllw/#scalars
-          You can find a pretrained model by visiting https://huggingface.co/shuanguanma/icefall_aishell_transducer_stateless_context_size2_epoch60_2022_2_19
+(Duo Ma): The tensorboard log for training is available at https://tensorboard.dev/experiment/25PmX3MxSVGTdvIdhOwllw/#scalars  
+You can find a pretrained model by visiting https://huggingface.co/shuanguanma/icefall_aishell_transducer_stateless_context_size2_epoch60_2022_2_19
 |                           | test |comment                                  |
 |---------------------------|------|-----------------------------------------|
 | greedy search             | 5.4 |--epoch 59, --avg 10, --max-duration 100 |
