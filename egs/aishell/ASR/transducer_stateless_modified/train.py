@@ -623,8 +623,8 @@ def run(rank, world_size, args):
     train_cuts = aishell.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        return 1.0 <= c.duration <= 20.0
+        # Keep only utterances with duration between 1 second and 12 seconds
+        return 1.0 <= c.duration <= 12.0
 
     num_in_total = len(train_cuts)
 
@@ -640,6 +640,14 @@ def run(rank, world_size, args):
 
     train_dl = aishell.train_dataloaders(train_cuts)
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
+
+    scan_pessimistic_batches_for_oom(
+        model=model,
+        train_dl=train_dl,
+        optimizer=optimizer,
+        graph_compiler=graph_compiler,
+        params=params,
+    )
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)
@@ -679,6 +687,45 @@ def run(rank, world_size, args):
     if world_size > 1:
         torch.distributed.barrier()
         cleanup_dist()
+
+
+def scan_pessimistic_batches_for_oom(
+    model: nn.Module,
+    train_dl: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    graph_compiler: CharCtcTrainingGraphCompiler,
+    params: AttributeDict,
+):
+    from lhotse.dataset import find_pessimistic_batches
+
+    logging.info(
+        "Sanity check -- see if any of the batches in epoch 0 would cause OOM."
+    )
+    batches, crit_values = find_pessimistic_batches(train_dl.sampler)
+    for criterion, cuts in batches.items():
+        batch = train_dl.dataset[cuts]
+        try:
+            optimizer.zero_grad()
+            loss, _ = compute_loss(
+                params=params,
+                model=model,
+                graph_compiler=graph_compiler,
+                batch=batch,
+                is_training=True,
+            )
+            loss.backward()
+            clip_grad_norm_(model.parameters(), 5.0, 2.0)
+            optimizer.step()
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                logging.error(
+                    "Your GPU ran out of memory with the current "
+                    "max_duration setting. We recommend decreasing "
+                    "max_duration and trying again.\n"
+                    f"Failing criterion: {criterion} "
+                    f"(={crit_values[criterion]}) ..."
+                )
+            raise
 
 
 def main():

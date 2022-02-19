@@ -15,6 +15,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+(1) greedy search
+./transducer_stateless_modified/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method greedy_search
+
+(2) beam search
+./transducer_stateless_modified/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method beam_search \
+        --beam-size 4
+
+(3) modified beam search
+./transducer_stateless_modified/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
+"""
 
 import argparse
 import logging
@@ -25,7 +53,7 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
-from beam_search import beam_search, greedy_search
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -39,7 +67,6 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     write_error_stats,
-    str2bool,
 )
 
 
@@ -67,7 +94,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="transducer_stateless_modified/exp",
         help="The experiment dir",
     )
 
@@ -85,6 +112,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - beam_search
+          - modified_beam_search
         """,
     )
 
@@ -108,17 +136,6 @@ def get_parser():
         default=3,
         help="Maximum number of symbols per frame",
     )
-    parser.add_argument(
-        "--export",
-        type=str2bool,
-        default=False,
-        help="""When enabled, the averaged model is saved to
-        transducer_stateless/exp/pretrained.pt. Note: only model.state_dict()
-        is saved. pretrained.pt contains a dict {"model": model.state_dict()},
-        which can be loaded by `icefall.checkpoint.load_checkpoint()`.
-        """,
-    )
-
     return parser
 
 
@@ -245,6 +262,10 @@ def decode_one_batch(
             )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
@@ -382,11 +403,15 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search", "beam_search")
+    assert params.decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if params.decoding_method == "beam_search":
+    if "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
@@ -403,7 +428,6 @@ def main():
 
     lexicon = Lexicon(params.lang_dir)
 
-    # params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
@@ -423,13 +447,6 @@ def main():
         logging.info(f"averaging {filenames}")
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
-
-    if params.export:
-        logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
-        return
 
     model.to(device)
     model.eval()

@@ -23,7 +23,7 @@ python3 ./transducer_stateless/train.py \
 
 lang_dir=data/lang_char
 dir=exp/transducer_stateless_context_size2
-python3 ./transducer_stateless/decode.py\
+python3 ./transducer_stateless/decode.py \
        --epoch 59 \
        --avg 10 \
        --exp-dir $dir \
@@ -35,8 +35,8 @@ python3 ./transducer_stateless/decode.py\
 lang_dir=data/lang_char
 dir=exp/transducer_stateless_context_size2
 python3 ./transducer_stateless/decode.py \
-       --epoch 59\
-       --avg 10\
+       --epoch 59 \
+       --avg 10 \
        --exp-dir $dir \
        --lang-dir $lang_dir \
        --decoding-method beam_search \

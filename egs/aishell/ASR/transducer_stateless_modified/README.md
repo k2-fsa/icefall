@@ -11,11 +11,11 @@ cd egs/aishell/ASR
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
-./transducer_stateless/train.py \
+./transducer_stateless_modified/train.py \
   --world-size 8 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless/exp \
+  --exp-dir transducer_stateless_modified/exp \
   --max-duration 250 \
   --lr-factor 2.5
 ```
