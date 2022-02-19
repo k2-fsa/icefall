@@ -45,12 +45,13 @@ You can use the following commands to reproduce our results:
                 
                 
 ### Aishell training results (Transducer-stateless)
-#### 2021-12-29
-(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/sPEDmAQ3QcWuDAWGiKprVg/>
+#### 2022-02-18
+(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/SG1KV62hRzO5YZswwMQnoQ/>
+And pretrained model is available at <https://huggingface.co/pfluo/icefall-aishell-transducer-stateless-char-2021-12-29>
 
 ||test|
 |--|--|
-|CER| 5.7% |
+|CER| 5.4% |
 
 You can use the following commands to reproduce our results:
 

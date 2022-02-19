@@ -31,7 +31,6 @@ from decoder import Decoder
 from joiner import Joiner
 from model import Transducer
 
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
@@ -403,12 +402,9 @@ def main():
     logging.info(f"Device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
 
-    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    # params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
