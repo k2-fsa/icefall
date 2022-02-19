@@ -558,7 +558,6 @@ def run(rank, world_size, args):
         oov="<unk>",
     )
 
-    # params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 

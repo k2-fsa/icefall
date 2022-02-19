@@ -1,49 +1,49 @@
 ## Results
-### Aishell training result(Transducer-stateless) 
+### Aishell training result(Transducer-stateless)
 #### 2022-2-19
-(Duo Ma): The tensorboard log for training is available at https://tensorboard.dev/experiment/25PmX3MxSVGTdvIdhOwllw/#scalars  
+(Duo Ma): The tensorboard log for training is available at https://tensorboard.dev/experiment/25PmX3MxSVGTdvIdhOwllw/#scalars
 You can find a pretrained model by visiting https://huggingface.co/shuanguanma/icefall_aishell_transducer_stateless_context_size2_epoch60_2022_2_19
 |                           | test |comment                                  |
 |---------------------------|------|-----------------------------------------|
 | greedy search             | 5.4 |--epoch 59, --avg 10, --max-duration 100 |
-| beam search               | 5.05|--epoch 59, --avg 10, --max-duration 100 | 
+| beam search               | 5.05|--epoch 59, --avg 10, --max-duration 100 |
 
 You can use the following commands to reproduce our results:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+python3 ./transducer_stateless/train.py \
+      --world-size 4 \
+      --num-epochs 60 \
+      --start-epoch 0 \
+      --exp-dir exp/transducer_stateless_context_size2 \
+      --max-duration 100 \
+      --lr-factor 2.5 \
+      --context-size 2
+
+lang_dir=data/lang_char
+dir=exp/transducer_stateless_context_size2
+python3 ./transducer_stateless/decode.py\
+       --epoch 59 \
+       --avg 10 \
+       --exp-dir $dir \
+       --lang-dir $lang_dir \
+       --decoding-method greedy_search \
+       --context-size 2 \
+       --max-sym-per-frame 3
+
+lang_dir=data/lang_char
+dir=exp/transducer_stateless_context_size2
+python3 ./transducer_stateless/decode.py \
+       --epoch 59\
+       --avg 10\
+       --exp-dir $dir \
+       --lang-dir $lang_dir \
+       --decoding-method beam_search \
+       --context-size 2 \
+       --max-sym-per-frame 3
 ```
-    export CUDA_VISIBLE_DEVICES="0,1,2,3"
-    python3 ./transducer_stateless/train.py \
-          --world-size 4 \
-          --num-epochs 60 \
-          --start-epoch 0 \
-          --exp-dir exp/transducer_stateless_context_size2 \
-          --max-duration 100 \
-          --lr-factor 2.5\
-          --context-size 2
-          
-    lang_dir=data/lang_char
-    dir=exp/transducer_stateless_context_size2
-    python3 ./transducer_stateless/decode.py\
-           --epoch 59\
-           --avg 10\
-           --exp-dir $dir \
-           --lang-dir $lang_dir\
-           --decoding-method greedy_search\
-           --context-size 2\
-           --max-sym-per-frame 3
-    lang_dir=data/lang_char
-    dir=exp/transducer_stateless_context_size2
-    python3 ./transducer_stateless/decode.py\
-           --epoch 59\
-           --avg 10\
-           --exp-dir $dir \
-           --lang-dir $lang_dir\
-           --decoding-method beam_search\
-           --context-size 2\
-           --max-sym-per-frame 3
-  ```
-  
-                
-                
+
 ### Aishell training results (Transducer-stateless)
 #### 2022-02-18
 (Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/SG1KV62hRzO5YZswwMQnoQ/>
