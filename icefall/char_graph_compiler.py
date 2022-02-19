@@ -36,7 +36,7 @@ class CharCtcTrainingGraphCompiler(object):
         """
         Args:
           lexicon:
-            It is built from `data/lang/lexicon.txt`.
+            It is built from `data/lang_char/lexicon.txt`.
           device:
             The device to use for operations compiling transcripts to FSAs.
           oov:
