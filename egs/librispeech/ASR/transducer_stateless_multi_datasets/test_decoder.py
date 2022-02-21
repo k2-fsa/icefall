@@ -19,7 +19,7 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer_stateless/test_decoder.py
+    python ./transducer_stateless_multi_datasets/test_decoder.py
 """
 
 import torch
