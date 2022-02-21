@@ -114,6 +114,13 @@ def get_parser():
         help="Directory to save results",
     )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
     return parser
 
 
@@ -487,7 +494,7 @@ def run(rank, world_size, args):
     params.update(vars(args))
     params["env_info"] = get_env_info()
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -532,6 +539,7 @@ def run(rank, world_size, args):
     valid_dl = yes_no.test_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed)
         train_dl.sampler.set_epoch(epoch)
 
         if tb_writer is not None:
