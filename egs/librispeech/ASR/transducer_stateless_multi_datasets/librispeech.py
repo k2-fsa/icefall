@@ -49,7 +49,7 @@ class LibriSpeech:
         return load_manifest(f)
 
     def train_other_500_cuts(self) -> CutSet:
-        f = self.args.manifest_dir / "cuts_train-other-500.json.gz"
+        f = self.manifest_dir / "cuts_train-other-500.json.gz"
         logging.info(f"About to get train-other-500 cuts from {f}")
         return load_manifest(f)
 

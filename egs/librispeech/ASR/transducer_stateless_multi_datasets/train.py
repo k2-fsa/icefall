@@ -738,8 +738,13 @@ def run(rank, world_size, args):
     # XS 10 hours
     # DEV 12 hours
     # Test 40 hours
-    #  train_giga_cuts = gigaspeech.train_M_cuts()
-    train_giga_cuts = gigaspeech.train_S_cuts()
+    if params.full_libri:
+        logging.info("Using the L subset of GigaSpeech (2.5k hours)")
+        train_giga_cuts = gigaspeech.train_L_cuts()
+    else:
+        logging.info("Using the S subset of GigaSpeech (250 hours)")
+        train_giga_cuts = gigaspeech.train_S_cuts()
+
     train_giga_cuts = filter_short_and_long_utterances(train_giga_cuts)
 
     if args.enable_musan:
@@ -868,7 +873,7 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    assert 0 < args.giga_prob < 1, args.giga_prob
+    assert 0 <= args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size
     assert world_size >= 1

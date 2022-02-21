@@ -191,15 +191,10 @@ def get_transducer_model(params: AttributeDict):
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_giga = get_decoder_model(params)
-    joiner_giga = get_joiner_model(params)
-
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        decoder_giga=decoder_giga,
-        joiner_giga=joiner_giga,
     )
 
     return model

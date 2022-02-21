@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import random
+from typing import Optional
 
 import k2
 import torch
@@ -34,8 +35,8 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
-        decoder_giga: nn.Module,
-        joiner_giga: nn.Module,
+        decoder_giga: Optional[nn.Module] = None,
+        joiner_giga: Optional[nn.Module] = None,
     ):
         """
         Args:
@@ -60,7 +61,9 @@ class Transducer(nn.Module):
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
-        assert hasattr(decoder_giga, "blank_id")
+
+        if decoder_giga is not None:
+            assert hasattr(decoder_giga, "blank_id")
 
         self.encoder = encoder
 

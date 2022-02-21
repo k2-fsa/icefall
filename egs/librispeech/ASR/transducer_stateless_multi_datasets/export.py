@@ -20,22 +20,23 @@
 # to a single one using model averaging.
 """
 Usage:
-./transducer_stateless/export.py \
-  --exp-dir ./transducer_stateless/exp \
+./transducer_stateless_multi_datasets/export.py \
+  --exp-dir ./transducer_stateless_multi_datasets/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `transducer_stateless/decode.py`, you can do:
+To use the generated file with `transducer_stateless_multi_datasets/decode.py`,
+you can do::
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./transducer_stateless/decode.py \
-        --exp-dir ./transducer_stateless/exp \
+    ./transducer_stateless_multi_datasets/decode.py \
+        --exp-dir ./transducer_stateless_multi_datasets/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 1 \
@@ -84,7 +85,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="transducer_stateless_multi_datasets/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -218,7 +219,9 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.eval()
 
