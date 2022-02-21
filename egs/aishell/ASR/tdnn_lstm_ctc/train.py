@@ -92,6 +92,13 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
     return parser
 
 
@@ -507,7 +514,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -557,6 +564,7 @@ def run(rank, world_size, args):
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         if epoch > params.start_epoch:
