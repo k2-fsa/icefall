@@ -233,6 +233,9 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
+            # We us the output from mid_layer as the input of the
+            # auxiliary branch
+            "mid_layer": 6,
             "vgg_frontend": False,
             # parameters for Noam
             "warm_step": 80000,  # For the 100h subset, use 8k
@@ -253,6 +256,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        mid_layer=params.mid_layer,
         vgg_frontend=params.vgg_frontend,
     )
     return encoder

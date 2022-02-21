@@ -52,6 +52,7 @@ class Conformer(Transformer):
         nhead: int = 4,
         dim_feedforward: int = 2048,
         num_encoder_layers: int = 12,
+        mid_layer: int = 6,
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
@@ -69,6 +70,7 @@ class Conformer(Transformer):
             normalize_before=normalize_before,
             vgg_frontend=vgg_frontend,
         )
+        assert 0 <= mid_layer < num_encoder_layers
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
@@ -80,14 +82,18 @@ class Conformer(Transformer):
             cnn_module_kernel,
             normalize_before,
         )
-        self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
+        self.encoder = ConformerEncoder(
+            encoder_layer, num_encoder_layers, mid_layer=mid_layer
+        )
         self.normalize_before = normalize_before
         if self.normalize_before:
             self.after_norm = nn.LayerNorm(d_model)
+            self.mid_layer_norm = nn.LayerNorm(d_model)
         else:
             # Note: TorchScript detects that self.after_norm could be used inside forward()
             #       and throws an error without this change.
             self.after_norm = identity
+            self.mid_layer_norm = identity
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -114,15 +120,24 @@ class Conformer(Transformer):
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
-        x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, N, C)
+        # Both x and mid_layer_out are of shape (T, N, d_model)
+        x, mid_layer_out = self.encoder(
+            x,
+            pos_emb,
+            src_key_padding_mask=mask,
+        )
 
         if self.normalize_before:
             x = self.after_norm(x)
+            mid_layer_out = self.mid_layer_norm(mid_layer_out)
+
+        # (T, N, d_model) -> (N, T, d_model)
+        mid_layer_out = mid_layer_out.permute(1, 0, 2)
 
         logits = self.encoder_output_layer(x)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        return logits, lengths
+        return logits, lengths, mid_layer_out
 
 
 class ConformerEncoderLayer(nn.Module):
@@ -281,11 +296,28 @@ class ConformerEncoder(nn.TransformerEncoder):
     """
 
     def __init__(
-        self, encoder_layer: nn.Module, num_layers: int, norm: nn.Module = None
+        self,
+        encoder_layer: nn.Module,
+        num_layers: int,
+        mid_layer: int,
+        norm: nn.Module = None,
     ) -> None:
+        """
+        Args:
+          encoder_layer:
+            Type of the encoder layer.
+          num_layers:
+            Number of encoder layers.
+          mid_layer:
+            Also return the output of this layer in `forward()`.
+          norm:
+            If not None, the output of the last layer is processed by `norm`.
+        """
         super(ConformerEncoder, self).__init__(
             encoder_layer=encoder_layer, num_layers=num_layers, norm=norm
         )
+        assert 0 <= mid_layer < num_layers, (mid_layer, num_layers)
+        self.mid_layer = mid_layer
 
     def forward(
         self,
@@ -293,7 +325,7 @@ class ConformerEncoder(nn.TransformerEncoder):
         pos_emb: Tensor,
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -312,18 +344,20 @@ class ConformerEncoder(nn.TransformerEncoder):
         """
         output = src
 
-        for mod in self.layers:
+        for i, mod in enumerate(self.layers):
             output = mod(
                 output,
                 pos_emb,
                 src_mask=mask,
                 src_key_padding_mask=src_key_padding_mask,
             )
+            if i == self.mid_layer:
+                mid_layer_output = output
 
         if self.norm is not None:
             output = self.norm(output)
 
-        return output
+        return output, mid_layer_output
 
 
 class RelPositionalEncoding(torch.nn.Module):
