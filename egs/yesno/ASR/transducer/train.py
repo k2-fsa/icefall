@@ -539,7 +539,7 @@ def run(rank, world_size, args):
     valid_dl = yes_no.test_dataloaders()
 
     for epoch in range(params.start_epoch, params.num_epochs):
-        fix_random_seed(params.seed)
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         if tb_writer is not None:

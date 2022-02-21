@@ -551,7 +551,7 @@ def run(rank, world_size, args):
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     for epoch in range(params.start_epoch, params.num_epochs):
-        fix_random_seed(params.seed)
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         if epoch > params.start_epoch:

@@ -652,7 +652,7 @@ def run(rank, world_size, args):
     )
 
     for epoch in range(params.start_epoch, params.num_epochs):
-        fix_random_seed(params.seed)
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate
