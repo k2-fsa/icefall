@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import random
-from typing import Optional
+from typing import Optional, Tuple
 
 import k2
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
@@ -37,6 +38,7 @@ class Transducer(nn.Module):
         joiner: nn.Module,
         decoder_giga: Optional[nn.Module] = None,
         joiner_giga: Optional[nn.Module] = None,
+        aux_module: Optional[nn.Module] = None,
     ):
         """
         Args:
@@ -57,6 +59,8 @@ class Transducer(nn.Module):
             The decoder for the GigaSpeech dataset.
           joiner_giga:
             The joiner for the GigaSpeech dataset.
+          aux_module:
+            Optional. The auxiliary branch for computing auxiliary losses.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -73,6 +77,8 @@ class Transducer(nn.Module):
         self.decoder_giga = decoder_giga
         self.joiner_giga = joiner_giga
 
+        self.aux_module = aux_module
+
     def forward(
         self,
         x: torch.Tensor,
@@ -80,7 +86,7 @@ class Transducer(nn.Module):
         y: k2.RaggedTensor,
         libri: bool = True,
         modified_transducer_prob: float = 0.0,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -97,7 +103,10 @@ class Transducer(nn.Module):
           modified_transducer_prob:
             The probability to use modified transducer loss.
         Returns:
-          Return the transducer loss.
+          Return a tuple of 3 scalar tensors containing:
+            - transducer loss
+            - auxiliary transducer loss
+            - KL loss
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
@@ -105,7 +114,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
+        encoder_out, x_lens, aux_input = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -154,15 +163,51 @@ class Transducer(nn.Module):
         else:
             one_sym_per_frame = False
 
-        loss = optimized_transducer.transducer_loss(
-            logits=logits,
+        log_probs = F.log_softmax(logits, dim=-1)
+        transducer_loss = optimized_transducer.transducer_loss(
+            logits=log_probs,
             targets=y_padded,
             logit_lengths=x_lens,
             target_lengths=y_lens,
             blank=blank_id,
             reduction="sum",
             one_sym_per_frame=one_sym_per_frame,
-            from_log_softmax=False,
+            from_log_softmax=True,
         )
 
-        return loss
+        aux_output = self.aux_module(aux_input)
+
+        # Now process the auxiliary branch
+        aux_logits = joiner(
+            encoder_out=aux_output,
+            decoder_out=decoder_out,
+            encoder_out_len=x_lens,
+            decoder_out_len=y_lens + 1,
+        )
+        aux_log_probs = F.log_softmax(aux_logits, dim=-1)
+
+        aux_transducer_loss = optimized_transducer.transducer_loss(
+            logits=aux_log_probs,
+            targets=y_padded,
+            logit_lengths=x_lens,
+            target_lengths=y_lens,
+            blank=blank_id,
+            reduction="sum",
+            one_sym_per_frame=one_sym_per_frame,
+            from_log_softmax=True,
+        )
+        kl_loss_1 = F.kl_div(
+            input=log_probs,
+            target=aux_log_probs,
+            reduction="sum",
+            log_target=True,
+        )
+        kl_loss_2 = F.kl_div(
+            input=aux_log_probs,
+            target=log_probs,
+            reduction="sum",
+            log_target=True,
+        )
+        kl_loss = (kl_loss_1 + kl_loss_2) * 0.5
+
+        return transducer_loss, aux_transducer_loss, kl_loss

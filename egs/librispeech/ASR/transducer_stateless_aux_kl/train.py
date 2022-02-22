@@ -168,6 +168,13 @@ def get_parser():
         help="The probability to select a batch from the GigaSpeech dataset",
     )
 
+    parser.add_argument(
+        "--lambda-aux",
+        type=float,
+        default=0.3,
+        help="The scale applied to the auxiliary losses",
+    )
+
     return parser
 
 
@@ -280,6 +287,14 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_aux_model(params: AttributeDict) -> nn.Module:
+    return nn.Sequential(
+        nn.Linear(params.attention_dim, params.encoder_out_dim),
+        nn.ReLU(inplace=True),
+        nn.Linear(params.encoder_out_dim, params.encoder_out_dim),
+    )
+
+
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
 
@@ -289,12 +304,15 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder_giga = get_decoder_model(params)
     joiner_giga = get_joiner_model(params)
 
+    aux_module = get_aux_model(params)
+
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
         decoder_giga=decoder_giga,
         joiner_giga=joiner_giga,
+        aux_module=aux_module,
     )
     return model
 
@@ -436,7 +454,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(
+        transducer_loss, aux_transducer_loss, kl_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -444,15 +462,25 @@ def compute_loss(
             modified_transducer_prob=params.modified_transducer_prob,
         )
 
-    assert loss.requires_grad == is_training
+        aux_loss = aux_transducer_loss + kl_loss
+
+    assert transducer_loss.requires_grad == is_training
+    assert aux_transducer_loss.requires_grad == is_training
+    assert kl_loss.requires_grad == is_training
 
     info = MetricsTracker()
     info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
-    info["loss"] = loss.detach().cpu().item()
+    info["tot_loss"] = (
+        (transducer_loss + params.lambda_aux * aux_loss).detach().cpu().item()
+    )
 
-    return loss, info
+    info["transducer_loss"] = transducer_loss.detach().cpu().item()
+    info["aux_transducer_loss"] = aux_transducer_loss.detach().cpu().item()
+    info["kl_loss"] = kl_loss.detach().cpu().item()
+
+    return transducer_loss, aux_loss, info
 
 
 def compute_validation_loss(
@@ -468,7 +496,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
+        transduer_loss, aux_loss, loss_info = compute_loss(
             params=params,
             model=model,
             sp=sp,
@@ -481,7 +509,7 @@ def compute_validation_loss(
     if world_size > 1:
         tot_loss.reduce(loss.device)
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    loss_value = tot_loss["tot_loss"] / tot_loss["frames"]
     if loss_value < params.best_valid_loss:
         params.best_valid_epoch = params.cur_epoch
         params.best_valid_loss = loss_value
@@ -557,7 +585,7 @@ def train_one_epoch(
 
         libri = is_libri(batch["supervisions"]["cut"][0])
 
-        loss, loss_info = compute_loss(
+        transducer_loss, aux_loss, loss_info = compute_loss(
             params=params,
             model=model,
             sp=sp,
@@ -581,7 +609,9 @@ def train_one_epoch(
         # in the batch and there is no normalization to it so far.
 
         optimizer.zero_grad()
-        loss.backward()
+
+        (transducer_loss + aux_loss * params.lambda_aux).backward()
+
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
@@ -849,14 +879,16 @@ def scan_pessimistic_batches_for_oom(
         batch = train_dl.dataset[cuts]
         try:
             optimizer.zero_grad()
-            loss, _ = compute_loss(
+            transducer_loss, aux_loss, _ = compute_loss(
                 params=params,
                 model=model,
                 sp=sp,
                 batch=batch,
                 is_training=True,
             )
-            loss.backward()
+
+            (transducer_loss + aux_loss * params.lambda_aux).backward()
+
             clip_grad_norm_(model.parameters(), 5.0, 2.0)
             optimizer.step()
         except RuntimeError as e:
