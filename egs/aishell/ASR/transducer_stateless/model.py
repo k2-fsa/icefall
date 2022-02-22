@@ -122,4 +122,4 @@ class Transducer(nn.Module):
 
         loss = k2.rnnt_loss(logits, y_padded, blank_id, boundary)
 
-        return torch.sum(loss)
+        return loss
