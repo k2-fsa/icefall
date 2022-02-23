@@ -46,12 +46,12 @@ python3 ./transducer_stateless/decode.py \
 
 ### Aishell training results (Transducer-stateless)
 #### 2022-02-18
-(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/SG1KV62hRzO5YZswwMQnoQ/>
+(Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/k3QL6QMhRbCwCKYKM9po9w/>
 And pretrained model is available at <https://huggingface.co/pfluo/icefall-aishell-transducer-stateless-char-2021-12-29>
 
 ||test|
 |--|--|
-|CER| 5.4% |
+|CER| 5.05% |
 
 You can use the following commands to reproduce our results:
 
@@ -61,17 +61,17 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7,8"
   --bucketing-sampler True \
   --world-size 8 \
   --lang-dir data/lang_char \
-  --num-epochs 40 \
+  --num-epochs 60 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless/exp_char \
-  --max-duration 160 \
+  --exp-dir transducer_stateless/exp_rnnt_k2 \
+  --max-duration 80 \
   --lr-factor 3
 
 ./transducer_stateless/decode.py \
-  --epoch 39 \
+  --epoch 59 \
   --avg 10 \
   --lang-dir data/lang_char \
-  --exp-dir transducer_stateless/exp_char \
+  --exp-dir transducer_stateless/exp_rnnt_k2 \
   --max-duration 100 \
   --decoding-method beam_search \
   --beam-size 4
