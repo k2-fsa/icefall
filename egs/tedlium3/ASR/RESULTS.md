@@ -4,7 +4,7 @@
 
 #### Conformer encoder + embedding decoder
 
-Using the codes from this commit .
+Using the codes from this PR commit https://github.com/k2-fsa/icefall/pull/183/commits/536ad2252e2d406f24a681743d98bd5f90801b97.
 
 Conformer encoder + non-current decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
