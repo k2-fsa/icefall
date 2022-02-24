@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,7 +19,7 @@
 """
 To run this file, do:
 
-    cd icefall/egs/librispeech/ASR
+    cd icefall/egs/tedlium3/ASR
     python ./transducer_stateless/test_decoder.py
 """
 
@@ -29,6 +30,7 @@ from decoder import Decoder
 def test_decoder():
     vocab_size = 3
     blank_id = 0
+    unk_id = 2
     embedding_dim = 128
     context_size = 4
 
@@ -36,6 +38,7 @@ def test_decoder():
         vocab_size=vocab_size,
         embedding_dim=embedding_dim,
         blank_id=blank_id,
+        unk_id=unk_id,
         context_size=context_size,
     )
     N = 100

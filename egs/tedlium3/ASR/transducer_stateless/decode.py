@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang
+#                                            Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,16 +20,16 @@
 Usage:
 (1) greedy search
 ./transducer_stateless/decode.py \
-        --epoch 14 \
-        --avg 7 \
+        --epoch 29 \
+        --avg 15 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
 ./transducer_stateless/decode.py \
-        --epoch 14 \
-        --avg 7 \
+        --epoch 29 \
+        --avg 15 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
@@ -45,8 +46,8 @@ from typing import Dict, List, Tuple
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import beam_search, greedy_search
+from asr_datamodule import TedLiumAsrDataModule
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -77,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=13,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -169,6 +170,7 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -254,6 +256,10 @@ def decode_one_batch(
             )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
@@ -382,14 +388,18 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    TedLiumAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search", "beam_search")
+    assert params.decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
@@ -413,6 +423,7 @@ def main():
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -439,16 +450,12 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    tedlium = TedLiumAsrDataModule(args)
+    test_cuts = tedlium.test_cuts()
+    test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["test"]
+    test_dl = [test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

@@ -7,7 +7,7 @@ https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419
 You can use the following command to start the training:
 
 ```bash
-cd egs/librispeech/ASR
+cd egs/tedlium3/ASR
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
@@ -16,7 +16,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp \
-  --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 2.5
+  --max-duration 180 \
+  --lr-factor 5.0
 ```

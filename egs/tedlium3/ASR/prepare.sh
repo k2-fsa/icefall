@@ -151,6 +151,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       log "Generate data for BPE training"
       cat data/lang_phone/train.text | cut -d " " -f 2- 
       > $lang_dir/transcript_words.txt
+      # remove the <unk> for transcript_words.txt
       sed -i 's/ <unk>//g' $lang_dir/transcript_words.txt
       sed -i 's/<unk> //g' $lang_dir/transcript_words.txt
       sed -i 's/<unk>//g' $lang_dir/transcript_words.txt

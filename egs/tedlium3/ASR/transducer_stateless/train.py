@@ -26,9 +26,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp \
-  --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 2.5
+  --max-duration 180 \
+  --lr-factor 5.0
 """
 
 
@@ -55,6 +54,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
+
+from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -233,6 +234,7 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -379,7 +381,9 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)[: feature.size(0)]
 
     texts = batch["supervisions"]["text"][: feature.size(0)]
-    y = sp.encode(texts, out_type=int)
+
+    unk_id = params.unk_id
+    y = convert_texts_into_ids(texts, unk_id, sp=sp)
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -565,6 +569,7 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)

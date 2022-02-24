@@ -615,7 +615,7 @@ class RelPositionMultiheadAttention(nn.Module):
             E is the embedding dimension.
             - attn_output_weights: :math:`(N, L, S)` where N is the batch size,
             L is the target sequence length, S is the source sequence length.
-        """ # noqa
+        """
 
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == embed_dim_to_check
@@ -635,7 +635,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         elif torch.equal(key, value):
             # encoder-decoder attention
-            # This is inline in_proj function with in_proj_weight and in_proj_bias # noqa
+            # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = 0
             _end = embed_dim
@@ -643,7 +643,7 @@ class RelPositionMultiheadAttention(nn.Module):
             if _b is not None:
                 _b = _b[_start:_end]
             q = nn.functional.linear(query, _w, _b)
-            # This is inline in_proj function with in_proj_weight and in_proj_bias # noqa
+            # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = embed_dim
             _end = None
@@ -653,7 +653,7 @@ class RelPositionMultiheadAttention(nn.Module):
             k, v = nn.functional.linear(key, _w, _b).chunk(2, dim=-1)
 
         else:
-            # This is inline in_proj function with in_proj_weight and in_proj_bias # noqa
+            # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = 0
             _end = embed_dim
@@ -662,7 +662,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 _b = _b[_start:_end]
             q = nn.functional.linear(query, _w, _b)
 
-            # This is inline in_proj function with in_proj_weight and in_proj_bias # noqa
+            # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = embed_dim
             _end = embed_dim * 2
@@ -671,7 +671,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 _b = _b[_start:_end]
             k = nn.functional.linear(key, _w, _b)
 
-            # This is inline in_proj function with in_proj_weight and in_proj_bias # noqa
+            # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = embed_dim * 2
             _end = None
@@ -687,12 +687,12 @@ class RelPositionMultiheadAttention(nn.Module):
                 or attn_mask.dtype == torch.float16
                 or attn_mask.dtype == torch.uint8
                 or attn_mask.dtype == torch.bool
-            ), "Only float, byte, and bool types are supported for attn_mask, not {}".format(  # noqa
+            ), "Only float, byte, and bool types are supported for attn_mask, not {}".format(
                 attn_mask.dtype
             )
             if attn_mask.dtype == torch.uint8:
                 warnings.warn(
-                    "Byte tensor for attn_mask is deprecated. Use bool tensor instead."  # noqa
+                    "Byte tensor for attn_mask is deprecated. Use bool tensor instead."
                 )
                 attn_mask = attn_mask.to(torch.bool)
 
@@ -725,7 +725,7 @@ class RelPositionMultiheadAttention(nn.Module):
             and key_padding_mask.dtype == torch.uint8
         ):
             warnings.warn(
-                "Byte tensor for key_padding_mask is deprecated. Use bool tensor instead."  # noqa
+                "Byte tensor for key_padding_mask is deprecated. Use bool tensor instead."
             )
             key_padding_mask = key_padding_mask.to(torch.bool)
 
@@ -760,7 +760,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         # compute attention score
         # first compute matrix a and matrix c
-        # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3 # noqa
+        # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
         matrix_ac = torch.matmul(
             q_with_bias_u, k
@@ -832,7 +832,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Conformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py # noqa
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.

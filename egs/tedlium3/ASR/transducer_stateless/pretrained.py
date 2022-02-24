@@ -50,7 +50,7 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from beam_search import beam_search, greedy_search
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -167,6 +167,7 @@ def get_decoder_model(params: AttributeDict):
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -230,6 +231,7 @@ def main():
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(f"{params}")
@@ -298,6 +300,10 @@ def main():
             )
         elif params.method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:

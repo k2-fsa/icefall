@@ -17,7 +17,7 @@
 
 
 """
-This file computes fbank features of the LibriSpeech dataset.
+This file computes fbank features of the TedLium3 dataset.
 It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
@@ -43,7 +43,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_librispeech():
+def compute_fbank_tedlium():
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -96,4 +96,4 @@ if __name__ == "__main__":
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_librispeech()
+    compute_fbank_tedlium()
