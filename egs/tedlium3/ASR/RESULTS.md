@@ -13,9 +13,9 @@ The WERs are
 
 |                                    |     dev    |    test    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-|          greedy search             | 7.31       | 6.73       | --epoch 71, --avg 15, --max-duration 100 |
-|      beam search (beam size 4)     | 7.12       | 6.58       | --epoch 71, --avg 15, --max-duration 100 |
-| modified beam search (beam size 4) | 7.20       | 6.65       | --epoch 71, --avg 15, --max-duration 100 |
+|          greedy search             | 7.31       | 6.73       | --epoch 29, --avg 15, --max-duration 100 |
+|      beam search (beam size 4)     | 7.12       | 6.58       | --epoch 29, --avg 15, --max-duration 100 |
+| modified beam search (beam size 4) | 7.20       | 6.65       | --epoch 29, --avg 15, --max-duration 100 |
 
 The training command for reproducing is given below:
 
