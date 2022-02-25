@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomHdf5Writer
+from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -85,7 +85,7 @@ def compute_fbank_librispeech():
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomHdf5Writer,
+                storage_type=ChunkedLilcomHdf5Writer,
             )
             cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
 

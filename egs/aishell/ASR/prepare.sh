@@ -48,8 +48,9 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "stage -1: Download LM"
   # We assume that you have installed the git-lfs, if not, you could install it
   # using: `sudo apt-get install git-lfs && git-lfs install`
-  [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
-  git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
+  if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
+    git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
+  fi
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
@@ -87,28 +88,41 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare aishell manifest"
   # We assume that you have downloaded the aishell corpus
   # to $dl_dir/aishell
-  mkdir -p data/manifests
-  lhotse prepare aishell -j $nj $dl_dir/aishell data/manifests
+  if [ ! -f data/manifests/.aishell_manifests.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare aishell $dl_dir/aishell data/manifests
+    touch data/manifests/.aishell_manifests.done
+  fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
   # to data/musan
-  mkdir -p data/manifests
-  lhotse prepare musan $dl_dir/musan data/manifests
+  if [ ! -f data/manifests/.musan_manifests.done ]; then
+    log "It may take 6 minutes"
+    mkdir -p data/manifests
+    lhotse prepare musan $dl_dir/musan data/manifests
+    touch data/manifests/.musan_manifests.done
+  fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell"
-  mkdir -p data/fbank
-  ./local/compute_fbank_aishell.py
+  if [ ! -f data/fbank/.aishell.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_aishell.py
+    touch data/fbank/.aishell.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for musan"
-  mkdir -p data/fbank
-  ./local/compute_fbank_musan.py
+  if [ ! -f data/fbank/.msuan.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_musan.py
+    touch data/fbank/.msuan.done
+  fi
 fi
 
 lang_phone_dir=data/lang_phone
@@ -134,7 +148,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     aishell_train_uid=$dl_dir/aishell/data_aishell/transcript/aishell_train_uid
     find $dl_dir/aishell/data_aishell/wav/train -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_train_uid
     awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_train_uid $aishell_text |
-	cut -d " " -f 2- > $lang_phone_dir/transcript_words.txt
+	    cut -d " " -f 2- > $lang_phone_dir/transcript_words.txt
   fi
 
   if [ ! -f $lang_phone_dir/transcript_tokens.txt ]; then
