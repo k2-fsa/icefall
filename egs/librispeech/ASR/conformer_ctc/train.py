@@ -41,6 +41,7 @@ from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -124,10 +125,26 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-decoder-layers",
+        type=int,
+        default=6,
+        help="""Number of decoder layer of transformer decoder.
+        Setting this to 0 will not create the decoder at all (pure CTC model)
+        """,
+    )
+
+    parser.add_argument(
         "--lr-factor",
         type=float,
         default=5.0,
         help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
     )
 
     return parser
@@ -210,7 +227,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "attention_dim": 512,
             "nhead": 8,
-            "num_decoder_layers": 6,
             # parameters for loss
             "beam_size": 10,
             "reduction": "sum",
@@ -357,9 +373,17 @@ def compute_loss(
         supervisions, subsampling_factor=params.subsampling_factor
     )
 
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
+    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
+        # Works with a BPE model
+        token_ids = graph_compiler.texts_to_ids(texts)
+        decoding_graph = graph_compiler.compile(token_ids)
+    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
+        # Works with a phone lexicon
+        decoding_graph = graph_compiler.compile(texts)
+    else:
+        raise ValueError(
+            f"Unsupported type of graph compiler: {type(graph_compiler)}"
+        )
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -563,7 +587,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -584,12 +608,38 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
+    if "lang_bpe" in str(params.lang_dir):
+        graph_compiler = BpeCtcTrainingGraphCompiler(
+            params.lang_dir,
+            device=device,
+            sos_token="<sos/eos>",
+            eos_token="<sos/eos>",
+        )
+    elif "lang_phone" in str(params.lang_dir):
+        assert params.att_rate == 0, (
+            "Attention decoder training does not support phone lang dirs "
+            "at this time due to a missing <sos/eos> symbol. Set --att-rate=0 "
+            "for pure CTC training when using a phone-based lang dir."
+        )
+        assert params.num_decoder_layers == 0, (
+            "Attention decoder training does not support phone lang dirs "
+            "at this time due to a missing <sos/eos> symbol. "
+            "Set --num-decoder-layers=0 for pure CTC training when using "
+            "a phone-based lang dir."
+        )
+        graph_compiler = CtcTrainingGraphCompiler(
+            lexicon,
+            device=device,
+        )
+        # Manually add the sos/eos ID with their default values
+        # from the BPE recipe which we're adapting here.
+        graph_compiler.sos_id = 1
+        graph_compiler.eos_id = 1
+    else:
+        raise ValueError(
+            f"Unsupported type of lang dir (we expected it to have "
+            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
+        )
 
     logging.info("About to create model")
     model = Conformer(
@@ -641,6 +691,7 @@ def run(rank, world_size, args):
     )
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate

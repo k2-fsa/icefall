@@ -108,18 +108,18 @@ class Transducer(nn.Module):
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
+        y_padded = y_padded.to(torch.int64)
+        boundary = torch.zeros(
+            (x.size(0), 4), dtype=torch.int64, device=x.device
+        )
+        boundary[:, 2] = y_lens
+        boundary[:, 3] = x_lens
+
         assert hasattr(torchaudio.functional, "rnnt_loss"), (
             f"Current torchaudio version: {torchaudio.__version__}\n"
             "Please install a version >= 0.10.0"
         )
 
-        loss = torchaudio.functional.rnnt_loss(
-            logits=logits,
-            targets=y_padded,
-            logit_lengths=x_lens,
-            target_lengths=y_lens,
-            blank=blank_id,
-            reduction="sum",
-        )
+        loss = k2.rnnt_loss(logits, y_padded, blank_id, boundary)
 
         return loss
