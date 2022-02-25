@@ -6,6 +6,8 @@ per-file-ignores =
     # line too long
     egs/librispeech/ASR/*/conformer.py: E501,
     egs/aishell/ASR/*/conformer.py: E501,
+    egs/tedlium3/ASR/*/conformer.py: E501,
+    egs/tedlium3/ASR/local/display_manifest_statistics.py: E501,
 
 exclude =
   .git,

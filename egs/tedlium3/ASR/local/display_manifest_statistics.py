@@ -31,8 +31,9 @@ from lhotse import load_manifest
 
 def describe(cuts) -> None:
     """
-    Print a message describing details about the ``CutSet`` - the number of cuts and the
-    duration statistics, including the total duration and the percentage of speech segments.
+    Print a message describing details about the ``CutSet`` - the number
+    of cuts and the duration statistics, including the total duration
+    and the percentage of speech segments.
 
     Example output:
         Cuts count: 804789
@@ -49,8 +50,6 @@ def describe(cuts) -> None:
             99.5%   14.9
             99.9%   16.6
             max     33.3
-
-    In the above example, we set 15(>14.9) as the maximum duration of training samples.
     """
     durations = np.array([c.duration for c in cuts])
     speech_durations = np.array(

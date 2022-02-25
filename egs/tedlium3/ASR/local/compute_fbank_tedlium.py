@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -31,9 +32,10 @@ import torch
 from lhotse import CutSet, Fbank, FbankConfig, LilcomHdf5Writer
 from lhotse.recipes.utils import read_manifests_if_cached
 
+from icefall.utils import get_executor
+
 # from utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -71,7 +73,7 @@ def compute_fbank_tedlium():
             cut_set = CutSet.from_manifests(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
-            )
+            ).trim_to_supervisions(keep_overlapping=False)
             if "train" in partition:
                 cut_set = (
                     cut_set
