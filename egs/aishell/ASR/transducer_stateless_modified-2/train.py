@@ -36,6 +36,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import random
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -44,10 +45,13 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
+from aidatatang_200zh import AIDatatang200zh
+from aishell import AIShell
+from asr_datamodule import AsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -155,6 +159,14 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--datatang-prob",
+        type=float,
+        default=0.2,
+        help="The probability to select a batch from the "
+        "aidatatang_200zh dataset",
+    )
+
     return parser
 
 
@@ -211,7 +223,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 800,
+            "valid_interval": 800,  # For the 100h subset, use 800
             # parameters for conformer
             "feature_dim": 80,
             "encoder_out_dim": 512,
@@ -268,10 +280,15 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
+    decoder_datatang = get_decoder_model(params)
+    joiner_datatang = get_joiner_model(params)
+
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        decoder_datatang=decoder_datatang,
+        joiner_datatang=joiner_datatang,
     )
     return model
 
@@ -363,6 +380,18 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def is_aishell(c: Cut) -> bool:
+    """Return True if this cut is from the AIShell dataset.
+
+    Note:
+      During data preparation, we set the custom field in
+      the supervision segment of aidatatang_200zh to
+      dict(origin='aidatatang_200zh')
+      See ../local/process_aidatatang_200zh.py.
+    """
+    return c.supervisions[0].custom is None
+
+
 def compute_loss(
     params: AttributeDict,
     model: nn.Module,
@@ -395,6 +424,8 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    aishell = is_aishell(supervisions["cut"][0])
+
     texts = batch["supervisions"]["text"]
     y = graph_compiler.texts_to_ids(texts)
     y = k2.RaggedTensor(y).to(device)
@@ -404,6 +435,7 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            aishell=aishell,
             modified_transducer_prob=params.modified_transducer_prob,
         )
 
@@ -458,7 +490,9 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     graph_compiler: CharCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
+    datatang_train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    rng: random.Random,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
 ) -> None:
@@ -477,6 +511,8 @@ def train_one_epoch(
         The optimizer we are using.
       train_dl:
         Dataloader for the training dataset.
+      datatang_train_dl:
+        Dataloader for the aidatatang_200zh training dataset.
       valid_dl:
         Dataloader for the validation dataset.
       tb_writer:
@@ -486,11 +522,34 @@ def train_one_epoch(
     """
     model.train()
 
+    aishell_tot_loss = MetricsTracker()
+    datatang_tot_loss = MetricsTracker()
     tot_loss = MetricsTracker()
 
-    for batch_idx, batch in enumerate(train_dl):
+    # index 0: for LibriSpeech
+    # index 1: for GigaSpeech
+    # This sets the probabilities for choosing which datasets
+    dl_weights = [1 - params.datatang_prob, params.datatang_prob]
+
+    iter_aishell = iter(train_dl)
+    iter_datatang = iter(datatang_train_dl)
+
+    batch_idx = 0
+
+    while True:
+        idx = rng.choices((0, 1), weights=dl_weights, k=1)[0]
+        dl = iter_aishell if idx == 0 else iter_datatang
+
+        try:
+            batch = next(dl)
+        except StopIteration:
+            break
+        batch_idx += 1
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
+        aishell = is_aishell(batch["supervisions"]["cut"][0])
 
         loss, loss_info = compute_loss(
             params=params,
@@ -501,6 +560,16 @@ def train_one_epoch(
         )
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+        if aishell:
+            aishell_tot_loss = (
+                aishell_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "aishell"  # for logging only
+        else:
+            datatang_tot_loss = (
+                datatang_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "datatang"
 
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
@@ -513,18 +582,28 @@ def train_one_epoch(
         if batch_idx % params.log_interval == 0:
             logging.info(
                 f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}"
+                f"batch {batch_idx}, {prefix}_loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"aishell_tot_loss[{aishell_tot_loss}], "
+                f"datatang_tot_loss[{datatang_tot_loss}], "
+                f"batch size: {batch_size}"
             )
 
         if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
                 loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
+                    tb_writer,
+                    f"train/current_{prefix}_",
+                    params.batch_idx_train,
                 )
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
+                )
+                aishell_tot_loss.write_summary(
+                    tb_writer, "train/aishell_tot_", params.batch_idx_train
+                )
+                datatang_tot_loss.write_summary(
+                    tb_writer, "train/datatang_tot_", params.batch_idx_train
                 )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
@@ -550,6 +629,25 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def filter_short_and_long_utterances(cuts: CutSet) -> CutSet:
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 12 seconds
+        return 1.0 <= c.duration <= 12.0
+
+    num_in_total = len(cuts)
+    cuts = cuts.filter(remove_short_and_long_utt)
+
+    num_left = len(cuts)
+    num_removed = num_in_total - num_left
+    removed_percent = num_removed / num_in_total * 100
+
+    logging.info(f"Before removing short and long utterances: {num_in_total}")
+    logging.info(f"After removing short and long utterances: {num_left}")
+    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+
+    return cuts
+
+
 def run(rank, world_size, args):
     """
     Args:
@@ -565,7 +663,9 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    seed = 42
+    fix_random_seed(seed)
+    rng = random.Random(seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -605,7 +705,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     model.device = device
 
     optimizer = Noam(
@@ -619,38 +719,55 @@ def run(rank, world_size, args):
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    aishell = AishellAsrDataModule(args)
+    aishell = AIShell(manifest_dir=args.manifest_dir)
+
     train_cuts = aishell.train_cuts()
+    train_cuts = filter_short_and_long_utterances(train_cuts)
 
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 12 seconds
-        return 1.0 <= c.duration <= 12.0
-
-    num_in_total = len(train_cuts)
-
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
-
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
-
-    train_dl = aishell.train_dataloaders(train_cuts)
-    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
-
-    scan_pessimistic_batches_for_oom(
-        model=model,
-        train_dl=train_dl,
-        optimizer=optimizer,
-        graph_compiler=graph_compiler,
-        params=params,
+    datatang = AIDatatang200zh(
+        manifest_dir=f"{args.manifest_dir}/aidatatang_200zh"
     )
+    train_datatang_cuts = datatang.train_cuts()
+    train_datatang_cuts = filter_short_and_long_utterances(train_datatang_cuts)
+
+    if args.enable_musan:
+        cuts_musan = load_manifest(
+            Path(args.manifest_dir) / "cuts_musan.json.gz"
+        )
+    else:
+        cuts_musan = None
+
+    asr_datamodule = AsrDataModule(args)
+
+    train_dl = asr_datamodule.train_dataloaders(
+        train_cuts,
+        dynamic_bucketing=False,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
+    )
+
+    datatang_train_dl = asr_datamodule.train_dataloaders(
+        train_datatang_cuts,
+        dynamic_bucketing=True,
+        on_the_fly_feats=True,
+        cuts_musan=cuts_musan,
+    )
+
+    valid_cuts = aishell.valid_cuts()
+    valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
+
+    for dl in [train_dl, datatang_train_dl]:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=dl,
+            optimizer=optimizer,
+            graph_compiler=graph_compiler,
+            params=params,
+        )
 
     for epoch in range(params.start_epoch, params.num_epochs):
         train_dl.sampler.set_epoch(epoch)
+        datatang_train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
@@ -670,7 +787,9 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             graph_compiler=graph_compiler,
             train_dl=train_dl,
+            datatang_train_dl=datatang_train_dl,
             valid_dl=valid_dl,
+            rng=rng,
             tb_writer=tb_writer,
             world_size=world_size,
         )
@@ -730,10 +849,12 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    AishellAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
+
+    assert 0 <= args.datatang_prob < 1, args.datatang_prob
 
     world_size = args.world_size
     assert world_size >= 1

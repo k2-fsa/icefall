@@ -31,7 +31,10 @@ from lhotse import load_manifest
 def main():
     #  path = "./data/fbank/cuts_train.json.gz"
     #  path = "./data/fbank/cuts_test.json.gz"
-    path = "./data/fbank/cuts_dev.json.gz"
+    #  path = "./data/fbank/cuts_dev.json.gz"
+    #  path = "./data/fbank/aidatatang_200zh/cuts_train_raw.jsonl.gz"
+    #  path = "./data/fbank/aidatatang_200zh/cuts_test_raw.jsonl.gz"
+    path = "./data/fbank/aidatatang_200zh/cuts_dev_raw.jsonl.gz"
 
     cuts = load_manifest(path)
     cuts.describe()
@@ -115,4 +118,79 @@ min     1.6
 99.5%   8.9
 99.9%   10.3
 max     12.5
+
+## aidatatang_200zh (train)
+Cuts count: 164905
+Total duration (hours): 139.9
+Speech duration (hours): 139.9 (100.0%)
+***
+Duration statistics (seconds):
+mean    3.1
+std     1.1
+min     1.1
+0.1%    1.5
+0.5%    1.7
+1%      1.8
+5%      2.0
+10%     2.1
+10%     2.1
+25%     2.3
+50%     2.7
+75%     3.4
+90%     4.6
+95%     5.4
+99%     7.1
+99.5%   7.8
+99.9%   9.1
+max     16.3
+
+## aidatatang_200zh (test)
+Cuts count: 48144
+Total duration (hours): 40.2
+Speech duration (hours): 40.2 (100.0%)
+***
+Duration statistics (seconds):
+mean    3.0
+std     1.1
+min     0.9
+0.1%    1.5
+0.5%    1.8
+1%      1.8
+5%      2.0
+10%     2.1
+10%     2.1
+25%     2.3
+50%     2.6
+75%     3.4
+90%     4.4
+95%     5.2
+99%     6.9
+99.5%   7.5
+99.9%   9.0
+max     21.8
+
+## aidatatang_200zh (dev)
+Cuts count: 24216
+Total duration (hours): 20.2
+Speech duration (hours): 20.2 (100.0%)
+***
+Duration statistics (seconds):
+mean    3.0
+std     1.0
+min     1.2
+0.1%    1.6
+0.5%    1.7
+1%      1.8
+5%      2.0
+10%     2.1
+10%     2.1
+25%     2.3
+50%     2.7
+75%     3.4
+90%     4.4
+95%     5.1
+99%     6.7
+99.5%   7.3
+99.9%   8.8
+max     11.3
 """
