@@ -34,7 +34,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
-import diagnostics # ./diagnostics.py
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -57,6 +56,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
+from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
