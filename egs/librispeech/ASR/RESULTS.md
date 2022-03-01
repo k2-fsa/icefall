@@ -52,19 +52,97 @@ avg=15
 
 #### Conformer encoder + embedding decoder
 
-Using commit `a8150021e01d34ecbd6198fe03a57eacf47a16f2`.
-
 Conformer encoder + non-recurrent decoder. The decoder
 contains only an embedding layer and a Conv1d (with kernel size 2).
+
+See
+
+- [./transducer_stateless](./transducer_stateless)
+- [./transducer_stateless_multi_datasets](./transducer_stateless_multi_datasets)
+
+##### 2022-03-01
+
+Using commit `fill in it after merging`.
+
+It uses [GigaSpeech](https://github.com/SpeechColab/GigaSpeech)
+as extra training data. 20% of the time it selects a batch from L subset of
+GigaSpeech and 80% of the time it selects a batch from LibriSpeech.
 
 The WERs are
 
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
-| greedy search (max sym per frame 1) | 2.68       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| greedy search (max sym per frame 2) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| greedy search (max sym per frame 3) | 2.69       | 6.71       | --epoch 61, --avg 18, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.67       | 6.64       | --epoch 61, --avg 18, --max-duration 100 |
+| greedy search (max sym per frame 1) | 2.64       | 6.55       | --epoch 39, --avg 15, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.61       | 6.46       | --epoch 39, --avg 15, --max-duration 100 |
+
+The training command for reproducing is given below:
+
+```bash
+cd egs/librispeech/ASR/
+./prepare.sh
+./prepare_giga_speech.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer_stateless_multi_datasets/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25 \
+  --giga-prob 0.2
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/xmo5oCgrRVelH9dCeOkYBg/>
+
+The decoding command is:
+
+```bash
+epoch=39
+avg=15
+sym=1
+
+# greedy search
+./transducer_stateless_multi_datasets/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --context-size 2 \
+  --max-sym-per-frame $sym
+
+# modified beam search
+./transducer_stateless_multi_datasets/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --context-size 2 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+```
+
+
+##### 2022-02-07
+
+Using commit `a8150021e01d34ecbd6198fe03a57eacf47a16f2`.
+
+
+The WERs are
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.67       | 6.57       | --epoch 63, --avg 19, --max-duration 100 |
 
 
 The training command for reproducing is given below:
@@ -90,8 +168,8 @@ The tensorboard training log can be found at
 
 The decoding command is:
 ```
-epoch=61
-avg=18
+epoch=63
+avg=19
 
 ## greedy search
 for sym in 1 2 3; do

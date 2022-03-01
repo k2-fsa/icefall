@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                  Wei Kang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                  Wei Kang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,38 +16,78 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+
+cd egs/librispeech/ASR/
+./prepare.sh
+./prepare_giga_speech.sh
+
+# 100-hours
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./transducer_stateless_multi_datasets/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_multi_datasets/exp-100-2 \
+  --full-libri 0 \
+  --max-duration 300 \
+  --lr-factor 1 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25
+  --giga-prob 0.2
+
+# 960-hours
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer_stateless_multi_datasets/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25 \
+  --giga-prob 0.2
+"""
+
 
 import argparse
 import logging
+import random
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
 
 import k2
+import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
+from asr_datamodule import AsrDataModule
 from conformer import Conformer
+from decoder import Decoder
+from gigaspeech import GigaSpeech
+from joiner import Joiner
+from lhotse import CutSet, load_manifest
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
+from librispeech import LibriSpeech
+from model import Transducer
+from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 
 def get_parser():
@@ -69,6 +110,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--full-libri",
+        type=str2bool,
+        default=True,
+        help="When enabled, use 960h LibriSpeech. "
+        "Otherwise, use 100h subset.",
+    )
+
+    parser.add_argument(
         "--tensorboard",
         type=str2bool,
         default=True,
@@ -78,7 +127,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=90,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -88,14 +137,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        conformer_ctc/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc/exp",
+        default="transducer_stateless_multi_datasets/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -103,29 +152,43 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--bpe-model",
         type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
-        "--att-rate",
+        "--lr-factor",
         type=float,
-        default=0.7,
-        help="""The attention rate.
-        The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
+        default=5.0,
+        help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--modified-transducer-prob",
+        type=float,
+        default=0.25,
+        help="""The probability to use modified transducer loss.
+        In modified transduer, it limits the maximum number of symbols
+        per frame to 1. See also the option --max-sym-per-frame in
+        transducer_stateless/decode.py
         """,
     )
 
     parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="The seed for random generators intended for reproducibility",
+        "--giga-prob",
+        type=float,
+        default=0.2,
+        help="The probability to select a batch from the GigaSpeech dataset",
     )
 
     return parser
@@ -141,6 +204,10 @@ def get_params() -> AttributeDict:
     you can also access them via `params`.
 
     Explanation of options saved in `params`:
+
+        - best_train_loss: Best training loss so far. It is used to select
+                           the model that has the lowest training loss. It is
+                           updated during the training.
 
         - best_valid_loss: Best validation loss so far. It is used to select
                            the model that has the lowest validation loss. It is
@@ -160,33 +227,16 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - beam_size: It is used in k2.ctc_loss
-
-        - reduction: It is used in k2.ctc_loss
-
-        - use_double_scores: It is used in k2.ctc_loss
-
-        - subsampling_factor:  The subsampling factor for the model.
-
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
 
-        - attention_dim: Attention dimension.
+        - subsampling_factor:  The subsampling factor for the model.
 
-        - nhead: Number of heads in multi-head attention.
-                 Must satisfy attention_dim // nhead == 0.
+        - attention_dim: Hidden dim for multi-head attention model.
 
-        - num_encoder_layers: Number of attention encoder layers.
+        - num_decoder_layers: Number of decoder layer of transformer decoder.
 
-        - num_decoder_layers: Number of attention decoder layers.
-
-        - use_feat_batchnorm: Whether to do normalization in the input layer.
-
-        - weight_decay:  The weight_decay for the optimizer.
-
-        - lr_factor: The lr_factor for the optimizer.
-
-        - warm_step: The warm_step for the optimizer.
+        - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
         {
@@ -195,30 +245,77 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
-            # parameters for k2.ctc_loss
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
+            "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for conformer
-            "subsampling_factor": 4,
             "feature_dim": 80,
+            "encoder_out_dim": 512,
+            "subsampling_factor": 4,
             "attention_dim": 512,
-            "nhead": 4,
+            "nhead": 8,
+            "dim_feedforward": 2048,
             "num_encoder_layers": 12,
-            "num_decoder_layers": 6,
-            "use_feat_batchnorm": True,
+            "vgg_frontend": False,
             # parameters for Noam
-            "weight_decay": 1e-5,
-            "lr_factor": 5.0,
-            "warm_step": 36000,
+            "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
     )
 
     return params
+
+
+def get_encoder_model(params: AttributeDict) -> nn.Module:
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        output_dim=params.encoder_out_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.attention_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        vgg_frontend=params.vgg_frontend,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.encoder_out_dim,
+        blank_id=params.blank_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict) -> nn.Module:
+    joiner = Joiner(
+        input_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    decoder_giga = get_decoder_model(params)
+    joiner_giga = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+        decoder_giga=decoder_giga,
+        joiner_giga=joiner_giga,
+    )
+    return model
 
 
 def load_checkpoint_if_available(
@@ -308,13 +405,24 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def is_libri(c: Cut) -> bool:
+    """Return True if this cut is from the LibriSpeech dataset.
+
+    Note:
+      During data preparation, we set the custom field in
+      the supervision segment of GigaSpeech to dict(origin='giga')
+      See ../local/preprocess_gigaspeech.py.
+    """
+    return c.supervisions[0].custom is None
+
+
 def compute_loss(
     params: AttributeDict,
     model: nn.Module,
+    sp: spm.SentencePieceProcessor,
     batch: dict,
-    graph_compiler: CharCtcTrainingGraphCompiler,
     is_training: bool,
-) -> Tuple[torch.Tensor, MetricsTracker]:
+) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
 
@@ -326,85 +434,41 @@ def compute_loss(
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       is_training:
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
     """
-    device = graph_compiler.device
+    device = model.device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
+    feature_lens = supervisions["num_frames"].to(device)
+
+    libri = is_libri(supervisions["cut"][0])
+
+    texts = batch["supervisions"]["text"]
+    y = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(y).to(device)
+
     with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_memory, memory_mask = model(feature, supervisions)
-        # nnet_output is (N, T, C)
-
-    # NOTE: We need `encode_supervisions` to sort sequences with
-    # different duration in decreasing order, required by
-    # `k2.intersect_dense` called in `k2.ctc_loss`
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=params.subsampling_factor
-    )
-
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
-
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
-
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
-    )
-
-    if params.att_rate != 0.0:
-        with torch.set_grad_enabled(is_training):
-            mmodel = model.module if hasattr(model, "module") else model
-            # Note: We need to generate an unsorted version of token_ids
-            # `encode_supervisions()` called above sorts text, but
-            # encoder_memory and memory_mask are not sorted, so we
-            # use an unsorted version `supervisions["text"]` to regenerate
-            # the token_ids
-            #
-            # See https://github.com/k2-fsa/icefall/issues/97
-            # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(
-                supervisions["text"]
-            )
-            att_loss = mmodel.decoder_forward(
-                encoder_memory,
-                memory_mask,
-                token_ids=unsorted_token_ids,
-                sos_id=graph_compiler.sos_id,
-                eos_id=graph_compiler.eos_id,
-            )
-        loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
-    else:
-        loss = ctc_loss
-        att_loss = torch.tensor([0])
+        loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            libri=libri,
+            modified_transducer_prob=params.modified_transducer_prob,
+        )
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = supervision_segments[:, 2].sum().item()
-    info["ctc_loss"] = ctc_loss.detach().cpu().item()
-    if params.att_rate != 0.0:
-        info["att_loss"] = att_loss.detach().cpu().item()
+    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
+    # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
 
     return loss, info
@@ -413,13 +477,11 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
-    """Run the validation process. The validation loss
-    is saved in `params.valid_loss`.
-    """
+    """Run the validation process."""
     model.eval()
 
     tot_loss = MetricsTracker()
@@ -428,8 +490,8 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
+            sp=sp,
             batch=batch,
-            graph_compiler=graph_compiler,
             is_training=False,
         )
         assert loss.requires_grad is False
@@ -450,9 +512,11 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
+    giga_train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    rng: random.Random,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
 ) -> None:
@@ -469,12 +533,12 @@ def train_one_epoch(
         The model for training.
       optimizer:
         The optimizer we are using.
-      graph_compiler:
-        It is used to convert transcripts to FSAs.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
         Dataloader for the validation dataset.
+      rng:
+        For select which dataset to use.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -482,22 +546,55 @@ def train_one_epoch(
     """
     model.train()
 
+    libri_tot_loss = MetricsTracker()
+    giga_tot_loss = MetricsTracker()
     tot_loss = MetricsTracker()
 
-    for batch_idx, batch in enumerate(train_dl):
+    # index 0: for LibriSpeech
+    # index 1: for GigaSpeech
+    # This sets the probabilities for choosing which datasets
+    dl_weights = [1 - params.giga_prob, params.giga_prob]
+
+    iter_libri = iter(train_dl)
+    iter_giga = iter(giga_train_dl)
+
+    batch_idx = 0
+
+    while True:
+        idx = rng.choices((0, 1), weights=dl_weights, k=1)[0]
+        dl = iter_libri if idx == 0 else iter_giga
+
+        try:
+            batch = next(dl)
+        except StopIteration:
+            break
+
+        batch_idx += 1
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
+        libri = is_libri(batch["supervisions"]["cut"][0])
 
         loss, loss_info = compute_loss(
             params=params,
             model=model,
+            sp=sp,
             batch=batch,
-            graph_compiler=graph_compiler,
             is_training=True,
         )
-
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+        if libri:
+            libri_tot_loss = (
+                libri_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "libri"  # for logging only
+        else:
+            giga_tot_loss = (
+                giga_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "giga"
 
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
@@ -510,18 +607,28 @@ def train_one_epoch(
         if batch_idx % params.log_interval == 0:
             logging.info(
                 f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}"
+                f"batch {batch_idx}, {prefix}_loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], "
+                f"libri_tot_loss[{libri_tot_loss}], "
+                f"giga_tot_loss[{giga_tot_loss}], "
+                f"batch size: {batch_size}"
             )
 
         if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
                 loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
+                    tb_writer,
+                    f"train/current_{prefix}_",
+                    params.batch_idx_train,
                 )
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
+                )
+                libri_tot_loss.write_summary(
+                    tb_writer, "train/libri_tot_", params.batch_idx_train
+                )
+                giga_tot_loss.write_summary(
+                    tb_writer, "train/giga_tot_", params.batch_idx_train
                 )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
@@ -529,7 +636,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -547,6 +654,25 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def filter_short_and_long_utterances(cuts: CutSet) -> CutSet:
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        return 1.0 <= c.duration <= 20.0
+
+    num_in_total = len(cuts)
+    cuts = cuts.filter(remove_short_and_long_utt)
+
+    num_left = len(cuts)
+    num_removed = num_in_total - num_left
+    removed_percent = num_removed / num_in_total * 100
+
+    logging.info(f"Before removing short and long utterances: {num_in_total}")
+    logging.info(f"After removing short and long utterances: {num_left}")
+    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+
+    return cuts
+
+
 def run(rank, world_size, args):
     """
     Args:
@@ -561,72 +687,130 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
+    if params.full_libri is False:
+        params.valid_interval = 800
+        params.warm_step = 8000
 
-    fix_random_seed(params.seed)
+    seed = 42
+    fix_random_seed(seed)
+    rng = random.Random(seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
-    logging.info(params)
 
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
     else:
         tb_writer = None
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    num_classes = max_token_id + 1  # +1 for the blank
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
+    logging.info(f"Device: {device}")
 
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    # <blk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
+
+    logging.info(params)
 
     logging.info("About to create model")
-    model = Conformer(
-        num_features=params.feature_dim,
-        nhead=params.nhead,
-        d_model=params.attention_dim,
-        num_classes=num_classes,
-        subsampling_factor=params.subsampling_factor,
-        num_encoder_layers=params.num_encoder_layers,
-        num_decoder_layers=params.num_decoder_layers,
-        vgg_frontend=False,
-        use_feat_batchnorm=params.use_feat_batchnorm,
-    )
+    model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:
-        model = DDP(model, device_ids=[rank])
+        logging.info("Using DDP")
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    model.device = device
 
     optimizer = Noam(
         model.parameters(),
         model_size=params.attention_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
-        weight_decay=params.weight_decay,
     )
 
-    if checkpoints:
+    if checkpoints and "optimizer" in checkpoints:
+        logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    aishell = AishellAsrDataModule(args)
-    train_dl = aishell.train_dataloaders(aishell.train_cuts())
-    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
+    librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
+
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
+
+    train_cuts = filter_short_and_long_utterances(train_cuts)
+
+    gigaspeech = GigaSpeech(manifest_dir=args.manifest_dir)
+    # XL 10k hours
+    # L  2.5k hours
+    # M  1k hours
+    # S  250 hours
+    # XS 10 hours
+    # DEV 12 hours
+    # Test 40 hours
+    if params.full_libri:
+        logging.info("Using the L subset of GigaSpeech (2.5k hours)")
+        train_giga_cuts = gigaspeech.train_L_cuts()
+    else:
+        logging.info("Using the S subset of GigaSpeech (250 hours)")
+        train_giga_cuts = gigaspeech.train_S_cuts()
+
+    train_giga_cuts = filter_short_and_long_utterances(train_giga_cuts)
+
+    if args.enable_musan:
+        cuts_musan = load_manifest(
+            Path(args.manifest_dir) / "cuts_musan.json.gz"
+        )
+    else:
+        cuts_musan = None
+
+    asr_datamodule = AsrDataModule(args)
+
+    train_dl = asr_datamodule.train_dataloaders(
+        train_cuts,
+        dynamic_bucketing=False,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
+    )
+
+    giga_train_dl = asr_datamodule.train_dataloaders(
+        train_giga_cuts,
+        dynamic_bucketing=True,
+        on_the_fly_feats=True,
+        cuts_musan=cuts_musan,
+    )
+
+    valid_cuts = librispeech.dev_clean_cuts()
+    valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
+
+    # It's time consuming to include `giga_train_dl` here
+    #  for dl in [train_dl, giga_train_dl]:
+    for dl in [train_dl]:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     for epoch in range(params.start_epoch, params.num_epochs):
-        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
+        giga_train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
@@ -644,9 +828,11 @@ def run(rank, world_size, args):
             params=params,
             model=model,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
+            sp=sp,
             train_dl=train_dl,
+            giga_train_dl=giga_train_dl,
             valid_dl=valid_dl,
+            rng=rng,
             tb_writer=tb_writer,
             world_size=world_size,
         )
@@ -665,12 +851,52 @@ def run(rank, world_size, args):
         cleanup_dist()
 
 
+def scan_pessimistic_batches_for_oom(
+    model: nn.Module,
+    train_dl: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    sp: spm.SentencePieceProcessor,
+    params: AttributeDict,
+):
+    from lhotse.dataset import find_pessimistic_batches
+
+    logging.info(
+        "Sanity check -- see if any of the batches in epoch 0 would cause OOM."
+    )
+    batches, crit_values = find_pessimistic_batches(train_dl.sampler)
+    for criterion, cuts in batches.items():
+        batch = train_dl.dataset[cuts]
+        try:
+            optimizer.zero_grad()
+            loss, _ = compute_loss(
+                params=params,
+                model=model,
+                sp=sp,
+                batch=batch,
+                is_training=True,
+            )
+            loss.backward()
+            clip_grad_norm_(model.parameters(), 5.0, 2.0)
+            optimizer.step()
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                logging.error(
+                    "Your GPU ran out of memory with the current "
+                    "max_duration setting. We recommend decreasing "
+                    "max_duration and trying again.\n"
+                    f"Failing criterion: {criterion} "
+                    f"(={crit_values[criterion]}) ..."
+                )
+            raise
+
+
 def main():
     parser = get_parser()
-    AishellAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
-    args.lang_dir = Path(args.lang_dir)
+
+    assert 0 <= args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size
     assert world_size >= 1
