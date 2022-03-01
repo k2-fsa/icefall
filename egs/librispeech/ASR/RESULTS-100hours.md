@@ -7,6 +7,8 @@ train-clean-100 subset as training data.
 
 ### 2022-02-21
 
+Using commit `2332ba312d7ce72f08c7bac1e3312f7e3dd722dc`.
+
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
 | greedy search (max sym per frame 1) | 6.34       | 16.7       | --epoch 57, --avg 17, --max-duration 100 |
