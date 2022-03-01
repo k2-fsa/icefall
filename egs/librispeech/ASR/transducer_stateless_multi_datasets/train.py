@@ -19,16 +19,39 @@
 """
 Usage:
 
+cd egs/librispeech/ASR/
+./prepare.sh
+./prepare_giga_speech.sh
+
+# 100-hours
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./transducer_stateless_multi_datasets/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_multi_datasets/exp-100-2 \
+  --full-libri 0 \
+  --max-duration 300 \
+  --lr-factor 1 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25
+  --giga-prob 0.2
+
+# 960-hours
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./transducer_stateless_multi_datasets/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 40 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless_multi_datasets/exp \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
   --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 2.5
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25 \
+  --giga-prob 0.2
 """
 
 
