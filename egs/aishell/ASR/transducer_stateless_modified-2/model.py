@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import random
+from typing import Optional
 
 import k2
 import torch
@@ -34,8 +35,8 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
-        decoder_datatang: nn.Module,
-        joiner_datatang: nn.Module,
+        decoder_datatang: Optional[nn.Module] = None,
+        joiner_datatang: Optional[nn.Module] = None,
     ):
         """
         Args:

@@ -18,26 +18,26 @@
 """
 Usage:
 (1) greedy search
-./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_modified/exp \
+./transducer_stateless_modified-2/decode.py \
+        --epoch 89 \
+        --avg 38 \
+        --exp-dir ./transducer_stateless_modified-2/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
 ./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_modified/exp \
+        --epoch 89 \
+        --avg 38 \
+        --exp-dir ./transducer_stateless_modified-2/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
 (3) modified beam search
-./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
+./transducer_stateless_modified-2/decode.py \
+        --epoch 89 \
+        --avg 38 \
         --exp-dir ./transducer_stateless_modified/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
@@ -52,8 +52,8 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
 from aishell import AIShell
+from asr_datamodule import AsrDataModule
 from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
@@ -121,7 +121,8 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --decoding-method is beam_search",
+        help="Used only when --decoding-method is beam_search "
+        "and modified_beam_search",
     )
 
     parser.add_argument(
@@ -196,15 +197,10 @@ def get_transducer_model(params: AttributeDict):
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_datatang = get_decoder_model(params)
-    joiner_datatang = get_joiner_model(params)
-
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        decoder_datatang=decoder_datatang,
-        joiner_datatang=joiner_datatang,
     )
     return model
 

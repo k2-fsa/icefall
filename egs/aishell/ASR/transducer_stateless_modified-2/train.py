@@ -20,17 +20,21 @@
 
 """
 Usage:
+./prepare.sh
+./prepare_aidatatang_200zh.sh
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2"
 
-./transducer_stateless_modified/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
+./transducer_stateless_modified-2/train.py \
+  --world-size 3 \
+  --num-epochs 90 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless_modified/exp \
-  --full-libri 1 \
+  --exp-dir transducer_stateless_modified-2/exp-2 \
   --max-duration 250 \
-  --lr-factor 2.5
+  --lr-factor 2.0 \
+  --context-size 2 \
+  --modified-transducer-prob 0.25 \
+  --datatang-prob 0.2
 """
 
 
@@ -116,7 +120,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless_modified/exp",
+        default="transducer_stateless_modified-2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
