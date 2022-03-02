@@ -156,14 +156,14 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            PeLU(),
+            Swish(),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            PeLU(),
+            Swish(),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -882,7 +882,7 @@ class ConvolutionModule(nn.Module):
             padding=0,
             bias=bias,
         )
-        self.activation = PeLU()
+        self.activation = Swish()
 
     def forward(self, x: Tensor) -> Tensor:
         """Compute convolution module.

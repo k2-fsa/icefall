@@ -47,11 +47,11 @@ class Conv2dSubsampling(nn.Module):
             nn.Conv2d(
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
-            PeLU(cutoff=-1.0),
+            nn.ReLU(),
             nn.Conv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
-            PeLU(cutoff=-5.0),
+            nn.ReLU(),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = nn.LayerNorm(odim, elementwise_affine=False)
