@@ -45,13 +45,14 @@ class Conv2dSubsampling(nn.Module):
             nn.Conv2d(
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
-            nn.ReLU(),
+            PeLU(cutoff=-1.0),
             nn.Conv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
-            nn.ReLU(),
+            PeLU(cutoff=-5.0),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
+        self.out_norm = nn.LayerNorm(odim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -70,6 +71,7 @@ class Conv2dSubsampling(nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        x = self.out_norm(x)
         return x
 
 
@@ -159,3 +161,35 @@ class VggSubsampling(nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         return x
+
+
+class PeLUFunction(torch.autograd.Function):
+    """
+    Computes PeLU function (PeLUFunction.apply(x, cutoff, alpha)).
+    The function is:
+        x.relu() + alpha * (cutoff - x).relu()
+    E.g. consider cutoff = -1, alpha = 0.01.  This will tend to prevent die-off
+    of neurons.
+    """
+    @staticmethod
+    def forward(ctx, x: Tensor, cutoff: float, alpha: float) -> Tensor:
+        mask1 = (x >= 0)  # >=, so there is deriv if x == 0.
+        p = cutoff - x
+        mask2 = (p >= 0)
+        ctx.save_for_backward(mask1, mask2)
+        ctx.alpha = alpha
+        return x.relu() + alpha * p.relu()
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None]:
+        mask1, mask2 = ctx.saved_tensors
+        return mask1 * ans_grad - (ctx.alpha * mask2) * ans_grad, None, None
+
+
+
+class PeLU(torch.nn.Module):
+    def __init__(self, cutoff: float = -1.0, alpha: float = 0.01) -> None:
+        super(PeLU, self).__init__()
+        self.cutoff = cutoff
+        self.alpha = alpha
+    def forward(self, x: Tensor) -> Tensor:
+        return PeLUFunction.apply(x, self.cutoff, self.alpha)

@@ -19,6 +19,7 @@ import copy
 import math
 import warnings
 from typing import Optional, Tuple, Sequence
+from subsampling import PeLU
 
 import torch
 from torch import Tensor, nn
@@ -84,12 +85,7 @@ class Conformer(Transformer):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers,
                                         aux_layers=list(range(0, num_encoder_layers-1, aux_layer_period)))
         self.normalize_before = normalize_before
-        if self.normalize_before:
-            self.after_norm = nn.LayerNorm(d_model)  # TODO: remove.
-        else:
-            # Note: TorchScript detects that self.after_norm could be used inside forward()
-            #       and throws an error without this change.
-            self.after_norm = identity
+
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -117,9 +113,6 @@ class Conformer(Transformer):
         mask = make_pad_mask(lengths)
 
         x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, N, C)
-
-        if self.normalize_before:
-            x = self.after_norm(x)
 
         logits = self.encoder_output_layer(x)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
@@ -163,14 +156,14 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            Swish(),
+            PeLU(),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            Swish(),
+            PeLU(),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -889,7 +882,7 @@ class ConvolutionModule(nn.Module):
             padding=0,
             bias=bias,
         )
-        self.activation = Swish()
+        self.activation = PeLU()
 
     def forward(self, x: Tensor) -> Tensor:
         """Compute convolution module.
