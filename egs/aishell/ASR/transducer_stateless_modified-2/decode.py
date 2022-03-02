@@ -95,7 +95,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless_modified/exp",
+        default="transducer_stateless_modified-2/exp",
         help="The experiment dir",
     )
 
