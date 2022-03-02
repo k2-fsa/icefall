@@ -1,5 +1,5 @@
-yesno
-=====
+TDNN-CTC
+========
 
 This page shows you how to run the `yesno <https://www.openslr.org/1>`_ recipe. It contains:
 
@@ -145,7 +145,7 @@ In ``tdnn/exp``, you will find the following files:
     Note there is a URL in the above output, click it and you will see
     the following screenshot:
 
-      .. figure:: images/yesno-tdnn-tensorboard-log.png
+      .. figure:: images/tdnn-tensorboard-log.png
          :width: 600
          :alt: TensorBoard screenshot
          :align: center
