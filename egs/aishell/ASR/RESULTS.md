@@ -69,9 +69,76 @@ for epoch in 89; do
 done
 ```
 
-You can find a pre-trained model and decoding logs and results at
+You can find a pre-trained model, decoding logs, and decoding results at
 <https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2-2022-03-01>
 
+#### 2022-03-01
+
+[./transducer_stateless_modified](./transducer_stateless_modified)
+
+Stateless transducer + modified transducer.
+
+|                        | test |comment                                                         |
+|------------------------|------|----------------------------------------------------------------|
+| greedy search          | 5.22 |--epoch 64, --avg 33, --max-duration 100, --max-sym-per-frame 1 |
+| modified beam search   | 5.02 |--epoch 64, --avg 33, --max-duration 100  --beam-size 4         |
+
+The training commands are:
+
+```bash
+cd egs/aishell/ASR
+./prepare.sh --stop-stage 6
+
+export CUDA_VISIBLE_DEVICES="0,1,2"
+
+./transducer_stateless_modified/train.py \
+  --world-size 3 \
+  --num-epochs 90 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_modified/exp-4 \
+  --max-duration 250 \
+  --lr-factor 2.0 \
+  --context-size 2 \
+  --modified-transducer-prob 0.25
+```
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/C27M8YxRQCa1t2XglTqlWg/>
+
+The commands for decoding are
+
+```bash
+# greedy search
+for epoch in 64; do
+  for avg in 33; do
+  ./transducer_stateless_modified/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified/exp-4 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame 1
+  done
+done
+
+# modified beam search
+for epoch in 64; do
+  for avg in 33; do
+    ./transducer_stateless_modified/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified/exp-4 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+  done
+done
+```
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01>
 
 
 #### 2022-2-19

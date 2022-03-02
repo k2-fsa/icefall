@@ -21,16 +21,17 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2"
 
 ./transducer_stateless_modified/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
+  --world-size 3 \
+  --num-epochs 65 \
   --start-epoch 0 \
   --exp-dir transducer_stateless_modified/exp \
-  --full-libri 1 \
   --max-duration 250 \
-  --lr-factor 2.5
+  --lr-factor 2.0 \
+  --context-size 2 \
+  --modified-transducer-prob 0.25
 """
 
 

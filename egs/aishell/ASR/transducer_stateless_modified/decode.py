@@ -19,8 +19,8 @@
 Usage:
 (1) greedy search
 ./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
+        --epoch 64 \
+        --avg 33 \
         --exp-dir ./transducer_stateless_modified/exp \
         --max-duration 100 \
         --decoding-method greedy_search

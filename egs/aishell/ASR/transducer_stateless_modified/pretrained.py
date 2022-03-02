@@ -20,7 +20,7 @@
 Usage:
 
 # greedy search
-./transducer_stateless_modified-2/pretrained.py \
+./transducer_stateless_modified/pretrained.py \
   --checkpoint /path/to/pretrained.pt \
   --lang-dir /path/to/lang_char \
   --method greedy_search \
@@ -28,7 +28,7 @@ Usage:
   /path/to/bar.wav
 
 # beam search
-./transducer_stateless_modified-2/pretrained.py \
+./transducer_stateless_modified/pretrained.py \
   --checkpoint /path/to/pretrained.pt \
   --lang-dir /path/to/lang_char \
   --method beam_search \
@@ -37,7 +37,7 @@ Usage:
   /path/to/bar.wav
 
 # modified beam search
-./transducer_stateless_modified-2/pretrained.py \
+./transducer_stateless_modified/pretrained.py \
   --checkpoint /path/to/pretrained.pt \
   --lang-dir /path/to/lang_char \
   --method modified_beam_search \
