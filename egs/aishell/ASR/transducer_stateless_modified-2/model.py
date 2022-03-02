@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+from typing import Optional
+
 import k2
 import torch
 import torch.nn as nn
@@ -32,6 +35,8 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        decoder_datatang: Optional[nn.Module] = None,
+        joiner_datatang: Optional[nn.Module] = None,
     ):
         """
         Args:
@@ -48,20 +53,31 @@ class Transducer(nn.Module):
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
+          decoder_datatang:
+            The decoder for the aidatatang_200zh dataset.
+          joiner_datatang:
+            The joiner for the aidatatang_200zh dataset.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
+        if decoder_datatang is not None:
+            assert hasattr(decoder_datatang, "blank_id")
 
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+
+        self.decoder_datatang = decoder_datatang
+        self.joiner_datatang = joiner_datatang
 
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        aishell: bool = True,
+        modified_transducer_prob: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -73,6 +89,8 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          modified_transducer_prob:
+            The probability to use modified transducer loss.
         Returns:
           Return the transducer loss.
         """
@@ -93,22 +111,53 @@ class Transducer(nn.Module):
         sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+        sos_y_padded = sos_y_padded.to(torch.int64)
 
-        decoder_out = self.decoder(sos_y_padded)
+        if aishell:
+            decoder = self.decoder
+            joiner = self.joiner
+        else:
+            decoder = self.decoder_datatang
+            joiner = self.joiner_datatang
 
-        logits = self.joiner(encoder_out, decoder_out)
+        decoder_out = decoder(sos_y_padded)
+
+        # +1 here since a blank is prepended to each utterance.
+        logits = joiner(
+            encoder_out=encoder_out,
+            decoder_out=decoder_out,
+            encoder_out_len=x_lens,
+            decoder_out_len=y_lens + 1,
+        )
 
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
-        boundary[:, 2] = y_lens
-        boundary[:, 3] = x_lens
+        # We don't put this `import` at the beginning of the file
+        # as it is required only in the training, not during the
+        # reference stage
+        import optimized_transducer
 
-        loss = k2.rnnt_loss(logits, y_padded, blank_id, boundary)
+        assert 0 <= modified_transducer_prob <= 1
+
+        if modified_transducer_prob == 0:
+            one_sym_per_frame = False
+        elif random.random() < modified_transducer_prob:
+            # random.random() returns a float in the range [0, 1)
+            one_sym_per_frame = True
+        else:
+            one_sym_per_frame = False
+
+        loss = optimized_transducer.transducer_loss(
+            logits=logits,
+            targets=y_padded,
+            logit_lengths=x_lens,
+            target_lengths=y_lens,
+            blank=blank_id,
+            reduction="sum",
+            one_sym_per_frame=one_sym_per_frame,
+            from_log_softmax=False,
+        )
 
         return loss

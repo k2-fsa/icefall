@@ -1,12 +1,153 @@
 ## Results
 ### Aishell training result(Transducer-stateless)
+
+#### 2022-03-01
+
+[./transducer_stateless_modified-2](./transducer_stateless_modified-2)
+
+Stateless transducer + modified transducer + using [aidatatang_200zh](http://www.openslr.org/62/) as extra training data.
+
+
+|                        | test |comment                                                         |
+|------------------------|------|----------------------------------------------------------------|
+| greedy search          | 4.94 |--epoch 89, --avg 38, --max-duration 100, --max-sym-per-frame 1 |
+| modified beam search   | 4.68 |--epoch 89, --avg 38, --max-duration 100  --beam-size 4         |
+
+The training commands are:
+
+```bash
+cd egs/aishell/ASR
+./prepare.sh --stop-stage 6
+./prepare_aidatatang_200zh.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2"
+
+./transducer_stateless_modified-2/train.py \
+  --world-size 3 \
+  --num-epochs 90 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_modified-2/exp-2 \
+  --max-duration 250 \
+  --lr-factor 2.0 \
+  --context-size 2 \
+  --modified-transducer-prob 0.25 \
+  --datatang-prob 0.2
+```
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/oG72ZlWaSGua6fXkcGRRjA/>
+
+The commands for decoding are
+
+```bash
+# greedy search
+for epoch in 89; do
+  for avg in 38; do
+  ./transducer_stateless_modified-2/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified-2/exp-2 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame 1
+  done
+done
+
+# modified beam search
+for epoch in 89; do
+  for avg in 38; do
+    ./transducer_stateless_modified-2/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified-2/exp-2 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+  done
+done
+```
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2-2022-03-01>
+
+#### 2022-03-01
+
+[./transducer_stateless_modified](./transducer_stateless_modified)
+
+Stateless transducer + modified transducer.
+
+|                        | test |comment                                                         |
+|------------------------|------|----------------------------------------------------------------|
+| greedy search          | 5.22 |--epoch 64, --avg 33, --max-duration 100, --max-sym-per-frame 1 |
+| modified beam search   | 5.02 |--epoch 64, --avg 33, --max-duration 100  --beam-size 4         |
+
+The training commands are:
+
+```bash
+cd egs/aishell/ASR
+./prepare.sh --stop-stage 6
+
+export CUDA_VISIBLE_DEVICES="0,1,2"
+
+./transducer_stateless_modified/train.py \
+  --world-size 3 \
+  --num-epochs 90 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_modified/exp-4 \
+  --max-duration 250 \
+  --lr-factor 2.0 \
+  --context-size 2 \
+  --modified-transducer-prob 0.25
+```
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/C27M8YxRQCa1t2XglTqlWg/>
+
+The commands for decoding are
+
+```bash
+# greedy search
+for epoch in 64; do
+  for avg in 33; do
+  ./transducer_stateless_modified/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified/exp-4 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame 1
+  done
+done
+
+# modified beam search
+for epoch in 64; do
+  for avg in 33; do
+    ./transducer_stateless_modified/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless_modified/exp-4 \
+    --max-duration 100 \
+    --context-size 2 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+  done
+done
+```
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01>
+
+
 #### 2022-2-19
 (Duo Ma): The tensorboard log for training is available at https://tensorboard.dev/experiment/25PmX3MxSVGTdvIdhOwllw/#scalars
 You can find a pretrained model by visiting https://huggingface.co/shuanguanma/icefall_aishell_transducer_stateless_context_size2_epoch60_2022_2_19
 |                           | test |comment                                  |
 |---------------------------|------|-----------------------------------------|
-| greedy search             | 5.4 |--epoch 59, --avg 10, --max-duration 100 |
-| beam search               | 5.05|--epoch 59, --avg 10, --max-duration 100 |
+| greedy search             | 5.4 |--epoch 59, --avg 10, --max-duration 100  |
+| beam search               | 5.05|--epoch 59, --avg 10, --max-duration 100  |
 
 You can use the following commands to reproduce our results:
 
@@ -23,7 +164,7 @@ python3 ./transducer_stateless/train.py \
 
 lang_dir=data/lang_char
 dir=exp/transducer_stateless_context_size2
-python3 ./transducer_stateless/decode.py\
+python3 ./transducer_stateless/decode.py \
        --epoch 59 \
        --avg 10 \
        --exp-dir $dir \
@@ -35,8 +176,8 @@ python3 ./transducer_stateless/decode.py\
 lang_dir=data/lang_char
 dir=exp/transducer_stateless_context_size2
 python3 ./transducer_stateless/decode.py \
-       --epoch 59\
-       --avg 10\
+       --epoch 59 \
+       --avg 10 \
        --exp-dir $dir \
        --lang-dir $lang_dir \
        --decoding-method beam_search \

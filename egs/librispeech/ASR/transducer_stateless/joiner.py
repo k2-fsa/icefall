@@ -39,6 +39,12 @@ class Joiner(nn.Module):
             Output from the encoder. Its shape is (N, T, self.input_dim).
           decoder_out:
             Output from the decoder. Its shape is (N, U, self.input_dim).
+          encoder_out_len:
+            A 1-D tensor of shape (N,) containing valid number of frames
+            before padding in `encoder_out`.
+          decoder_out_len:
+            A 1-D tensor of shape (N,) containing valid number of frames
+            before padding in `decoder_out`.
         Returns:
           Return a tensor of shape (sum_all_TU, self.output_dim).
         """
