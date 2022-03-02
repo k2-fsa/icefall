@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                  Mingshuang Luo)
+# 						   Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,66 +21,73 @@ This file displays duration statistics of utterances in a manifest.
 You can use the displayed value to choose minimum/maximum duration
 to remove short and long utterances during the training.
 
-See the function `remove_short_and_long_utt()` in transducer/train.py
+See the function `remove_short_and_long_utt()`
+in ../../../librispeech/ASR/transducer/train.py
 for usage.
 """
 
-import numpy as np
+
 from lhotse import load_manifest
-
-
-def describe(cuts) -> None:
-    """
-    Print a message describing details about the ``CutSet`` - the number
-    of cuts and the duration statistics, including the total duration
-    and the percentage of speech segments.
-
-    Example output:
-        Cuts count: 804789
-        Total duration (hours): 1370.6
-        ***
-        Duration statistics (seconds):
-            mean    6.1
-            std     3.1
-            min     0.5
-            25%     3.7
-            50%     6.0
-            75%     8.3
-            99.5%   14.9
-            99.9%   16.6
-            max     33.3
-    """
-    durations = np.array([c.duration for c in cuts])
-    speech_durations = np.array(
-        [s.duration for c in cuts for s in c.trimmed_supervisions]
-    )
-    total_sum = durations.sum()
-    speech_sum = speech_durations.sum()
-    fraction = "{:.1%}".format(speech_sum / total_sum)
-    print("Cuts count:", len(cuts))
-    print(f"Total duration (hours): {total_sum / 3600:.1f}")
-    print(f"Speech duration (hours): {speech_sum / 3600:.1f} {fraction}")
-    print("***")
-    print("Duration statistics (seconds):")
-    print(f"mean\t{np.mean(durations):.1f}")
-    print(f"std\t{np.std(durations):.1f}")
-    print(f"min\t{np.min(durations):.1f}")
-    print(f"25%\t{np.percentile(durations, 25):.1f}")
-    print(f"50%\t{np.median(durations):.1f}")
-    print(f"75%\t{np.percentile(durations, 75):.1f}")
-    print(f"99.5%\t{np.percentile(durations, 99.5):.1f}")
-    print(f"99.9%\t{np.percentile(durations, 99.9):.1f}")
-    print(f"max\t{np.max(durations):.1f}")
 
 
 def main():
     path = "./data/fbank/cuts_train.json.gz"
-    # path = "./data/fbank/cuts_dev.json.gz"
-    # path = "./data/fbank/cuts_test.json.gz"
+    path = "./data/fbank/cuts_dev.json.gz"
+    path = "./data/fbank/cuts_test.json.gz"
 
     cuts = load_manifest(path)
-    describe(cuts)
+    cuts.describe()
 
 
 if __name__ == "__main__":
     main()
+
+"""
+## train
+Cuts count: 804789
+Total duration (hours): 1370.6
+Speech duration (hours): 1370.6 (100.0%)
+***
+Duration statistics (seconds):
+mean    6.1
+std     3.1
+min     0.5
+25%     3.7
+50%     6.0
+75%     8.3
+99.5%   14.9
+99.9%   16.6
+max     33.3
+
+## dev
+Cuts count: 507
+Total duration (hours): 1.6
+Speech duration (hours): 1.6 (100.0%)
+***
+Duration statistics (seconds):
+mean    11.3
+std     5.7
+min     0.5
+25%     7.5
+50%     10.6
+75%     14.4
+99.5%   29.8
+99.9%   37.7
+max     39.9
+
+## test
+Cuts count: 1155
+Total duration (hours): 2.6
+Speech duration (hours): 2.6 (100.0%)
+***
+Duration statistics (seconds):
+mean    8.2
+std     4.3
+min     0.3
+25%     4.6
+50%     8.2
+75%     10.9
+99.5%   22.1
+99.9%   26.7
+max     32.5
+"""
