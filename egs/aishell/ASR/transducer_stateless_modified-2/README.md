@@ -4,7 +4,7 @@ The decoder, i.e., the prediction network, is from
 https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419
 (Rnn-Transducer with Stateless Prediction Network)
 
-Different from `../transducer_stateless_modified`, this fold
+Different from `../transducer_stateless_modified`, this folder
 uses extra data, i.e., http://www.openslr.org/62/, during training.
 
 You can use the following command to start the training:
