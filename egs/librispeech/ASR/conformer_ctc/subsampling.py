@@ -48,10 +48,12 @@ class Conv2dSubsampling(nn.Module):
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
             nn.ReLU(),
+            ExpScale(odim, 1, 1, speed=2.0),
             nn.Conv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
             nn.ReLU(),
+            ExpScale(odim, 1, 1, speed=2.0),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = nn.LayerNorm(odim, elementwise_affine=False)
@@ -195,3 +197,12 @@ class PeLU(torch.nn.Module):
         self.alpha = alpha
     def forward(self, x: Tensor) -> Tensor:
         return PeLUFunction.apply(x, self.cutoff, self.alpha)
+
+class ExpScale(torch.nn.Module):
+    def __init__(self, *shape, speed: float = 1.0):
+        super(ExpScale, self).__init__()
+        self.scale = nn.Parameter(torch.zeros(*shape))
+        self.speed = speed
+
+    def forward(self, x: Tensor) -> Tensor:
+        return x * (self.scale * self.speed).exp()
