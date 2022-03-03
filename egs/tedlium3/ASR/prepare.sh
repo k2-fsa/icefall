@@ -62,8 +62,8 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   mkdir -p $dl_dir/lm
   git clone https://huggingface.co/luomingshuang/tedlium3_lm $dl_dir/lm
 
-  # If you want to download Tedlium 4 gram language models
-  # using the follow commands:
+  # If you want to download Tedlium 4-gram language models,
+  # use the following commands:
   #wget --continue http://kaldi-asr.org/models/5/4gram_small.arpa.gz -P $dl_dir/lm/ || exit 1
   #wget --continue http://kaldi-asr.org/models/5/4gram_big.arpa.gz -P $dl_dir/lm/ || exit 1
 fi
