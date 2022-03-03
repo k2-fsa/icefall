@@ -157,7 +157,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
             Swish(),
-            ExpScale(dim_feedforward, speed=2.0),
+            ExpScale(dim_feedforward, speed=4.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -165,7 +165,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
             Swish(),
-            ExpScale(dim_feedforward, speed=2.0),
+            ExpScale(dim_feedforward, speed=4.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
