@@ -21,7 +21,7 @@ In this tutorial, you will learn:
 
   - (1) What does the transducer model look like
   - (2) How to prepare data for training and decoding
-  - (3) How to start the training, either with a single GPU or multiple GPUs
+  - (3) How to start the training, either with a single GPU or with multiple GPUs
   - (4) How to do decoding after training, with greedy search, beam search and, **modified beam search**
   - (5) How to use a pre-trained model provided by us to transcribe sound files
 
@@ -112,7 +112,7 @@ To prepare the data for training, please use the following commands:
 .. note::
 
   You can use ``./prepare.sh``, though it will generate FSTs that
-  are not used in transducer traning.
+  are not used in transducer training.
 
 When you finish running the script, you will get the following two folders:
 
@@ -151,7 +151,7 @@ The following options are used quite often:
 
   - ``--world-size``
 
-    It is used for multi-GPU single-machine DDP training.
+    It is used for single-machine multi-GPU DDP training.
 
       - (a) If it is 1, then no DDP training is used.
 
@@ -187,9 +187,9 @@ The following options are used quite often:
 
     .. CAUTION::
 
-      Only multi-GPU single-machine DDP training is implemented at present.
+      Only single-machine multi-GPU DDP training is implemented at present.
       There is an on-going PR `<https://github.com/k2-fsa/icefall/pull/63>`_
-      that adds support for multi-GPU multi-machine DDP training.
+      that adds support for multi-machine multi-GPU DDP training.
 
   - ``--max-duration``
 
@@ -197,7 +197,7 @@ The following options are used quite often:
     batch **before padding**.
     If you encounter CUDA OOM, please reduce it. For instance, if
     your are using V100 NVIDIA GPU with 32 GB RAM, we recommend you
-    to set it to ``300``.
+    to set it to ``300`` when the vocabulary size is 500.
 
     .. HINT::
 
@@ -243,7 +243,7 @@ Training logs
 ~~~~~~~~~~~~~
 
 Training logs and checkpoints are saved in the folder set by ``--exp-dir``
-(default ``transducer_stateless_modified/exp``). You will find the following files in that directory:
+(defaults to ``transducer_stateless_modified/exp``). You will find the following files in that directory:
 
   - ``epoch-0.pt``, ``epoch-1.pt``, ...
 
@@ -404,6 +404,16 @@ The commonly used options are:
 
     It has the same meaning as the one used in training. A larger
     value may cause OOM.
+
+  - ``--epoch``
+
+    It specifies the checkpoint from which epoch that should be used for decoding.
+
+  - ``--avg``
+
+    It specifies the number of models to average. For instance, if it is 3 and if
+    ``--epoch=10``, then it averages the checkpoints ``epoch-8.pt``, ``epoch-9.pt``,
+    and ``epoch-10.pt`` and the averaged checkpoint is used for decoding.
 
 After decoding, you can find the decoding logs and results in `exp_dir/log/<decoding_method>`, e.g.,
 ``exp_dir/log/greedy_search``.
