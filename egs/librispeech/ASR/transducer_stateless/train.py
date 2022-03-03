@@ -521,7 +521,6 @@ def train_one_epoch(
         if params.print_diagnostics and batch_idx == 5:
             return
 
-
         if batch_idx % params.log_interval == 0:
             logging.info(
                 f"Epoch {params.cur_epoch}, "
@@ -631,9 +630,10 @@ def run(rank, world_size, args):
     librispeech = LibriSpeechAsrDataModule(args)
 
     if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(2**22)  # allow 4 megabytes per sub-module
+        opts = diagnostics.TensorDiagnosticOptions(
+            2 ** 22
+        )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
-
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
