@@ -28,7 +28,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp \
-  --max-duration 200 \
+  --max-duration 200
 ```
 
 The tensorboard training log can be found at
@@ -64,6 +64,8 @@ avg=16
   --exp-dir transducer_stateless/exp \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   --max-duration 100 \
-  --decoding-method beam_search \
+  --decoding-method modified_beam_search \
   --beam-size 4
 ```
+
+A pre-trained model and decoding logs can be found at <https://huggingface.co/luomingshuang/icefall_asr_tedlium3_transducer_stateless>

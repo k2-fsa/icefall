@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2021 Xiaomi Corporation (Author: Mingshuang Luo)
+# Copyright    2022 Xiaomi Corporation  (Author: Mingshuang Luo)
 """
 Convert a transcript based on words to a list of BPE ids.
 
@@ -27,12 +27,6 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--texts", type=List[str], help="The input transcripts list."
-    )
-    parser.add_argument(
-        "--unk-id",
-        type=int,
-        default=2,
-        help="The number id for the token '<unk>'.",
     )
     parser.add_argument(
         "--bpe-model",
@@ -70,7 +64,7 @@ def convert_texts_into_ids(
                 else:
                     y_ids.extend(id_segments[i])
         else:
-            y_ids = sp.encode([text], out_type=int)[0]
+            y_ids = sp.encode(text, out_type=int)
         y.append(y_ids)
 
     return y

@@ -175,13 +175,12 @@ class TedLiumAsrDataModule:
 
     def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
-        )
-
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
+            cuts_musan = load_manifest(
+                self.args.manifest_dir / "cuts_musan.json.gz"
+            )
             transforms.append(
                 CutMix(
                     cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True

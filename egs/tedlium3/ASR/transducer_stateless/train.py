@@ -26,7 +26,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp \
-  --max-duration 200 \
+  --max-duration 200
 """
 
 
@@ -394,9 +394,9 @@ def compute_loss(
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)[: feature.size(0)]
+    feature_lens = supervisions["num_frames"].to(device)
 
-    texts = batch["supervisions"]["text"][: feature.size(0)]
+    texts = batch["supervisions"]["text"]
 
     unk_id = params.unk_id
     y = convert_texts_into_ids(texts, unk_id, sp=sp)
@@ -625,7 +625,9 @@ def run(rank, world_size, args):
     train_cuts = tedlium.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
+        # Keep only utterances with duration between 1 second and max seconds
+        # Here, we set max as 20.0.
+        # If you want to use a big max-duration, you can set it as 17.0.
         return 1.0 <= c.duration <= 20.0
 
     num_in_total = len(train_cuts)

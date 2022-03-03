@@ -59,9 +59,8 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "Stage -1: Download LM"
   # We assume that you have installed the git-lfs, if not, you could install it
   # using: `sudo apt-get install git-lfs && git-lfs install`
-  [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
+  mkdir -p $dl_dir/lm
   git clone https://huggingface.co/luomingshuang/tedlium3_lm $dl_dir/lm
-  cd $dl_dir/lm && git lfs pull
 
   # If you want to download Tedlium 4 gram language models
   # using the follow commands:
