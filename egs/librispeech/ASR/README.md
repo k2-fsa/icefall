@@ -1,7 +1,7 @@
 
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech.html>
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html>
 for how to run models in this recipe.
 
 # Transducers
