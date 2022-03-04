@@ -156,14 +156,14 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ExpScaleSwish(dim_feedforward, speed=50.0),
+            ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ExpScaleSwish(dim_feedforward, speed=50.0),
+            ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -874,7 +874,7 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
         # shape: (channels, 1), broadcasts with (batch, channel, time).
-        self.activation = ExpScaleSwish(channels, 1, speed=50.0)
+        self.activation = ExpScaleSwish(channels, 1, speed=20.0)
 
         self.pointwise_conv2 = nn.Conv1d(
             channels,
