@@ -48,12 +48,12 @@ class Conv2dSubsampling(nn.Module):
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
             nn.ReLU(),
-            ExpScale(odim, 1, 1, speed=20.0),
+            ExpScale(odim, 1, 1, speed=50.0),
             nn.Conv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
             nn.ReLU(),
-            ExpScale(odim, 1, 1, speed=20.0),
+            ExpScale(odim, 1, 1, speed=50.0),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = nn.LayerNorm(odim, elementwise_affine=False)
