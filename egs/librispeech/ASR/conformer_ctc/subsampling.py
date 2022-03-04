@@ -47,15 +47,15 @@ class Conv2dSubsampling(nn.Module):
             nn.Conv2d(
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
-            DerivBalancer(channel_dim=1, threshold=0.02,
-                          max_factor=0.02),
+            DerivBalancer(channel_dim=1, threshold=0.05,
+                          max_factor=0.025),
             nn.ReLU(),
             ExpScale(odim, 1, 1, speed=20.0),
             nn.Conv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
-            DerivBalancer(channel_dim=1, threshold=0.02,
-                          max_factor=0.02),
+            DerivBalancer(channel_dim=1, threshold=0.05,
+                          max_factor=0.025),
             nn.ReLU(),
             ExpScale(odim, 1, 1, speed=20.0),
         )

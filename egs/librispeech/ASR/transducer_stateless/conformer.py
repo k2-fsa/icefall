@@ -156,8 +156,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            DerivBalancer(channel_dim=-1, threshold=0.02,
-                          max_factor=0.02),
+            DerivBalancer(channel_dim=-1, threshold=0.05,
+                          max_factor=0.025),
             ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
@@ -165,8 +165,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            DerivBalancer(channel_dim=-1, threshold=0.02,
-                          max_factor=0.02),
+            DerivBalancer(channel_dim=-1, threshold=0.05,
+                          max_factor=0.025),
             ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
