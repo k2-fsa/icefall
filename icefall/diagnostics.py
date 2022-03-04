@@ -1,4 +1,4 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Daniel Povey
+# Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey
 #                                                    Zengwei Yao)
 #
 # See ../LICENSE for clarification regarding multiple authors
