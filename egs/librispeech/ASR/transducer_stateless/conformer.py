@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import Optional, Tuple, Sequence
-from subsampling import PeLU, ExpScale
+from subsampling import PeLU, ExpScale, ExpScaleSwish
 
 import torch
 from torch import Tensor, nn
