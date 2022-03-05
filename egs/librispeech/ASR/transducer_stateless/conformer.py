@@ -158,7 +158,7 @@ class ConformerEncoderLayer(nn.Module):
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.025),
-            ExpScaleRelu(dim_feedforward, speed=20.0),
+            ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -167,7 +167,7 @@ class ConformerEncoderLayer(nn.Module):
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.025),
-            ExpScaleRelu(dim_feedforward, speed=20.0),
+            ExpScaleSwish(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -880,7 +880,7 @@ class ConvolutionModule(nn.Module):
         self.balancer = DerivBalancer(channel_dim=1, threshold=0.05,
                                       max_factor=0.025)
         # shape: (channels, 1), broadcasts with (batch, channel, time).
-        self.activation = ExpScaleRelu(channels, 1, speed=20.0)
+        self.activation = ExpScaleSwish(channels, 1, speed=20.0)
 
         self.pointwise_conv2 = nn.Conv1d(
             channels,

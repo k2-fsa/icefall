@@ -212,12 +212,11 @@ class ExpScale(torch.nn.Module):
 
 
 def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float) -> Tensor:
-    return (x * torch.sigmoid(x)) * (scale * speed).exp()
-
-
-def _exp_scale_swish_backward(x: Tensor, scale: Tensor, speed: float) -> Tensor:
-    return (x * torch.sigmoid(x)) * (scale * speed).exp()
-
+    # double-swish!
+    x = (x * torch.sigmoid(x))
+    x = (x * torch.sigmoid(x))
+    x = x * (scale * speed).exp()
+    return x
 
 class ExpScaleSwishFunction(torch.autograd.Function):
     @staticmethod
@@ -247,8 +246,11 @@ class ExpScaleSwish(torch.nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return ExpScaleSwishFunction.apply(x, self.scale, self.speed)
-    # return (x * torch.sigmoid(x)) * (self.scale * self.speed).exp()
-        # return x * (self.scale * self.speed).exp()
+    # x = (x * torch.sigmoid(x))
+    # x = (x * torch.sigmoid(x))
+    # x = x * (self.scale * self.speed).exp()
+    # return x
+
 
 
 def _exp_scale_relu(x: Tensor, scale: Tensor, speed: float) -> Tensor:
