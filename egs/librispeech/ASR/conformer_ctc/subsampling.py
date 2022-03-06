@@ -212,9 +212,8 @@ class ExpScale(torch.nn.Module):
 
 
 def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float) -> Tensor:
-    # double-swish!
-    x = (x * torch.sigmoid(x))
-    x = (x * torch.sigmoid(x))
+    # double-swish, implemented/approximated as offset-swish
+    x = (x * torch.sigmoid(x - 1.0))
     x = x * (scale * speed).exp()
     return x
 
