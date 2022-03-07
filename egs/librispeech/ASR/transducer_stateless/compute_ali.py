@@ -137,20 +137,10 @@ def get_parser():
     return parser
 
 
-def get_word_begin_time(ali: List[int], sp: spm.SentencePieceProcessor):
-    underscore = b"\xe2\x96\x81".decode()  # '_'
-    ans = []
-    for i in range(len(ali)):
-        print(sp.id_to_piece(ali[i]))
-        if sp.id_to_piece(ali[i]).startswith(underscore):
-            print("yes")
-            ans.append(i * 0.04)
-    return ans
-
-
 def compute_alignments(
     model: torch.nn.Module,
     dl: torch.utils.data,
+    ali_writer: FeaturesWriter,
     params: AttributeDict,
     sp: spm.SentencePieceProcessor,
 ):
@@ -202,10 +192,30 @@ def compute_alignments(
                 beam_size=params.beam_size,
             )
             ali_list.append(ali)
-            word_begin_time_list.append(get_word_begin_time(ali, sp))
-            import pdb
+        assert len(ali_list) == len(cut_list)
 
-            pdb.set_trace()
+        for cut, ali in zip(cut_list, ali_list):
+            cut.token_alignment = ali_writer.store_array(
+                key=cut.id,
+                value=np.asarray(ali, dtype=np.int32),
+                # frame shift is 0.01s, subsampling_factor is 4
+                frame_shift=0.04,
+                temporal_dim=0,
+                start=0,
+            )
+
+        cuts += cut_list
+
+        num_cuts += len(cut_list)
+
+        if batch_idx % 100 == 0:
+            batch_str = f"{batch_idx}/{num_batches}"
+
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
+
+    return CutSet.from_cuts(cuts)
 
 
 @torch.no_grad()
@@ -242,13 +252,11 @@ def main():
     out_dir = Path(params.out_dir)
     out_dir.mkdir(exist_ok=True)
 
-    out_labels_ali_filename = out_dir / f"labels_{params.dataset}.h5"
-    out_aux_labels_ali_filename = out_dir / f"aux_labels_{params.dataset}.h5"
+    out_ali_filename = out_dir / f"token_ali_{params.dataset}.h5"
     out_manifest_filename = out_dir / f"cuts_{params.dataset}.json.gz"
 
     for f in (
-        out_labels_ali_filename,
-        out_aux_labels_ali_filename,
+        out_ali_filename,
         out_manifest_filename,
     ):
         if f.exists():
@@ -305,18 +313,26 @@ def main():
 
     logging.info(f"Processing {params.dataset}")
 
-    cut_set = compute_alignments(
-        model=model,
-        dl=dl,
-        #  labels_writer=labels_writer,
-        #  aux_labels_writer=aux_labels_writer,
-        params=params,
-        sp=sp,
+    with NumpyHdf5Writer(out_ali_filename) as ali_writer:
+        cut_set = compute_alignments(
+            model=model,
+            dl=dl,
+            ali_writer=ali_writer,
+            params=params,
+            sp=sp,
+        )
+
+    cut_set.to_file(out_manifest_filename)
+
+    logging.info(
+        f"For dataset {params.dataset}, its framewise token alignments are "
+        f"saved to {out_ali_filename} and the cut manifest "
+        f"file is {out_manifest_filename}. Number of cuts: {len(cut_set)}"
     )
 
 
-#  torch.set_num_interop_threads(1)
 #  torch.set_num_threads(1)
+#  torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
