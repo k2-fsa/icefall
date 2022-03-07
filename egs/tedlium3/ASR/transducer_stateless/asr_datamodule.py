@@ -210,7 +210,7 @@ class TedLiumAsrDataModule:
             logging.info(
                 f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
             )
-            # Design the value of num_frame_masks according to Lhotse's version.
+            # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
             num_frame_masks = 10
@@ -219,8 +219,6 @@ class TedLiumAsrDataModule:
             ).parameters["num_frame_masks"]
             if num_frame_masks_parameter.default == 1:
                 num_frame_masks = 2
-            else:
-                num_frame_masks = 10
             logging.info(f"Num frame mask: {num_frame_masks}")
             input_transforms.append(
                 SpecAugment(
