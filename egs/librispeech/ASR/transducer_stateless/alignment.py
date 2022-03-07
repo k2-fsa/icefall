@@ -29,12 +29,12 @@ from model import Transducer
 # acoustic frame indexes) and the vertical axis is `u` (representing
 # BPE tokens of the transcript).
 #
-# Beam search is used to find the path that with the
+# Beam search is used to find the path with the
 # highest log probabilities.
 #
-# It assumes that the maximum number of symbols that can be
+# It assumes the maximum number of symbols that can be
 # emitted per frame is 1. You can use `--modified-transducer-prob`
-# from train.py to train a model that satisfy this assumption.
+# from `./train.py` to train a model that satisfies this assumption.
 
 
 # AlignItem is a node in the lattice, where its
@@ -42,13 +42,13 @@ from model import Transducer
 # in the lattice.
 @dataclass
 class AlignItem:
-    # log prob of this
+    # log prob of this item originating from the start item
     log_prob: float
 
     # It contains framewise token alignment
     ys: List[int]
 
-    # It equals to number of non-zero entries in ys
+    # It equals to the number of non-zero entries in ys
     pos_u: int
 
 
@@ -232,13 +232,13 @@ def force_alignment(
     return ans
 
 
-def get_word_begin_frame(
+def get_word_starting_frame(
     ali: List[int], sp: spm.SentencePieceProcessor
 ) -> List[int]:
-    """Get the beginning of each word from the given alignments.
+    """Get the starting frame of each word from the given alignments.
 
     When a word is encoded into BPE tokens, the first token starts
-    with underscore "_", which can be used to identify the beginning
+    with underscore "_", which can be used to identify the starting frame
     of a word.
 
     Args:

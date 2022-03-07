@@ -43,7 +43,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from alignment import get_word_begin_frame
+from alignment import get_word_starting_frame
 from lhotse import CutSet, load_manifest
 from lhotse.dataset import K2SpeechRecognitionDataset, SingleCutSampler
 from lhotse.dataset.collation import collate_custom_field
@@ -121,7 +121,7 @@ def main():
 
     # key: cut.id
     # value: a list of pairs (word, time_in_second)
-    word_begin_time_dict = {}
+    word_starting_time_dict = {}
     for batch in dl:
         supervisions = batch["supervisions"]
         cuts = supervisions["cut"]
@@ -135,23 +135,25 @@ def main():
                 (cuts[i].features.num_frames - 1) // 2 - 1
             ) // 2 == token_alignment_length[i]
 
-            word_begin_frame = get_word_begin_frame(
+            word_starting_frame = get_word_starting_frame(
                 token_alignment[i, : token_alignment_length[i]].tolist(), sp=sp
             )
-            word_begin_time = [
+            word_starting_time = [
                 "{:.2f}".format(i * frame_shift_in_second)
-                for i in word_begin_frame
+                for i in word_starting_frame
             ]
 
             words = supervisions["text"][i].split()
 
-            assert len(word_begin_frame) == len(words)
-            word_begin_time_dict[cuts[i].id] = list(zip(words, word_begin_time))
+            assert len(word_starting_frame) == len(words)
+            word_starting_time_dict[cuts[i].id] = list(
+                zip(words, word_starting_time)
+            )
 
         # This is a demo script and we exit here after processing
         # one batch.
-        # You can find word starting time in the dict "word_begin_time_dict"
-        for cut_id, word_time in word_begin_time_dict.items():
+        # You can find word starting time in the dict "word_starting_time_dict"
+        for cut_id, word_time in word_starting_time_dict.items():
             print(f"{cut_id}\n{word_time}\n")
         break
 
