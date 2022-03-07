@@ -21,11 +21,13 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless/train.py \
+./streaming_pruned_transducer_stateless/train.py \
+  --short-chunk-size=25 \
   --world-size 4 \
-  --num-epochs 30 \
+  --full-libri 1 \
+  --num-epochs 50 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
+  --exp-dir streaming_pruned_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 300
 """
@@ -73,6 +75,12 @@ from icefall.utils import (
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="chunk length of dynamic training",
     )
 
     parser.add_argument(
@@ -252,6 +260,8 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            "dynamic_chunk_training": True,
+            "causal": True,  # Now only causal convolution is verified
             # parameters for decoder
             "embedding_dim": 512,
             # parameters for Noam
@@ -274,6 +284,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        causal=params.causal,
     )
     return encoder
 

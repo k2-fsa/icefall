@@ -18,18 +18,22 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
+./streaming_pruned_transducer_stateless/decode.py \
+        --simulate-streaming [True|False] \
+        --right-chunk-size [1/4/8/16/32/-1] \
+        --epoch 49 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
+        --exp-dir ./streaming_pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
+./streaming_pruned_transducer_stateless/decode.py \
+        --simulate-streaming [True|False] \
+        --right-chunk-size [1/4/8/16/32/-1] \
+        --epoch 49 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
+        --exp-dir ./streaming_pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
@@ -38,6 +42,7 @@ Usage:
 
 import argparse
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -52,12 +57,17 @@ from decoder import Decoder
 from joiner import Joiner
 from model import Transducer
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    load_checkpoint,
+    save_checkpoint,
+)
 from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -65,6 +75,29 @@ from icefall.utils import (
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="Whether to split fbanks into chunks to simulate forward conformer"
+        "in a streaming fashion",
+    )
+
+    parser.add_argument(
+        "--tailing-dummy-frames",
+        type=int,
+        default=20,
+        help="tailing dummy frames padded to the right,"
+        "only used during decoding",
+    )
+
+    parser.add_argument(
+        "--right-chunk-size",
+        type=int,
+        default=16,
+        help="right context to attend during decoding",
     )
 
     parser.add_argument(
@@ -86,7 +119,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="streaming_pruned_transducer_stateless/exp",
         help="The experiment dir",
     )
 
@@ -145,6 +178,8 @@ def get_params() -> AttributeDict:
             # parameters for decoder
             "embedding_dim": 512,
             "env_info": get_env_info(),
+            # model average
+            "save_averaged_model": False,
         }
     )
     return params
@@ -236,10 +271,26 @@ def decode_one_batch(
     # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
+    # Extra dummy tailing frames my reduce deletion error
+    # example WITHOUT padding:
+    # CHAPTER SEVEN ON THE RACES OF MAN
+    # example WITH padding:
+    # CHAPTER SEVEN ON THE RACES OF (MAN->*)
+    tailing_frames = (
+        torch.tensor([-23.0259])
+        .expand([feature.size(0), params.tailing_dummy_frames, 80])
+        .to(feature.device)
+    )
+    feature = torch.cat([feature, tailing_frames], dim=1)
+    supervisions["num_frames"] += params.tailing_dummy_frames
+
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
+    encoder_out, encoder_out_lens = model.encoder.streaming_forward(
+        x=feature,
+        x_lens=feature_lens,
+        chunk_size=params.right_chunk_size,
+        simulate_streaming=params.simulate_streaming,
     )
     hyps = []
     batch_size = encoder_out.size(0)
@@ -395,6 +446,9 @@ def main():
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    params.suffix += f"-chunk_size-{params.right_chunk_size}"
+    params.suffix += f"-{params.simulate_streaming}"
+    params.suffix += f"-tailing-dummy-frams-{params.tailing_dummy_frames}"
     if params.decoding_method == "beam_search":
         params.suffix += f"-beam-{params.beam_size}"
     else:
@@ -425,15 +479,24 @@ def main():
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model_path = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"  # noqa: E501
+        if os.path.isfile(model_path):
+            load_checkpoint(model_path, model)
+        else:
+            start = params.epoch - params.avg + 1
+            filenames = []
+            for i in range(start, params.epoch + 1):
+                if start >= 0:
+                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
 
+            if params.save_averaged_model:
+                save_checkpoint(
+                    filename=model_path,
+                    model=model,
+                )
     model.to(device)
     model.eval()
     model.device = device
