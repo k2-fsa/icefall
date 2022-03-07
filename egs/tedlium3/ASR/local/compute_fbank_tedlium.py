@@ -70,7 +70,7 @@ def compute_fbank_tedlium():
             cut_set = CutSet.from_manifests(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
-            ).trim_to_supervisions(keep_overlapping=False)
+            )
             if "train" in partition:
                 cut_set = (
                     cut_set
@@ -85,6 +85,8 @@ def compute_fbank_tedlium():
                 executor=ex,
                 storage_type=ChunkedLilcomHdf5Writer,
             )
+            # Split long cuts into many short and un-overlapping cuts
+            cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
             cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
 
 

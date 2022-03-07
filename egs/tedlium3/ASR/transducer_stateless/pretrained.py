@@ -25,7 +25,7 @@ Usage:
         --method greedy_search \
         --max-sym-per-frame 1 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 (2) beam search
 ./transducer_stateless/pretrained.py \
@@ -34,7 +34,7 @@ Usage:
         --method beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 (3) modified beam search
 ./transducer_stateless/pretrained.py \
@@ -43,7 +43,7 @@ Usage:
         --method modified_beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 You can also use `./transducer_stateless/exp/epoch-xx.pt`.
 

@@ -39,7 +39,7 @@ To use the generated file with `transducer_stateless/decode.py`, you can do:
         --exp-dir ./transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 1 \
+        --max-duration 100 \
         --bpe-model data/lang_bpe_500/bpe.model
 """
 

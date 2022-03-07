@@ -34,6 +34,15 @@ Usage:
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
+
+(3) modified beam search
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
 """
 
 

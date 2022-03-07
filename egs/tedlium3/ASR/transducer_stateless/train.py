@@ -397,7 +397,6 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-
     unk_id = params.unk_id
     y = convert_texts_into_ids(texts, unk_id, sp=sp)
     y = k2.RaggedTensor(y).to(device)

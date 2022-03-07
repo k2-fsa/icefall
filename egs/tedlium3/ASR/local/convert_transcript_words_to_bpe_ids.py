@@ -42,7 +42,7 @@ def convert_texts_into_ids(
     texts: List[str],
     unk_id: int,
     sp: spm.SentencePieceProcessor,
-) -> List[int]:
+) -> List[List[int]]:
     """
     Args:
       texts:
@@ -50,7 +50,7 @@ def convert_texts_into_ids(
       unk_id:
         A number id for the token '<unk>'.
     Returns:
-      Return a integer list of bpe ids.
+      Return an integer list of bpe ids.
     """
     y = []
     for text in texts:
