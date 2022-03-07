@@ -18,7 +18,7 @@
 
 """
 This script takes as input supervisions json dir "data/manifests"
-consisting of supervisions_TRAIN.json and does the following:
+consisting of supervisions_train.json and does the following:
 
 1. Generate train.text.
 

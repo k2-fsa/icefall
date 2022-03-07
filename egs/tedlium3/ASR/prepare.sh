@@ -3,7 +3,7 @@
 set -eou pipefail
 
 nj=15
-stage=-1
+stage=0
 stop_stage=100
 
 # We assume dl_dir (download dir) contains the following
@@ -13,14 +13,6 @@ stop_stage=100
 #  - $dl_dir/tedlium3
 #      You can find data, doc, legacy, LM, etc, inside it.
 #      You can download them from https://www.openslr.org/51
-#
-#  - $dl_dir/lm
-#      This directory contains the language model(LM) downloaded from
-#      https://huggingface.co/luomingshuang/tedlium3_lm. About how to get these LM files, you can know it
-#      from https://github.com/luomingshuang/Train_LM_with_kaldilm.
-#
-#     - lm_3_gram.arpa
-#     - lm_4_gram.arpa
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -54,19 +46,6 @@ log() {
 }
 
 log "dl_dir: $dl_dir"
-
-if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "Stage -1: Download LM"
-  # We assume that you have installed the git-lfs, if not, you could install it
-  # using: `sudo apt-get install git-lfs && git-lfs install`
-  mkdir -p $dl_dir/lm
-  git clone https://huggingface.co/luomingshuang/tedlium3_lm $dl_dir/lm
-
-  # If you want to download Tedlium 4-gram language models,
-  # use the following commands:
-  #wget --continue http://kaldi-asr.org/models/5/4gram_small.arpa.gz -P $dl_dir/lm/ || exit 1
-  #wget --continue http://kaldi-asr.org/models/5/4gram_big.arpa.gz -P $dl_dir/lm/ || exit 1
-fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
