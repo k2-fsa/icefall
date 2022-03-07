@@ -210,7 +210,7 @@ class TedLiumAsrDataModule:
             logging.info(
                 f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
             )
-            # Judge num_frame_masks for SpecAugment according to Lhotse'version
+            # Judge num_frame_masks according to Lhotse's version
             num_frame_masks = (
                 2
                 if (
