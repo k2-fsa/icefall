@@ -85,7 +85,7 @@ def get_parser():
         type=str,
         required=True,
         help="""Output directory.
-        It contains 3 generated files:
+        It contains 2 generated files:
 
         - token_ali_xxx.h5
         - cuts_xxx.json.gz
@@ -321,9 +321,6 @@ def main():
     )
     done_file.touch()
 
-
-#  torch.set_num_threads(1)
-#  torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
