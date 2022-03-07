@@ -32,7 +32,6 @@ import logging
 from pathlib import Path
 from typing import List
 
-import k2
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -88,19 +87,14 @@ def get_parser():
         help="""Output directory.
         It contains 3 generated files:
 
-        - labels_xxx.h5
-        - aux_labels_xxx.h5
+        - token_ali_xxx.h5
         - cuts_xxx.json.gz
 
         where xxx is the value of `--dataset`. For instance, if
-        `--dataset` is `train-clean-100`, it will contain 3 files:
+        `--dataset` is `train-clean-100`, it will contain 2 files:
 
-        - `labels_train-clean-100.h5`
-        - `aux_labels_train-clean-100.h5`
+        - `token_ali_train-clean-100.h5`
         - `cuts_train-clean-100.json.gz`
-
-        Note: Both labels_xxx.h5 and aux_labels_xxx.h5 contain framewise
-        alignment. The difference is that labels_xxx.h5 contains repeats.
         """,
     )
 
@@ -179,7 +173,6 @@ def compute_alignments(
         ys_list: List[List[int]] = sp.encode(texts, out_type=int)
 
         ali_list = []
-        word_begin_time_list = []
         for i in range(batch_size):
             # fmt: off
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
@@ -208,7 +201,7 @@ def compute_alignments(
 
         num_cuts += len(cut_list)
 
-        if batch_idx % 100 == 0:
+        if batch_idx % 2 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(
@@ -255,13 +248,10 @@ def main():
     out_ali_filename = out_dir / f"token_ali_{params.dataset}.h5"
     out_manifest_filename = out_dir / f"cuts_{params.dataset}.json.gz"
 
-    for f in (
-        out_ali_filename,
-        out_manifest_filename,
-    ):
-        if f.exists():
-            logging.info(f"{f} exists - skipping")
-            return
+    done_file = out_dir / f".{params.dataset}.done"
+    if done_file.is_file():
+        logging.info(f"{done_file} exists - skipping")
+        exit()
 
     logging.info("About to create model")
     model = get_transducer_model(params)
@@ -329,6 +319,7 @@ def main():
         f"saved to {out_ali_filename} and the cut manifest "
         f"file is {out_manifest_filename}. Number of cuts: {len(cut_set)}"
     )
+    done_file.touch()
 
 
 #  torch.set_num_threads(1)
