@@ -1,1 +1,1 @@
-tdnn_lstm_ctc/asr_datamodule.py
+../tdnn_lstm_ctc/asr_datamodule.py
