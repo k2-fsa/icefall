@@ -58,7 +58,6 @@ class Conv2dSubsampling(nn.Module):
             ExpScaleRelu(odim, 1, 1, speed=20.0),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
-        self.out_norm = nn.LayerNorm(odim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -77,7 +76,7 @@ class Conv2dSubsampling(nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
-        x = self.out_norm(x)
+        x = x * 0.1
         return x
 
 
