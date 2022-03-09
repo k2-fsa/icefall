@@ -38,6 +38,7 @@ class Decoder(nn.Module):
         embedding_dim: int,
         blank_id: int,
         context_size: int,
+        modify_embedding_layer: bool,
     ):
         """
         Args:
@@ -50,6 +51,8 @@ class Decoder(nn.Module):
           context_size:
             Number of previous words to use to predict the next word.
             1 means bigram; 2 means trigram. n means (n+1)-gram.
+          modify_embedding_layer:
+            Do or not do modify the decoder embedding layer.
         """
         super().__init__()
         self.embedding = nn.Embedding(
@@ -57,6 +60,16 @@ class Decoder(nn.Module):
             embedding_dim=embedding_dim,
             padding_idx=blank_id,
         )
+        self.modify_embedding_layer = modify_embedding_layer
+        if self.modify_embedding_layer:
+            self.embedding.weight = nn.Parameter(
+                (
+                    torch.randn(vocab_size, embedding_dim)
+                    * (embedding_dim ** -0.5)
+                ).detach()
+            )
+
+        self.embedding_dim = embedding_dim
         self.blank_id = blank_id
 
         assert context_size >= 1, context_size
@@ -84,6 +97,9 @@ class Decoder(nn.Module):
           Return a tensor of shape (N, U, embedding_dim).
         """
         embedding_out = self.embedding(y)
+        if self.modify_embedding_layer:
+            embedding_out = self.embedding(y) * (self.embedding_dim ** 0.5)
+
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:

@@ -180,6 +180,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--modify-embedding",
+        type=bool,
+        default=True,
+        help="When True, we modify the decoder embedding layer."
+        "When False, we don't modify the decoder embedding layer.",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -284,6 +292,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
         embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
+        modify_embedding_layer=params.modify_embedding,
     )
     return decoder
 
