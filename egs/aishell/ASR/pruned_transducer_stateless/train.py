@@ -140,7 +140,7 @@ def get_parser():
     parser.add_argument(
         "--lm-scale",
         type=float,
-        default=0.5,
+        default=0.25,
         help="The scale to smooth the loss with lm "
         "(output of prediction network) part.",
     )
@@ -152,7 +152,22 @@ def get_parser():
         help="The scale to smooth the loss with am (output of encoder network)"
         "part.",
     )
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
+    )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
     return parser
 
 
@@ -213,13 +228,13 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 256,
+            "attention_dim": 512,
             "nhead": 4,
-            "dim_feedforward": 1024,
+            "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             # parameters for decoder
-            "embedding_dim": 256,
+            "embedding_dim": 512,
             # parameters for Noam
             "warm_step": 30000,
             "env_info": get_env_info(),
@@ -272,9 +287,6 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        prune_range=params.prune_range,
-        lm_scale=params.lm_scale,
-        am_scale=params.am_scale,
     )
     return model
 
@@ -403,8 +415,15 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(x=feature, x_lens=feature_lens, y=y)
-        loss = simple_loss + pruned_loss
+        simple_loss, pruned_loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            lm_scale=params.lm_scale,
+            am_scale=params.am_scale,
+        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
