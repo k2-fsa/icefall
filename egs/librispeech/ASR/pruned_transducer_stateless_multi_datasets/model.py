@@ -46,8 +46,8 @@ class Transducer(nn.Module):
             is (N, U) and its output shape is (N, U, C). It should contain
             one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, C) and (N, U, C). Its
-            output shape is (N, T, U, C). Note that its output contains
+            It has two inputs with shapes: (N, T, U, C) and (N, T, U, C). Its
+            output shape is also (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()

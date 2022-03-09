@@ -246,6 +246,7 @@ def get_params() -> AttributeDict:
             "log_diagnostics": False,
             # parameters for conformer
             "feature_dim": 80,
+            "encoder_out_dim": 512,
             "subsampling_factor": 4,
             "attention_dim": 512,
             "nhead": 8,
@@ -267,7 +268,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.vocab_size,
+        output_dim=params.encoder_out_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -279,9 +280,12 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 
 
 def get_decoder_model(params: AttributeDict) -> nn.Module:
+    # Note: We set the embedding_dim of the decoder to
+    # vocab_size so that its output can be added with
+    # that of the encoder
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
     )
@@ -290,8 +294,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
+        input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
     )
     return joiner

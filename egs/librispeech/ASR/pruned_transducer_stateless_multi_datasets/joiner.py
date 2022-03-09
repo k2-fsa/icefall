@@ -20,11 +20,20 @@ import torch.nn.functional as F
 
 
 class Joiner(nn.Module):
-    def __init__(self, input_dim: int, inner_dim: int, output_dim: int):
+    def __init__(self, input_dim: int, output_dim: int):
+        """
+        Args:
+          input_dim:
+            Input dim of the joiner. It should be equal
+            to the output dim of the encoder and decoder.
+          output_dim:
+            Output dim of the joiner. It should be equal
+            to the vocab_size.
+        """
         super().__init__()
-
-        self.inner_linear = nn.Linear(input_dim, inner_dim)
-        self.output_linear = nn.Linear(inner_dim, output_dim)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.output_linear = nn.Linear(input_dim, output_dim)
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
@@ -40,11 +49,10 @@ class Joiner(nn.Module):
         """
         assert encoder_out.ndim == decoder_out.ndim == 4
         assert encoder_out.shape == decoder_out.shape
+        assert encoder_out.size(-1) == self.input_dim
 
-        logit = encoder_out + decoder_out
+        x = encoder_out + decoder_out
+        activations = torch.tanh(x)
+        logits = self.output_linear(activations)
 
-        logit = self.inner_linear(torch.tanh(logit))
-
-        output = self.output_linear(F.relu(logit))
-
-        return output
+        return logits
