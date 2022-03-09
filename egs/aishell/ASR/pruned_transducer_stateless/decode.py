@@ -127,11 +127,11 @@ def get_params() -> AttributeDict:
         {
             # parameters for conformer
             "feature_dim": 80,
-            "embedding_dim": 256,
+            "embedding_dim": 512,
             "subsampling_factor": 4,
-            "attention_dim": 256,
+            "attention_dim": 512,
             "nhead": 4,
-            "dim_feedforward": 1024,
+            "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             "env_info": get_env_info(),
