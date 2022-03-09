@@ -405,7 +405,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute transducer loss given the model and its inputs.
 
     Args:
       params:
@@ -599,7 +599,6 @@ def train_one_epoch(
             )
 
         if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
