@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from typing import Optional
+
 import k2
 import torch
 import torch.nn as nn
@@ -33,6 +35,8 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        decoder_giga: Optional[nn.Module] = None,
+        joiner_giga: Optional[nn.Module] = None,
     ):
         """
         Args:
@@ -49,20 +53,32 @@ class Transducer(nn.Module):
             It has two inputs with shapes: (N, T, U, C) and (N, T, U, C). Its
             output shape is also (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
+          decoder_giga:
+            The decoder for the GigaSpeech dataset.
+          joiner_giga:
+            The joiner for the GigaSpeech dataset.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
 
+        if decoder_giga is not None:
+            assert hasattr(decoder_giga, "blank_id")
+
         self.encoder = encoder
+
         self.decoder = decoder
         self.joiner = joiner
+
+        self.decoder_giga = decoder_giga
+        self.joiner_giga = joiner_giga
 
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        libri: bool = True,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -77,6 +93,9 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          libri:
+            True to use the decoder and joiner for the LibriSpeech dataset.
+            False to use the decoder and joiner for the GigaSpeech dataset.
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -114,8 +133,15 @@ class Transducer(nn.Module):
         # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
+        if libri:
+            decoder = self.decoder
+            joiner = self.joiner
+        else:
+            decoder = self.decoder_giga
+            joiner = self.joiner_giga
+
         # decoder_out: [B, S + 1, C]
-        decoder_out = self.decoder(sos_y_padded)
+        decoder_out = decoder(sos_y_padded)
 
         # Note: y does not start with SOS
         # y_padded : [B, S]
@@ -155,7 +181,7 @@ class Transducer(nn.Module):
         )
 
         # logits : [B, T, prune_range, C]
-        logits = self.joiner(am_pruned, lm_pruned)
+        logits = joiner(am_pruned, lm_pruned)
 
         pruned_loss = k2.rnnt_loss_pruned(
             logits=logits,

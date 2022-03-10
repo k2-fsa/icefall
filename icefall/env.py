@@ -97,6 +97,7 @@ def get_env_info() -> Dict[str, Any]:
         "lhotse-version": lhotse.__version__,
         "torch-cuda-available": torch.cuda.is_available(),
         "torch-cuda-version": torch.version.cuda,
+        "torch-version": torch.__version__,
         "python-version": sys.version[:3],
         "icefall-git-branch": get_git_branch_name(),
         "icefall-git-sha1": get_git_sha1(),

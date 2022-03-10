@@ -535,10 +535,12 @@ def train_one_epoch(
         The optimizer we are using.
       train_dl:
         Dataloader for the training dataset.
+      giga_train_dl:
+        Dataloader for the GigaSpeech training dataset.
       valid_dl:
         Dataloader for the validation dataset.
       rng:
-        For select which dataset to use.
+        For selecting which dataset to use.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
