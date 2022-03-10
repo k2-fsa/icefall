@@ -857,7 +857,8 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        self.norm = nn.LayerNorm(channels)
+        self.scale = ExpScale(1, speed=10.0, initial_scale=1.0)
+
          # shape: (channels, 1), broadcasts with (batch, channel, time).
         self.activation = SwishOffset()
 
@@ -891,7 +892,7 @@ class ConvolutionModule(nn.Module):
         x = self.depthwise_conv(x)
         # x is (batch, channels, time)
         x = x.permute(0, 2, 1)
-        x = self.norm(x)
+        x = self.scale(x)
         x = x.permute(0, 2, 1)
 
         x = self.activation(x)
