@@ -43,7 +43,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from alignment import get_word_starting_frame
+from alignment import get_word_starting_frames
 from lhotse import CutSet, load_manifest
 from lhotse.dataset import K2SpeechRecognitionDataset, SingleCutSampler
 from lhotse.dataset.collation import collate_custom_field
@@ -135,17 +135,17 @@ def main():
                 (cuts[i].features.num_frames - 1) // 2 - 1
             ) // 2 == token_alignment_length[i]
 
-            word_starting_frame = get_word_starting_frame(
+            word_starting_frames = get_word_starting_frames(
                 token_alignment[i, : token_alignment_length[i]].tolist(), sp=sp
             )
             word_starting_time = [
                 "{:.2f}".format(i * frame_shift_in_second)
-                for i in word_starting_frame
+                for i in word_starting_frames
             ]
 
             words = supervisions["text"][i].split()
 
-            assert len(word_starting_frame) == len(words)
+            assert len(word_starting_frames) == len(words)
             word_starting_time_dict[cuts[i].id] = list(
                 zip(words, word_starting_time)
             )

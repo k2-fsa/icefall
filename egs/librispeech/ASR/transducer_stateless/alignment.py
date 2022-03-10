@@ -29,6 +29,9 @@ from model import Transducer
 # acoustic frame indexes) and the vertical axis is `u` (representing
 # BPE tokens of the transcript).
 #
+# The notations `t` and `u` are from the paper
+# https://arxiv.org/pdf/1211.3711.pdf
+#
 # Beam search is used to find the path with the
 # highest log probabilities.
 #
@@ -37,12 +40,13 @@ from model import Transducer
 # from `./train.py` to train a model that satisfies this assumption.
 
 
-# AlignItem is a node in the lattice, where its
+# AlignItem is the ending node of a path originated from the starting node.
 # len(ys) equals to `t` and pos_u is the u coordinate
 # in the lattice.
 @dataclass
 class AlignItem:
-    # log prob of this item originating from the start item
+    # total log prob of the path that ends at this item.
+    # The path is originated from the starting node.
     log_prob: float
 
     # It contains framewise token alignment
@@ -234,7 +238,7 @@ def force_alignment(
     return ans
 
 
-def get_word_starting_frame(
+def get_word_starting_frames(
     ali: List[int], sp: spm.SentencePieceProcessor
 ) -> List[int]:
     """Get the starting frame of each word from the given token alignments.
