@@ -182,7 +182,7 @@ def get_parser():
     parser.add_argument(
         "--modify-embedding",
         type=bool,
-        default=True,
+        default=False,
         help="When True, we modify the decoder embedding layer."
         "When False, we don't modify the decoder embedding layer.",
     )
