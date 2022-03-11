@@ -59,6 +59,14 @@ class Conv2dSubsampling(nn.Module):
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = BasicNorm(odim)
+        self._reset_parameters()
+
+    def _reset_parameters(self):
+        # init weights with smaller than default variance, because otherwise
+        # they learn too slowly in relative terms (assuming we're training with adam).
+        nn.init.normal_(self.conv[0].weight, std=0.05)
+        nn.init.constant_(self.conv[0].bias, 0.0)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
