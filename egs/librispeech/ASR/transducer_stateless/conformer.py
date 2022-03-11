@@ -160,7 +160,7 @@ class ConformerEncoderLayer(nn.Module):
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.01),
-            SwishExpScale(dim_feedforward, speed=20.0, in_scale=0.5),
+            SwishExpScale(dim_feedforward, speed=20.0, in_scale=2.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
@@ -169,7 +169,7 @@ class ConformerEncoderLayer(nn.Module):
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.01),
-            SwishExpScale(dim_feedforward, speed=20.0, in_scale=0.5),
+            SwishExpScale(dim_feedforward, speed=20.0, in_scale=2.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
         )
