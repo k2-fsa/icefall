@@ -1,4 +1,4 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 
 import k2
 import torch
@@ -64,7 +63,9 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
-        modified_transducer_prob: float = 0.0,
+        prune_range: int = 5,
+        am_scale: float = 0.0,
+        lm_scale: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -76,10 +77,23 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
-          modified_transducer_prob:
-            The probability to use modified transducer loss.
+          prune_range:
+            The prune range for rnnt loss, it means how many symbols(context)
+            we are considering for each frame to compute the loss.
+          am_scale:
+            The scale to smooth the loss with am (output of encoder network)
+            part
+          lm_scale:
+            The scale to smooth the loss with lm (output of predictor network)
+            part
         Returns:
           Return the transducer loss.
+
+        Note:
+           Regarding am_scale & lm_scale, it will make the loss-function one of
+           the form:
+              lm_scale * lm_probs + am_scale * am_probs +
+              (1-lm_scale-am_scale) * combined_probs
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
@@ -97,47 +111,59 @@ class Transducer(nn.Module):
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
 
+        # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
-        sos_y_padded = sos_y_padded.to(torch.int64)
 
+        # decoder_out: [B, S + 1, C]
         decoder_out = self.decoder(sos_y_padded)
 
-        # +1 here since a blank is prepended to each utterance.
-        logits = self.joiner(
-            encoder_out=encoder_out,
-            decoder_out=decoder_out,
-            encoder_out_len=x_lens,
-            decoder_out_len=y_lens + 1,
-        )
-
-        # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
+        # y_padded : [B, S]
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        # We don't put this `import` at the beginning of the file
-        # as it is required only in the training, not during the
-        # reference stage
-        import optimized_transducer
+        y_padded = y_padded.to(torch.int64)
+        boundary = torch.zeros(
+            (x.size(0), 4), dtype=torch.int64, device=x.device
+        )
+        boundary[:, 2] = y_lens
+        boundary[:, 3] = x_lens
 
-        assert 0 <= modified_transducer_prob <= 1
-
-        if modified_transducer_prob == 0:
-            one_sym_per_frame = False
-        elif random.random() < modified_transducer_prob:
-            # random.random() returns a float in the range [0, 1)
-            one_sym_per_frame = True
-        else:
-            one_sym_per_frame = False
-
-        loss = optimized_transducer.transducer_loss(
-            logits=logits,
-            targets=y_padded,
-            logit_lengths=x_lens,
-            target_lengths=y_lens,
-            blank=blank_id,
+        simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+            lm=decoder_out,
+            am=encoder_out,
+            symbols=y_padded,
+            termination_symbol=blank_id,
+            lm_only_scale=lm_scale,
+            am_only_scale=am_scale,
+            boundary=boundary,
             reduction="sum",
-            one_sym_per_frame=one_sym_per_frame,
-            from_log_softmax=False,
+            return_grad=True,
         )
 
-        return loss
+        # ranges : [B, T, prune_range]
+        ranges = k2.get_rnnt_prune_ranges(
+            px_grad=px_grad,
+            py_grad=py_grad,
+            boundary=boundary,
+            s_range=prune_range,
+        )
+
+        # am_pruned : [B, T, prune_range, C]
+        # lm_pruned : [B, T, prune_range, C]
+        am_pruned, lm_pruned = k2.do_rnnt_pruning(
+            am=encoder_out, lm=decoder_out, ranges=ranges
+        )
+
+        # logits : [B, T, prune_range, C]
+        logits = self.joiner(am_pruned, lm_pruned)
+
+        pruned_loss = k2.rnnt_loss_pruned(
+            logits=logits,
+            symbols=y_padded,
+            ranges=ranges,
+            termination_symbol=blank_id,
+            boundary=boundary,
+            reduction="sum",
+        )
+
+        return (simple_loss, pruned_loss)

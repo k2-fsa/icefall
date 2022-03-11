@@ -77,7 +77,7 @@ def get_parser():
     parser.add_argument(
         "--master-port",
         type=int,
-        default=12354,
+        default=12350,
         help="Master port to use for DDP training.",
     )
 
@@ -108,7 +108,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="pruned_transducer_stateless/exp-4-gpus-300",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -658,7 +658,7 @@ def run(rank, world_size, args):
         # Keep only utterances with duration between 1 second and max seconds
         # Here, we set max as 20.0.
         # If you want to use a big max-duration, you can set it as 17.0.
-        return 1.0 <= c.duration <= 20.0
+        return 1.0 <= c.duration <= 17.0
 
     num_in_total = len(train_cuts)
 

@@ -71,7 +71,7 @@ class TedLiumAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/fbank"),
+            default=Path("data/fbank_overlap_false"),
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
@@ -348,7 +348,6 @@ class TedLiumAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        print(self.args.manifest_dir)
         return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
 
     @lru_cache()

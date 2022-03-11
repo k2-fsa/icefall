@@ -90,6 +90,7 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
+        print(pieces, token2id)
         pieces = [token2id[i] for i in pieces]
 
         for i in range(len(pieces) - 1):
