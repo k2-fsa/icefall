@@ -221,18 +221,21 @@ class ExpScale(torch.nn.Module):
 
 
 
-def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float) -> Tensor:
+def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float, in_scale: float) -> Tensor:
     # double-swish, implemented/approximated as offset-swish
+    if in_scale != 1.0:
+        x = x * in_scale
     x = (x * torch.sigmoid(x - 1.0))
     x = x * (scale * speed).exp()
     return x
 
 class SwishExpScaleFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, scale: Tensor, speed: float) -> Tensor:
+    def forward(ctx, x: Tensor, scale: Tensor, speed: float, in_scale: float) -> Tensor:
         ctx.save_for_backward(x.detach(), scale.detach())
         ctx.speed = speed
-        return _exp_scale_swish(x, scale, speed)
+        ctx.in_scale = in_scale
+        return _exp_scale_swish(x, scale, speed, in_scale)
 
     @staticmethod
     def backward(ctx, y_grad: Tensor) -> Tensor:
@@ -240,21 +243,23 @@ class SwishExpScaleFunction(torch.autograd.Function):
         x.requires_grad = True
         scale.requires_grad = True
         with torch.enable_grad():
-            y = _exp_scale_swish(x, scale, ctx.speed)
+            y = _exp_scale_swish(x, scale, ctx.speed, ctx.in_scale)
             y.backward(gradient=y_grad)
-            return x.grad, scale.grad, None
+            return x.grad, scale.grad, None, None
 
 
 class SwishExpScale(torch.nn.Module):
     # combines ExpScale and a Swish (actually the ExpScale is after the Swish).
     # caution: need to specify name for speed, e.g. SwishExpScale(50, speed=4.0)
-    def __init__(self, *shape, speed: float = 1.0):
+    #
+    def __init__(self, *shape, speed: float = 1.0, in_scale: float = 1.0):
         super(SwishExpScale, self).__init__()
+        self.in_scale = in_scale
         self.scale = nn.Parameter(torch.zeros(*shape))
         self.speed = speed
 
     def forward(self, x: Tensor) -> Tensor:
-        return SwishExpScaleFunction.apply(x, self.scale, self.speed)
+        return SwishExpScaleFunction.apply(x, self.scale, self.speed, self.in_scale)
     # x = (x * torch.sigmoid(x))
     # x = (x * torch.sigmoid(x))
     # x = x * (self.scale * self.speed).exp()
