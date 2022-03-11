@@ -316,7 +316,7 @@ class DerivBalancerFunction(torch.autograd.Function):
                 channel_dim: int,
                 threshold: float = 0.05,
                 max_factor: float = 0.05,
-                min_abs: float = 0.2) -> Tensor:
+                min_abs: float = 0.5) -> Tensor:
         if x.requires_grad:
             if channel_dim < 0:
                 channel_dim += x.ndim
@@ -452,7 +452,7 @@ class DerivBalancer(torch.nn.Module):
     def __init__(self, channel_dim: int,
                  threshold: float = 0.05,
                  max_factor: float = 0.02,
-                 min_abs: float = 0.2):
+                 min_abs: float = 0.5):
         super(DerivBalancer, self).__init__()
         self.channel_dim = channel_dim
         self.threshold = threshold
