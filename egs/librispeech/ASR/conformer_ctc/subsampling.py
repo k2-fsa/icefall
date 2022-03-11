@@ -451,7 +451,7 @@ class DerivBalancer(torch.nn.Module):
     """
     def __init__(self, channel_dim: int,
                  threshold: float = 0.05,
-                 max_factor: float = 0.02,
+                 max_factor: float = 0.01,
                  min_abs: float = 0.5):
         super(DerivBalancer, self).__init__()
         self.channel_dim = channel_dim
