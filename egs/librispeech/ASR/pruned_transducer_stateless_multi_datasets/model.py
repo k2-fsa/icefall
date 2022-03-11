@@ -44,7 +44,8 @@ class Transducer(nn.Module):
             It is the transcription network in the paper. Its accepts
             two inputs: `x` of (N, T, C) and `x_lens` of shape (N,).
             It returns two tensors: `logits` of shape (N, T, C) and
-            `logit_lens` of shape (N,).
+            `logit_lens` of shape (N,). It should have an attribute:
+            output_dim.
           decoder:
             It is the prediction network in the paper. Its input shape
             is (N, U) and its output shape is (N, U, C). It should contain
@@ -70,8 +71,47 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
+        vocab_size = self.joiner.output_dim
+        joiner_dim = self.joiner.input_dim
+
+        # Note: self.joiner.output_dim is equal to vocab_size.
+        # This layer is to transform the decoder output for computing
+        # simple loss
+        self.simple_decoder_linear = nn.Linear(
+            self.decoder.embedding_dim, vocab_size
+        )
+
+        # This layer is to transform the encoder output for computing
+        # simple loss
+        self.simple_encoder_linear = nn.Linear(
+            self.encoder.output_dim, vocab_size
+        )
+
+        # Transform the output of decoder so that it can be added
+        # with the output of encoder in the joiner.
+        self.decoder_linear = nn.Linear(vocab_size, joiner_dim)
+
+        # Transform the output of encoder so that it can be added
+        # with the output of decoder in the joiner
+        self.encoder_linear = nn.Linear(vocab_size, joiner_dim)
+
         self.decoder_giga = decoder_giga
         self.joiner_giga = joiner_giga
+
+        if decoder_giga is not None:
+            self.simple_decoder_giga_linear = nn.Linear(
+                self.decoder.embedding_dim, vocab_size
+            )
+            self.simple_encoder_giga_linear = nn.Linear(
+                self.encoder.output_dim, vocab_size
+            )
+            self.decoder_giga_linear = nn.Linear(vocab_size, joiner_dim)
+            self.encoder_giga_linear = nn.Linear(vocab_size, joiner_dim)
+        else:
+            self.simple_decoder_giga_linear = None
+            self.simple_encoder_giga_linear = None
+            self.decoder_giga_linear = None
+            self.encoder_giga_linear = None
 
     def forward(
         self,
@@ -136,9 +176,17 @@ class Transducer(nn.Module):
         if libri:
             decoder = self.decoder
             joiner = self.joiner
+            simple_decoder_linear = self.simple_decoder_linear
+            simple_encoder_linear = self.simple_encoder_linear
+            decoder_linear = self.decoder_linear
+            encoder_linear = self.encoder_linear
         else:
             decoder = self.decoder_giga
             joiner = self.joiner_giga
+            simple_decoder_linear = self.simple_decoder_giga_linear
+            simple_encoder_linear = self.simple_encoder_giga_linear
+            decoder_linear = self.decoder_giga_linear
+            encoder_linear = self.encoder_giga_linear
 
         # decoder_out: [B, S + 1, C]
         decoder_out = decoder(sos_y_padded)
@@ -154,9 +202,12 @@ class Transducer(nn.Module):
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
+        simple_decoder_out = simple_decoder_linear(decoder_out)
+        simple_encoder_out = simple_encoder_linear(encoder_out)
+
         simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-            lm=decoder_out,
-            am=encoder_out,
+            lm=simple_decoder_out,
+            am=simple_encoder_out,
             symbols=y_padded,
             termination_symbol=blank_id,
             lm_only_scale=lm_scale,
@@ -177,8 +228,11 @@ class Transducer(nn.Module):
         # am_pruned : [B, T, prune_range, C]
         # lm_pruned : [B, T, prune_range, C]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
-            am=encoder_out, lm=decoder_out, ranges=ranges
+            am=simple_encoder_out, lm=simple_decoder_out, ranges=ranges
         )
+
+        am_pruned = encoder_linear(am_pruned)
+        lm_pruned = decoder_linear(lm_pruned)
 
         # logits : [B, T, prune_range, C]
         logits = joiner(am_pruned, lm_pruned)

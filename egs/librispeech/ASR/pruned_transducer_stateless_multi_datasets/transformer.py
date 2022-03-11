@@ -99,6 +99,7 @@ class Transformer(EncoderInterface):
             num_layers=num_encoder_layers,
             norm=encoder_norm,
         )
+        self.output_dim = d_model
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor

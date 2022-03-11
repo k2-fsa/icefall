@@ -290,6 +290,8 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "attention_dim": 512,
+            "decoder_embedding_dim": 512,
+            "joiner_dim": 1024,  # input dim of the joiner
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
@@ -320,7 +322,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.attention_dim,
+        embedding_dim=params.decoder_embedding_dim,
         blank_id=params.blank_id,
         context_size=params.context_size,
     )
@@ -329,7 +331,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.attention_dim,
+        input_dim=params.joiner_dim,
         output_dim=params.vocab_size,
     )
     return joiner
