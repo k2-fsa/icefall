@@ -159,7 +159,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
-                          max_factor=0.025),
+                          max_factor=0.01),
             SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
@@ -168,7 +168,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
-                          max_factor=0.025),
+                          max_factor=0.01),
             SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward, d_model),
@@ -720,7 +720,7 @@ class RelPositionMultiheadAttention(nn.Module):
             )
             key_padding_mask = key_padding_mask.to(torch.bool)
 
-        q = (q.contiguous() * scaling).view(tgt_len, bsz, num_heads, head_dim)
+        q = (q * scaling).contiguous().view(tgt_len, bsz, num_heads, head_dim)
         k = k.contiguous().view(-1, bsz, num_heads, head_dim)
         v = v.contiguous().view(-1, bsz * num_heads, head_dim).transpose(0, 1)
 
