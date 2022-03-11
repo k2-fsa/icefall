@@ -616,7 +616,6 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         scaling = float(head_dim) ** -0.5
-        q = q * scaling
 
         if torch.equal(query, key) and torch.equal(key, value):
             # self-attention
@@ -721,7 +720,7 @@ class RelPositionMultiheadAttention(nn.Module):
             )
             key_padding_mask = key_padding_mask.to(torch.bool)
 
-        q = q.contiguous().view(tgt_len, bsz, num_heads, head_dim)
+        q = (q.contiguous() * scaling).view(tgt_len, bsz, num_heads, head_dim)
         k = k.contiguous().view(-1, bsz, num_heads, head_dim)
         v = v.contiguous().view(-1, bsz * num_heads, head_dim).transpose(0, 1)
 
