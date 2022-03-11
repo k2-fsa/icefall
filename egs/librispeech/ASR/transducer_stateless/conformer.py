@@ -229,10 +229,17 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = residual + self.dropout(src_att)
+        # natural rms scale of mha output is about 2 to 6. scaling down by 0.1 takes it
+        # to 0.2 to 0.6, which is suitable to add to the inputs assuming the output
+        # of the previous convolution layer had a magnitude of around 1.0
+        # (this magnitude of 1.0, or a bit less, like 0.3, is learned but is
+        # dictated by considerations of what is done to the output of the
+        # encoder.
+        post_scale_mha = 0.1
+        src = residual + post_scale_mha * self.dropout(src_att)
 
         # convolution module
-        src = residual + self.dropout(self.conv_module(self.scale_conv(src)))
+        src = src + self.dropout(self.conv_module(self.scale_conv(src)))
 
         # feed forward module
         src = src +  self.dropout(self.feed_forward(self.scale_ff(src)))
@@ -891,12 +898,14 @@ class ConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
+
+        # TODO: can have a learned scale in here, or a fixed one.
+        x = self.activation(x)
+
         # x is (batch, channels, time)
         x = x.permute(0, 2, 1)
         x = self.scale(x)
         x = x.permute(0, 2, 1)
-
-        x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
