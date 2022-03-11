@@ -181,6 +181,7 @@ class ConformerEncoderLayer(nn.Module):
         self.scale_ff = ExpScale(1, speed=10.0, initial_scale=0.5)
         self.scale_ff_macaron = ExpScale(1, speed=10.0, initial_scale=0.5)
 
+        self.pre_norm_final = Identity()
         self.norm_final = BasicNorm(d_model)
 
         self.dropout = nn.Dropout(dropout)
@@ -244,7 +245,7 @@ class ConformerEncoderLayer(nn.Module):
         # feed forward module
         src = src +  self.dropout(self.feed_forward(self.scale_ff(src)))
 
-        src = self.norm_final(src)
+        src = self.norm_final(self.pre_norm_final(src))
 
         return src
 
@@ -930,8 +931,9 @@ class SwishOffset(torch.nn.Module):
         return x * torch.sigmoid(x + self.offset)
 
 
-def identity(x):
-    return x
+class Identity(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        return x
 
 
 class RandomCombine(torch.nn.Module):
