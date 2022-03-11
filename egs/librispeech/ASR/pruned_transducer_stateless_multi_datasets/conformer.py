@@ -180,9 +180,6 @@ class ConformerEncoderLayer(nn.Module):
         self.ff_scale = 0.5
 
         self.norm_conv = nn.LayerNorm(d_model)  # for the CNN module
-        self.norm_final = nn.LayerNorm(
-            d_model
-        )  # for the final output of the block
 
         self.dropout = nn.Dropout(dropout)
 
@@ -253,9 +250,6 @@ class ConformerEncoderLayer(nn.Module):
         src = residual + self.ff_scale * self.dropout(self.feed_forward(src))
         if not self.normalize_before:
             src = self.norm_ff(src)
-
-        if self.normalize_before:
-            src = self.norm_final(src)
 
         return src
 
