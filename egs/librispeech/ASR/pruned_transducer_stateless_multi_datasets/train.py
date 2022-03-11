@@ -181,6 +181,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--modified-transducer-prob",
+        type=float,
+        default=0.25,
+        help="""The probability to use modified transducer loss.
+        In modified transduer, it limits the maximum number of symbols
+        per frame to 1. See also the option --max-sym-per-frame in
+        pruned_transducer_stateless_multi_datasets/decode.py
+        """,
+    )
+
+    parser.add_argument(
         "--prune-range",
         type=int,
         default=5,
@@ -498,6 +509,7 @@ def compute_loss(
             x_lens=feature_lens,
             y=y,
             libri=libri,
+            modified_transducer_prob=params.modified_transducer_prob,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
