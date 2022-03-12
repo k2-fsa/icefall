@@ -87,7 +87,7 @@ jobs:
           export PYTHONPATH=$PWD:PYTHONPATH
           dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
             --max-sym-per-frame 1 \
             --checkpoint $dir/exp/pretrained.pt \
@@ -102,7 +102,7 @@ jobs:
           export PYTHONPATH=$PWD:PYTHONPATH
           dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
             --max-sym-per-frame 2 \
             --checkpoint $dir/exp/pretrained.pt \
@@ -117,7 +117,7 @@ jobs:
           export PYTHONPATH=$PWD:PYTHONPATH
           dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
             --max-sym-per-frame 3 \
             --checkpoint $dir/exp/pretrained.pt \
@@ -132,7 +132,7 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./pruned_transducer_stateless/pretrained.py \
             --method beam_search \
             --beam-size 4 \
             --checkpoint $dir/exp/pretrained.pt \
@@ -147,7 +147,7 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
-          ./transducer_stateless/pretrained.py \
+          ./pruned_transducer_stateless/pretrained.py \
             --method modified_beam_search \
             --beam-size 4 \
             --checkpoint $dir/exp/pretrained.pt \
