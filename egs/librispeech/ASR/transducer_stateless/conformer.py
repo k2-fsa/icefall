@@ -171,7 +171,7 @@ class ConformerEncoderLayer(nn.Module):
                           max_factor=0.01),
             SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model),
+            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
@@ -208,9 +208,6 @@ class ConformerEncoderLayer(nn.Module):
         """
 
         # macaron style feed forward module
-        residual = src
-
-
         src = src + self.dropout(self.feed_forward_macaron(src))
 
 
@@ -872,6 +869,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
+            initial_scale=0.5
         )
 
     def forward(self, x: Tensor) -> Tensor:
