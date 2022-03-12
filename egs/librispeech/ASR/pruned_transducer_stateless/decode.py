@@ -33,6 +33,15 @@ Usage:
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
+
+(3) modified beam search
+./pruned_transducer_stateless/decode.py \
+        --epoch 28 \
+        --avg 15 \
+        --exp-dir ./pruned_transducer_stateless/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
 """
 
 
@@ -46,14 +55,10 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import beam_search, greedy_search
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
-from model import Transducer
+from beam_search import beam_search, greedy_search, modified_beam_search
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -104,6 +109,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - beam_search
+          - modified_beam_search
         """,
     )
 
@@ -111,7 +117,8 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --decoding-method is beam_search",
+        help="""Used only when --decoding-method is
+        beam_search or modified_beam_search""",
     )
 
     parser.add_argument(
@@ -125,76 +132,11 @@ def get_parser():
         "--max-sym-per-frame",
         type=int,
         default=3,
-        help="Maximum number of symbols per frame",
+        help="""Maximum number of symbols per frame.
+        Used only when --decoding_method is greedy_search""",
     )
 
     return parser
-
-
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            # parameters for conformer
-            "feature_dim": 80,
-            "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            "vgg_frontend": False,
-            # parameters for decoder
-            "embedding_dim": 512,
-            "env_info": get_env_info(),
-        }
-    )
-    return params
-
-
-def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
-        num_features=params.feature_dim,
-        output_dim=params.vocab_size,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
-    )
-    return encoder
-
-
-def get_decoder_model(params: AttributeDict) -> nn.Module:
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        embedding_dim=params.embedding_dim,
-        blank_id=params.blank_id,
-        context_size=params.context_size,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict) -> nn.Module:
-    joiner = Joiner(
-        input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
-        output_dim=params.vocab_size,
-    )
-    return joiner
-
-
-def get_transducer_model(params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-    )
-    return model
 
 
 def decode_one_batch(
@@ -256,6 +198,10 @@ def decode_one_batch(
             )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
@@ -391,11 +337,15 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search", "beam_search")
+    assert params.decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if params.decoding_method == "beam_search":
+    if "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
@@ -468,9 +418,6 @@ def main():
 
     logging.info("Done!")
 
-
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
