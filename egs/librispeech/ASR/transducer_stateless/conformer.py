@@ -162,7 +162,7 @@ class ConformerEncoderLayer(nn.Module):
                           max_factor=0.01),
             SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model),
+            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )
 
         self.feed_forward_macaron = nn.Sequential(

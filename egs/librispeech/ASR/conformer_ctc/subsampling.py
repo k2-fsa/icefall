@@ -407,12 +407,13 @@ class BasicNorm(torch.nn.Module):
 
 
 class ScaledLinear(nn.Linear):
-    def __init__(self, *args, scale_speed=5.0,  **kwargs):
+    def __init__(self, *args, scale_speed=5.0, initial_scale=1.0, **kwargs):
         super(ScaledLinear, self).__init__(*args, **kwargs)
-        self.weight_scale = nn.Parameter(torch.zeros(()))
+        initial_scale = (torch.tensor(initial_scale).log() / scale_speed)
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         self.scale_speed = scale_speed
         if self.bias is not None:
-            self.bias_scale = nn.Parameter(torch.zeros(()))
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
             self.register_parameter('bias_scale', None)
 
@@ -431,12 +432,14 @@ class ScaledLinear(nn.Linear):
 
 
 class ScaledConv1d(nn.Conv1d):
-    def __init__(self, *args, scale_speed = 5.0, **kwargs):
+    def __init__(self, *args, scale_speed = 5.0,
+                 initial_scale=1.0, **kwargs):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         self.scale_speed = scale_speed
-        self.weight_scale = nn.Parameter(torch.zeros(()))
+        initial_scale = (torch.tensor(initial_scale).log() / scale_speed)
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
-            self.bias_scale = nn.Parameter(torch.zeros(()))
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
             self.register_parameter('bias_scale', None)
 
@@ -459,12 +462,13 @@ class ScaledConv1d(nn.Conv1d):
 
 
 class ScaledConv2d(nn.Conv2d):
-    def __init__(self, *args, scale_speed=5.0, **kwargs):
+    def __init__(self, *args, scale_speed=5.0, initial_scale=1.0, **kwargs):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         self.scale_speed = scale_speed
-        self.weight_scale = nn.Parameter(torch.zeros(()))
+        initial_scale = (torch.tensor(initial_scale).log() / scale_speed)
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
-            self.bias_scale = nn.Parameter(torch.zeros(()))
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
             self.register_parameter('bias_scale', None)
 
