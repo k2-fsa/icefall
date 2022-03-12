@@ -421,7 +421,7 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         self.in_proj = ScaledLinear(embed_dim, 3 * embed_dim, bias=True)
-        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True)
+        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True, initial_scale=0.25)
 
         # linear transformation for positional encoding.
         self.linear_pos = ScaledLinear(embed_dim, embed_dim, bias=False)
@@ -869,7 +869,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.5
+            initial_scale=0.25
         )
 
     def forward(self, x: Tensor) -> Tensor:
