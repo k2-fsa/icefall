@@ -231,7 +231,7 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = residual + post_scale_mha(self.dropout(src_att))
+        src = residual + self.post_scale_mha(self.dropout(src_att))
 
         # convolution module
         src = src + self.dropout(self.conv_module(self.scale_conv(src)))
