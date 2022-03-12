@@ -44,20 +44,20 @@ class Conv2dSubsampling(nn.Module):
         assert idim >= 7
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(
+            ScaledConv2d(
                 in_channels=1, out_channels=odim, kernel_size=3, stride=2
             ),
             DerivBalancer(channel_dim=1, threshold=0.05,
                           max_factor=0.01),
             ExpScaleRelu(odim, 1, 1, speed=20.0),
-            nn.Conv2d(
+            ScaledConv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
             DerivBalancer(channel_dim=1, threshold=0.05,
                           max_factor=0.01),
             ExpScaleRelu(odim, 1, 1, speed=20.0),
         )
-        self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
+        self.out = ScaledLinear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = BasicNorm(odim)
         self._reset_parameters()
 
@@ -221,21 +221,18 @@ class ExpScale(torch.nn.Module):
 
 
 
-def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float, in_scale: float) -> Tensor:
+def _exp_scale_swish(x: Tensor, scale: Tensor, speed: float) -> Tensor:
     # double-swish, implemented/approximated as offset-swish
-    if in_scale != 1.0:
-        x = x * in_scale
     x = (x * torch.sigmoid(x - 1.0))
     x = x * (scale * speed).exp()
     return x
 
 class SwishExpScaleFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, scale: Tensor, speed: float, in_scale: float) -> Tensor:
+    def forward(ctx, x: Tensor, scale: Tensor, speed: float) -> Tensor:
         ctx.save_for_backward(x.detach(), scale.detach())
         ctx.speed = speed
-        ctx.in_scale = in_scale
-        return _exp_scale_swish(x, scale, speed, in_scale)
+        return _exp_scale_swish(x, scale, speed)
 
     @staticmethod
     def backward(ctx, y_grad: Tensor) -> Tensor:
@@ -243,25 +240,24 @@ class SwishExpScaleFunction(torch.autograd.Function):
         x.requires_grad = True
         scale.requires_grad = True
         with torch.enable_grad():
-            y = _exp_scale_swish(x, scale, ctx.speed, ctx.in_scale)
+            y = _exp_scale_swish(x, scale, ctx.speed)
             y.backward(gradient=y_grad)
-            return x.grad, scale.grad, None, None
+            return x.grad, scale.grad, None
 
 
 class SwishExpScale(torch.nn.Module):
     # combines ExpScale and a Swish (actually the ExpScale is after the Swish).
     # caution: need to specify name for speed, e.g. SwishExpScale(50, speed=4.0)
     #
-    def __init__(self, *shape, speed: float = 1.0, in_scale: float = 1.0):
+    def __init__(self, *shape, speed: float = 1.0):
         super(SwishExpScale, self).__init__()
-        self.in_scale = in_scale
-        initial_log_scale = torch.tensor(1.0 / in_scale).log() / speed
-        initial_log_scale = (torch.ones(*shape) * initial_log_scale).detach()
+
+        initial_log_scale = torch.zeros(()).detach()
         self.scale = nn.Parameter(initial_log_scale)
         self.speed = speed
 
     def forward(self, x: Tensor) -> Tensor:
-        return SwishExpScaleFunction.apply(x, self.scale, self.speed, self.in_scale)
+        return SwishExpScaleFunction.apply(x, self.scale, self.speed)
     # x = (x * torch.sigmoid(x))
     # x = (x * torch.sigmoid(x))
     # x = x * (self.scale * self.speed).exp()
@@ -383,12 +379,11 @@ class BasicNorm(torch.nn.Module):
         interprted as an offset from the input's ndim if negative.
         shis is NOT the num_channels; it should typically be one of
         {-2, -1, 0, 1, 2, 3}.
-      initial_eps_scale:  a constant that determines the initial
-        "epsilon" that we add as ballast in:
-             scale = output_scale * ((input_vec**2).sum() + epsilon)**-0.5
-        Note: our epsilon is actually large, not small, but we keep the name
-        to indicate the connection with normal LayerNorm.  We set
-        epsilon initially to num_channels * initial_eps_scale.
+      initial_eps: the initial "epsilon" that we add as ballast in:
+             scale = ((input_vec**2).mean() + epsilon)**-0.5
+        Note: our epsilon is actually large, but we keep the name
+        to indicate the connection with normal LayerNorm.
+
       speed:  a scaling factor that can be interpreted as scaling the learning
         rate for this module.  CAUTION: the default value of 10.0 intended to be
         used with Adam or amsgrad-type optimizers, e.g. Adam or Noam.
@@ -398,42 +393,101 @@ class BasicNorm(torch.nn.Module):
     def __init__(self,
                  num_channels: int,
                  channel_dim: int = -1,  # CAUTION: see documentation.
-                 initial_eps_scale: float = 0.25,
-                 speed: float = 10.0):
+                 eps: float = 0.25):
         super(BasicNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
-        self.speed = speed
-        eps = num_channels * initial_eps_scale
-        # log_eps = log(eps) / speed
-        log_eps = torch.tensor(eps).log() / speed
-        self.log_eps = nn.Parameter(log_eps.detach())
-        # initial output-scale, to get LayerNorm-like behavior, is
-        # sqrt(num_channels).
-        initial_scale = torch.tensor(num_channels ** 0.5).log() / speed
-        self.log_scale = nn.Parameter(initial_scale.detach())
-
-    def _inner(self, x: Tensor) -> Tensor:
-        # inner product on last dim of x, keeping the dimension,
-        # i.e. torch.sum(x**2, dim=-1, keepdim=True), but more
-        # efficient.
-        if hasattr(torch, 'inner'):
-            return torch.inner(x).unsqueeze(-1)
-        else:
-            # TODO: we can do this with matrix multiplication, maybe.a
-            return torch.sum(x**2, dim=-1, keepdim=True)
+        self.eps = eps
 
 
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
-        x = x.transpose(-1, self.channel_dim)
-        eps = (self.log_eps * self.speed).exp()
-        out_scale = (self.log_scale * self.speed).exp()
+        scales = (torch.mean(x**2, dim=self.channel_dim, keepdim=True) + self.eps) ** -0.5
+        return x * scales
 
-        scales = out_scale * (self._inner(x) + eps) ** -0.5
-        x = x * scales
-        x = x.transpose(-1, self.channel_dim)
-        return x
+
+class ScaledLinear(nn.Linear):
+    def __init__(self, *args, scale_speed=5.0,  **kwargs):
+        super(ScaledLinear, self).__init__(*args, **kwargs)
+        self.weight_scale = nn.Parameter(torch.zeros(()))
+        self.scale_speed = scale_speed
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(torch.zeros(()))
+        else:
+            self.register_parameter('bias_scale', None)
+
+
+    def get_weight(self):
+        return self.weight * (self.weight_scale * self.scale_speed).exp()
+
+    def get_bias(self):
+        return (None if self.bias is None else
+                self.bias * (self.bias_scale * self.scale_speed).exp())
+
+
+    def forward(self, input: Tensor) -> Tensor:
+        return torch.nn.functional.linear(input, self.get_weight(),
+                                          self.get_bias())
+
+
+class ScaledConv1d(nn.Conv1d):
+    def __init__(self, *args, scale_speed = 5.0, **kwargs):
+        super(ScaledConv1d, self).__init__(*args, **kwargs)
+        self.scale_speed = scale_speed
+        self.weight_scale = nn.Parameter(torch.zeros(()))
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(torch.zeros(()))
+        else:
+            self.register_parameter('bias_scale', None)
+
+    def get_weight(self):
+        return self.weight * (self.weight_scale * self.scale_speed).exp()
+
+    def get_bias(self):
+        return (None if self.bias is None else
+                self.bias * (self.bias_scale * self.scale_speed).exp())
+
+    def forward(self, input: Tensor) -> Tensor:
+        F = torch.nn.functional
+        if self.padding_mode != 'zeros':
+            return F.conv1d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+                            self.get_weight(), self.get_bias(), self.stride,
+                            _single(0), self.dilation, self.groups)
+        return F.conv1d(input, self.get_weight(), self.get_bias(), self.stride,
+                        self.padding, self.dilation, self.groups)
+
+
+
+class ScaledConv2d(nn.Conv2d):
+    def __init__(self, *args, scale_speed=5.0, **kwargs):
+        super(ScaledConv2d, self).__init__(*args, **kwargs)
+        self.scale_speed = scale_speed
+        self.weight_scale = nn.Parameter(torch.zeros(()))
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(torch.zeros(()))
+        else:
+            self.register_parameter('bias_scale', None)
+
+
+    def get_weight(self):
+        return self.weight * (self.weight_scale * self.scale_speed).exp()
+
+    def get_bias(self):
+        return (None if self.bias is None else
+                self.bias * (self.bias_scale * self.scale_speed).exp())
+
+    def _conv_forward(self, input, weight):
+        F = torch.nn.functional
+        if self.padding_mode != 'zeros':
+            return F.conv2d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+                            weight, self.get_bias(), self.stride,
+                            _pair(0), self.dilation, self.groups)
+        return F.conv2d(input, weight, self.bias, self.stride,
+                        self.padding, self.dilation, self.groups)
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self._conv_forward(input, self.get_weight())
+
 
 
 
@@ -573,6 +627,8 @@ def _test_basic_norm():
     print("y rms = ", y_rms)
     assert y_rms < x_rms
     assert y_rms > 0.5 * x_rms
+
+
 
 
 

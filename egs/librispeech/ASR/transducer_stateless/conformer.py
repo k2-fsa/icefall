@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import Optional, Tuple, Sequence
-from subsampling import PeLU, ExpScale, SwishExpScale, ExpScaleRelu, DerivBalancer, BasicNorm
+from subsampling import PeLU, ExpScale, SwishExpScale, ExpScaleRelu, DerivBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
 
 import torch
 from torch import Tensor, nn
@@ -157,30 +157,25 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(d_model, dim_feedforward),
+            ScaledLinear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.01),
-            SwishExpScale(dim_feedforward, speed=20.0, in_scale=2.0),
+            SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
-            nn.Linear(dim_feedforward, d_model),
+            ScaledLinear(dim_feedforward, d_model),
         )
 
         self.feed_forward_macaron = nn.Sequential(
-            nn.Linear(d_model, dim_feedforward),
+            ScaledLinear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1, threshold=0.05,
                           max_factor=0.01),
-            SwishExpScale(dim_feedforward, speed=20.0, in_scale=2.0),
+            SwishExpScale(dim_feedforward, speed=20.0),
             nn.Dropout(dropout),
-            nn.Linear(dim_feedforward, d_model),
+            ScaledLinear(dim_feedforward, d_model),
         )
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
 
-        self.scale_mha = ExpScale(1, speed=10.0, initial_scale=0.2)
-        self.post_scale_mha = ExpScale(1, speed=10.0, initial_scale=1.0)
-        self.scale_conv = ExpScale(1, speed=10.0, initial_scale=0.5)
-        self.scale_ff = ExpScale(1, speed=10.0, initial_scale=0.5)
-        self.scale_ff_macaron = ExpScale(1, speed=10.0, initial_scale=0.5)
 
         self.pre_norm_final = Identity()
         self.norm_final = BasicNorm(d_model)
@@ -216,13 +211,10 @@ class ConformerEncoderLayer(nn.Module):
         residual = src
 
 
-        src = src + self.dropout(self.feed_forward_macaron(
-            self.scale_ff_macaron(src)))
+        src = src + self.dropout(self.feed_forward_macaron(src))
 
 
         # multi-headed self-attention module
-        residual = src
-        src = self.scale_mha(src)
         src_att = self.self_attn(
             src,
             src,
@@ -231,13 +223,13 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = residual + self.post_scale_mha(self.dropout(src_att))
+        src = src + self.dropout(src_att)
 
         # convolution module
-        src = src + self.dropout(self.conv_module(self.scale_conv(src)))
+        src = src + self.dropout(self.conv_module(src))
 
         # feed forward module
-        src = src +  self.dropout(self.feed_forward(self.scale_ff(src)))
+        src = src +  self.dropout(self.feed_forward(src))
 
         src = self.norm_final(self.pre_norm_final(src))
 
@@ -420,6 +412,7 @@ class RelPositionMultiheadAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         dropout: float = 0.0,
+        scale_speed: float = 5.0
     ) -> None:
         super(RelPositionMultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -430,17 +423,26 @@ class RelPositionMultiheadAttention(nn.Module):
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
 
-        self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=True)
+        self.in_proj = ScaledLinear(embed_dim, 3 * embed_dim, bias=True)
+        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True)
 
         # linear transformation for positional encoding.
-        self.linear_pos = nn.Linear(embed_dim, embed_dim, bias=False)
+        self.linear_pos = ScaledLinear(embed_dim, embed_dim, bias=False)
         # these two learnable bias are used in matrix c and matrix d
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         self.pos_bias_u = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
         self.pos_bias_v = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
+        self.scale_speed = scale_speed
+        self.pos_bias_u_scale = nn.Parameter(torch.zeros(()).detach())
+        self.pos_bias_v_scale = nn.Parameter(torch.zeros(()).detach())
 
         self._reset_parameters()
+
+    def _pos_bias_u(self):
+        return self.pos_bias_u * (self.pos_bias_u_scale * self.scale_speed).exp()
+
+    def _pos_bias_v(self):
+        return self.pos_bias_v * (self.pos_bias_v_scale * self.scale_speed).exp()
 
     def _reset_parameters(self) -> None:
         nn.init.xavier_uniform_(self.in_proj.weight)
@@ -508,11 +510,11 @@ class RelPositionMultiheadAttention(nn.Module):
             pos_emb,
             self.embed_dim,
             self.num_heads,
-            self.in_proj.weight,
-            self.in_proj.bias,
+            self.in_proj.get_weight(),
+            self.in_proj.get_bias(),
             self.dropout,
-            self.out_proj.weight,
-            self.out_proj.bias,
+            self.out_proj.get_weight(),
+            self.out_proj.get_bias(),
             training=self.training,
             key_padding_mask=key_padding_mask,
             need_weights=need_weights,
@@ -743,11 +745,11 @@ class RelPositionMultiheadAttention(nn.Module):
         p = self.linear_pos(pos_emb).view(pos_emb_bsz, -1, num_heads, head_dim)
         p = p.transpose(1, 2)  # (batch, head, 2*time1-1, d_k)
 
-        q_with_bias_u = (q + self.pos_bias_u).transpose(
+        q_with_bias_u = (q + self._pos_bias_u()).transpose(
             1, 2
         )  # (batch, head, time1, d_k)
 
-        q_with_bias_v = (q + self.pos_bias_v).transpose(
+        q_with_bias_v = (q + self._pos_bias_v()).transpose(
             1, 2
         )  # (batch, head, time1, d_k)
 
@@ -842,7 +844,7 @@ class ConvolutionModule(nn.Module):
         # kernerl_size should be a odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0
 
-        self.pointwise_conv1 = nn.Conv1d(
+        self.pointwise_conv1 = ScaledConv1d(
             channels,
             2 * channels,
             kernel_size=1,
@@ -850,7 +852,7 @@ class ConvolutionModule(nn.Module):
             padding=0,
             bias=bias,
         )
-        self.depthwise_conv = nn.Conv1d(
+        self.depthwise_conv = ScaledConv1d(
             channels,
             channels,
             kernel_size,
@@ -860,12 +862,10 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        self.scale = ExpScale(1, speed=10.0, initial_scale=1.0)
-
          # shape: (channels, 1), broadcasts with (batch, channel, time).
         self.activation = SwishOffset()
 
-        self.pointwise_conv2 = nn.Conv1d(
+        self.pointwise_conv2 = ScaledConv1d(
             channels,
             channels,
             kernel_size=1,
@@ -896,11 +896,6 @@ class ConvolutionModule(nn.Module):
 
         # TODO: can have a learned scale in here, or a fixed one.
         x = self.activation(x)
-
-        # x is (batch, channels, time)
-        x = x.permute(0, 2, 1)
-        x = self.scale(x)
-        x = x.permute(0, 2, 1)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
@@ -982,7 +977,7 @@ class RandomCombine(torch.nn.Module):
         assert pure_prob >= 0 and pure_prob <= 1
         assert final_weight > 0 and final_weight < 1
         assert num_inputs >= 1
-        self.linear = nn.ModuleList([nn.Linear(num_channels, num_channels, bias=True)
+        self.linear = nn.ModuleList([ScaledLinear(num_channels, num_channels, bias=True)
                                      for _ in range(num_inputs - 1)])
 
         self.num_inputs = num_inputs
