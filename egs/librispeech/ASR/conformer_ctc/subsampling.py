@@ -486,7 +486,7 @@ class ScaledConv2d(nn.Conv2d):
             return F.conv2d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
                             weight, self.get_bias(), self.stride,
                             _pair(0), self.dilation, self.groups)
-        return F.conv2d(input, weight, self.bias, self.stride,
+        return F.conv2d(input, weight, self.get_bias(), self.stride,
                         self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
