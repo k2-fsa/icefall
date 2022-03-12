@@ -20,8 +20,8 @@ The WERs are:
 | greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
 | greedy search (max sym per frame 2) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
 | greedy search (max sym per frame 3) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 39, --avg 15, --max-duration 100 |
-| beam search (beam size 4)           | 2.57       | 6.27       | --epoch 39, --avg 15, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
+| beam search (beam size 4)           | 2.57       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
 
 The decoding time for `test-clean` and `test-other` is given below:
 (A V100 GPU with 32 GB RAM is used for decoding. Note: Not all GPU RAM is used during decoding.)
