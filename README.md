@@ -84,7 +84,7 @@ The best WER using modified beam search with beam size 4 is:
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.61       | 6.46       |
+| WER | 2.56       | 6.27       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
