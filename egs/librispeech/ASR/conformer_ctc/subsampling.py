@@ -49,13 +49,13 @@ class Conv2dSubsampling(nn.Module):
             ),
             DerivBalancer(channel_dim=1, threshold=0.05,
                           max_factor=0.01),
-            ExpScaleRelu(odim, 1, 1, speed=20.0),
+            DoubleSwish(),
             ScaledConv2d(
                 in_channels=odim, out_channels=odim, kernel_size=3, stride=2
             ),
             DerivBalancer(channel_dim=1, threshold=0.05,
                           max_factor=0.01),
-            ExpScaleRelu(odim, 1, 1, speed=20.0),
+            DoubleSwish(),
         )
         self.out = ScaledLinear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = BasicNorm(odim)
