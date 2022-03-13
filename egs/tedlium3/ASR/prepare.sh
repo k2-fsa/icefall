@@ -108,14 +108,14 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       --lang-dir $lang_dir \
       --manifests-dir data/manifests
   fi
-  cat download/tedlium3/TEDLIUM.152k.dic | \
-    grep -v -w "<s>" | \
-    grep -v -w "</s>" | \
-    grep -v -w "<unk>" | \
-    LANG= LC_ALL= sort | \
-    sed 's:([0-9])::g' > $lang_dir/lexicon_words.txt
 
-  (echo '<UNK> <UNK>'; ) |
+  if [ ! -f $lang_dir/lexicon_words.txt ]; then
+    ./local/prepare_lexicon.py \
+      --manifests-dir data/manifests \
+      --lang-dir $lang_dir
+  fi
+
+  (echo '!SIL SIL'; echo '<UNK> <UNK>'; ) |
     cat - $lang_dir/lexicon_words.txt |
     sort | uniq > $lang_dir/lexicon.txt
 
