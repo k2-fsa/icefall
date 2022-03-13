@@ -110,7 +110,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/randcombine1_expscale3_rework2c_maxabs1000_maxp0.95_noexp",
+        default="transducer_stateless/randcombine1_expscale3_rework2c_maxabs1000_maxp0.95_noexp_convderiv",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved

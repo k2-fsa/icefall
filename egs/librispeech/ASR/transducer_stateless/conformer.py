@@ -847,6 +847,22 @@ class ConvolutionModule(nn.Module):
             padding=0,
             bias=bias,
         )
+
+        # after pointwise_conv1 we put x through a gated linear unit (nn.functional.glu).
+        # For most layers the normal rms value of channels of x seems to be in the range 1 to 4,
+        # but sometimes, for some reason, for layer 0 the rms ends up being very large,
+        # between 50 and 100 for different channels.  This will cause very peaky and
+        # sparse derivatives for the sigmoid gating function, which will tend to make
+        # the loss function not learn effectively.  (for most layers the average absolute values
+        # are in the range 0.5..9.0, and the average p(x>0), i.e. positive proportion,
+        # at the output of pointwise_conv1.output is around 0.35 to 0.45 for different
+        # layers, which likely breaks down as 0.5 for the "linear" half and
+        # 0.2 to 0.3 for the part that goes into the sigmoid.  The idea is that if we
+        # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
+        # it will be in a better position to start learning something, i.e. to latch onto
+        # the correct range.
+        self.deriv_balancer1 = DerivBalancer(channel_dim=1, max_abs=10.0)
+
         self.depthwise_conv = ScaledConv1d(
             channels,
             channels,
@@ -857,6 +873,8 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
+
+        self.deriv_balancer2 = DerivBalancer(channel_dim=1)
          # shape: (channels, 1), broadcasts with (batch, channel, time).
         self.activation = SwishOffset()
 
@@ -885,12 +903,14 @@ class ConvolutionModule(nn.Module):
 
         # GLU mechanism
         x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
+
+        x = self.deriv_balancer1(x)
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
 
-        # TODO: can have a learned scale in here, or a fixed one.
+        x = self.deriv_balancer2(x)
         x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
