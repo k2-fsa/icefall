@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import Optional, Tuple, Sequence
-from subsampling import PeLU, ExpScale, SwishExpScale, ExpScaleRelu, DerivBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
+from subsampling import PeLU, ExpScale, DoubleSwish, SwishExpScale, ExpScaleRelu, DerivBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
 
 import torch
 from torch import Tensor, nn
@@ -159,7 +159,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1),
-            SwishExpScale(dim_feedforward, speed=20.0),
+            DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )
@@ -167,7 +167,7 @@ class ConformerEncoderLayer(nn.Module):
         self.feed_forward_macaron = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
             DerivBalancer(channel_dim=-1),
-            SwishExpScale(dim_feedforward, speed=20.0),
+            DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )

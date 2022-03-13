@@ -565,8 +565,13 @@ class DerivBalancer(torch.nn.Module):
 
 class DoubleSwish(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swich activation function."""
-        return x * torch.sigmoid(x - 1.0)
+        """Return double-swish activation function which is an approximation to Swish(Swish(x)),
+           that we approximate closely with x * sigmoid(x-1), expressed for more memory-efficient
+           backprop as (x-1) * torch.sigmoid(x - 1) + torch.sigmoid(x - 1)
+        """
+        x1 = x - 1.0
+        s = torch.sigmoid(x1)
+        return (x1 * s) + s  # (x-1) * s + s == x * s
 
 
 def _test_exp_scale_swish():
@@ -581,10 +586,10 @@ def _test_exp_scale_swish():
 
     y1 = m1(x1)
     y2 = m2(x2)
-    assert torch.allclose(y1, y2)
+    assert torch.allclose(y1, y2, atol=1e-05)
     y1.sum().backward()
     y2.sum().backward()
-    assert torch.allclose(x1.grad, x2.grad)
+    assert torch.allclose(x1.grad, x2.grad, atol=1e-05)
 
 def _test_exp_scale_relu():
 
