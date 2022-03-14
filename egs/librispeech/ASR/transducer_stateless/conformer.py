@@ -88,7 +88,7 @@ class Conformer(Transformer):
 
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor
+            self, x: torch.Tensor, x_lens: torch.Tensor, warmup_mode: bool
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -112,7 +112,8 @@ class Conformer(Transformer):
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
-        x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, N, C)
+        x = self.encoder(x, pos_emb, src_key_padding_mask=mask,
+                         warmup_mode=warmup_mode)  # (T, N, C)
 
         logits = self.encoder_output_layer(x)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
@@ -258,7 +259,6 @@ class ConformerEncoder(nn.Module):
         self.num_layers = num_layers
         num_channels = encoder_layer.d_model
         self.combiner = RandomCombine(num_inputs=len(self.aux_layers),
-                                      num_channels=num_channels,
                                       final_weight=0.5,
                                       pure_prob=0.333,
                                       stddev=2.0)
@@ -269,6 +269,7 @@ class ConformerEncoder(nn.Module):
         pos_emb: Tensor,
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        warmup_mode: bool = False
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -300,7 +301,7 @@ class ConformerEncoder(nn.Module):
             if i in self.aux_layers:
                 outputs.append(output)
 
-        output = self.combiner(outputs)
+        output = self.combiner(outputs, warmup_mode)
         return output
 
 
@@ -946,17 +947,12 @@ class RandomCombine(torch.nn.Module):
     is a random combination of all the inputs; but which in test time
     will be just the last input.
 
-    All but the last input will have a linear transform before we
-    randomly combine them; these linear transforms will be initialzed
-    to the identity transform.
-
     The idea is that the list of Tensors will be a list of outputs of multiple
     conformer layers.  This has a similar effect as iterated loss. (See:
     DEJA-VU: DOUBLE FEATURE PRESENTATION AND ITERATED LOSS IN DEEP TRANSFORMER
     NETWORKS).
     """
     def __init__(self, num_inputs: int,
-                 num_channels: int,
                  final_weight: float = 0.5,
                  pure_prob: float = 0.5,
                  stddev: float = 2.0) -> None:
@@ -965,7 +961,6 @@ class RandomCombine(torch.nn.Module):
           num_inputs:  The number of tensor inputs, which equals the number of layers'
                 outputs that are fed into this module.  E.g. in an 18-layer neural
                 net if we output layers 16, 12, 18, num_inputs would be 3.
-          num_channels:  The number of channels on the input, e.g. 512.
           final_weight:  The amount of weight or probability we assign to the
                 final layer when randomly choosing layers or when choosing
                 continuous layer weights.
@@ -991,8 +986,6 @@ class RandomCombine(torch.nn.Module):
         assert pure_prob >= 0 and pure_prob <= 1
         assert final_weight > 0 and final_weight < 1
         assert num_inputs >= 1
-        self.linear = nn.ModuleList([ScaledLinear(num_channels, num_channels, bias=True)
-                                     for _ in range(num_inputs - 1)])
 
         self.num_inputs = num_inputs
         self.final_weight = final_weight
@@ -1000,14 +993,10 @@ class RandomCombine(torch.nn.Module):
         self.stddev= stddev
 
         self.final_log_weight = torch.tensor((final_weight / (1 - final_weight)) * (self.num_inputs - 1)).log().item()
-        self._reset_parameters()
 
-    def _reset_parameters(self):
-        for i in range(len(self.linear)):
-            nn.init.eye_(self.linear[i].weight)
-            nn.init.constant_(self.linear[i].bias, 0.0)
 
-    def forward(self, inputs: Sequence[Tensor]) -> Tensor:
+    def forward(self, inputs: Sequence[Tensor],
+                warmup_mode: bool) -> Tensor:
         """
         Forward function.
        Args:
@@ -1019,24 +1008,18 @@ class RandomCombine(torch.nn.Module):
         """
         num_inputs = self.num_inputs
         assert len(inputs) == num_inputs
-        if not self.training:
+        if not (self.training and warmup_mode):
             return inputs[-1]
 
         # Shape of weights: (*, num_inputs)
         num_channels = inputs[0].shape[-1]
         num_frames = inputs[0].numel() // num_channels
 
-        mod_inputs = []
-        for i in range(num_inputs - 1):
-            mod_inputs.append(self.linear[i](inputs[i]))
-        mod_inputs.append(inputs[num_inputs - 1])
-
-
         ndim = inputs[0].ndim
         # stacked_inputs: (num_frames, num_channels, num_inputs)
-        stacked_inputs = torch.stack(mod_inputs, dim=ndim).reshape((num_frames,
-                                                                    num_channels,
-                                                                    num_inputs))
+        stacked_inputs = torch.stack(inputs, dim=ndim).reshape((num_frames,
+                                                                num_channels,
+                                                                num_inputs))
 
         # weights: (num_frames, num_inputs)
         weights = self._get_random_weights(inputs[0].dtype, inputs[0].device,
@@ -1118,12 +1101,14 @@ def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
     print(f"_test_random_combine: final_weight={final_weight}, pure_prob={pure_prob}, stddev={stddev}")
     num_inputs = 3
     num_channels = 50
-    m = RandomCombine(num_inputs=num_inputs, num_channels=num_channels,
-                      final_weight=final_weight, pure_prob=pure_prob, stddev=stddev)
+    m = RandomCombine(num_inputs=num_inputs,
+                      final_weight=final_weight,
+                      pure_prob=pure_prob,
+                      stddev=stddev)
 
     x = [ torch.ones(3, 4, num_channels) for _ in range(num_inputs) ]
 
-    y = m(x)
+    y = m(x, True)
     assert y.shape == x[0].shape
     assert torch.allclose(y, x[0]) # .. since actually all ones.
 
