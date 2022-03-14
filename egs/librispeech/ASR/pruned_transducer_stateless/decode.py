@@ -206,7 +206,7 @@ def decode_one_batch(
       sp:
         The BPE model.
       decoding_graph:
-        The decoding graph. Can be either a `k2.TrivialGraph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
       batch:
         It is the return value from iterating
@@ -307,7 +307,7 @@ def decode_dataset(
       sp:
         The BPE model.
       decoding_graph:
-        The decoding graph. Can be either a `k2.TrivialGraph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -471,7 +471,7 @@ def main():
     model.device = device
 
     if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.TrivialGraph(params.vocab_size - 1, device=device)
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
 
