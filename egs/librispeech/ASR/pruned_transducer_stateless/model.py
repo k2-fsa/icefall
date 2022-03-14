@@ -166,4 +166,23 @@ class Transducer(nn.Module):
             reduction="sum",
         )
 
-        return (simple_loss, pruned_loss)
+        B = px_grad.size(0)
+        S = px_grad.size(1)
+        T = px_grad.size(2) - 1
+        # px_grad's shape (B, S, T+1)
+        # py_grad's shape (B, S+1, T)
+
+        px_grad_pad = torch.zeros(
+            (B, 1, T + 1), dtype=px_grad.dtype, device=px_grad.device
+        )
+        py_grad_pad = torch.zeros(
+            (B, S + 1, 1), dtype=px_grad.dtype, device=px_grad.device
+        )
+
+        px_grad_padded = torch.cat([px_grad, px_grad_pad], dim=1)
+        py_grad_padded = torch.cat([py_grad, py_grad_pad], dim=2)
+
+        # tot_grad's shape (B, S+1, T+1)
+        tot_grad = px_grad_padded + py_grad_padded
+
+        return (simple_loss, pruned_loss, tot_grad, x_lens, y_lens)
