@@ -50,9 +50,9 @@ Usage:
         --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 1500 \
         --decoding-method fast_beam_search \
-        --beam 8 \
-        --max-contexts 10 \
-        --max-states 20
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 """
 
 
@@ -142,7 +142,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=8,
+        default=4,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -150,7 +150,7 @@ def get_parser():
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=5,
+        default=4,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -158,7 +158,7 @@ def get_parser():
     parser.add_argument(
         "--max-states",
         type=int,
-        default=10,
+        default=8,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
