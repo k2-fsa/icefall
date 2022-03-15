@@ -62,7 +62,9 @@ jobs:
         id: my-cache
         uses: actions/cache@v2
         with:
-          path: ~/tmp/
+          path: |
+            ~/tmp/kaldifeat
+            ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           key: cache-tmp
 
       - name: Install kaldifeat
