@@ -79,7 +79,7 @@ def get_diagnostics_for_dim(dim: int, tensors: List[Tensor],
            dim: the dimension to analyze, with 0 <= dim < tensors[0].ndim
        options: options object
     sizes_same: true if all the tensor sizes are the same on this dimension
-    stats_type: either "abs" or "positive" or "eigs" or "value,
+    stats_type: either "abs" or "positive" or "eigs" or "value",
                imdictates the type of stats
                we accumulate, abs is mean absolute value, "positive"
                is proportion of positive to nonnegative values, "eigs"
@@ -129,12 +129,23 @@ def get_diagnostics_for_dim(dim: int, tensors: List[Tensor],
             percentiles.append(stats[index].item())
         percentiles = [ '%.2g' % x for x in percentiles ]
         percentiles = ' '.join(percentiles)
-        return f'percentiles: [{percentiles}]'
+        ans = f'percentiles: [{percentiles}]'
     else:
-        stats = stats.tolist()
-        stats = [ '%.2g' % x for x in stats ]
-        stats = '[' + ' '.join(stats) + ']'
-        return stats
+        ans = stats.tolist()
+        ans = [ '%.2g' % x for x in ans ]
+        ans = '[' + ' '.join(ans) + ']'
+    if stats_type == "value":
+        norm = (stats ** 2).sum().sqrt().item()
+        mean_abs = stats.abs().mean().item()
+        # This norm is useful because it is strictly less than the largest
+        # sqrt(eigenvalue) of the variance, which we print out, and shows,
+        # speaking in an approximate way, how much of that largest eigenvalue
+        # can be attributed to the mean of the distribution.
+        ans += f', norm={norm:.2g}, mean_abs={mean_abs:.2g}'
+    else:
+        mean = stats.mean().item()
+        ans += f', mean={mean:.2g}'
+    return ans
 
 
 
