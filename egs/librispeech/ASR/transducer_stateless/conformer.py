@@ -88,7 +88,7 @@ class Conformer(Transformer):
 
 
     def forward(
-            self, x: torch.Tensor, x_lens: torch.Tensor, warmup_mode: bool
+            self, x: torch.Tensor, x_lens: torch.Tensor, warmup_mode: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -179,6 +179,9 @@ class ConformerEncoderLayer(nn.Module):
         self.pre_norm_final = Identity()
         self.norm_final = BasicNorm(d_model)
 
+        # try to ensure the output is close to zero-mean (or at least, zero-median).
+        self.balancer = DerivBalancer(channel_dim=-1, min_positive=0.45, max_positive=0.55)
+
         self.dropout = nn.Dropout(dropout)
 
 
@@ -227,7 +230,7 @@ class ConformerEncoderLayer(nn.Module):
         # feed forward module
         src = src +  self.dropout(self.feed_forward(src))
 
-        src = self.norm_final(self.pre_norm_final(src))
+        src = self.balancer(self.norm_final(self.pre_norm_final(src)))
 
         return src
 
@@ -862,7 +865,8 @@ class ConvolutionModule(nn.Module):
         # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
-        self.deriv_balancer1 = DerivBalancer(channel_dim=1, max_abs=10.0)
+        self.deriv_balancer1 = DerivBalancer(channel_dim=1, max_abs=10.0,
+                                            min_positive=0.05, max_positive=1.0)
 
         self.depthwise_conv = ScaledConv1d(
             channels,
@@ -874,7 +878,8 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer2 = DerivBalancer(channel_dim=1)
+        self.deriv_balancer2 = DerivBalancer(channel_dim=1,
+                                             min_positive=0.05, max_positive=1.0)
 
          # Shape: (channels, 1), broadcasts with (batch, channel, time).
         self.activation = SwishOffset()

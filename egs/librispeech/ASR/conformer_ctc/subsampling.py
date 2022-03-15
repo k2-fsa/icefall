@@ -60,8 +60,8 @@ class Conv2dSubsampling(nn.Module):
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
         self.out_norm = BasicNorm(odim, learn_eps=False)
-        # constrain mean of output to be close to zero.
-        self.out_balancer = DerivBalancer(channel_dim=-1, min_positive=0.4, max_positive=0.6)
+        # constrain median of output to be close to zero.
+        self.out_balancer = DerivBalancer(channel_dim=-1, min_positive=0.45, max_positive=0.55)
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -536,7 +536,7 @@ class DerivBalancer(torch.nn.Module):
     """
     def __init__(self, channel_dim: int,
                  min_positive: float = 0.05,
-                 max_positive: float = 1.0,
+                 max_positive: float = 0.95,
                  max_factor: float = 0.01,
                  min_abs: float = 0.2,
                  max_abs: float = 100.0):
