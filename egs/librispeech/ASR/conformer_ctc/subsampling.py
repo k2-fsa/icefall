@@ -57,6 +57,8 @@ class Conv2dSubsampling(nn.Module):
         )
         self.out = ScaledLinear(odim * (((idim - 1) // 2 - 1) // 2), odim)
         self.out_norm = BasicNorm(odim)
+        # constrain mean of output to be close to zero.
+        self.out_balancer = DerivBalancer(channel_dim=-1, min_positive=0.4, max_positive=0.6)
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -84,6 +86,7 @@ class Conv2dSubsampling(nn.Module):
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
+        x = self.out_balancer(x)
         return x
 
 
