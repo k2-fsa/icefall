@@ -22,12 +22,11 @@ on:
     branches:
       - master
   pull_request:
-    branches:
-      - master
+    types: [labeled]
 
 jobs:
   run_librispeech_2022_03_12:
-    # if: github.event.label.name == 'ready' || github.event_name == 'push'
+    if: github.event.label.name == 'ready' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
