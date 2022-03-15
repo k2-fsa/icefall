@@ -1,3 +1,4 @@
+# Usage: grep -v '^#' requirements-ci.txt  | xargs -n 1 -L 1 pip install
 # dependencies for GitHub actions
 #
 # See https://github.com/actions/setup-python#caching-packages-dependencies
@@ -7,12 +8,10 @@ numpy==1.19
 pytest==7.1.0
 graphviz==0.19.1
 
--f https://download.pytorch.org/whl/cpu/torch_stable.html
-torch==1.10.0+cpu
-torchaudio==0.10.0+cpu
+-f https://download.pytorch.org/whl/cpu/torch_stable.html torch==1.10.0+cpu
+-f https://download.pytorch.org/whl/cpu/torch_stable.html torchaudio==0.10.0+cpu
 
--f https://k2-fsa.org/nightly/
-k2==1.9.dev20211101+cpu.torch1.10.0
+-f https://k2-fsa.org/nightly/ k2==1.9.dev20211101+cpu.torch1.10.0
 
 lhotse==0.12.0
 kaldifeat==1.12

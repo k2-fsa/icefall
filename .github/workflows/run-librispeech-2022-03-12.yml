@@ -55,14 +55,21 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install -r ./requirements-ci.txt
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+
+      - name: Cache pre-trained model
+        id: cache-pretrained-model
+        uses: actions/cache@v2
+        with:
+          path: ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          key: run-librispeech-2022-03-12
 
 
       - name: Download pre-trained model
+        if: steps.cache-pretrained-model.outputs.cache-hit != 'true'
         shell: bash
         run: |
           sudo apt-get -qq install git-lfs tree sox
-          cd egs/librispeech/ASR
           mkdir tmp
           cd tmp
           git lfs install
@@ -76,7 +83,7 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
-          dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
@@ -91,7 +98,7 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
-          dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
@@ -106,7 +113,7 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
-          dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
             --method greedy_search \
@@ -121,7 +128,7 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
-          dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
             --method beam_search \
@@ -136,7 +143,7 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
-          dir=./tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
             --method modified_beam_search \
