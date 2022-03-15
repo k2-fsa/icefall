@@ -862,8 +862,7 @@ class ConvolutionModule(nn.Module):
         # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
-        self.deriv_balancer = DerivBalancer(channel_dim=1, max_abs=10.0,
-                                            min_positive=0.0, max_positive=1.0)
+        self.deriv_balancer1 = DerivBalancer(channel_dim=1, max_abs=10.0)
 
         self.depthwise_conv = ScaledConv1d(
             channels,
@@ -875,7 +874,9 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-         # shape: (channels, 1), broadcasts with (batch, channel, time).
+        self.deriv_balancer2 = DerivBalancer(channel_dim=1)
+
+         # Shape: (channels, 1), broadcasts with (batch, channel, time).
         self.activation = SwishOffset()
 
         self.pointwise_conv2 = ScaledConv1d(
@@ -904,12 +905,13 @@ class ConvolutionModule(nn.Module):
         # GLU mechanism
         x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
 
-        x = self.deriv_balancer(x)
+        x = self.deriv_balancer1(x)
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
         x = self.depthwise_conv(x)
 
+        x = self.deriv_balancer2(x)
         x = self.activation(x)
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
