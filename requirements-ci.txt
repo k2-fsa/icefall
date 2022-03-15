@@ -1,0 +1,21 @@
+# Usage: grep -v '^#' requirements-ci.txt  | xargs -n 1 -L 1 pip install
+# dependencies for GitHub actions
+#
+# See https://github.com/actions/setup-python#caching-packages-dependencies
+
+# numpy 1.20.x does not support python 3.6
+numpy==1.19
+pytest==7.1.0
+graphviz==0.19.1
+
+-f https://download.pytorch.org/whl/cpu/torch_stable.html torch==1.10.0+cpu
+-f https://download.pytorch.org/whl/cpu/torch_stable.html torchaudio==0.10.0+cpu
+
+-f https://k2-fsa.org/nightly/ k2==1.9.dev20211101+cpu.torch1.10.0
+
+git+https://github.com/lhotse-speech/lhotse
+kaldilm==1.11
+kaldialign==0.2
+sentencepiece==0.1.96
+tensorboard==2.8.0
+typeguard==2.13.3
