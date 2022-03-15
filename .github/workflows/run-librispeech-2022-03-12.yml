@@ -58,14 +58,13 @@ jobs:
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
 
 
-      - name: Cache pre-trained model
+      - name: Cache kaldifeat
         id: my-cache
         uses: actions/cache@v2
         with:
           path: |
             ~/tmp/kaldifeat
-            ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
-          key: cache-tmp
+          key: cache-tmp-${{ matrix.python-version }}
 
       - name: Install kaldifeat
         if: steps.my-cache.outputs.cache-hit != 'true'
@@ -78,10 +77,9 @@ jobs:
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
-          make -j
+          make -j2 _kaldifeat
 
       - name: Download pre-trained model
-        if: steps.my-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           sudo apt-get -qq install git-lfs
@@ -94,16 +92,16 @@ jobs:
         shell: bash
         run: |
           sudo apt-get -qq install tree sox
-          tree tmp
-          soxi tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
-          ls -lh tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
+          tree ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
+          soxi ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
+          ls -lh ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
 
       - name: Run greedy search decoding (max-sym-per-frame 1)
         shell: bash
         run: |
-          export PYTHONPATH=$PWD:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -118,9 +116,9 @@ jobs:
       - name: Run greedy search decoding (max-sym-per-frame 2)
         shell: bash
         run: |
-          export PYTHONPATH=$PWD:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -135,9 +133,9 @@ jobs:
       - name: Run greedy search decoding (max-sym-per-frame 3)
         shell: bash
         run: |
-          export PYTHONPATH=$PWD:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -153,8 +151,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -170,8 +168,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
