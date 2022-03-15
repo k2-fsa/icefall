@@ -135,16 +135,18 @@ def get_diagnostics_for_dim(dim: int, tensors: List[Tensor],
         ans = [ '%.2g' % x for x in ans ]
         ans = '[' + ' '.join(ans) + ']'
     if stats_type == "value":
-        norm = (stats ** 2).sum().sqrt().item()
-        mean_abs = stats.abs().mean().item()
         # This norm is useful because it is strictly less than the largest
         # sqrt(eigenvalue) of the variance, which we print out, and shows,
         # speaking in an approximate way, how much of that largest eigenvalue
         # can be attributed to the mean of the distribution.
-        ans += f', norm={norm:.2g}, mean_abs={mean_abs:.2g}'
+        norm = (stats ** 2).sum().sqrt().item()
+        mean = stats.mean().item()
+        rms = (stats ** 2).mean().sqrt().item()
+        ans += f', norm={norm:.2g}, mean={mean:.2g}, rms={rms:.2g}'
     else:
         mean = stats.mean().item()
-        ans += f', mean={mean:.2g}'
+        rms = (stats ** 2).mean().sqrt().item()
+        ans += f', mean={mean:.2g}, rms={rms:.2g}'
     return ans
 
 
