@@ -1129,4 +1129,5 @@ if __name__ == '__main__':
     seq_len = 20
     # Just make sure the forward pass runs.
     f = c(torch.randn(batch_size, seq_len, feature_dim),
-          torch.full((batch_size,), seq_len, dtype=torch.int64))
+          torch.full((batch_size,), seq_len, dtype=torch.int64),
+          warmup_mode=True)
