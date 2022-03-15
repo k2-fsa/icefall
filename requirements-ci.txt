@@ -14,7 +14,6 @@ graphviz==0.19.1
 -f https://k2-fsa.org/nightly/ k2==1.9.dev20211101+cpu.torch1.10.0
 
 lhotse==0.12.0
-kaldifeat==1.12
 kaldilm==1.11
 kaldialign==0.2
 sentencepiece==0.1.96

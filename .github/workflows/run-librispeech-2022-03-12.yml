@@ -57,24 +57,41 @@ jobs:
         run: |
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
 
+
       - name: Cache pre-trained model
-        id: cache-pretrained-model
+        id: my-cache
         uses: actions/cache@v2
         with:
-          path: ~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
-          key: run-librispeech-2022-03-12
+          path: ~/tmp/
+          key: cache-tmp
 
-
-      - name: Download pre-trained model
-        if: steps.cache-pretrained-model.outputs.cache-hit != 'true'
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          sudo apt-get -qq install git-lfs tree sox
-          mkdir tmp
-          cd tmp
+          mkdir -p ~/tmp
+          cd ~/tmp
+          git clone https://github.com/csukuangfj/kaldifeat
+          cd kaldifeat
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j
+
+      - name: Download pre-trained model
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          sudo apt-get -qq install git-lfs
+          mkdir -p ~/tmp
+          cd ~/tmp
           git lfs install
           git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
-          cd ..
+
+      - name: Display test files
+        shell: bash
+        run: |
+          sudo apt-get -qq install tree sox
           tree tmp
           soxi tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
           ls -lh tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12/test_wavs/*.wav
@@ -83,6 +100,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -98,6 +117,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -113,6 +134,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -128,6 +151,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
@@ -143,6 +168,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:PYTHONPATH
           dir=~/tmp/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
           cd egs/librispeech/ASR
           ./pruned_transducer_stateless/pretrained.py \
