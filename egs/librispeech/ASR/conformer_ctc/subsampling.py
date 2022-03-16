@@ -441,14 +441,15 @@ class ScaledLinear(nn.Linear):
         self._reset_parameters()  # Overrides the reset_parameters in nn.Linear
 
     def _reset_parameters(self):
-        nn.init.normal_(self.weight, std=0.05)
+        std = 0.05
+        a = math.sqrt(3) * std
+        nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
-        fan_in = self.weight.shape[1]
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
         scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
-
 
     def get_weight(self):
         return self.weight * (self.weight_scale * self.scale_speed).exp()
@@ -476,7 +477,9 @@ class ScaledConv1d(nn.Conv1d):
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
-        nn.init.normal_(self.weight, std=0.05)
+        std = 0.05
+        a = math.sqrt(3) * std
+        nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
@@ -516,10 +519,12 @@ class ScaledConv2d(nn.Conv2d):
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
-        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        nn.init.normal_(self.weight, std=0.05)
+        std = 0.05
+        a = math.sqrt(3) * std
+        nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
         scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
