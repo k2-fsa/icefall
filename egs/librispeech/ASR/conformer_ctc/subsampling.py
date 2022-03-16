@@ -449,7 +449,7 @@ class ScaledLinear(nn.Linear):
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
         scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
-            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
+            self.weight_scale += (torch.tensor(scale / std).log() / self.scale_speed)
 
     def get_weight(self):
         return self.weight * (self.weight_scale * self.scale_speed).exp()
@@ -485,7 +485,7 @@ class ScaledConv1d(nn.Conv1d):
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
         scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
-            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
+            self.weight_scale += (torch.tensor(scale / std).log() / self.scale_speed)
 
 
     def get_weight(self):
@@ -527,7 +527,7 @@ class ScaledConv2d(nn.Conv2d):
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
         scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
-            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
+            self.weight_scale += (torch.tensor(scale / std).log() / self.scale_speed)
 
 
     def get_weight(self):
