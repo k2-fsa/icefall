@@ -104,7 +104,7 @@ class SPGISpeechAsrDataModule:
         group.add_argument(
             "--max-duration",
             type=int,
-            default=140.0,
+            default=100.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
@@ -296,7 +296,7 @@ class SPGISpeechAsrDataModule:
         return load_manifest_lazy(self.args.manifest_dir / "cuts_dev.jsonl.gz")
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:
+    def val_cuts(self) -> CutSet:
         logging.info("About to get SPGISpeech val cuts")
         return load_manifest_lazy(self.args.manifest_dir / "cuts_val.jsonl.gz")
 
