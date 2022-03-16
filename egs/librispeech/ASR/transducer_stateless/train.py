@@ -111,7 +111,7 @@ def get_parser():
         "--exp-dir",
         type=str,
         # was 2c_maxabs1000_maxp0.95_noexp_convderiv2warmup_scale_0mean, then reworking initialization..
-        default="transducer_stateless/randcombine1_expscale3_rework2d"
+        default="transducer_stateless/randcombine1_expscale3_rework2d",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
