@@ -1,65 +1,304 @@
 ## Results
 
-### LibriSpeech BPE training results (Transducer)
-
-#### Conformer encoder + embedding decoder
-
-Using commit `4c1b3665ee6efb935f4dd93a80ff0e154b13efb6`.
+### LibriSpeech BPE training results (Pruned Transducer)
 
 Conformer encoder + non-current decoder. The decoder
-contains only an embedding layer and a Conv1d (with kernel size 2).
+contains only an embedding layer, a Conv1d (with kernel size 2) and a linear
+layer (to transform tensor dim).
+
+#### 2022-03-12
+
+[pruned_transducer_stateless](./pruned_transducer_stateless)
+
+Using commit `1603744469d167d848e074f2ea98c587153205fa`.
+See <https://github.com/k2-fsa/icefall/pull/248>
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
+| beam search (beam size 4)           | 2.57       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
+
+The decoding time for `test-clean` and `test-other` is given below:
+(A V100 GPU with 32 GB RAM is used for decoding. Note: Not all GPU RAM is used during decoding.)
+
+| decoding method | test-clean (seconds) | test-other (seconds)|
+|---|---:|---:|
+| greedy search (--max-sym-per-frame=1) | 160 | 159 |
+| greedy search (--max-sym-per-frame=2) | 184 | 177 |
+| greedy search (--max-sym-per-frame=3) | 210 | 213 |
+| modified beam search (--beam-size 4)| 273 | 269 |
+|beam search (--beam-size 4) | 2741 | 2221 |
+
+We recommend you to use `modified_beam_search`.
+
+Training command:
+
+```bash
+cd egs/librispeech/ASR/
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+. path.sh
+
+./pruned_transducer_stateless/train.py \
+  --world-size 8 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --prune-range 5 \
+  --lr-factor 5 \
+  --lm-scale 0.25
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/WKRFY5fYSzaVBHahenpNlA/>
+
+The command for decoding is:
+
+```bash
+epoch=42
+avg=11
+sym=1
+
+# greedy search
+
+./pruned_transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./pruned_transducer_stateless/exp \
+  --max-duration 100 \
+  --decoding-method greedy_search \
+  --beam-size 4 \
+  --max-sym-per-frame $sym
+
+# modified beam search
+./pruned_transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./pruned_transducer_stateless/exp \
+  --max-duration 100 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+
+# beam search
+# (not recommended)
+./pruned_transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./pruned_transducer_stateless/exp \
+  --max-duration 100 \
+  --decoding-method beam_search \
+  --beam-size 4
+```
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12>
+
+#### 2022-02-18
+
+[pruned_transducer_stateless](./pruned_transducer_stateless)
+
 
 The WERs are
 
 |                           | test-clean | test-other | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.69       | 6.81       | --epoch 71, --avg 15, --max-duration 100 |
-| beam search (beam size 4) | 2.68       | 6.72       | --epoch 71, --avg 15, --max-duration 100 |
+| greedy search             | 2.85       | 6.98       | --epoch 28, --avg 15, --max-duration 100 |
 
 The training command for reproducing is given below:
 
 ```
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
+./pruned_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --prune-range 5 \
+  --lr-factor 5 \
+  --lm-scale 0.25 \
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/ejG7VpakRYePNNj6AbDEUw/#scalars>
+
+The decoding command is:
+```
+epoch=28
+avg=15
+
+## greedy search
+./pruned_transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir pruned_transducer_stateless/exp \
+  --max-duration 100
+```
+
+
+### LibriSpeech BPE training results (Transducer)
+
+#### Conformer encoder + embedding decoder
+
+Conformer encoder + non-recurrent decoder. The decoder
+contains only an embedding layer and a Conv1d (with kernel size 2).
+
+See
+
+- [./transducer_stateless](./transducer_stateless)
+- [./transducer_stateless_multi_datasets](./transducer_stateless_multi_datasets)
+
+##### 2022-03-01
+
+Using commit `2332ba312d7ce72f08c7bac1e3312f7e3dd722dc`.
+
+It uses [GigaSpeech](https://github.com/SpeechColab/GigaSpeech)
+as extra training data. 20% of the time it selects a batch from L subset of
+GigaSpeech and 80% of the time it selects a batch from LibriSpeech.
+
+The WERs are
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.64       | 6.55       | --epoch 39, --avg 15, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.61       | 6.46       | --epoch 39, --avg 15, --max-duration 100 |
+
+The training command for reproducing is given below:
+
+```bash
+cd egs/librispeech/ASR/
+./prepare.sh
+./prepare_giga_speech.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./transducer_stateless_multi_datasets/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25 \
+  --giga-prob 0.2
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/xmo5oCgrRVelH9dCeOkYBg/>
+
+The decoding command is:
+
+```bash
+epoch=39
+avg=15
+sym=1
+
+# greedy search
+./transducer_stateless_multi_datasets/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --context-size 2 \
+  --max-sym-per-frame $sym
+
+# modified beam search
+./transducer_stateless_multi_datasets/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir transducer_stateless_multi_datasets/exp-full-2 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 100 \
+  --context-size 2 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+```
+
+You can find a pretrained model by visiting
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-multi-datasets-bpe-500-2022-03-01>
+
+
+##### 2022-02-07
+
+Using commit `a8150021e01d34ecbd6198fe03a57eacf47a16f2`.
+
+
+The WERs are
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
+| modified beam search (beam size 4)  | 2.67       | 6.57       | --epoch 63, --avg 19, --max-duration 100 |
+
+
+The training command for reproducing is given below:
+
+```
+cd egs/librispeech/ASR/
+./prepare.sh
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 76 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp-full \
   --full-libri 1 \
-  --max-duration 250 \
-  --lr-factor 3
+  --max-duration 300 \
+  --lr-factor 5 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --modified-transducer-prob 0.25
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/qGdqzHnxS0WJ695OXfZDzA/#scalars&_smoothingWeight=0>
+<https://tensorboard.dev/experiment/qgvWkbF2R46FYA6ZMNmOjA/#scalars>
 
 The decoding command is:
 ```
-epoch=71
-avg=15
+epoch=63
+avg=19
 
 ## greedy search
-./transducer_stateless/decode.py \
-  --epoch $epoch \
-  --avg $avg \
-  --exp-dir transducer_stateless/exp-full \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
-  --max-duration 100
+for sym in 1 2 3; do
+  ./transducer_stateless/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir transducer_stateless/exp-full \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --max-duration 100 \
+    --max-sym-per-frame $sym
+done
 
-## beam search
+## modified beam search
+
 ./transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir transducer_stateless/exp-full \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   --max-duration 100 \
-  --decoding-method beam_search \
+  --context-size 2 \
+  --decoding-method modified_beam_search \
   --beam-size 4
 ```
 
 You can find a pretrained model by visiting
-<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-bpe-500-2022-01-10>
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-bpe-500-2022-02-07>
 
 
 #### Conformer encoder + LSTM decoder

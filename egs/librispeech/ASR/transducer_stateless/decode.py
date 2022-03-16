@@ -33,6 +33,15 @@ Usage:
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
+
+(3) modified beam search
+./transducer_stateless/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_stateless/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
 """
 
 
@@ -46,7 +55,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import beam_search, greedy_search
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -104,6 +113,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - beam_search
+          - modified_beam_search
         """,
     )
 
@@ -111,7 +121,8 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --decoding-method is beam_search",
+        help="""Used only when --decoding-method is
+        beam_search or modified_beam_search""",
     )
 
     parser.add_argument(
@@ -125,7 +136,8 @@ def get_parser():
         "--max-sym-per-frame",
         type=int,
         default=3,
-        help="Maximum number of symbols per frame",
+        help="""Maximum number of symbols per frame.
+        Used only when --decoding_method is greedy_search""",
     )
 
     return parser
@@ -254,6 +266,10 @@ def decode_one_batch(
             )
         elif params.decoding_method == "beam_search":
             hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
@@ -389,11 +405,15 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search", "beam_search")
+    assert params.decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if params.decoding_method == "beam_search":
+    if "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"

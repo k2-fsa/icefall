@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+
 import k2
 import torch
 import torch.nn as nn
@@ -62,6 +64,7 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        modified_transducer_prob: float = 0.0,
         warmup_mode: bool = False
     ) -> torch.Tensor:
         """
@@ -74,6 +77,8 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          modified_transducer_prob:
+            The probability to use modified transducer loss.
         Returns:
           Return the transducer loss.
         """
@@ -115,6 +120,16 @@ class Transducer(nn.Module):
         # reference stage
         import optimized_transducer
 
+        assert 0 <= modified_transducer_prob <= 1
+
+        if modified_transducer_prob == 0:
+            one_sym_per_frame = False
+        elif random.random() < modified_transducer_prob:
+            # random.random() returns a float in the range [0, 1)
+            one_sym_per_frame = True
+        else:
+            one_sym_per_frame = False
+
         loss = optimized_transducer.transducer_loss(
             logits=logits,
             targets=y_padded,
@@ -122,6 +137,7 @@ class Transducer(nn.Module):
             target_lengths=y_lens,
             blank=blank_id,
             reduction="sum",
+            one_sym_per_frame=one_sym_per_frame,
             from_log_softmax=False,
         )
 

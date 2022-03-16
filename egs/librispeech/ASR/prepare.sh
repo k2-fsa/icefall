@@ -60,8 +60,11 @@ log "dl_dir: $dl_dir"
 
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "Stage -1: Download LM"
-  [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
-  ./local/download_lm.py --out-dir=$dl_dir/lm
+  mkdir -p $dl_dir/lm
+  if [ ! -e $dl_dir/lm/.done ]; then
+    ./local/download_lm.py --out-dir=$dl_dir/lm
+    touch $dl_dir/lm/.done
+  fi
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
@@ -91,7 +94,10 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the LibriSpeech corpus
   # to $dl_dir/LibriSpeech
   mkdir -p data/manifests
-  lhotse prepare librispeech -j $nj $dl_dir/LibriSpeech data/manifests
+  if [ ! -e data/manifests/.librispeech.done ]; then
+    lhotse prepare librispeech -j $nj $dl_dir/LibriSpeech data/manifests
+    touch data/manifests/.librispeech.done
+  fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -99,19 +105,28 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # We assume that you have downloaded the musan corpus
   # to data/musan
   mkdir -p data/manifests
-  lhotse prepare musan $dl_dir/musan data/manifests
+  if [ ! -e data/manifests/.musan.done ]; then
+    lhotse prepare musan $dl_dir/musan data/manifests
+    touch data/manifests/.musan.done
+  fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for librispeech"
   mkdir -p data/fbank
-  ./local/compute_fbank_librispeech.py
+  if [ ! -e data/fbank/.librispeech.done ]; then
+    ./local/compute_fbank_librispeech.py
+    touch data/fbank/.librispeech.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for musan"
   mkdir -p data/fbank
-  ./local/compute_fbank_musan.py
+  if [ ! -e data/fbank/.musan.done ]; then
+    ./local/compute_fbank_musan.py
+    touch data/fbank/.musan.done
+  fi
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then

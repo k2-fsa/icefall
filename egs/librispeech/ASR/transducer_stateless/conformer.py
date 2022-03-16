@@ -252,13 +252,12 @@ class ConformerEncoder(nn.Module):
         >>> out = conformer_encoder(src, pos_emb)
     """
 
-    def __init__(
-            self, encoder_layer: nn.Module,
-            num_layers: int,
-            aux_layers: Sequence[int],
-    ) -> None:
-        super(ConformerEncoder, self).__init__()
-        self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for i in range(num_layers)])
+    def __init__(self, encoder_layer: nn.Module, num_layers: int,
+                 aux_layers: Sequence[int]) -> None:
+        super().__init__()
+        self.layers = nn.ModuleList(
+            [copy.deepcopy(encoder_layer) for i in range(num_layers)]
+        )
         self.aux_layers = set(aux_layers + [num_layers - 1])
         assert num_layers - 1 not in aux_layers
         self.num_layers = num_layers

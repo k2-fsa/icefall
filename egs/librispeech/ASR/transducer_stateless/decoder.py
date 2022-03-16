@@ -78,7 +78,7 @@ class Decoder(nn.Module):
         """
         Args:
           y:
-            A 2-D tensor of shape (N, U) with blank prepended.
+            A 2-D tensor of shape (N, U).
           need_pad:
             True to left pad the input. Should be True during training.
             False to not pad the input. Should be False during inference.

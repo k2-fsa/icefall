@@ -10,12 +10,10 @@ We may add recipes for other tasks as well in the future.
 .. Other recipes are listed in a alphabetical order.
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
+   :caption: Table of Contents
 
-   yesno
-
-   librispeech
-
-   aishell
-
-   timit
+   aishell/index
+   librispeech/index
+   timit/index
+   yesno/index

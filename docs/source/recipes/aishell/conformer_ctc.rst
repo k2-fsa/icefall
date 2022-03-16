@@ -1,4 +1,4 @@
-Confromer CTC
+Conformer CTC
 =============
 
 This tutorial shows you how to run a conformer ctc model

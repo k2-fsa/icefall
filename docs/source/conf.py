@@ -33,6 +33,7 @@ release = "0.1"
 # ones.
 extensions = [
     "sphinx_rtd_theme",
+    "sphinx.ext.todo",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -74,3 +75,5 @@ html_context = {
     "github_version": "master",
     "conf_py_path": "/icefall/docs/source/",
 }
+
+todo_include_todos = True

@@ -25,13 +25,15 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, TextIO, Optional, Tuple, Union
 
 import k2
 import k2.version
 import kaldialign
 import torch
+import torch.nn as nn
 import torch.distributed as dist
+from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 
 Pathlike = Union[str, Path]
@@ -521,8 +523,8 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.norm_items():
             norm_value = "%.4g" % v
             ans += str(k) + "=" + str(norm_value) + ", "
-        frames = str(self["frames"])
-        ans += "over " + frames + " frames."
+        frames = "%.2f" % self["frames"]
+        ans += "over " + str(frames) + " frames."
         return ans
 
     def norm_items(self) -> List[Tuple[str, float]]:
@@ -690,3 +692,94 @@ def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
     expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
 
     return expaned_lengths >= lengths.unsqueeze(1)
+
+
+def l1_norm(x):
+    return torch.sum(torch.abs(x))
+
+
+def l2_norm(x):
+    return torch.sum(torch.pow(x, 2))
+
+
+def linf_norm(x):
+    return torch.max(torch.abs(x))
+
+
+def measure_weight_norms(
+    model: nn.Module, norm: str = "l2"
+) -> Dict[str, float]:
+    """
+    Compute the norms of the model's parameters.
+
+    :param model: a torch.nn.Module instance
+    :param norm: how to compute the norm. Available values: 'l1', 'l2', 'linf'
+    :return: a dict mapping from parameter's name to its norm.
+    """
+    with torch.no_grad():
+        norms = {}
+        for name, param in model.named_parameters():
+            if norm == "l1":
+                val = l1_norm(param)
+            elif norm == "l2":
+                val = l2_norm(param)
+            elif norm == "linf":
+                val = linf_norm(param)
+            else:
+                raise ValueError(f"Unknown norm type: {norm}")
+            norms[name] = val.item()
+        return norms
+
+
+def measure_gradient_norms(
+    model: nn.Module, norm: str = "l1"
+) -> Dict[str, float]:
+    """
+    Compute the norms of the gradients for each of model's parameters.
+
+    :param model: a torch.nn.Module instance
+    :param norm: how to compute the norm. Available values: 'l1', 'l2', 'linf'
+    :return: a dict mapping from parameter's name to its gradient's norm.
+    """
+    with torch.no_grad():
+        norms = {}
+        for name, param in model.named_parameters():
+            if norm == "l1":
+                val = l1_norm(param.grad)
+            elif norm == "l2":
+                val = l2_norm(param.grad)
+            elif norm == "linf":
+                val = linf_norm(param.grad)
+            else:
+                raise ValueError(f"Unknown norm type: {norm}")
+            norms[name] = val.item()
+        return norms
+
+
+def optim_step_and_measure_param_change(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scaler: Optional[GradScaler] = None,
+) -> Dict[str, float]:
+    """
+    Perform model weight update and measure the "relative change in parameters per minibatch."
+    It is understood as a ratio between the L2 norm of the difference between original and updates parameters,
+    and the L2 norm of the original parameter. It is given by the formula:
+
+        .. math::
+            \begin{aligned}
+                \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
+            \end{aligned}
+    """
+    param_copy = {n: p.detach().clone() for n, p in model.named_parameters()}
+    if scaler:
+        scaler.step(optimizer)
+    else:
+        optimizer.step()
+    relative_change = {}
+    with torch.no_grad():
+        for n, p_new in model.named_parameters():
+            p_orig = param_copy[n]
+            delta = l2_norm(p_orig - p_new) / l2_norm(p_orig)
+            relative_change[n] = delta.item()
+    return relative_change
