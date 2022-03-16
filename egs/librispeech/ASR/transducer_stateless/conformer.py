@@ -876,8 +876,7 @@ class ConvolutionModule(nn.Module):
         self.deriv_balancer2 = DerivBalancer(channel_dim=1,
                                              min_positive=0.05, max_positive=1.0)
 
-         # Shape: (channels, 1), broadcasts with (batch, channel, time).
-        self.activation = SwishOffset()
+        self.activation = DoubleSwish()
 
         self.pointwise_conv2 = ScaledConv1d(
             channels,
@@ -916,24 +915,6 @@ class ConvolutionModule(nn.Module):
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
         return x.permute(2, 0, 1)
-
-
-class Swish(torch.nn.Module):
-    """Construct an Swish object."""
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swich activation function."""
-        return x * torch.sigmoid(x)
-
-class SwishOffset(torch.nn.Module):
-    """Construct an SwishOffset object."""
-    def __init__(self, offset: float = -1.0) -> None:
-        super(SwishOffset, self).__init__()
-        self.offset = offset
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swich activation function."""
-        return x * torch.sigmoid(x + self.offset)
 
 
 class Identity(torch.nn.Module):
