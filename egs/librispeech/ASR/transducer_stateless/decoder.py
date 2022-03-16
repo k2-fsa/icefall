@@ -183,7 +183,7 @@ class ScaledEmbedding(nn.Module):
 
     def __init__(self, num_embeddings: int, embedding_dim: int, padding_idx: Optional[int] = None,
                  scale_grad_by_freq: bool = False,
-                 sparse: bool = False, _weight: Optional[Tensor] = None,
+                 sparse: bool = False,
                  scale_speed: float = 5.0) -> None:
         super(ScaledEmbedding, self).__init__()
         self.num_embeddings = num_embeddings
@@ -198,19 +198,18 @@ class ScaledEmbedding(nn.Module):
         self.scale_grad_by_freq = scale_grad_by_freq
 
         self.scale_speed = scale_speed
-        self.scale = nn.Parameter(torch.tensor(embedding_dim**0.5).log() / scale_speed)
-
-        if _weight is None:
-            self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
-            self.reset_parameters()
-        else:
-            assert list(_weight.shape) == [num_embeddings, embedding_dim], \
-                'Shape of weight does not match num_embeddings and embedding_dim'
-            self.weight = nn.Parameter(_weight)
+        self.scale = nn.Parameter(torch.zeros(())) # see reset_parameters()
         self.sparse = sparse
 
+        self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
+        self.reset_parameters()
+
+
+
     def reset_parameters(self) -> None:
-        nn.init.normal_(self.weight, std=self.embedding_dim**-0.5)
+        nn.init.normal_(self.weight, std=0.05)
+        nn.init.constant_(self.scale, torch.tensor(1.0/0.05).log() / self.scale_speed)
+
         if self.padding_idx is not None:
             with torch.no_grad():
                 self.weight[self.padding_idx].fill_(0)
@@ -228,7 +227,6 @@ class ScaledEmbedding(nn.Module):
                 None, 2.0, # None, 2.0 relates to normalization
                 self.scale_grad_by_freq, self.sparse)
 
-
     def extra_repr(self) -> str:
         s = '{num_embeddings}, {embedding_dim}, scale_speed={scale_speed}, scale={scale}'
         if self.padding_idx is not None:
@@ -238,45 +236,3 @@ class ScaledEmbedding(nn.Module):
         if self.sparse is not False:
             s += ', sparse=True'
         return s.format(**self.__dict__)
-
-    @classmethod
-    def from_pretrained(cls, embeddings, freeze=True, padding_idx=None,
-                        max_norm=None, norm_type=2., scale_grad_by_freq=False,
-                        sparse=False):
-        r"""Creates Embedding instance from given 2-dimensional FloatTensor.
-
-        Args:
-            embeddings (Tensor): FloatTensor containing weights for the Embedding.
-                First dimension is being passed to Embedding as ``num_embeddings``, second as ``embedding_dim``.
-            freeze (boolean, optional): If ``True``, the tensor does not get updated in the learning process.
-                Equivalent to ``embedding.weight.requires_grad = False``. Default: ``True``
-            padding_idx (int, optional): See module initialization documentation.
-            max_norm (float, optional): See module initialization documentation.
-            norm_type (float, optional): See module initialization documentation. Default ``2``.
-            scale_grad_by_freq (boolean, optional): See module initialization documentation. Default ``False``.
-            sparse (bool, optional): See module initialization documentation.
-
-        Examples::
-
-            >>> # FloatTensor containing pretrained weights
-            >>> weight = torch.FloatTensor([[1, 2.3, 3], [4, 5.1, 6.3]])
-            >>> embedding = nn.Embedding.from_pretrained(weight)
-            >>> # Get embeddings for index 1
-            >>> input = torch.LongTensor([1])
-            >>> embedding(input)
-            tensor([[ 4.0000,  5.1000,  6.3000]])
-        """
-        assert embeddings.dim() == 2, \
-            'Embeddings parameter is expected to be 2-dimensional'
-        rows, cols = embeddings.shape
-        embedding = cls(
-            num_embeddings=rows,
-            embedding_dim=cols,
-            _weight=embeddings,
-            padding_idx=padding_idx,
-            max_norm=max_norm,
-            norm_type=norm_type,
-            scale_grad_by_freq=scale_grad_by_freq,
-            sparse=sparse)
-        embedding.weight.requires_grad = not freeze
-        return embedding

@@ -162,7 +162,7 @@ class ConformerEncoderLayer(nn.Module):
             DerivBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
+            ScaledLinear(dim_feedforward, d_model),
         )
 
         self.feed_forward_macaron = nn.Sequential(
@@ -170,7 +170,7 @@ class ConformerEncoderLayer(nn.Module):
             DerivBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
+            ScaledLinear(dim_feedforward, d_model),
         )
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
@@ -423,7 +423,7 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         self.in_proj = ScaledLinear(embed_dim, 3 * embed_dim, bias=True)
-        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True, initial_scale=0.25)
+        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True)
 
         # linear transformation for positional encoding.
         self.linear_pos = ScaledLinear(embed_dim, embed_dim, bias=False)
@@ -434,7 +434,6 @@ class RelPositionMultiheadAttention(nn.Module):
         self.scale_speed = scale_speed
         self.pos_bias_u_scale = nn.Parameter(torch.zeros(()).detach())
         self.pos_bias_v_scale = nn.Parameter(torch.zeros(()).detach())
-
         self._reset_parameters()
 
     def _pos_bias_u(self):
@@ -444,12 +443,8 @@ class RelPositionMultiheadAttention(nn.Module):
         return self.pos_bias_v * (self.pos_bias_v_scale * self.scale_speed).exp()
 
     def _reset_parameters(self) -> None:
-        nn.init.xavier_uniform_(self.in_proj.weight)
-        nn.init.constant_(self.in_proj.bias, 0.0)
-        nn.init.constant_(self.out_proj.bias, 0.0)
-
-        nn.init.xavier_uniform_(self.pos_bias_u)
-        nn.init.xavier_uniform_(self.pos_bias_v)
+        nn.init.normal_(self.pos_bias_u, std=0.05)
+        nn.init.normal_(self.pos_bias_v, std=0.05)
 
     def forward(
         self,
@@ -891,7 +886,6 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.25
         )
 
     def forward(self, x: Tensor) -> Tensor:

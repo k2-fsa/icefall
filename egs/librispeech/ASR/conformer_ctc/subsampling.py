@@ -62,13 +62,6 @@ class Conv2dSubsampling(nn.Module):
         self.out_norm = BasicNorm(odim, learn_eps=False)
         # constrain median of output to be close to zero.
         self.out_balancer = DerivBalancer(channel_dim=-1, min_positive=0.45, max_positive=0.55)
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        # init weights with smaller than default variance, because otherwise
-        # they learn too slowly in relative terms (assuming we're training with adam).
-        nn.init.normal_(self.conv[0].weight, std=0.05)
-        nn.init.constant_(self.conv[0].bias, 0.0)
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -406,8 +399,36 @@ class BasicNorm(torch.nn.Module):
         return x * scales
 
 
+
+
 class ScaledLinear(nn.Linear):
-    def __init__(self, *args, scale_speed=5.0, initial_scale=1.0, **kwargs):
+    """
+    A modified version of nn.Linear where the parameters are scaled before
+    use, via:
+         weight = self.weight * (self.weight_scale * self.scale_speed).exp()
+         bias = self.bias * (self.bias_scale * self.scale_speed).exp()
+
+    Args:
+        Accepts the standard args and kwargs that nn.Linear accepts
+        e.g. in_features, out_features, bias=False.
+
+        scale_speed: a factor that affects how fast the weight_scale
+           and bias_scale learn; this value is suitable for Adam-type
+           optimizers.
+        initial_scale: you can override this if you want to increase
+           or decrease the initial magnitude of the module's output
+           (affects the initialization of weight_scale and bias_scale).
+           Another option, if you want to do something like this, is
+           to re-initialize the parameters.
+
+       Note: it uses the default initialization for the weight and bias,
+       inherited from nn.Linear.  For modules with small fan-in, this
+       may be larger than optimal.
+    """
+    def __init__(self, *args,
+                 scale_speed: float = 5.0,
+                 initial_scale: float = 1.0,
+                 **kwargs):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = (torch.tensor(initial_scale).log() / scale_speed)
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
@@ -417,6 +438,17 @@ class ScaledLinear(nn.Linear):
         else:
             self.register_parameter('bias_scale', None)
 
+        self._reset_parameters()  # Overrides the reset_parameters in nn.Linear
+
+    def _reset_parameters(self):
+        nn.init.normal_(self.weight, std=0.05)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1]
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
+
 
     def get_weight(self):
         return self.weight * (self.weight_scale * self.scale_speed).exp()
@@ -424,7 +456,6 @@ class ScaledLinear(nn.Linear):
     def get_bias(self):
         return (None if self.bias is None else
                 self.bias * (self.bias_scale * self.scale_speed).exp())
-
 
     def forward(self, input: Tensor) -> Tensor:
         return torch.nn.functional.linear(input, self.get_weight(),
@@ -442,6 +473,17 @@ class ScaledConv1d(nn.Conv1d):
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
             self.register_parameter('bias_scale', None)
+        self._reset_parameters()  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self):
+        nn.init.normal_(self.weight, std=0.05)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
+
 
     def get_weight(self):
         return self.weight * (self.weight_scale * self.scale_speed).exp()
@@ -471,6 +513,16 @@ class ScaledConv2d(nn.Conv2d):
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
             self.register_parameter('bias_scale', None)
+        self._reset_parameters()  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self):
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        nn.init.normal_(self.weight, std=0.05)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += (torch.tensor(scale / 0.05).log() / self.scale_speed)
 
 
     def get_weight(self):
