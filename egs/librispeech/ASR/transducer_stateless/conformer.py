@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import Optional, Tuple, Sequence
-from subsampling import DoubleSwish, DerivBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
+from subsampling import DoubleSwish, ActivationBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
 
 import torch
 from torch import Tensor, nn
@@ -159,7 +159,7 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
-            DerivBalancer(channel_dim=-1),
+            ActivationBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
@@ -167,7 +167,7 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward_macaron = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
-            DerivBalancer(channel_dim=-1),
+            ActivationBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
@@ -180,7 +180,9 @@ class ConformerEncoderLayer(nn.Module):
         self.norm_final = BasicNorm(d_model)
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
-        self.balancer = DerivBalancer(channel_dim=-1, min_positive=0.45, max_positive=0.55)
+        self.balancer = ActivationBalancer(channel_dim=-1,
+                                           min_positive=0.45,
+                                           max_positive=0.55)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -858,8 +860,9 @@ class ConvolutionModule(nn.Module):
         # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
-        self.deriv_balancer1 = DerivBalancer(channel_dim=1, max_abs=10.0,
-                                            min_positive=0.05, max_positive=1.0)
+        self.deriv_balancer1 = ActivationBalancer(channel_dim=1, max_abs=10.0,
+                                                  min_positive=0.05,
+                                                  max_positive=1.0)
 
         self.depthwise_conv = ScaledConv1d(
             channels,
@@ -871,8 +874,9 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer2 = DerivBalancer(channel_dim=1,
-                                             min_positive=0.05, max_positive=1.0)
+        self.deriv_balancer2 = ActivationBalancer(channel_dim=1,
+                                                  min_positive=0.05,
+                                                  max_positive=1.0)
 
         self.activation = DoubleSwish()
 
