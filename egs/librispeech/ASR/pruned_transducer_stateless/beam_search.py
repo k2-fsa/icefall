@@ -90,7 +90,7 @@ def fast_beam_search(
         logits = logits.squeeze(1).squeeze(1)
         log_probs = logits.log_softmax(dim=-1)
         decoding_streams.advance(log_probs)
-    decoding_streams.detach()
+    decoding_streams.terminate_and_flush_to_atreams()
     lattice = decoding_streams.format_output(encoder_out_lens.tolist())
 
     best_path = one_best_decoding(lattice)
