@@ -52,7 +52,6 @@ from lhotse.utils import fix_random_seed
 from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
@@ -516,7 +515,6 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -741,7 +739,6 @@ def scan_pessimistic_batches_for_oom(
                 is_training=True,
             )
             loss.backward()
-            clip_grad_norm_(model.parameters(), 5.0, 2.0)
             optimizer.step()
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
