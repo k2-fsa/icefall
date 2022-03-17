@@ -391,7 +391,8 @@ class Noam(object):
         return (
             self.factor
             * self.model_size ** (-0.5)
-            * min(step ** (-0.5), step * self.warmup ** (-1.5))
+            * self.warmup ** (-0.5 - -0.333)
+            * min(step ** (-0.333), step * self.warmup ** (-1.333))
         )
 
     def zero_grad(self):
