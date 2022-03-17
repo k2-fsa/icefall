@@ -452,7 +452,7 @@ def compute_loss(
         )
         loss = params.simple_loss_scale * simple_loss
         if not warmup_mode:
-            loss = loss + pruned_loss * (0.1 if warmup_mode else 1.0)
+            loss = loss + (pruned_loss * 0.01 if warmup_mode else pruned_loss)
 
     assert loss.requires_grad == is_training
 
