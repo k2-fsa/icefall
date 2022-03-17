@@ -22,7 +22,7 @@ import torch.nn as nn
 
 class EncoderInterface(nn.Module):
     def forward(
-      self, x: torch.Tensor, x_lens: torch.Tensor, warmup_mode: bool
+      self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -32,8 +32,6 @@ class EncoderInterface(nn.Module):
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames
             in `x` before padding.
-          warmup_mode: for training only, if true then train in
-            "warmup mode" (use this for the first few thousand minibatches).
         Returns:
           Return a tuple containing two tensors:
             - encoder_out, a tensor of (batch_size, out_seq_len, output_dim)
