@@ -111,8 +111,8 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   if [ ! -f $lang_dir/lexicon_words.txt ]; then
     ./local/prepare_lexicon.py \
-      --manifests-dir data/manifests \
-      --lang-dir $lang_dir
+      --lang-dir $lang_dir \
+      --manifests-dir data/manifests
   fi
 
   (echo '!SIL SIL'; echo '<UNK> <UNK>'; ) |
