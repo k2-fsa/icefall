@@ -153,7 +153,7 @@ class ScaledLinear(nn.Linear):
         self._reset_parameters()  # Overrides the reset_parameters in nn.Linear
 
     def _reset_parameters(self):
-        std = 0.05
+        std = 0.025
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
@@ -188,7 +188,7 @@ class ScaledConv1d(nn.Conv1d):
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
-        std = 0.05
+        std = 0.025
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
@@ -229,7 +229,7 @@ class ScaledConv2d(nn.Conv2d):
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
-        std = 0.05
+        std = 0.025
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
