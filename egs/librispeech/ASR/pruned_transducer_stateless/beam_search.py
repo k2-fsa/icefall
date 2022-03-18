@@ -26,23 +26,26 @@ from icefall.utils import get_texts
 
 
 def fast_beam_search(
-    decoding_graph: k2.Fsa,
     model: Transducer,
+    decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     beam: float,
     max_states: int,
     max_contexts: int,
-) -> List[int]:
+) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
     Args:
       model:
         An instance of `Transducer`.
-      encoder_out:
-        A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
       decoding_graph:
         Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      encoder_out_lens:
+        A tensor of shape (N,) containing the number of frames in `encoder_out`
+        before padding.
       beam:
         Beam value, similar to the beam used in Kaldi..
       max_states:
@@ -66,15 +69,17 @@ def fast_beam_search(
         max_contexts=max_contexts,
         max_states=max_states,
     )
-    indivisual_streams = []
+    individual_streams = []
     for i in range(B):
-        indivisual_streams.append(k2.RnntDecodingStream(decoding_graph))
-    decoding_streams = k2.RnntDecodingStreams(indivisual_streams, config)
+        individual_streams.append(k2.RnntDecodingStream(decoding_graph))
+    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
 
     for t in range(T):
         # shape is a RaggedShape of shape (B, context)
         # contexts is a Tensor of shape (shape.NumElements(), context_size)
         shape, contexts = decoding_streams.get_contexts()
+        # `nn.Embedding()` in torch below v1.7.1 supports only torch.int64
+        contexts = contexts.to(torch.int64)
         # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
         decoder_out = model.decoder(contexts, need_pad=False)
         # current_encoder_out is of shape
@@ -90,7 +95,7 @@ def fast_beam_search(
         logits = logits.squeeze(1).squeeze(1)
         log_probs = logits.log_softmax(dim=-1)
         decoding_streams.advance(log_probs)
-    decoding_streams.terminate_and_flush_to_atreams()
+    decoding_streams.terminate_and_flush_to_streams()
     lattice = decoding_streams.format_output(encoder_out_lens.tolist())
 
     best_path = one_best_decoding(lattice)

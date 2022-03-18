@@ -60,7 +60,7 @@ import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import k2
 import sentencepiece as spm
@@ -135,16 +135,19 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""Used only when --decoding-method is
-        beam_search or modified_beam_search""",
+        help="""An interger indicating how many candidates we will keep for each
+        frame. Used only when --decoding-method is beam_search or
+        modified_beam_search.""",
     )
 
     parser.add_argument(
         "--beam",
         type=float,
         default=4,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --decoding-method is fast_beam_search""",
     )
 
     parser.add_argument(
@@ -185,8 +188,8 @@ def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    decoding_graph: k2.Fsa,
     batch: dict,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -293,7 +296,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    decoding_graph: k2.Fsa,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
