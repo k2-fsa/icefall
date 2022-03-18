@@ -410,7 +410,6 @@ class RelPositionMultiheadAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         dropout: float = 0.0,
-        scale_speed: float = 5.0
     ) -> None:
         super(RelPositionMultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -430,16 +429,15 @@ class RelPositionMultiheadAttention(nn.Module):
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         self.pos_bias_u = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
         self.pos_bias_v = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
-        self.scale_speed = scale_speed
         self.pos_bias_u_scale = nn.Parameter(torch.zeros(()).detach())
         self.pos_bias_v_scale = nn.Parameter(torch.zeros(()).detach())
         self._reset_parameters()
 
     def _pos_bias_u(self):
-        return self.pos_bias_u * (self.pos_bias_u_scale * self.scale_speed).exp()
+        return self.pos_bias_u * self.pos_bias_u_scale.exp()
 
     def _pos_bias_v(self):
-        return self.pos_bias_v * (self.pos_bias_v_scale * self.scale_speed).exp()
+        return self.pos_bias_v * self.pos_bias_v_scale.exp()
 
     def _reset_parameters(self) -> None:
         nn.init.normal_(self.pos_bias_u, std=0.05)
