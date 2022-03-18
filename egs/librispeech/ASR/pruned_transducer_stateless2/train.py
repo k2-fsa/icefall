@@ -615,7 +615,7 @@ def run(rank, world_size, args):
     params.update(vars(args))
     if params.full_libri is False:
         params.valid_interval = 800
-        params.warm_step = 8000
+        params.warm_step = 16000
 
     fix_random_seed(params.seed)
     if world_size > 1:
