@@ -47,7 +47,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import TedLiumAsrDataModule
-from beam_search import beam_search, greedy_search
+from beam_search import beam_search, greedy_search, modified_beam_search
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -105,6 +105,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - beam_search
+          - modified_beam_search
         """,
     )
 
@@ -262,6 +263,10 @@ def decode_one_batch(
             hyp = beam_search(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
@@ -398,6 +403,7 @@ def main():
     assert params.decoding_method in (
         "greedy_search",
         "beam_search",
+        "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
