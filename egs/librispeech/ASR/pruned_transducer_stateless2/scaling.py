@@ -459,6 +459,7 @@ class ScaledEmbedding(nn.Module):
                 self.weight[self.padding_idx].fill_(0)
 
     def forward(self, input: Tensor) -> Tensor:
+        F = torch.nn.functional
         scale = self.scale.exp()
         if input.numel() < self.num_embeddings:
             return F.embedding(
