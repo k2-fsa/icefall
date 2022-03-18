@@ -208,13 +208,13 @@ def decode_one_batch(
         The neural model.
       sp:
         The BPE model.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
