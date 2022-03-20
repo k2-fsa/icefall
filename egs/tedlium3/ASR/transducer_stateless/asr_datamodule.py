@@ -278,7 +278,6 @@ class TedLiumAsrDataModule:
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
-        # print(train)
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
@@ -351,7 +350,6 @@ class TedLiumAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        print(self.args.manifest_dir)
         return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
 
     @lru_cache()

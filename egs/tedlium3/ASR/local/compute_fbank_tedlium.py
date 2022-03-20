@@ -15,8 +15,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 """
 This file computes fbank features of the TedLium3 dataset.
 It looks for manifests in the directory data/manifests.
@@ -77,11 +75,14 @@ def compute_fbank_tedlium():
                     + cut_set.perturb_speed(0.9)
                     + cut_set.perturb_speed(1.1)
                 )
+            cur_num_jobs = num_jobs if ex is None else 80
+            cur_num_jobs = min(cur_num_jobs, len(cut_set))
+
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/feats_{partition}",
                 # when an executor is specified, make more partitions
-                num_jobs=num_jobs if ex is None else 80,
+                num_jobs=cur_num_jobs,
                 executor=ex,
                 storage_type=ChunkedLilcomHdf5Writer,
             )
