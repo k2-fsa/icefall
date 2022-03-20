@@ -21,6 +21,7 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
@@ -181,8 +182,18 @@ class LibriSpeechAsrDataModule:
             "with training dataset. ",
         )
 
-    def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
-
+    def train_dataloaders(
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
+    ) -> DataLoader:
+        """
+        Args:
+          cuts_train:
+            CutSet for training.
+          sampler_state_dict:
+            The state dict for the training sampler.
+        """
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
@@ -285,6 +296,10 @@ class LibriSpeechAsrDataModule:
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
+
+        if sampler_state_dict is not None:
+            logging.info("Loading sampler state dict")
+            train_sampler.load_state_dict(sampler_state_dict)
 
         train_dl = DataLoader(
             train,

@@ -58,7 +58,11 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import beam_search, greedy_search, modified_beam_search
 from train import get_params, get_transducer_model
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -86,6 +90,17 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
+    )
+
+    parser.add_argument(
+        "--avg-last-n",
+        type=int,
+        default=0,
+        help="""If positive, --epoch and --avg are ignored and it
+        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
+        where xxx is the number of processed batches while
+        saving that checkpoint.
+        """,
     )
 
     parser.add_argument(
@@ -372,7 +387,12 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg == 1:
+    if params.avg_last_n > 0:
+        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
+    elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1

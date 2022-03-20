@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
+from lhotse.dataset.sampling.base import CutSampler
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
@@ -37,6 +38,7 @@ def save_checkpoint(
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[_LRScheduler] = None,
     scaler: Optional[GradScaler] = None,
+    sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
     """Save training information to a file.
@@ -72,6 +74,7 @@ def save_checkpoint(
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
         "scheduler": scheduler.state_dict() if scheduler is not None else None,
         "grad_scaler": scaler.state_dict() if scaler is not None else None,
+        "sampler": sampler.state_dict() if sampler is not None else None,
     }
 
     if params:
@@ -88,6 +91,7 @@ def load_checkpoint(
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[_LRScheduler] = None,
     scaler: Optional[GradScaler] = None,
+    sampler: Optional[CutSampler] = None,
     strict: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -120,6 +124,7 @@ def load_checkpoint(
     load("optimizer", optimizer)
     load("scheduler", scheduler)
     load("grad_scaler", scaler)
+    load("sampler", sampler)
 
     return checkpoint
 
@@ -164,6 +169,7 @@ def save_checkpoint_with_global_batch_idx(
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[_LRScheduler] = None,
     scaler: Optional[GradScaler] = None,
+    sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ):
     """Save training info after processing given number of batches.
@@ -189,6 +195,8 @@ def save_checkpoint_with_global_batch_idx(
       scaler:
         The scaler used for mix precision training. Its `state_dict` will
         be saved.
+      sampler:
+        The sampler used in the training dataset.
       rank:
         The rank ID used in DDP training of the current node. Set it to 0
         if DDP is not used.
@@ -203,8 +211,33 @@ def save_checkpoint_with_global_batch_idx(
         optimizer=optimizer,
         scheduler=scheduler,
         scaler=scaler,
+        sampler=sampler,
         rank=rank,
     )
+
+
+def find_checkpoints(out_dir: Path) -> List[str]:
+    """Find all available checkpoints in a directory.
+
+    The checkpoint filenames have the form: `checkpoint-xxx.pt`
+    where xxx is a numerical value.
+
+    Args:
+      out_dir:
+        The directory where to search for checkpoints.
+    Returns:
+      Return a list of checkpoint filenames, sorted in descending
+      order by the numerical value in the filename.
+    """
+    checkpoints = list(glob.glob(f"{out_dir}/checkpoint-[0-9]*.pt"))
+    pattern = re.compile(r"checkpoint-([0-9]+).pt")
+    idx_checkpoints = [
+        (int(pattern.search(c).group(1)), c) for c in checkpoints
+    ]
+
+    idx_checkpoints = sorted(idx_checkpoints, reverse=True, key=lambda x: x[0])
+    ans = [ic[1] for ic in idx_checkpoints]
+    return ans
 
 
 def remove_checkpoints(
@@ -231,7 +264,7 @@ def remove_checkpoints(
     assert topk >= 1, topk
     if rank != 0:
         return
-    checkpoints = list(glob.glob(f"{out_dir}/checkpoint-[0-9]*.pt"))
+    checkpoints = find_checkpoints(out_dir)
 
     if len(checkpoints) == 0:
         logging.warn(f"No checkpoints found in {out_dir}")
@@ -240,13 +273,6 @@ def remove_checkpoints(
     if len(checkpoints) <= topk:
         return
 
-    pattern = re.compile(r"checkpoint-([0-9]+).pt")
-    idx_checkpoints = [
-        (int(pattern.search(c).group(1)), c) for c in checkpoints
-    ]
-
-    idx_checkpoints = sorted(idx_checkpoints, reverse=True, key=lambda x: x[0])
-    to_remove = idx_checkpoints[topk:]
-    to_remove = [ic[1] for ic in to_remove]
+    to_remove = checkpoints[topk:]
     for c in to_remove:
         os.remove(c)
