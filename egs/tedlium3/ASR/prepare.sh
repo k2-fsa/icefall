@@ -71,31 +71,44 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare tedlium3 manifest"
-  # We assume that you have downloaded the tedlium3 corpus
-  # to $dl_dir/tedlium3
-  mkdir -p data/manifests
-  lhotse prepare tedlium $dl_dir/tedlium3 data/manifests
+  log "Stage 1: Prepare tedlium3 manifests"
+  if [ ! -f data/manifests/.tedlium3.done ]; then
+    # We assume that you have downloaded the tedlium3 corpus
+    # to $dl_dir/tedlium3
+    mkdir -p data/manifests
+    lhotse prepare tedlium $dl_dir/tedlium3 data/manifests
+    touch data/manifests/.tedlium3.done
+  fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare musan manifest"
+  log "Stage 2: Prepare musan manifests"
   # We assume that you have downloaded the musan corpus
   # to data/musan
-  mkdir -p data/manifests
-  lhotse prepare musan $dl_dir/musan data/manifests
+  if [ ! -e data/manifests/.musan.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare musan $dl_dir/musan data/manifests
+    touch data/manifests/.musan.done
+  fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for tedlium3"
-  mkdir -p data/fbank
-  ./local/compute_fbank_tedlium.py
+
+  if [ ! -e data/fbank/.tedlium3.done ]; then
+    mkdir -p data/fbank
+    python3 ./local/compute_fbank_tedlium.py
+    touch data/fbank/.tedlium3.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for musan"
-  mkdir -p data/fbank
-  ./local/compute_fbank_musan.py
+  if [ ! -e data/fbank/.musan.done ]; then
+    mkdir -p data/fbank
+    python3 ./local/compute_fbank_musan.py
+    touch data/fbank/.musan.done
+  fi
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then

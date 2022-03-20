@@ -624,10 +624,8 @@ def run(rank, world_size, args):
     train_cuts = tedlium.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and max seconds
-        # Here, we set max as 20.0.
-        # If you want to use a big max-duration, you can set it as 17.0.
-        return 1.0 <= c.duration <= 20.0
+        # Keep only utterances with duration between 1 second and 17 seconds
+        return 1.0 <= c.duration <= 17.0
 
     num_in_total = len(train_cuts)
 
