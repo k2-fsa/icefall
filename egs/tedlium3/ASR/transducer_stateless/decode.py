@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang
+#                                            Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,41 +19,30 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
-
-(4) fast beam search
-./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
 """
 
 
@@ -60,26 +50,20 @@ import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import (
-    beam_search,
-    fast_beam_search,
-    greedy_search,
-    modified_beam_search,
-)
-from train import get_params, get_transducer_model
+from asr_datamodule import TedLiumAsrDataModule
+from beam_search import beam_search, greedy_search, modified_beam_search
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from model import Transducer
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -96,34 +80,23 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
+        default=29,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=13,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
 
     parser.add_argument(
-        "--avg-last-n",
-        type=int,
-        default=0,
-        help="""If positive, --epoch and --avg are ignored and it
-        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
-        where xxx is the number of processed batches while
-        saving that checkpoint.
-        """,
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="transducer_stateless/exp",
         help="The experiment dir",
     )
 
@@ -142,7 +115,6 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
-          - fast_beam_search
         """,
     )
 
@@ -150,35 +122,8 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
-        frame. Used only when --decoding-method is beam_search or
-        modified_beam_search.""",
-    )
-
-    parser.add_argument(
-        "--beam",
-        type=float,
-        default=4,
-        help="""A floating point value to calculate the cutoff score during beam
-        search (i.e., `cutoff = max-score - beam`), which is the same as the
-        `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-contexts",
-        type=int,
-        default=4,
         help="""Used only when --decoding-method is
-        fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-states",
-        type=int,
-        default=8,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
+        beam_search or modified_beam_search""",
     )
 
     parser.add_argument(
@@ -199,12 +144,76 @@ def get_parser():
     return parser
 
 
+def get_params() -> AttributeDict:
+    params = AttributeDict(
+        {
+            # parameters for conformer
+            "feature_dim": 80,
+            "encoder_out_dim": 512,
+            "subsampling_factor": 4,
+            "attention_dim": 512,
+            "nhead": 8,
+            "dim_feedforward": 2048,
+            "num_encoder_layers": 12,
+            "vgg_frontend": False,
+            "env_info": get_env_info(),
+        }
+    )
+    return params
+
+
+def get_encoder_model(params: AttributeDict):
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        output_dim=params.encoder_out_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.attention_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        vgg_frontend=params.vgg_frontend,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict):
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.encoder_out_dim,
+        blank_id=params.blank_id,
+        unk_id=params.unk_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict):
+    joiner = Joiner(
+        input_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict):
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+    )
+    return model
+
+
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
-    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -227,9 +236,6 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -248,62 +254,36 @@ def decode_one_batch(
         x=feature, x_lens=feature_lens
     )
     hyps = []
+    batch_size = encoder_out.size(0)
 
-    if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    else:
-        batch_size = encoder_out.size(0)
-
-        for i in range(batch_size):
-            # fmt: off
-            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-            # fmt: on
-            if params.decoding_method == "greedy_search":
-                hyp = greedy_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    max_sym_per_frame=params.max_sym_per_frame,
-                )
-            elif params.decoding_method == "beam_search":
-                hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            elif params.decoding_method == "modified_beam_search":
-                hyp = modified_beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            else:
-                raise ValueError(
-                    f"Unsupported decoding method: {params.decoding_method}"
-                )
-            hyps.append(sp.decode(hyp).split())
+    for i in range(batch_size):
+        # fmt: off
+        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+        # fmt: on
+        if params.decoding_method == "greedy_search":
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
+        elif params.decoding_method == "beam_search":
+            hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        else:
+            raise ValueError(
+                f"Unsupported decoding method: {params.decoding_method}"
+            )
+        hyps.append(sp.decode(hyp).split())
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
-    elif params.decoding_method == "fast_beam_search":
-        return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-            ): hyps
-        }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_{params.beam_size}": hyps}
 
 
 def decode_dataset(
@@ -311,7 +291,6 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -324,9 +303,6 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -354,7 +330,6 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
-            decoding_graph=decoding_graph,
             batch=batch,
         )
 
@@ -425,7 +400,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    TedLiumAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -435,17 +410,12 @@ def main():
     assert params.decoding_method in (
         "greedy_search",
         "beam_search",
-        "fast_beam_search",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if "fast_beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam}"
-        params.suffix += f"-max-contexts-{params.max_contexts}"
-        params.suffix += f"-max-states-{params.max_states}"
-    elif "beam_search" in params.decoding_method:
+    if "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
@@ -463,8 +433,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -472,12 +443,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
+    if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1
@@ -493,24 +459,18 @@ def main():
     model.eval()
     model.device = device
 
-    if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
-    else:
-        decoding_graph = None
-
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    tedlium = TedLiumAsrDataModule(args)
+    dev_cuts = tedlium.dev_cuts()
+    test_cuts = tedlium.test_cuts()
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_dl = tedlium.valid_dataloaders(dev_cuts)
+    test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -518,7 +478,6 @@ def main():
             params=params,
             model=model,
             sp=sp,
-            decoding_graph=decoding_graph,
         )
 
         save_results(
@@ -529,6 +488,9 @@ def main():
 
     logging.info("Done!")
 
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()

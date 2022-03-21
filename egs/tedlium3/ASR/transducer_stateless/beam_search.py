@@ -1,4 +1,5 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,90 +18,8 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-import k2
 import torch
 from model import Transducer
-
-from icefall.decode import one_best_decoding
-from icefall.utils import get_texts
-
-
-def fast_beam_search(
-    model: Transducer,
-    decoding_graph: k2.Fsa,
-    encoder_out: torch.Tensor,
-    encoder_out_lens: torch.Tensor,
-    beam: float,
-    max_states: int,
-    max_contexts: int,
-) -> List[List[int]]:
-    """It limits the maximum number of symbols per frame to 1.
-
-    Args:
-      model:
-        An instance of `Transducer`.
-      decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
-      encoder_out:
-        A tensor of shape (N, T, C) from the encoder.
-      encoder_out_lens:
-        A tensor of shape (N,) containing the number of frames in `encoder_out`
-        before padding.
-      beam:
-        Beam value, similar to the beam used in Kaldi..
-      max_states:
-        Max states per stream per frame.
-      max_contexts:
-        Max contexts pre stream per frame.
-    Returns:
-      Return the decoded result.
-    """
-    assert encoder_out.ndim == 3
-
-    context_size = model.decoder.context_size
-    vocab_size = model.decoder.vocab_size
-
-    B, T, C = encoder_out.shape
-
-    config = k2.RnntDecodingConfig(
-        vocab_size=vocab_size,
-        decoder_history_len=context_size,
-        beam=beam,
-        max_contexts=max_contexts,
-        max_states=max_states,
-    )
-    individual_streams = []
-    for i in range(B):
-        individual_streams.append(k2.RnntDecodingStream(decoding_graph))
-    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
-
-    for t in range(T):
-        # shape is a RaggedShape of shape (B, context)
-        # contexts is a Tensor of shape (shape.NumElements(), context_size)
-        shape, contexts = decoding_streams.get_contexts()
-        # `nn.Embedding()` in torch below v1.7.1 supports only torch.int64
-        contexts = contexts.to(torch.int64)
-        # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
-        decoder_out = model.decoder(contexts, need_pad=False)
-        # current_encoder_out is of shape
-        # (shape.NumElements(), 1, encoder_out_dim)
-        # fmt: off
-        current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
-        )
-        # fmt: on
-        logits = model.joiner(
-            current_encoder_out.unsqueeze(2), decoder_out.unsqueeze(1)
-        )
-        logits = logits.squeeze(1).squeeze(1)
-        log_probs = logits.log_softmax(dim=-1)
-        decoding_streams.advance(log_probs)
-    decoding_streams.terminate_and_flush_to_streams()
-    lattice = decoding_streams.format_output(encoder_out_lens.tolist())
-
-    best_path = one_best_decoding(lattice)
-    hyps = get_texts(best_path)
-    return hyps
 
 
 def greedy_search(
@@ -124,6 +43,7 @@ def greedy_search(
     assert encoder_out.size(0) == 1, encoder_out.size(0)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -147,6 +67,9 @@ def greedy_search(
     # symbols per utterance decoded so far
     sym_per_utt = 0
 
+    encoder_out_len = torch.tensor([1])
+    decoder_out_len = torch.tensor([1])
+
     while t < T and sym_per_utt < max_sym_per_utt:
         if sym_per_frame >= max_sym_per_frame:
             sym_per_frame = 0
@@ -154,13 +77,15 @@ def greedy_search(
             continue
 
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
+        current_encoder_out = encoder_out[:, t:t+1, :]
         # fmt: on
-        logits = model.joiner(current_encoder_out, decoder_out.unsqueeze(1))
+        logits = model.joiner(
+            current_encoder_out, decoder_out, encoder_out_len, decoder_out_len
+        )
         # logits is (1, 1, 1, vocab_size)
 
         y = logits.argmax().item()
-        if y != blank_id:
+        if y != blank_id and y != unk_id:
             hyp.append(y)
             decoder_input = torch.tensor(
                 [hyp[-context_size:]], device=device
@@ -304,6 +229,93 @@ class HypothesisList(object):
         return ", ".join(s)
 
 
+def run_decoder(
+    ys: List[int],
+    model: Transducer,
+    decoder_cache: Dict[str, torch.Tensor],
+) -> torch.Tensor:
+    """Run the neural decoder model for a given hypothesis.
+
+    Args:
+      ys:
+        The current hypothesis.
+      model:
+        The transducer model.
+      decoder_cache:
+        Cache to save computations.
+    Returns:
+      Return a 1-D tensor of shape (decoder_out_dim,) containing
+      output of `model.decoder`.
+    """
+    context_size = model.decoder.context_size
+    key = "_".join(map(str, ys[-context_size:]))
+    if key in decoder_cache:
+        return decoder_cache[key]
+
+    device = model.device
+
+    decoder_input = torch.tensor([ys[-context_size:]], device=device).reshape(
+        1, context_size
+    )
+
+    decoder_out = model.decoder(decoder_input, need_pad=False)
+    decoder_cache[key] = decoder_out
+
+    return decoder_out
+
+
+def run_joiner(
+    key: str,
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    decoder_out: torch.Tensor,
+    encoder_out_len: torch.Tensor,
+    decoder_out_len: torch.Tensor,
+    joint_cache: Dict[str, torch.Tensor],
+):
+    """Run the joint network given outputs from the encoder and decoder.
+
+    Args:
+      key:
+        A key into the `joint_cache`.
+      model:
+        The transducer model.
+      encoder_out:
+        A tensor of shape (1, 1, encoder_out_dim).
+      decoder_out:
+        A tensor of shape (1, 1, decoder_out_dim).
+      encoder_out_len:
+        A tensor with value [1].
+      decoder_out_len:
+        A tensor with value [1].
+      joint_cache:
+        A dict to save computations.
+    Returns:
+      Return a tensor from the output of log-softmax.
+      Its shape is (vocab_size,).
+    """
+    if key in joint_cache:
+        return joint_cache[key]
+
+    logits = model.joiner(
+        encoder_out,
+        decoder_out,
+        encoder_out_len,
+        decoder_out_len,
+    )
+
+    # TODO(fangjun): Scale the blank posterior
+    log_prob = logits.log_softmax(dim=-1)
+    # log_prob is (1, 1, 1, vocab_size)
+
+    log_prob = log_prob.squeeze()
+    # Now log_prob is (vocab_size,)
+
+    joint_cache[key] = log_prob
+
+    return log_prob
+
+
 def modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
@@ -327,9 +339,16 @@ def modified_beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
+
+    decoder_input = torch.tensor(
+        [blank_id] * context_size, device=device
+    ).reshape(1, context_size)
+
+    decoder_out = model.decoder(decoder_input, need_pad=False)
 
     T = encoder_out.size(1)
 
@@ -341,10 +360,13 @@ def modified_beam_search(
         )
     )
 
+    encoder_out_len = torch.tensor([1])
+    decoder_out_len = torch.tensor([1])
+
     for t in range(T):
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
-        # current_encoder_out is of shape (1, 1, 1, encoder_out_dim)
+        current_encoder_out = encoder_out[:, t:t+1, :]
+        # current_encoder_out is of shape (1, 1, encoder_out_dim)
         # fmt: on
         A = list(B)
         B = HypothesisList()
@@ -355,25 +377,23 @@ def modified_beam_search(
         decoder_input = torch.tensor(
             [hyp.ys[-context_size:] for hyp in A],
             device=device,
-            dtype=torch.int64,
         )
         # decoder_input is of shape (num_hyps, context_size)
 
-        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
-        # decoder_output is of shape (num_hyps, 1, 1, decoder_output_dim)
+        decoder_out = model.decoder(decoder_input, need_pad=False)
+        # decoder_output is of shape (num_hyps, 1, decoder_output_dim)
 
         current_encoder_out = current_encoder_out.expand(
-            decoder_out.size(0), 1, 1, -1
-        )  # (num_hyps, 1, 1, encoder_out_dim)
+            decoder_out.size(0), 1, -1
+        )
 
         logits = model.joiner(
             current_encoder_out,
             decoder_out,
+            encoder_out_len.expand(decoder_out.size(0)),
+            decoder_out_len.expand(decoder_out.size(0)),
         )
-        # logits is of shape (num_hyps, 1, 1, vocab_size)
-        logits = logits.squeeze(1).squeeze(1)
-
-        # now logits is of shape (num_hyps, vocab_size)
+        # logits is of shape (num_hyps, vocab_size)
         log_probs = logits.log_softmax(dim=-1)
 
         log_probs.add_(ys_log_probs)
@@ -392,7 +412,7 @@ def modified_beam_search(
             hyp = A[topk_hyp_indexes[i]]
             new_ys = hyp.ys[:]
             new_token = topk_token_indexes[i]
-            if new_token != blank_id:
+            if new_token != blank_id and new_token != unk_id:
                 new_ys.append(new_token)
             new_log_prob = topk_log_probs[i]
             new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
@@ -429,14 +449,13 @@ def beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size,
-        device=device,
-        dtype=torch.int64,
+        [blank_id] * context_size, device=device
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -445,59 +464,50 @@ def beam_search(
     t = 0
 
     B = HypothesisList()
-    B.add(Hypothesis(ys=[blank_id] * context_size, log_prob=0.0))
+    B.add(
+        Hypothesis(
+            ys=[blank_id] * context_size,
+            log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+        )
+    )
 
     max_sym_per_utt = 20000
 
     sym_per_utt = 0
 
+    encoder_out_len = torch.tensor([1])
+    decoder_out_len = torch.tensor([1])
+
     decoder_cache: Dict[str, torch.Tensor] = {}
 
     while t < T and sym_per_utt < max_sym_per_utt:
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
+        current_encoder_out = encoder_out[:, t:t+1, :]
         # fmt: on
         A = B
         B = HypothesisList()
 
         joint_cache: Dict[str, torch.Tensor] = {}
 
-        # TODO(fangjun): Implement prefix search to update the `log_prob`
-        # of hypotheses in A
-
         while True:
             y_star = A.get_most_probable()
             A.remove(y_star)
 
-            cached_key = y_star.key
+            decoder_out = run_decoder(
+                ys=y_star.ys, model=model, decoder_cache=decoder_cache
+            )
 
-            if cached_key not in decoder_cache:
-                decoder_input = torch.tensor(
-                    [y_star.ys[-context_size:]],
-                    device=device,
-                    dtype=torch.int64,
-                ).reshape(1, context_size)
-
-                decoder_out = model.decoder(decoder_input, need_pad=False)
-                decoder_cache[cached_key] = decoder_out
-            else:
-                decoder_out = decoder_cache[cached_key]
-
-            cached_key += f"-t-{t}"
-            if cached_key not in joint_cache:
-                logits = model.joiner(
-                    current_encoder_out, decoder_out.unsqueeze(1)
-                )
-
-                # TODO(fangjun): Scale the blank posterior
-
-                log_prob = logits.log_softmax(dim=-1)
-                # log_prob is (1, 1, 1, vocab_size)
-                log_prob = log_prob.squeeze()
-                # Now log_prob is (vocab_size,)
-                joint_cache[cached_key] = log_prob
-            else:
-                log_prob = joint_cache[cached_key]
+            key = "_".join(map(str, y_star.ys[-context_size:]))
+            key += f"-t-{t}"
+            log_prob = run_joiner(
+                key=key,
+                model=model,
+                encoder_out=current_encoder_out,
+                decoder_out=decoder_out,
+                encoder_out_len=encoder_out_len,
+                decoder_out_len=decoder_out_len,
+                joint_cache=joint_cache,
+            )
 
             # First, process the blank symbol
             skip_log_prob = log_prob[blank_id]
@@ -508,11 +518,14 @@ def beam_search(
 
             # Second, process other non-blank labels
             values, indices = log_prob.topk(beam + 1)
-            for i, v in zip(indices.tolist(), values.tolist()):
-                if i == blank_id:
+            for idx in range(values.size(0)):
+                i = indices[idx].item()
+                if i == blank_id or i == unk_id:
                     continue
+
                 new_ys = y_star.ys + [i]
-                new_log_prob = y_star.log_prob + v
+
+                new_log_prob = y_star.log_prob + values[idx]
                 A.add(Hypothesis(ys=new_ys, log_prob=new_log_prob))
 
             # Check whether B contains more than "beam" elements more probable
