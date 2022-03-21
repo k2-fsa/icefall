@@ -58,6 +58,7 @@ class Decoder(nn.Module):
             padding_idx=blank_id,
         )
         self.blank_id = blank_id
+        self.vocab_size = vocab_size
 
         assert context_size >= 1, context_size
         self.context_size = context_size
