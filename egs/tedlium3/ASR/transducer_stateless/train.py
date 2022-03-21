@@ -21,13 +21,12 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless/train.py \
+./transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --exp-dir transducer_stateless/exp \
+  --max-duration 200
 """
 
 
@@ -35,20 +34,20 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import k2
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import TedLiumAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
-from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
 from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -56,20 +55,11 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.checkpoint import load_checkpoint, remove_checkpoints
+from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    measure_gradient_norms,
-    measure_weight_norms,
-    optim_step_and_measure_param_change,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 
 def get_parser():
@@ -116,18 +106,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--start-batch",
-        type=int,
-        default=0,
-        help="""If positive, --start-epoch is ignored and
-        it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
-        """,
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -157,37 +138,14 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--prune-range",
-        type=int,
-        default=5,
-        help="The prune range for rnnt loss, it means how many symbols(context)"
-        "we are using to compute the loss",
-    )
-
-    parser.add_argument(
-        "--lm-scale",
+        "--modified-transducer-prob",
         type=float,
         default=0.25,
-        help="The scale to smooth the loss with lm "
-        "(output of prediction network) part.",
-    )
-
-    parser.add_argument(
-        "--am-scale",
-        type=float,
-        default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
-    )
-
-    parser.add_argument(
-        "--simple-loss-scale",
-        type=float,
-        default=0.5,
-        help="To get pruning ranges, we will calculate a simple version"
-        "loss(joiner is just addition), this simple loss also uses for"
-        "training (as a regularization item). We will scale the simple loss"
-        "with this parameter before adding to the final loss.",
+        help="""The probability to use modified transducer loss.
+        In modified transduer, it limits the maximum number of symbols
+        per frame to 1. See also the option --max-sym-per-frame in
+        transducer_stateless/decode.py
+        """,
     )
 
     parser.add_argument(
@@ -195,30 +153,6 @@ def get_parser():
         type=int,
         default=42,
         help="The seed for random generators intended for reproducibility",
-    )
-
-    parser.add_argument(
-        "--save-every-n",
-        type=int,
-        default=8000,
-        help="""Save checkpoint after processing this number of batches"
-        periodically. We save checkpoint to exp-dir/ whenever
-        params.batch_idx_train % save_every_n == 0. The checkpoint filename
-        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
-        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
-        """,
-    )
-
-    parser.add_argument(
-        "--keep-last-k",
-        type=int,
-        default=20,
-        help="""Only keep this number of checkpoints on disk.
-        For instance, if it is 3, there are only 3 checkpoints
-        in the exp-dir with filenames `checkpoint-xxx.pt`.
-        It does not affect checkpoints with name `epoch-xxx.pt`.
-        """,
     )
 
     return parser
@@ -278,19 +212,17 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            "log_diagnostics": False,
             # parameters for conformer
             "feature_dim": 80,
+            "encoder_out_dim": 512,
             "subsampling_factor": 4,
             "attention_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
-            # parameters for decoder
-            "embedding_dim": 512,
             # parameters for Noam
-            "warm_step": 80000,  # For the 100h subset, use 30000
+            "warm_step": 80000,  # For the 100h subset, use 8k
             "env_info": get_env_info(),
         }
     )
@@ -302,7 +234,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.vocab_size,
+        output_dim=params.encoder_out_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -316,8 +248,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.embedding_dim,
+        embedding_dim=params.encoder_out_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -325,8 +258,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
+        input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
     )
     return joiner
@@ -349,16 +281,15 @@ def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-) -> Optional[Dict[str, Any]]:
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+) -> None:
     """Load checkpoint from file.
 
-    If params.start_batch is positive, it will load the checkpoint from
-    `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
-    params.start_epoch is positive, it will load the checkpoint from
-    `params.start_epoch - 1`.
+    If params.start_epoch is positive, it will load the checkpoint from
+    `params.start_epoch - 1`. Otherwise, this function does nothing.
 
-    Apart from loading state dict for `model` and `optimizer` it also updates
-    `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
+    Apart from loading state dict for `model`, `optimizer` and `scheduler`,
+    it also updates `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
     and `best_valid_loss` in `params`.
 
     Args:
@@ -368,22 +299,20 @@ def load_checkpoint_if_available(
         The training model.
       optimizer:
         The optimizer that we are using.
+      scheduler:
+        The learning rate scheduler we are using.
     Returns:
-      Return a dict containing previously saved training info.
+      Return None.
     """
-    if params.start_batch > 0:
-        filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
-    elif params.start_epoch > 0:
-        filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
-    else:
-        return None
+    if params.start_epoch <= 0:
+        return
 
-    assert filename.is_file(), f"{filename} does not exist!"
-
+    filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     saved_params = load_checkpoint(
         filename,
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
     )
 
     keys = [
@@ -392,12 +321,9 @@ def load_checkpoint_if_available(
         "batch_idx_train",
         "best_train_loss",
         "best_valid_loss",
-        "cur_batch_idx",
     ]
     for k in keys:
         params[k] = saved_params[k]
-
-    params["start_epoch"] = saved_params["cur_epoch"]
 
     return saved_params
 
@@ -406,7 +332,7 @@ def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    sampler: Optional[CutSampler] = None,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -416,10 +342,6 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
-      optimizer:
-        The optimizer used in the training.
-      sampler:
-       The sampler for the training dataset.
     """
     if rank != 0:
         return
@@ -429,7 +351,7 @@ def save_checkpoint(
         model=model,
         params=params,
         optimizer=optimizer,
-        sampler=sampler,
+        scheduler=scheduler,
         rank=rank,
     )
 
@@ -475,19 +397,17 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
+    unk_id = params.unk_id
+    y = convert_texts_into_ids(texts, unk_id, sp=sp)
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
-            prune_range=params.prune_range,
-            am_scale=params.am_scale,
-            lm_scale=params.lm_scale,
+            modified_transducer_prob=params.modified_transducer_prob,
         )
-        loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -496,8 +416,6 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["simple_loss"] = simple_loss.detach().cpu().item()
-    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
@@ -545,7 +463,6 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
-    rank: int = 0,
 ) -> None:
     """Train the model for one epoch.
 
@@ -568,60 +485,12 @@ def train_one_epoch(
         Writer to write log messages to tensorboard.
       world_size:
         Number of nodes in DDP training. If it is 1, DDP is disabled.
-      rank:
-        The rank of the node in DDP training. If no DDP is used, it should
-        be set to 0.
     """
     model.train()
 
     tot_loss = MetricsTracker()
 
-    def maybe_log_gradients(tag: str):
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            tb_writer.add_scalars(
-                tag,
-                measure_gradient_norms(model, norm="l2"),
-                global_step=params.batch_idx_train,
-            )
-
-    def maybe_log_weights(tag: str):
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            tb_writer.add_scalars(
-                tag,
-                measure_weight_norms(model, norm="l2"),
-                global_step=params.batch_idx_train,
-            )
-
-    def maybe_log_param_relative_changes():
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            deltas = optim_step_and_measure_param_change(model, optimizer)
-            tb_writer.add_scalars(
-                "train/relative_param_change_per_minibatch",
-                deltas,
-                global_step=params.batch_idx_train,
-            )
-        else:
-            optimizer.step()
-
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -638,34 +507,10 @@ def train_one_epoch(
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
 
-        loss.backward()
-
-        maybe_log_weights("train/param_norms")
-        maybe_log_gradients("train/grad_norms")
-        maybe_log_param_relative_changes()
-
         optimizer.zero_grad()
-
-        if (
-            params.batch_idx_train > 0
-            and params.batch_idx_train % params.save_every_n == 0
-        ):
-            params.cur_batch_idx = batch_idx
-            save_checkpoint_with_global_batch_idx(
-                out_dir=params.exp_dir,
-                global_batch_idx=params.batch_idx_train,
-                model=model,
-                params=params,
-                optimizer=optimizer,
-                sampler=train_dl.sampler,
-                rank=rank,
-            )
-            del params.cur_batch_idx
-            remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
-            )
+        loss.backward()
+        clip_grad_norm_(model.parameters(), 5.0, 2.0)
+        optimizer.step()
 
         if batch_idx % params.log_interval == 0:
             logging.info(
@@ -673,6 +518,8 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
+
+        if batch_idx % params.log_interval == 0:
 
             if tb_writer is not None:
                 loss_info.write_summary(
@@ -719,9 +566,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 800
-        params.warm_step = 30000
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -743,8 +587,9 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -774,16 +619,13 @@ def run(rank, world_size, args):
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    tedlium = TedLiumAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
-    if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+    train_cuts = tedlium.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        return 1.0 <= c.duration <= 20.0
+        # Keep only utterances with duration between 1 second and 17 seconds
+        return 1.0 <= c.duration <= 17.0
 
     num_in_total = len(train_cuts)
 
@@ -797,18 +639,9 @@ def run(rank, world_size, args):
     logging.info(f"After removing short and long utterances: {num_left}")
     logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
-    if checkpoints and "sampler" in checkpoints:
-        sampler_state_dict = checkpoints["sampler"]
-    else:
-        sampler_state_dict = None
-
-    train_dl = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
-
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    train_dl = tedlium.train_dataloaders(train_cuts)
+    valid_cuts = tedlium.dev_cuts()
+    valid_dl = tedlium.valid_dataloaders(valid_cuts)
 
     scan_pessimistic_batches_for_oom(
         model=model,
@@ -843,14 +676,12 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
-            rank=rank,
         )
 
         save_checkpoint(
             params=params,
             model=model,
             optimizer=optimizer,
-            sampler=train_dl.sampler,
             rank=rank,
         )
 
@@ -902,7 +733,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    TedLiumAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

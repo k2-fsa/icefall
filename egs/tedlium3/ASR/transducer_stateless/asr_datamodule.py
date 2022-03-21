@@ -1,5 +1,5 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
+# Copyright      2021  Xiaomi Corporation (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,7 +21,6 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
@@ -39,12 +38,12 @@ from torch.utils.data import DataLoader
 from icefall.utils import str2bool
 
 
-class LibriSpeechAsrDataModule:
+class TedLiumAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
-    and test-other).
+    but there can be multiple test dataloaders (e.g. TEDLium3 dev
+    and test).
 
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
@@ -68,13 +67,6 @@ class LibriSpeechAsrDataModule:
             "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
-        )
-        group.add_argument(
-            "--full-libri",
-            type=str2bool,
-            default=True,
-            help="When enabled, use 960h LibriSpeech. "
-            "Otherwise, use 100h subset.",
         )
         group.add_argument(
             "--manifest-dir",
@@ -182,22 +174,11 @@ class LibriSpeechAsrDataModule:
             "with training dataset. ",
         )
 
-    def train_dataloaders(
-        self,
-        cuts_train: CutSet,
-        sampler_state_dict: Optional[Dict[str, Any]] = None,
-    ) -> DataLoader:
-        """
-        Args:
-          cuts_train:
-            CutSet for training.
-          sampler_state_dict:
-            The state dict for the training sampler.
-        """
+    def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
+        logging.info("About to get Musan cuts")
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
-            logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(
                 self.args.manifest_dir / "cuts_musan.json.gz"
             )
@@ -246,6 +227,8 @@ class LibriSpeechAsrDataModule:
                     features_mask_size=27,
                     num_feature_masks=2,
                     frames_mask_size=100,
+                    max_frames_mask_fraction=0.15,
+                    p=0.9,
                 )
             )
         else:
@@ -257,7 +240,6 @@ class LibriSpeechAsrDataModule:
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
         )
-
         if self.args.on_the_fly_feats:
             # NOTE: the PerturbSpeed transform should be added only if we
             # remove it from data prep stage.
@@ -296,11 +278,6 @@ class LibriSpeechAsrDataModule:
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
-
-        if sampler_state_dict is not None:
-            logging.info("Loading sampler state dict")
-            train_sampler.load_state_dict(sampler_state_dict)
-
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
@@ -371,42 +348,16 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_100_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
-        return load_manifest(
-            self.args.manifest_dir / "cuts_train-clean-100.json.gz"
-        )
+    def train_cuts(self) -> CutSet:
+        logging.info("About to get train cuts")
+        return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
 
     @lru_cache()
-    def train_clean_360_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-360 cuts")
-        return load_manifest(
-            self.args.manifest_dir / "cuts_train-clean-360.json.gz"
-        )
+    def dev_cuts(self) -> CutSet:
+        logging.info("About to get dev cuts")
+        return load_manifest(self.args.manifest_dir / "cuts_dev.json.gz")
 
     @lru_cache()
-    def train_other_500_cuts(self) -> CutSet:
-        logging.info("About to get train-other-500 cuts")
-        return load_manifest(
-            self.args.manifest_dir / "cuts_train-other-500.json.gz"
-        )
-
-    @lru_cache()
-    def dev_clean_cuts(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_dev-clean.json.gz")
-
-    @lru_cache()
-    def dev_other_cuts(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_dev-other.json.gz")
-
-    @lru_cache()
-    def test_clean_cuts(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test-clean.json.gz")
-
-    @lru_cache()
-    def test_other_cuts(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test-other.json.gz")
+    def test_cuts(self) -> CutSet:
+        logging.info("About to get test cuts")
+        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
