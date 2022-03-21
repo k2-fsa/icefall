@@ -230,7 +230,7 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(self.conv_module(src))
 
         # feed forward module
-        src = src +  self.dropout(self.feed_forward(src))
+        src = src + self.dropout(self.feed_forward(src))
 
         src = self.norm_final(self.balancer(src))
 
