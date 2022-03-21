@@ -36,7 +36,7 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import k2
 import sentencepiece as spm
@@ -48,6 +48,7 @@ from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from torch import Tensor
@@ -55,8 +56,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.checkpoint import load_checkpoint
+from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
+from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall import diagnostics
@@ -109,6 +111,15 @@ def get_parser():
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
         transducer_stateless/exp/epoch-{start_epoch-1}.pt
+        """,
+    )
+
+    parser.add_argument(
+        "--start-batch",
+        type=int,
+        default=0,
+        help="""If positive, --start-epoch is ignored and
+        it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
         """,
     )
 
@@ -190,6 +201,30 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Accumulate stats on activations, print them and exit.",
+    )
+
+    parser.add_argument(
+        "--save-every-n",
+        type=int,
+        default=8000,
+        help="""Save checkpoint after processing this number of batches"
+        periodically. We save checkpoint to exp-dir/ whenever
+        params.batch_idx_train % save_every_n == 0. The checkpoint filename
+        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
+        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
+        end of each epoch where `xxx` is the epoch number counting from 0.
+        """,
+    )
+
+    parser.add_argument(
+        "--keep-last-k",
+        type=int,
+        default=20,
+        help="""Only keep this number of checkpoints on disk.
+        For instance, if it is 3, there are only 3 checkpoints
+        in the exp-dir with filenames `checkpoint-xxx.pt`.
+        It does not affect checkpoints with name `epoch-xxx.pt`.
+        """,
     )
 
     return parser
@@ -320,15 +355,16 @@ def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-) -> None:
+) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
-    If params.start_epoch is positive, it will load the checkpoint from
-    `params.start_epoch - 1`. Otherwise, this function does nothing.
+    If params.start_batch is positive, it will load the checkpoint from
+    `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
+    params.start_epoch is positive, it will load the checkpoint from
+    `params.start_epoch - 1`.
 
-    Apart from loading state dict for `model`, `optimizer` and `scheduler`,
-    it also updates `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
+    Apart from loading state dict for `model` and `optimizer` it also updates
+    `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
     and `best_valid_loss` in `params`.
 
     Args:
@@ -338,20 +374,22 @@ def load_checkpoint_if_available(
         The training model.
       optimizer:
         The optimizer that we are using.
-      scheduler:
-        The learning rate scheduler we are using.
     Returns:
-      Return None.
+      Return a dict containing previously saved training info.
     """
-    if params.start_epoch <= 0:
-        return
+    if params.start_batch > 0:
+        filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
+    elif params.start_epoch > 0:
+        filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    else:
+        return None
 
-    filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    assert filename.is_file(), f"{filename} does not exist!"
+
     saved_params = load_checkpoint(
         filename,
         model=model,
         optimizer=optimizer,
-        scheduler=scheduler,
     )
 
     keys = [
@@ -360,9 +398,12 @@ def load_checkpoint_if_available(
         "batch_idx_train",
         "best_train_loss",
         "best_valid_loss",
+        "cur_batch_idx",
     ]
     for k in keys:
         params[k] = saved_params[k]
+
+    params["start_epoch"] = saved_params["cur_epoch"]
 
     return saved_params
 
@@ -371,7 +412,7 @@ def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -381,6 +422,10 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
+      optimizer:
+        The optimizer used in the training.
+      sampler:
+       The sampler for the training dataset.
     """
     if rank != 0:
         return
@@ -390,7 +435,7 @@ def save_checkpoint(
         model=model,
         params=params,
         optimizer=optimizer,
-        scheduler=scheduler,
+        sampler=sampler,
         rank=rank,
     )
 
@@ -509,6 +554,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
+    rank: int = 0,
 ) -> None:
     """Train the model for one epoch.
 
@@ -531,12 +577,21 @@ def train_one_epoch(
         Writer to write log messages to tensorboard.
       world_size:
         Number of nodes in DDP training. If it is 1, DDP is disabled.
+      rank:
+        The rank of the node in DDP training. If no DDP is used, it should
+        be set to 0.
     """
     model.train()
 
     tot_loss = MetricsTracker()
 
+    cur_batch_idx = params.get("cur_batch_idx", 0)
+
     for batch_idx, batch in enumerate(train_dl):
+        if batch_idx < cur_batch_idx:
+            continue
+        cur_batch_idx = batch_idx
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -559,6 +614,27 @@ def train_one_epoch(
 
         if params.print_diagnostics and batch_idx == 5:
             return
+
+        if (
+            params.batch_idx_train > 0
+            and params.batch_idx_train % params.save_every_n == 0
+        ):
+            params.cur_batch_idx = batch_idx
+            save_checkpoint_with_global_batch_idx(
+                out_dir=params.exp_dir,
+                global_batch_idx=params.batch_idx_train,
+                model=model,
+                params=params,
+                optimizer=optimizer,
+                sampler=train_dl.sampler,
+                rank=rank,
+            )
+            del params.cur_batch_idx
+            remove_checkpoints(
+                out_dir=params.exp_dir,
+                topk=params.keep_last_k,
+                rank=rank,
+            )
 
         if batch_idx % params.log_interval == 0:
             logging.info(
@@ -688,7 +764,14 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    train_dl = librispeech.train_dataloaders(train_cuts)
+    if checkpoints and "sampler" in checkpoints:
+        sampler_state_dict = checkpoints["sampler"]
+    else:
+        sampler_state_dict = None
+
+    train_dl = librispeech.train_dataloaders(
+        train_cuts, sampler_state_dict=sampler_state_dict
+    )
 
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
@@ -728,6 +811,7 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
+            rank=rank,
         )
 
         if params.print_diagnostics:
@@ -738,6 +822,7 @@ def run(rank, world_size, args):
             params=params,
             model=model,
             optimizer=optimizer,
+            sampler=train_dl.sampler,
             rank=rank,
         )
 

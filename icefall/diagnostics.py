@@ -135,8 +135,13 @@ def get_diagnostics_for_dim(
             return ""
         count = sum(counts)
         stats = stats / count
-        stats, _ = torch.symeig(stats)
-        stats = stats.abs().sqrt()
+        try:
+            eigs, _ = torch.symeig(stats)
+            stats = eigs.abs().sqrt()
+        except:
+            print("Error getting eigenvalues, trying another method")
+            eigs, _ = torch.eigs(stats)
+            stats = eigs.abs().sqrt()
         # sqrt so it reflects data magnitude, like stddev- not variance
     elif sizes_same:
         stats = torch.stack(stats).sum(dim=0)
