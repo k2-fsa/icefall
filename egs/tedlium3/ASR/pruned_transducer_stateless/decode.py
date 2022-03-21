@@ -19,27 +19,27 @@
 """
 Usage:
 (1) greedy search
-./transducer_stateless/decode.py \
+./pruned_transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 11 \
-        --exp-dir ./transducer_stateless/exp \
+        --avg 13 \
+        --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./transducer_stateless/decode.py \
+./pruned_transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 11 \
-        --exp-dir ./transducer_stateless/exp \
+        --avg 13 \
+        --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
-(3) modified beam search
-./transducer_stateless/decode.py \
+(3) beam search
+./pruned_transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 11 \
-        --exp-dir ./transducer_stateless/exp \
+        --avg 13 \
+        --exp-dir ./pruned_transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
@@ -96,7 +96,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="pruned_transducer_stateless/exp",
         help="The experiment dir",
     )
 
@@ -123,7 +123,7 @@ def get_parser():
         type=int,
         default=4,
         help="""Used only when --decoding-method is
-        beam_search or modified_beam_search""",
+        beam_search""",
     )
 
     parser.add_argument(
@@ -149,13 +149,14 @@ def get_params() -> AttributeDict:
         {
             # parameters for conformer
             "feature_dim": 80,
-            "encoder_out_dim": 512,
             "subsampling_factor": 4,
             "attention_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            # parameters for decoder
+            "embedding_dim": 512,
             "env_info": get_env_info(),
         }
     )
@@ -166,7 +167,7 @@ def get_encoder_model(params: AttributeDict):
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -180,7 +181,7 @@ def get_encoder_model(params: AttributeDict):
 def get_decoder_model(params: AttributeDict):
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
+        embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
         unk_id=params.unk_id,
         context_size=params.context_size,
@@ -190,7 +191,8 @@ def get_decoder_model(params: AttributeDict):
 
 def get_joiner_model(params: AttributeDict):
     joiner = Joiner(
-        input_dim=params.encoder_out_dim,
+        input_dim=params.vocab_size,
+        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner

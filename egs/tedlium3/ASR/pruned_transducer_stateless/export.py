@@ -21,25 +21,26 @@
 # to a single one using model averaging.
 """
 Usage:
-./transducer_stateless/export.py \
-  --exp-dir ./transducer_stateless/exp \
+./pruned_transducer_stateless/export.py \
+  --exp-dir ./pruned_transducer_stateless/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 29 \
-  --avg 11
+  --avg 13
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `transducer_stateless/decode.py`, you can do:
+To use the generated file with `pruned_transducer_stateless/decode.py`,
+you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/tedlium3/ASR
-    ./transducer_stateless/decode.py \
-        --exp-dir ./transducer_stateless/exp \
+    ./pruned_transducer_stateless/decode.py \
+        --exp-dir ./pruned_transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 100 \
+        --max-duration 1 \
         --bpe-model data/lang_bpe_500/bpe.model
 """
 
@@ -85,7 +86,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="pruned_transducer_stateless/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -129,6 +130,8 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            # parameters for decoder
+            "embedding_dim": 512,
             "env_info": get_env_info(),
         }
     )
@@ -163,6 +166,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
+        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner

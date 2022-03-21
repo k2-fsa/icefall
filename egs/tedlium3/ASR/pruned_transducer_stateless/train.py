@@ -77,7 +77,7 @@ def get_parser():
     parser.add_argument(
         "--master-port",
         type=int,
-        default=12354,
+        default=12350,
         help="Master port to use for DDP training.",
     )
 
@@ -108,7 +108,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="pruned_transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -138,14 +138,37 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--modified-transducer-prob",
+        "--prune-range",
+        type=int,
+        default=5,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
+    parser.add_argument(
+        "--lm-scale",
         type=float,
         default=0.25,
-        help="""The probability to use modified transducer loss.
-        In modified transduer, it limits the maximum number of symbols
-        per frame to 1. See also the option --max-sym-per-frame in
-        transducer_stateless/decode.py
-        """,
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network)"
+        "part.",
+    )
+
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
     )
 
     parser.add_argument(
@@ -221,8 +244,10 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            # parameters for decoder
+            "embedding_dim": 512,
             # parameters for Noam
-            "warm_step": 80000,  # For the 100h subset, use 8k
+            "warm_step": 80000,
             "env_info": get_env_info(),
         }
     )
@@ -234,7 +259,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -248,7 +273,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
+        embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
         unk_id=params.unk_id,
         context_size=params.context_size,
@@ -258,7 +283,8 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.encoder_out_dim,
+        input_dim=params.vocab_size,
+        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner
@@ -402,12 +428,15 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(
+        simple_loss, pruned_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
-            modified_transducer_prob=params.modified_transducer_prob,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
         )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -416,6 +445,8 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
