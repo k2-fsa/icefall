@@ -17,8 +17,90 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import k2
 import torch
 from model import Transducer
+
+from icefall.decode import one_best_decoding
+from icefall.utils import get_texts
+
+
+def fast_beam_search(
+    model: Transducer,
+    decoding_graph: k2.Fsa,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    beam: float,
+    max_states: int,
+    max_contexts: int,
+) -> List[List[int]]:
+    """It limits the maximum number of symbols per frame to 1.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      decoding_graph:
+        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      encoder_out_lens:
+        A tensor of shape (N,) containing the number of frames in `encoder_out`
+        before padding.
+      beam:
+        Beam value, similar to the beam used in Kaldi..
+      max_states:
+        Max states per stream per frame.
+      max_contexts:
+        Max contexts pre stream per frame.
+    Returns:
+      Return the decoded result.
+    """
+    assert encoder_out.ndim == 3
+
+    context_size = model.decoder.context_size
+    vocab_size = model.decoder.vocab_size
+
+    B, T, C = encoder_out.shape
+
+    config = k2.RnntDecodingConfig(
+        vocab_size=vocab_size,
+        decoder_history_len=context_size,
+        beam=beam,
+        max_contexts=max_contexts,
+        max_states=max_states,
+    )
+    individual_streams = []
+    for i in range(B):
+        individual_streams.append(k2.RnntDecodingStream(decoding_graph))
+    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
+
+    for t in range(T):
+        # shape is a RaggedShape of shape (B, context)
+        # contexts is a Tensor of shape (shape.NumElements(), context_size)
+        shape, contexts = decoding_streams.get_contexts()
+        # `nn.Embedding()` in torch below v1.7.1 supports only torch.int64
+        contexts = contexts.to(torch.int64)
+        # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
+        decoder_out = model.decoder(contexts, need_pad=False)
+        # current_encoder_out is of shape
+        # (shape.NumElements(), 1, encoder_out_dim)
+        # fmt: off
+        current_encoder_out = torch.index_select(
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+        )
+        # fmt: on
+        logits = model.joiner(
+            current_encoder_out.unsqueeze(2), decoder_out.unsqueeze(1)
+        )
+        logits = logits.squeeze(1).squeeze(1)
+        log_probs = logits.log_softmax(dim=-1)
+        decoding_streams.advance(log_probs)
+    decoding_streams.terminate_and_flush_to_streams()
+    lattice = decoding_streams.format_output(encoder_out_lens.tolist())
+
+    best_path = one_best_decoding(lattice)
+    hyps = get_texts(best_path)
+    return hyps
 
 
 def greedy_search(
