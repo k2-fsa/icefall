@@ -207,4 +207,5 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
+[tedlium3]: egs/tedlium3/ASR
 [k2]: https://github.com/k2-fsa/k2
