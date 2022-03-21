@@ -201,6 +201,8 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
+[TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
+[TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
