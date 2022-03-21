@@ -176,13 +176,13 @@ class ConformerEncoderLayer(nn.Module):
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
 
 
-        self.pre_norm_final = Identity()
         self.norm_final = BasicNorm(d_model)
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(channel_dim=-1,
                                            min_positive=0.45,
-                                           max_positive=0.55)
+                                           max_positive=0.55,
+                                           max_abs=6.0)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -232,7 +232,7 @@ class ConformerEncoderLayer(nn.Module):
         # feed forward module
         src = src +  self.dropout(self.feed_forward(src))
 
-        src = self.balancer(self.norm_final(self.pre_norm_final(src)))
+        src = self.norm_final(self.balancer(src))
 
         return src
 
