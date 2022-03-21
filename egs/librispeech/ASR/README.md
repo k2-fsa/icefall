@@ -15,6 +15,7 @@ The following table lists the differences among them.
 | `transducer_stateless`                | Conformer | Embedding + Conv1d |                                                   |
 | `transducer_lstm`                     | LSTM      | LSTM               |                                                   |
 | `transducer_stateless_multi_datasets` | Conformer | Embedding + Conv1d | Using data from GigaSpeech as extra training data |
+| `pruned_transducer_stateless`         | Conformer | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).

@@ -1,5 +1,6 @@
 # Copyright      2021  Piotr Żelasko
-#                2022  Xiaomi Corp.        (authors: Fangjun Kuang)
+#                2022  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                    Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -16,6 +17,7 @@
 # limitations under the License.
 
 import argparse
+import inspect
 import logging
 from pathlib import Path
 from typing import Optional
@@ -180,10 +182,20 @@ class AsrDataModule:
             logging.info(
                 f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
             )
+            # Set the value of num_frame_masks according to Lhotse's version.
+            # In different Lhotse's versions, the default of num_frame_masks is
+            # different.
+            num_frame_masks = 10
+            num_frame_masks_parameter = inspect.signature(
+                SpecAugment.__init__
+            ).parameters["num_frame_masks"]
+            if num_frame_masks_parameter.default == 1:
+                num_frame_masks = 2
+            logging.info(f"Num frame mask: {num_frame_masks}")
             input_transforms.append(
                 SpecAugment(
                     time_warp_factor=self.args.spec_aug_time_warp_factor,
-                    num_frame_masks=2,
+                    num_frame_masks=num_frame_masks,
                     features_mask_size=27,
                     num_feature_masks=2,
                     frames_mask_size=100,

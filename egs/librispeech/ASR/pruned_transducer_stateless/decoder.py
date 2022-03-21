@@ -61,6 +61,7 @@ class Decoder(nn.Module):
 
         assert context_size >= 1, context_size
         self.context_size = context_size
+        self.vocab_size = vocab_size
         if context_size > 1:
             self.conv = nn.Conv1d(
                 in_channels=embedding_dim,

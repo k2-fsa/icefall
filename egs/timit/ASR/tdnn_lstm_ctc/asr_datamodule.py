@@ -1,5 +1,5 @@
 # Copyright      2021     Piotr Żelasko
-#                2021     Xiaomi Corp.     (authors: Mingshuang Luo)
+#                2022     Xiaomi Corporation     (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,6 +17,7 @@
 
 
 import argparse
+import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
@@ -171,9 +172,19 @@ class TimitAsrDataModule(DataModule):
                 )
             ] + transforms
 
+        # Set the value of num_frame_masks according to Lhotse's version.
+        # In different Lhotse's versions, the default of num_frame_masks is
+        # different.
+        num_frame_masks = 10
+        num_frame_masks_parameter = inspect.signature(
+            SpecAugment.__init__
+        ).parameters["num_frame_masks"]
+        if num_frame_masks_parameter.default == 1:
+            num_frame_masks = 2
+        logging.info(f"Num frame mask: {num_frame_masks}")
         input_transforms = [
             SpecAugment(
-                num_frame_masks=2,
+                num_frame_masks=num_frame_masks,
                 features_mask_size=27,
                 num_feature_masks=2,
                 frames_mask_size=100,
