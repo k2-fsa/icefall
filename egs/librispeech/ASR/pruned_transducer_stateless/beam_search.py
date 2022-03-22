@@ -509,7 +509,7 @@ def _deprecated_modified_beam_search(
 
     It decodes only one utterance at a time. We keep it only for reference.
     The function :func:`modified_beam_search` should be preferred as it
-    support batch decoding.
+    supports batch decoding.
 
 
     Args:
