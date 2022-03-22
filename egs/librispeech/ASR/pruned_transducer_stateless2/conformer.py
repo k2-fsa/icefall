@@ -182,7 +182,7 @@ class ConformerEncoderLayer(nn.Module):
         self.balancer = ActivationBalancer(channel_dim=-1,
                                            min_positive=0.45,
                                            max_positive=0.55,
-                                           max_abs=6.0)
+                                           max_abs=10.0)
 
         self.dropout = nn.Dropout(dropout)
 
