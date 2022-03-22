@@ -50,7 +50,12 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from beam_search import beam_search, greedy_search, modified_beam_search
+from beam_search import (
+    beam_search,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
 from torch.nn.utils.rnn import pad_sequence
 from train import get_params, get_transducer_model
 
@@ -224,28 +229,43 @@ def main():
     if params.method == "beam_search":
         msg += f" with beam size {params.beam_size}"
     logging.info(msg)
-    for i in range(num_waves):
-        # fmt: off
-        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-        # fmt: on
-        if params.method == "greedy_search":
-            hyp = greedy_search(
-                model=model,
-                encoder_out=encoder_out_i,
-                max_sym_per_frame=params.max_sym_per_frame,
-            )
-        elif params.method == "beam_search":
-            hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        elif params.method == "modified_beam_search":
-            hyp = modified_beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        else:
-            raise ValueError(f"Unsupported method: {params.method}")
+    if params.method == "modified_beam_search":
+        hyp_tokens = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
 
-        hyps.append(sp.decode(hyp).split())
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    else:
+        for i in range(num_waves):
+            # fmt: off
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+            # fmt: on
+            if params.method == "greedy_search":
+                hyp = greedy_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    max_sym_per_frame=params.max_sym_per_frame,
+                )
+            elif params.method == "beam_search":
+                hyp = beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            else:
+                raise ValueError(f"Unsupported method: {params.method}")
+
+            hyps.append(sp.decode(hyp).split())
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
