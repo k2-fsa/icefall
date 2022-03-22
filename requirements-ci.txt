@@ -11,7 +11,7 @@ graphviz==0.19.1
 -f https://download.pytorch.org/whl/cpu/torch_stable.html torch==1.10.0+cpu
 -f https://download.pytorch.org/whl/cpu/torch_stable.html torchaudio==0.10.0+cpu
 
--f https://k2-fsa.org/nightly/ k2==1.9.dev20211101+cpu.torch1.10.0
+-f https://k2-fsa.org/nightly/ k2==1.14.dev20220316+cpu.torch1.10.0
 
 git+https://github.com/lhotse-speech/lhotse
 kaldilm==1.11
