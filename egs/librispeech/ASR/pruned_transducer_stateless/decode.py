@@ -71,6 +71,7 @@ from beam_search import (
     beam_search,
     fast_beam_search,
     greedy_search,
+    greedy_search_batch,
     modified_beam_search,
 )
 from train import get_params, get_transducer_model
@@ -258,6 +259,16 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
