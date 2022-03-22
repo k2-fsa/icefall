@@ -272,6 +272,14 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search":
+        hyp_tokens = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -287,12 +295,6 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            elif params.decoding_method == "modified_beam_search":
-                hyp = modified_beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
