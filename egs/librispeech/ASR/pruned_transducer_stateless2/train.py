@@ -296,7 +296,7 @@ def get_params() -> AttributeDict:
             "embedding_dim": 512,
             # parameters for Noam
             "warm_step": 60000,  # For the 100h subset, use 8k
-            "model_warm_step": 3000, # arg given to model, not for lrate
+            "model_warm_step": 4000, # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -454,7 +454,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    warmup_mode: bool = False
+    warmup: float = 1.0
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -471,6 +471,8 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
+     warmup: a floating point value which increases throughout training;
+        values >= 1.0 are fully warmed up and have all modules present.
     """
     device = model.device
     feature = batch["inputs"]
@@ -493,10 +495,10 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            warmup_mode=warmup_mode,
+            warmup=warmup,
         )
         loss = (params.simple_loss_scale * simple_loss +
-                (pruned_loss * 0.0 if warmup_mode else pruned_loss))
+                (pruned_loss * 0.0 if warmup < 1.0 else pruned_loss))
 
     assert loss.requires_grad == is_training
 
@@ -601,7 +603,7 @@ def train_one_epoch(
             sp=sp,
             batch=batch,
             is_training=True,
-            warmup_mode=(params.batch_idx_train < params.model_warm_step)
+            warmup=(params.batch_idx_train / params.model_warm_step)
         )
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -855,7 +857,6 @@ def scan_pessimistic_batches_for_oom(
                 sp=sp,
                 batch=batch,
                 is_training=True,
-                warmup_mode=True # may use slightly more memory
             )
             loss.backward()
             optimizer.step()

@@ -66,7 +66,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        warmup_mode: bool = False
+        warmup: float = 1.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -87,6 +87,9 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          warmup:
+            A value warmup >= 0 that determines which modules are active, values
+            warmup > 1 "are fully warmed up" and all modules will be active.
         Returns:
           Return the transducer loss.
 
@@ -102,7 +105,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup_mode=warmup_mode)
+        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
