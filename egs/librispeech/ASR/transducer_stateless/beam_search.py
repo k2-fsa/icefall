@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import k2
 import torch
 from model import Transducer
+from shallow_fusion import shallow_fusion
+from utils import Hypothesis, HypothesisList
 
 
 def greedy_search(
@@ -99,132 +101,6 @@ def greedy_search(
     hyp = hyp[context_size:]  # remove blanks
 
     return hyp
-
-
-@dataclass
-class Hypothesis:
-    # The predicted tokens so far.
-    # Newly predicted tokens are appended to `ys`.
-    ys: List[int]
-
-    # The log prob of ys.
-    # It contains only one entry.
-    log_prob: torch.Tensor
-
-    @property
-    def key(self) -> str:
-        """Return a string representation of self.ys"""
-        return "_".join(map(str, self.ys))
-
-
-class HypothesisList(object):
-    def __init__(self, data: Optional[Dict[str, Hypothesis]] = None) -> None:
-        """
-        Args:
-          data:
-            A dict of Hypotheses. Its key is its `value.key`.
-        """
-        if data is None:
-            self._data = {}
-        else:
-            self._data = data
-
-    @property
-    def data(self) -> Dict[str, Hypothesis]:
-        return self._data
-
-    def add(self, hyp: Hypothesis) -> None:
-        """Add a Hypothesis to `self`.
-
-        If `hyp` already exists in `self`, its probability is updated using
-        `log-sum-exp` with the existed one.
-
-        Args:
-          hyp:
-            The hypothesis to be added.
-        """
-        key = hyp.key
-        if key in self:
-            old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
-        else:
-            self._data[key] = hyp
-
-    def get_most_probable(self, length_norm: bool = False) -> Hypothesis:
-        """Get the most probable hypothesis, i.e., the one with
-        the largest `log_prob`.
-
-        Args:
-          length_norm:
-            If True, the `log_prob` of a hypothesis is normalized by the
-            number of tokens in it.
-        Returns:
-          Return the hypothesis that has the largest `log_prob`.
-        """
-        if length_norm:
-            return max(
-                self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
-            )
-        else:
-            return max(self._data.values(), key=lambda hyp: hyp.log_prob)
-
-    def remove(self, hyp: Hypothesis) -> None:
-        """Remove a given hypothesis.
-
-        Caution:
-          `self` is modified **in-place**.
-
-        Args:
-          hyp:
-            The hypothesis to be removed from `self`.
-            Note: It must be contained in `self`. Otherwise,
-            an exception is raised.
-        """
-        key = hyp.key
-        assert key in self, f"{key} does not exist"
-        del self._data[key]
-
-    def filter(self, threshold: torch.Tensor) -> "HypothesisList":
-        """Remove all Hypotheses whose log_prob is less than threshold.
-
-        Caution:
-          `self` is not modified. Instead, a new HypothesisList is returned.
-
-        Returns:
-          Return a new HypothesisList containing all hypotheses from `self`
-          with `log_prob` being greater than the given `threshold`.
-        """
-        ans = HypothesisList()
-        for _, hyp in self._data.items():
-            if hyp.log_prob > threshold:
-                ans.add(hyp)  # shallow copy
-        return ans
-
-    def topk(self, k: int) -> "HypothesisList":
-        """Return the top-k hypothesis."""
-        hyps = list(self._data.items())
-
-        hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
-
-        ans = HypothesisList(dict(hyps))
-        return ans
-
-    def __contains__(self, key: str):
-        return key in self._data
-
-    def __iter__(self):
-        return iter(self._data.values())
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __str__(self) -> str:
-        s = []
-        for key in self:
-            s.append(key)
-        return ", ".join(s)
 
 
 def run_decoder(
@@ -416,6 +292,161 @@ def modified_beam_search(
             B.add(new_hyp)
 
     best_hyp = B.get_most_probable(length_norm=True)
+    ys = best_hyp.ys[context_size:]  # [context_size:] to remove blanks
+
+    return ys
+
+
+def modified_beam_search_with_shallow_fusion(
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    beam: int = 4,
+    LG: Optional[k2.Fsa] = None,
+    ngram_lm_scale: float = 0.1,
+) -> List[int]:
+    """It limits the maximum number of symbols per frame to 1.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
+      beam:
+        Beam size.
+      LG:
+        Optional. Used for shallow fusion.
+      ngram_lm_scale:
+        Used only when LG is not None. The total score of a path is
+        am_score + ngram_lm_scale * ngram_lm_scale
+    Returns:
+      Return the decoded result.
+    """
+    enable_shallow_fusion = LG is not None
+
+    assert encoder_out.ndim == 3
+
+    # support only batch_size == 1 for now
+    assert encoder_out.size(0) == 1, encoder_out.size(0)
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+
+    device = model.device
+
+    decoder_input = torch.tensor(
+        [blank_id] * context_size, device=device
+    ).reshape(1, context_size)
+
+    decoder_out = model.decoder(decoder_input, need_pad=False)
+
+    T = encoder_out.size(1)
+
+    B = HypothesisList()
+
+    if enable_shallow_fusion:
+        ngram_state_and_scores = {
+            0: torch.zeros(1, dtype=torch.float32, device=device)
+        }
+    else:
+        ngram_state_and_scores = None
+
+    B.add(
+        Hypothesis(
+            ys=[blank_id] * context_size,
+            log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+            ngram_state_and_scores=ngram_state_and_scores,
+        )
+    )
+
+    encoder_out_len = torch.tensor([1])
+    decoder_out_len = torch.tensor([1])
+
+    for t in range(T):
+        # fmt: off
+        current_encoder_out = encoder_out[:, t:t+1, :]
+        # current_encoder_out is of shape (1, 1, encoder_out_dim)
+        # fmt: on
+        A = list(B)
+        B = HypothesisList()
+
+        # ys_log_probs contains both AM scores and LM scores
+        ys_log_probs = torch.cat(
+            [
+                hyp.log_prob.reshape(1, 1)
+                + ngram_lm_scale * max(hyp.ngram_state_and_scores.values())
+                for hyp in A
+            ]
+        )
+        # ys_log_probs is of shape (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyp in A],
+            device=device,
+        )
+        # decoder_input is of shape (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False)
+        # decoder_output is of shape (num_hyps, 1, decoder_output_dim)
+
+        current_encoder_out = current_encoder_out.expand(
+            decoder_out.size(0), 1, -1
+        )
+
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            encoder_out_len.expand(decoder_out.size(0)),
+            decoder_out_len.expand(decoder_out.size(0)),
+        )
+        vocab_size = logits.size(-1)
+        # logits is of shape (num_hyps, vocab_size)
+        log_probs = logits.log_softmax(dim=-1)
+
+        tot_log_probs = log_probs + ys_log_probs
+
+        _, topk_indexes = tot_log_probs.reshape(-1).topk(beam)
+        topk_log_probs = log_probs.reshape(-1)[topk_indexes]
+
+        # topk_hyp_indexes are indexes into `A`
+        topk_hyp_indexes = topk_indexes // logits.size(-1)
+        topk_token_indexes = topk_indexes % logits.size(-1)
+
+        topk_hyp_indexes, indexes = torch.sort(topk_hyp_indexes)
+        topk_token_indexes = topk_token_indexes[indexes]
+        topk_log_probs = topk_log_probs[indexes]
+
+        shape = k2.ragged.create_ragged_shape2(
+            row_ids=topk_hyp_indexes.to(torch.int32),
+            cached_tot_size=topk_hyp_indexes.numel(),
+        )
+        blank_log_probs = log_probs[topk_hyp_indexes, 0]
+
+        row_splits = shape.row_splits(1).tolist()
+        num_rows = len(row_splits) - 1
+        for i in range(num_rows):
+            start = row_splits[i]
+            end = row_splits[i + 1]
+            if start >= end:
+                # Discard A[i] as other hyps have higher log_probs
+                continue
+            tokens = topk_token_indexes[start:end]
+
+            hyps = shallow_fusion(
+                LG,
+                A[i],
+                tokens,
+                topk_log_probs[start:end],
+                vocab_size,
+                blank_log_probs[i],
+            )
+            for h in hyps:
+                B.add(h)
+
+        if len(B) > beam:
+            B = B.topk(beam, ngram_lm_scale=ngram_lm_scale)
+
+    best_hyp = B.get_most_probable(
+        length_norm=True, ngram_lm_scale=ngram_lm_scale
+    )
     ys = best_hyp.ys[context_size:]  # [context_size:] to remove blanks
 
     return ys
