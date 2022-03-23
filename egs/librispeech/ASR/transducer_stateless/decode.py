@@ -198,6 +198,12 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
         )
+    elif params.decoding_method == "modified_beam_search":
+        hyp_list = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
     else:
         batch_size = encoder_out.size(0)
         for i in range(batch_size):
@@ -212,12 +218,6 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            elif params.decoding_method == "modified_beam_search":
-                hyp = modified_beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,

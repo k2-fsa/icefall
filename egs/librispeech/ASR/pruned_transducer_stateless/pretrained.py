@@ -127,7 +127,7 @@ def get_parser():
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=3,
+        default=1,
         help="""Maximum number of symbols per frame. Used only when
         --method is greedy_search.
         """,
