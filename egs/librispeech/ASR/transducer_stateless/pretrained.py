@@ -255,23 +255,26 @@ def main():
             encoder_out=encoder_out,
             beam=params.beam_size,
         )
-    for i in range(num_waves):
-        # fmt: off
-        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-        # fmt: on
-        if params.method == "greedy_search":
-            hyp = greedy_search(
-                model=model,
-                encoder_out=encoder_out_i,
-                max_sym_per_frame=params.max_sym_per_frame,
-            )
-        elif params.method == "beam_search":
-            hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        else:
-            raise ValueError(f"Unsupported method: {params.method}")
-        hyp_list.append(hyp)
+    else:
+        for i in range(num_waves):
+            # fmt: off
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+            # fmt: on
+            if params.method == "greedy_search":
+                hyp = greedy_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    max_sym_per_frame=params.max_sym_per_frame,
+                )
+            elif params.method == "beam_search":
+                hyp = beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            else:
+                raise ValueError(f"Unsupported method: {params.method}")
+            hyp_list.append(hyp)
 
     hyps = [sp.decode(hyp).split() for hyp in hyp_list]
 

@@ -232,7 +232,7 @@ def greedy_search_batch(
             decoder_input = torch.tensor(
                 decoder_input,
                 device=device,
-                dtype=torch.in64,
+                dtype=torch.int64,
             )
             decoder_out = model.decoder(decoder_input, need_pad=False)
 
