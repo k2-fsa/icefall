@@ -1,5 +1,5 @@
 TDNN-LiGRU-CTC
-=============
+==============
 
 This tutorial shows you how to run a TDNN-LiGRU-CTC model with the `TIMIT <https://data.deepai.org/timit.zip>`_ dataset.
 

@@ -84,7 +84,7 @@ The best WER using modified beam search with beam size 4 is:
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.67       | 6.64       |
+| WER | 2.56       | 6.27       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
@@ -113,7 +113,7 @@ The best CER we currently have is:
 
 |     | test |
 |-----|------|
-| CER | 5.4 |
+| CER | 4.68 |
 
 
 We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)

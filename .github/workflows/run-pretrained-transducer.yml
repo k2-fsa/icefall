@@ -31,9 +31,6 @@ jobs:
       matrix:
         os: [ubuntu-18.04]
         python-version: [3.7, 3.8, 3.9]
-        torch: ["1.10.0"]
-        torchaudio: ["0.10.0"]
-        k2-version: ["1.9.dev20211101"]
 
       fail-fast: false
 
@@ -42,29 +39,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip pytest
-          # numpy 1.20.x does not support python 3.6
-          pip install numpy==1.19
-          pip install torch==${{ matrix.torch }}+cpu torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
-
-          python3 -m pip install git+https://github.com/lhotse-speech/lhotse
-          python3 -m pip install kaldifeat
-          # We are in ./icefall and there is a file: requirements.txt in it
-          pip install -r requirements.txt
-
       - name: Install graphviz
         shell: bash
         run: |
-          python3 -m pip install -qq graphviz
           sudo apt-get -qq install graphviz
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}
+
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p ~/tmp
+          cd ~/tmp
+          git clone https://github.com/csukuangfj/kaldifeat
+          cd kaldifeat
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j2 _kaldifeat
 
       - name: Download pre-trained model
         shell: bash
@@ -84,7 +94,9 @@ jobs:
       - name: Run greedy search decoding
         shell: bash
         run: |
-          export PYTHONPATH=$PWD:PYTHONPATH
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           cd egs/librispeech/ASR
           ./transducer/pretrained.py \
             --method greedy_search \
@@ -98,6 +110,8 @@ jobs:
         shell: bash
         run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
           cd egs/librispeech/ASR
           ./transducer/pretrained.py \
             --method beam_search \
