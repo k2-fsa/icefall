@@ -194,7 +194,7 @@ def main():
     model = get_transducer_model(params)
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
+    model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
     model.device = device
