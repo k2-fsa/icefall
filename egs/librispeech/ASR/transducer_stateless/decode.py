@@ -55,8 +55,13 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import beam_search, greedy_search, modified_beam_search
-from train import get_transducer_model, get_params
+from beam_search import (
+    beam_search,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import (
@@ -131,7 +136,7 @@ def get_parser():
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=3,
+        default=1,
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
@@ -183,32 +188,47 @@ def decode_one_batch(
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
-    hyps = []
-    batch_size = encoder_out.size(0)
+    hyp_list: List[List[int]] = []
 
-    for i in range(batch_size):
-        # fmt: off
-        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-        # fmt: on
-        if params.decoding_method == "greedy_search":
-            hyp = greedy_search(
-                model=model,
-                encoder_out=encoder_out_i,
-                max_sym_per_frame=params.max_sym_per_frame,
-            )
-        elif params.decoding_method == "beam_search":
-            hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        elif params.decoding_method == "modified_beam_search":
-            hyp = modified_beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        else:
-            raise ValueError(
-                f"Unsupported decoding method: {params.decoding_method}"
-            )
-        hyps.append(sp.decode(hyp).split())
+    if (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+        hyp_list = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+        )
+    else:
+        batch_size = encoder_out.size(0)
+        for i in range(batch_size):
+            # fmt: off
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+            # fmt: on
+            if params.decoding_method == "greedy_search":
+                hyp = greedy_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    max_sym_per_frame=params.max_sym_per_frame,
+                )
+            elif params.decoding_method == "beam_search":
+                hyp = beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            elif params.decoding_method == "modified_beam_search":
+                hyp = modified_beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported decoding method: {params.decoding_method}"
+                )
+            hyp_list.append(hyp)
+
+    hyps = [sp.decode(hyp).split() for hyp in hyp_list]
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}

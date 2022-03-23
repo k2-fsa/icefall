@@ -24,7 +24,7 @@ from model import Transducer
 def greedy_search(
     model: Transducer, encoder_out: torch.Tensor, max_sym_per_frame: int
 ) -> List[int]:
-    """
+    """Greedy search for a single utterance.
     Args:
       model:
         An instance of `Transducer`.
@@ -80,7 +80,7 @@ def greedy_search(
         logits = model.joiner(
             current_encoder_out, decoder_out, encoder_out_len, decoder_out_len
         )
-        # logits is (1, 1, 1, vocab_size)
+        # logits is (1, vocab_size)
 
         y = logits.argmax().item()
         if y != blank_id:
@@ -99,6 +99,75 @@ def greedy_search(
     hyp = hyp[context_size:]  # remove blanks
 
     return hyp
+
+
+def greedy_search_batch(
+    model: Transducer, encoder_out: torch.Tensor
+) -> List[List[int]]:
+    """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C), where N >= 1.
+    Returns:
+      Return a list-of-list of token IDs containing the decoded results.
+      len(ans) equals to encoder_out.size(0).
+    """
+    assert encoder_out.ndim == 3
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+
+    device = model.device
+
+    batch_size = encoder_out.size(0)
+    T = encoder_out.size(1)
+
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+
+    hyps = [[blank_id] * context_size for _ in range(batch_size)]
+
+    decoder_input = torch.tensor(
+        hyps,
+        device=device,
+        dtype=torch.int64,
+    )  # (batch_size, context_size)
+    decoder_out = model.decoder(decoder_input, need_pad=False)
+    # decoder_out: (batch_size, 1, decoder_out_dim)
+
+    encoder_out_len = torch.ones(batch_size, dtype=torch.int32)
+    decoder_out_len = torch.ones(batch_size, dtype=torch.int32)
+
+    for t in range(T):
+        current_encoder_out = encoder_out[:, t : t + 1, :]  # noqa
+        # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
+        logits = model.joiner(
+            current_encoder_out, decoder_out, encoder_out_len, decoder_out_len
+        )  # (batch_size, vocab_size)
+
+        assert logits.ndim == 2, logits.shape
+        y = logits.argmax(dim=1).tolist()
+        emitted = False
+        for i, v in enumerate(y):
+            if v != blank_id:
+                hyps[i].append(v)
+                emitted = True
+
+        if emitted:
+            # update decoder output
+            decoder_input = [h[-context_size:] for h in hyps]
+            decoder_input = torch.tensor(
+                decoder_input,
+                device=device,
+                dtype=torch.int64,
+            )  # (batch_size, context_size)
+            decoder_out = model.decoder(
+                decoder_input,
+                need_pad=False,
+            )  # (batch_size, 1, decoder_out_dim)
+
+    ans = [h[context_size:] for h in hyps]
+    return ans
 
 
 @dataclass
@@ -252,9 +321,11 @@ def run_decoder(
 
     device = model.device
 
-    decoder_input = torch.tensor([ys[-context_size:]], device=device).reshape(
-        1, context_size
-    )
+    decoder_input = torch.tensor(
+        [ys[-context_size:]],
+        device=device,
+        dtype=torch.int64,
+    ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_cache[key] = decoder_out
@@ -340,12 +411,6 @@ def modified_beam_search(
     context_size = model.decoder.context_size
 
     device = model.device
-
-    decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device
-    ).reshape(1, context_size)
-
-    decoder_out = model.decoder(decoder_input, need_pad=False)
 
     T = encoder_out.size(1)
 
