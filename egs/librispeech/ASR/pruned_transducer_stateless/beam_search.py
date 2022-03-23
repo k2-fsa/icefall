@@ -229,7 +229,11 @@ def greedy_search_batch(
         if emitted:
             # update decoder output
             decoder_input = [h[-context_size:] for h in hyps]
-            decoder_input = torch.tensor(decoder_input, device=device)
+            decoder_input = torch.tensor(
+                decoder_input,
+                device=device,
+                dtype=torch.int64,
+            )
             decoder_out = model.decoder(decoder_input, need_pad=False)
 
     ans = [h[context_size:] for h in hyps]
