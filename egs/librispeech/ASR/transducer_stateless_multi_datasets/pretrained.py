@@ -59,7 +59,6 @@ from typing import List
 import kaldifeat
 import sentencepiece as spm
 import torch
-import torch.nn as nn
 import torchaudio
 from beam_search import (
     beam_search,
@@ -69,8 +68,6 @@ from beam_search import (
 )
 from torch.nn.utils.rnn import pad_sequence
 from train import get_params, get_transducer_model
-
-from icefall.utils import AttributeDict
 
 
 def get_parser():

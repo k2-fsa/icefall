@@ -55,7 +55,6 @@ from typing import List
 
 import kaldifeat
 import torch
-import torch.nn as nn
 import torchaudio
 from beam_search import (
     beam_search,
@@ -67,7 +66,6 @@ from torch.nn.utils.rnn import pad_sequence
 from train import get_params, get_transducer_model
 
 from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict
 
 
 def get_parser():
@@ -262,7 +260,9 @@ def main():
                 )
             hyp_list.append(hyp)
 
-    hyps = [sp.decode(hyp).split() for hyp in hyp_list]
+    hyps = []
+    for hyp in hyp_list:
+        hyps.append([lexicon.token_table[i] for i in hyp])
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
