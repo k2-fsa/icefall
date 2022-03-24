@@ -71,6 +71,7 @@ from beam_search import (
     beam_search,
     fast_beam_search,
     greedy_search,
+    greedy_search_batch,
     modified_beam_search,
 )
 from train import get_params, get_transducer_model
@@ -191,7 +192,7 @@ def get_parser():
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=3,
+        default=1,
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
@@ -261,6 +262,24 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search":
+        hyp_tokens = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -276,12 +295,6 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            elif params.decoding_method == "modified_beam_search":
-                hyp = modified_beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
