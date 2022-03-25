@@ -296,7 +296,7 @@ def get_params() -> AttributeDict:
             "embedding_dim": 512,
             # parameters for Noam
             "warm_step": 60000,  # For the 100h subset, use 8k
-            "model_warm_step": 4000, # arg given to model, not for lrate
+            "model_warm_step": 3000, # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -501,8 +501,15 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
         )
+        # after the main warmup step, we keep pruned_loss_scale small
+        # for the same amount of time (model_warm_step), to avoid
+        # overwhelming the simple_loss and causing it to diverge,
+        # in case it had not fully learned the alignment yet.
+        pruned_loss_scale = (0.0 if warmup < 1.0 else
+                             (0.1 if warmup > 1.0 and warmup < 2.0) else
+                             1.0)
         loss = (params.simple_loss_scale * simple_loss +
-                (pruned_loss * 0.0 if warmup < 1.0 else pruned_loss))
+                pruned_loss_scale * pruned_loss)
 
     assert loss.requires_grad == is_training
 
