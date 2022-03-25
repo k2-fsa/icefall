@@ -4,7 +4,7 @@
 
 #### 2022-03-21
 
-Using the codes from this PR.
+Using the codes from this PR https://github.com/k2-fsa/icefall/pull/261.
 
 The WERs are
 
@@ -62,6 +62,18 @@ avg=13
   --max-duration 100 \
   --decoding-method modified_beam_search \
   --beam-size 4
+
+## fast beam search
+./pruned_transducer_stateless/decode.py \
+        --epoch $epoch \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless/exp \
+        --bpe-model ./data/lang_bpe_500/bpe.model \
+        --max-duration 1500 \
+        --decoding-method fast_beam_search \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 ```
 
 A pre-trained model and decoding logs can be found at <https://huggingface.co/luomingshuang/icefall_asr_tedlium3_pruned_transducer_stateless>
@@ -85,6 +97,7 @@ The WERs are
 |          greedy search             | 7.19       | 6.70       | --epoch 29, --avg 11, --max-duration 100 |
 |      beam search (beam size 4)     | 7.02       | 6.36       | --epoch 29, --avg 11, --max-duration 100 |
 | modified beam search (beam size 4) | 6.91       | 6.33       | --epoch 29, --avg 11, --max-duration 100 |
+| fast beam search (set as default)  | 7.14       | 6.50       | --epoch 29, --avg 11, --max-duration 1500|
 
 The training command for reproducing is given below:
 

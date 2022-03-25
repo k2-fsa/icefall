@@ -1,5 +1,5 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                  Mingshuang Luo)
+# Copyright    2020  Xiaomi Corp.        (authors: Fangjun Kuang
+# 						   Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,14 +18,100 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import k2
 import torch
 from model import Transducer
+
+from icefall.decode import one_best_decoding
+from icefall.utils import get_texts
+
+
+def fast_beam_search(
+    model: Transducer,
+    decoding_graph: k2.Fsa,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    beam: float,
+    max_states: int,
+    max_contexts: int,
+) -> List[List[int]]:
+    """It limits the maximum number of symbols per frame to 1.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      decoding_graph:
+        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      encoder_out_lens:
+        A tensor of shape (N,) containing the number of frames in `encoder_out`
+        before padding.
+      beam:
+        Beam value, similar to the beam used in Kaldi..
+      max_states:
+        Max states per stream per frame.
+      max_contexts:
+        Max contexts pre stream per frame.
+    Returns:
+      Return the decoded result.
+    """
+    assert encoder_out.ndim == 3
+
+    context_size = model.decoder.context_size
+    vocab_size = model.decoder.vocab_size
+    unk_id = model.decoder.unk_id
+
+    B, T, C = encoder_out.shape
+
+    config = k2.RnntDecodingConfig(
+        vocab_size=vocab_size,
+        decoder_history_len=context_size,
+        beam=beam,
+        max_contexts=max_contexts,
+        max_states=max_states,
+    )
+    individual_streams = []
+    for i in range(B):
+        individual_streams.append(k2.RnntDecodingStream(decoding_graph))
+    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
+
+    for t in range(T):
+        # shape is a RaggedShape of shape (B, context)
+        # contexts is a Tensor of shape (shape.NumElements(), context_size)
+        shape, contexts = decoding_streams.get_contexts()
+        # `nn.Embedding()` in torch below v1.7.1 supports only torch.int64
+        contexts = contexts.to(torch.int64)
+        # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
+        decoder_out = model.decoder(contexts, need_pad=False)
+        # current_encoder_out is of shape
+        # (shape.NumElements(), 1, encoder_out_dim)
+        # fmt: off
+        current_encoder_out = torch.index_select(
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+        )
+        # fmt: on
+        logits = model.joiner(
+            current_encoder_out.unsqueeze(2), decoder_out.unsqueeze(1)
+        )
+        logits = logits.squeeze(1).squeeze(1)
+        log_probs = logits.log_softmax(dim=-1)
+        decoding_streams.advance(log_probs)
+    decoding_streams.terminate_and_flush_to_streams()
+    lattice = decoding_streams.format_output(encoder_out_lens.tolist())
+    best_path = one_best_decoding(lattice)
+    hyps = get_texts(best_path)
+    new_hyps = []
+    for hyp in hyps:
+        hyp = [idx for idx in hyp if idx != unk_id]
+        new_hyps.append(hyp)
+    return new_hyps
 
 
 def greedy_search(
     model: Transducer, encoder_out: torch.Tensor, max_sym_per_frame: int
 ) -> List[int]:
-    """
+    """Greedy search for a single utterance.
     Args:
       model:
         An instance of `Transducer`.
@@ -98,6 +184,65 @@ def greedy_search(
     return hyp
 
 
+def greedy_search_batch(
+    model: Transducer, encoder_out: torch.Tensor
+) -> List[List[int]]:
+    """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C), where N >= 1.
+    Returns:
+      Return a list-of-list integers containing the decoded results.
+      len(ans) equals to encoder_out.size(0).
+    """
+    assert encoder_out.ndim == 3
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+
+    device = model.device
+
+    batch_size = encoder_out.size(0)
+    T = encoder_out.size(1)
+
+    blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
+    context_size = model.decoder.context_size
+
+    hyps = [[blank_id] * context_size for _ in range(batch_size)]
+
+    decoder_input = torch.tensor(
+        hyps,
+        device=device,
+        dtype=torch.int64,
+    )  # (batch_size, context_size)
+
+    decoder_out = model.decoder(decoder_input, need_pad=False)
+    # decoder_out: (batch_size, 1, decoder_out_dim)
+    for t in range(T):
+        current_encoder_out = encoder_out[:, t : t + 1, :].unsqueeze(2)  # noqa
+        # current_encoder_out's shape: (batch_size, 1, 1, encoder_out_dim)
+        logits = model.joiner(current_encoder_out, decoder_out.unsqueeze(1))
+        # logits'shape (batch_size, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
+        assert logits.ndim == 2, logits.shape
+        y = logits.argmax(dim=1).tolist()
+        emitted = False
+        for i, v in enumerate(y):
+            if v != blank_id and v != unk_id:
+                hyps[i].append(v)
+                emitted = True
+        if emitted:
+            # update decoder output
+            decoder_input = [h[-context_size:] for h in hyps]
+            decoder_input = torch.tensor(decoder_input, device=device)
+            decoder_out = model.decoder(decoder_input, need_pad=False)
+
+    ans = [h[context_size:] for h in hyps]
+    return ans
+
+
 @dataclass
 class Hypothesis:
     # The predicted tokens so far.
@@ -132,8 +277,10 @@ class HypothesisList(object):
 
     def add(self, hyp: Hypothesis) -> None:
         """Add a Hypothesis to `self`.
+
         If `hyp` already exists in `self`, its probability is updated using
         `log-sum-exp` with the existed one.
+
         Args:
           hyp:
             The hypothesis to be added.
@@ -150,6 +297,7 @@ class HypothesisList(object):
     def get_most_probable(self, length_norm: bool = False) -> Hypothesis:
         """Get the most probable hypothesis, i.e., the one with
         the largest `log_prob`.
+
         Args:
           length_norm:
             If True, the `log_prob` of a hypothesis is normalized by the
@@ -166,8 +314,10 @@ class HypothesisList(object):
 
     def remove(self, hyp: Hypothesis) -> None:
         """Remove a given hypothesis.
+
         Caution:
           `self` is modified **in-place**.
+
         Args:
           hyp:
             The hypothesis to be removed from `self`.
@@ -180,8 +330,10 @@ class HypothesisList(object):
 
     def filter(self, threshold: torch.Tensor) -> "HypothesisList":
         """Remove all Hypotheses whose log_prob is less than threshold.
+
         Caution:
           `self` is not modified. Instead, a new HypothesisList is returned.
+
         Returns:
           Return a new HypothesisList containing all hypotheses from `self`
           with `log_prob` being greater than the given `threshold`.
@@ -223,6 +375,7 @@ def modified_beam_search(
     beam: int = 4,
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
+
     Args:
       model:
         An instance of `Transducer`.
@@ -324,7 +477,9 @@ def beam_search(
 ) -> List[int]:
     """
     It implements Algorithm 1 in https://arxiv.org/pdf/1211.3711.pdf
+
     espnet/nets/beam_search_transducer.py#L247 is used as a reference.
+
     Args:
       model:
         An instance of `Transducer`.
@@ -346,7 +501,9 @@ def beam_search(
     device = model.device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device
+        [blank_id] * context_size,
+        device=device,
+        dtype=torch.int64,
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -383,7 +540,9 @@ def beam_search(
 
             if cached_key not in decoder_cache:
                 decoder_input = torch.tensor(
-                    [y_star.ys[-context_size:]], device=device
+                    [y_star.ys[-context_size:]],
+                    device=device,
+                    dtype=torch.int64,
                 ).reshape(1, context_size)
 
                 decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -397,7 +556,7 @@ def beam_search(
                     current_encoder_out, decoder_out.unsqueeze(1)
                 )
 
-                # TODO(fangjun): Cache the blank posterior
+                # TODO(fangjun): Scale the blank posterior
 
                 log_prob = logits.log_softmax(dim=-1)
                 # log_prob is (1, 1, 1, vocab_size)
@@ -409,7 +568,7 @@ def beam_search(
 
             # First, process the blank symbol
             skip_log_prob = log_prob[blank_id]
-            new_y_star_log_prob = y_star.log_prob + skip_log_prob.item()
+            new_y_star_log_prob = y_star.log_prob + skip_log_prob
 
             # ys[:] returns a copy of ys
             B.add(Hypothesis(ys=y_star.ys[:], log_prob=new_y_star_log_prob))
@@ -421,9 +580,8 @@ def beam_search(
                     continue
                 new_ys = y_star.ys + [i]
                 new_log_prob = y_star.log_prob + v
-                A.add(
-                    Hypothesis(ys=new_ys, log_prob=torch.tensor(new_log_prob))
-                )
+                A.add(Hypothesis(ys=new_ys, log_prob=new_log_prob))
+
             # Check whether B contains more than "beam" elements more probable
             # than the most probable in A
             A_most_probable = A.get_most_probable()
