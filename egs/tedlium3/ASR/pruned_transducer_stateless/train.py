@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./transducer_stateless/train.py \
+./pruned_transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless/exp \
+  --exp-dir pruned_transducer_stateless/exp \
   --max-duration 300
 """
 
