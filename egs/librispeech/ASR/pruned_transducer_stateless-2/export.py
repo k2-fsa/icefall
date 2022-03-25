@@ -49,7 +49,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import str2bool
@@ -108,6 +108,8 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
+    add_model_arguments(parser)
 
     return parser
 

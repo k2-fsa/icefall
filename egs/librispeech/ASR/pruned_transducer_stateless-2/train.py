@@ -52,7 +52,6 @@ from lhotse.utils import fix_random_seed
 from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
@@ -71,6 +70,44 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=int,
+        default=12,
+        help="Number of transformer encoder layers",
+    )
+
+    parser.add_argument(
+        "--nhead",
+        type=int,
+        default=8,
+        help="Number of attention heads in a transformer encoder layer",
+    )
+
+    parser.add_argument(
+        "--dim-feedfoward",
+        type=int,
+        default=2048,
+        help="Feedforward dimension of linear layers after attention in "
+        "the transformer model",
+    )
+
+    parser.add_argument(
+        "--attention-dim",
+        type=int,
+        default=512,
+        help="Attention dimension in a transformer encoder layer",
+    )
+
+    parser.add_argument(
+        "--embedding-dim",
+        type=int,
+        default=512,
+        help="Embedding dimension for the decoder network",
+    )
 
 
 def get_parser():
@@ -229,6 +266,8 @@ def get_parser():
         help="Accumulate stats on activations, print them and exit.",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -270,10 +309,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - attention_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
         - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
@@ -290,13 +325,7 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
             "vgg_frontend": False,
-            # parameters for decoder
-            "embedding_dim": 512,
             # parameters for Noam
             "warm_step": 80000,  # For the 100h subset, use 30000
             "env_info": get_env_info(),

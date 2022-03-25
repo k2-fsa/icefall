@@ -57,7 +57,7 @@ from beam_search import (
     modified_beam_search,
 )
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 
 def get_parser():
@@ -132,6 +132,8 @@ def get_parser():
         --method is greedy_search.
         """,
     )
+
+    add_model_arguments(parser)
 
     return parser
 
