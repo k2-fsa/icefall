@@ -23,7 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 import torch
-import lhotse
+from lhotse.utils import fix_random_seed
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
@@ -307,7 +307,7 @@ class LibriSpeechAsrDataModule:
         # set in the main process.
         seed = torch.randint(0, 100000, ()).item()
         def worker_init_fn(worker_id: int):
-            lhotse.utils.fix_random_seed(seed + worker_id)
+            fix_random_seed(seed + worker_id)
 
         train_dl = DataLoader(
             train,
