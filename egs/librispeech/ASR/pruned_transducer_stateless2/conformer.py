@@ -231,7 +231,7 @@ class ConformerEncoderLayer(nn.Module):
         # compensate for the small scale by just producing larger output.
         warmup = max(warmup, 0.1)
         if self.training:
-            warmup = min(warmup, 0.98)  # effectively, layer-drop with 1-in-50 prob.
+            warmup = min(warmup, 0.99)  # effectively, layer-drop with 1-in-100 prob.
         alpha = 1.0 if torch.rand(()).item() <= warmup else 0.1
 
         # macaron style feed forward module
