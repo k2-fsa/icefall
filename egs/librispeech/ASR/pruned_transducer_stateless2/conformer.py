@@ -222,21 +222,20 @@ class ConformerEncoderLayer(nn.Module):
         src_orig = src
         # when warmup == 0.0, alpha is always 0.1, but it gradually changes to
         # always being 1.0 when warmup equals 1.0.  The reason for using 0.1 and not
-        # 0.0 is that it gives us a gradient so we can learn something when we are not
-        # being very useful.  The occasional 1.0 will ensure, via self.balancer, that
-        # the outputs of our modules don't get scaled up too much.
-
+        # 0.0 is that it gives us a gradient so we can learn something when we are turned
+        # off.
+        #
         # min(0.1, warmup)
         # is used in place of warmup to ensure that even at the start of the warm-up
         # period we sometimes use scale 1.0; this ensures that the modules do not
         # compensate for the small scale by just producing larger output.
         warmup = max(warmup, 0.1)
         if self.training:
-            warmup = min(warmup, 0.95)  # effectively, layer-drop.
+            warmup = min(warmup, 0.98)  # effectively, layer-drop with 1-in-50 prob.
         alpha = 1.0 if torch.rand(()).item() <= warmup else 0.1
 
         # macaron style feed forward module
-        src = torch.add(src, self.dropout(self.feed_forward_macaron(src)))
+        src = src + self.dropout(self.feed_forward_macaron(src))
 
 
         # multi-headed self-attention module
@@ -248,13 +247,13 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = torch.add(src, self.dropout(src_att))
+        src = src + self.dropout(src_att)
 
         # convolution module
-        src = torch.add(src,  self.dropout(self.conv_module(src)))
+        src = src + self.dropout(self.conv_module(src))
 
         # feed forward module
-        src = torch.add(src, self.dropout(self.feed_forward(src)))
+        src = src + self.dropout(self.feed_forward(src))
 
         src = self.norm_final(self.balancer(src))
 
