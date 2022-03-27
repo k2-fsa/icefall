@@ -296,7 +296,7 @@ def get_params() -> AttributeDict:
             "embedding_dim": 512,
             # parameters for Noam
             "warm_step": 60000,  # For the 100h subset, use 8k
-            "model_warm_step": 3000, # arg given to model, not for lrate
+            "model_warm_step": 4000, # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
