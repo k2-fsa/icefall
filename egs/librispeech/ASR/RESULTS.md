@@ -44,8 +44,6 @@ cd egs/librispeech/ASR/
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
-. path.sh
-
 ./pruned_transducer_stateless/train.py \
   --world-size 8 \
   --num-epochs 60 \
@@ -175,8 +173,6 @@ The training command for reproducing is given below:
 ```bash
 export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6,7"
 
-. path.sh
-
 ./transducer_stateless/train.py \
   --world-size 7 \
   --num-epochs 60 \
@@ -236,8 +232,6 @@ Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
 The training command for reproducing is given below:
 ```bash
 export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6,7"
-
-. path.sh
 
 ./transducer_stateless/train.py \
   --world-size 7 \
