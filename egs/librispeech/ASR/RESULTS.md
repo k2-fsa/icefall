@@ -214,7 +214,7 @@ done
   --exp-dir ./transducer_stateless/exp-2 \
   --max-duration 1000 \
   --decoding-method modified_beam_search \
-  --max-sym-per-frame $sym
+  --beam-size 4
 ```
 
 You can find a pretrained model by visiting
@@ -225,7 +225,62 @@ You can find a pretrained model by visiting
 Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
 (--modified-transducer-prob 0.0)
 
-**TODO**: Add results.
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.67       | 6.44       | --epoch 49, --avg 11, --max-duration 1000|
+| greedy search (max sym per frame 2) | 2.63       | 6.37       | --epoch 49, --avg 11, --max-duration 1000|
+| greedy search (max sym per frame 3) | 2.63       | 6.37       | --epoch 49, --avg 11, --max-duration 1000|
+| modified beam search (beam size 4)  | 2.62       | 6.32       | --epoch 49, --avg 11, --max-duration 1000|
+
+The training command for reproducing is given below:
+```bash
+export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6,7"
+
+. path.sh
+
+./transducer_stateless/train.py \
+  --world-size 7 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5 \
+  --modified-transducer-prob 0.0
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/02aPElV6S26OQkbBbJqUnw/>
+
+The decoding command is:
+```bash
+epoch=49
+avg=11
+
+## greedy search
+for sym in 1 2 3; do
+  ./transducer_stateless/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir ./transducer_stateless/exp \
+    --max-duration 1000 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame $sym
+done
+
+## modified_beam_search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless/exp \
+  --max-duration 1000 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+```
+
+You can find a pretrained model by visiting
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-stateless-transducer-2022-03-27-2/>
 
 
 ##### 2022-03-01
