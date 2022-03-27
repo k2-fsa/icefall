@@ -168,6 +168,7 @@ Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
 | greedy search (max sym per frame 2) | 2.60       | 6.32       | --epoch 59, --avg 19, --max-duration 1000|
 | greedy search (max sym per frame 3) | 2.60       | 6.32       | --epoch 59, --avg 19, --max-duration 1000|
 | modified beam search (beam size 4)  | 2.56       | 6.20       | --epoch 59, --avg 19, --max-duration 1000|
+| beam search (beam size 4)           | 2.57       | 6.21       | --epoch 59, --avg 19, --max-duration 1000|
 
 The training command for reproducing is given below:
 ```bash
@@ -203,13 +204,22 @@ for sym in 1 2 3; do
     --max-sym-per-frame $sym
 done
 
-## modified_beam_search
+## modified beam search
 ./transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir ./transducer_stateless/exp-2 \
   --max-duration 1000 \
   --decoding-method modified_beam_search \
+  --beam-size 4
+
+## beam search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless/exp-2 \
+  --max-duration 1000 \
+  --decoding-method beam_search \
   --beam-size 4
 ```
 
@@ -228,6 +238,7 @@ Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
 | greedy search (max sym per frame 2) | 2.63       | 6.37       | --epoch 49, --avg 11, --max-duration 1000|
 | greedy search (max sym per frame 3) | 2.63       | 6.37       | --epoch 49, --avg 11, --max-duration 1000|
 | modified beam search (beam size 4)  | 2.62       | 6.32       | --epoch 49, --avg 11, --max-duration 1000|
+| beam search (beam size 4)           | 2.58       | 6.24       | --epoch 49, --avg 11, --max-duration 1000|
 
 The training command for reproducing is given below:
 ```bash
@@ -263,13 +274,22 @@ for sym in 1 2 3; do
     --max-sym-per-frame $sym
 done
 
-## modified_beam_search
+## modified beam search
 ./transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir ./transducer_stateless/exp \
   --max-duration 1000 \
   --decoding-method modified_beam_search \
+  --beam-size 4
+
+## beam search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless/exp \
+  --max-duration 1000 \
+  --decoding-method beam_search \
   --beam-size 4
 ```
 
