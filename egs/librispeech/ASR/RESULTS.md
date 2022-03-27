@@ -159,6 +159,75 @@ See
 - [./transducer_stateless](./transducer_stateless)
 - [./transducer_stateless_multi_datasets](./transducer_stateless_multi_datasets)
 
+#### 2022-03-27
+
+Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
+(--modified-transducer-prob 0.25)
+
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| greedy search (max sym per frame 1) | 2.60       | 6.33       | --epoch 59, --avg 19, --max-duration 1000|
+| greedy search (max sym per frame 2) | 2.60       | 6.32       | --epoch 59, --avg 19, --max-duration 1000|
+| greedy search (max sym per frame 3) | 2.60       | 6.32       | --epoch 59, --avg 19, --max-duration 1000|
+| modified beam search (beam size 4)  | 2.56       | 6.20       | --epoch 59, --avg 19, --max-duration 1000|
+
+The training command for reproducing is given below:
+```bash
+export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6,7"
+
+. path.sh
+
+./transducer_stateless/train.py \
+  --world-size 7 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless/exp-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5 \
+  --modified-transducer-prob 0.25
+```
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/IBmTNy1CQ9Wia4ECrBh0fA/>
+
+The decoding command is:
+```bash
+epoch=59
+avg=19
+
+## greedy search
+for sym in 1 2 3; do
+  ./transducer_stateless/decode.py \
+    --epoch $epoch \
+    --avg $avg \
+    --exp-dir ./transducer_stateless/exp-2 \
+    --max-duration 1000 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame $sym
+done
+
+## modified_beam_search
+./transducer_stateless/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless/exp-2 \
+  --max-duration 1000 \
+  --decoding-method modified_beam_search \
+  --max-sym-per-frame $sym
+```
+
+You can find a pretrained model by visiting
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-stateless-transducer-2022-03-27/>
+
+#### 2022-03-27
+
+Using commit `395a3f952be1449cd7c92b896f4eb9a1c899e2c7`.
+(--modified-transducer-prob 0.0)
+
+**TODO**: Add results.
+
+
 ##### 2022-03-01
 
 Using commit `2332ba312d7ce72f08c7bac1e3312f7e3dd722dc`.
