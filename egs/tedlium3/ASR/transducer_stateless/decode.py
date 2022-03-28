@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang
+#                                            Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,20 +19,29 @@
 """
 Usage:
 (1) greedy search
-./transducer_stateless_multi_datasets/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_multi_datasets/exp \
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./transducer_stateless_multi_datasets/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_multi_datasets/exp \
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
+        --beam-size 4
+
+(3) modified beam search
+./transducer_stateless/decode.py \
+        --epoch 29 \
+        --avg 16 \
+        --exp-dir ./transducer_stateless/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
         --beam-size 4
 """
 
@@ -45,17 +55,15 @@ from typing import Dict, List, Tuple
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
-from beam_search import (
-    beam_search,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
-from librispeech import LibriSpeech
-from train import get_params, get_transducer_model
+from asr_datamodule import TedLiumAsrDataModule
+from beam_search import beam_search, greedy_search, modified_beam_search
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -88,7 +96,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless_multi_datasets/exp",
+        default="transducer_stateless/exp",
         help="The experiment dir",
     )
 
@@ -128,12 +136,77 @@ def get_parser():
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=1,
+        default=3,
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
 
     return parser
+
+
+def get_params() -> AttributeDict:
+    params = AttributeDict(
+        {
+            # parameters for conformer
+            "feature_dim": 80,
+            "encoder_out_dim": 512,
+            "subsampling_factor": 4,
+            "attention_dim": 512,
+            "nhead": 8,
+            "dim_feedforward": 2048,
+            "num_encoder_layers": 12,
+            "vgg_frontend": False,
+            "env_info": get_env_info(),
+        }
+    )
+    return params
+
+
+def get_encoder_model(params: AttributeDict):
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        output_dim=params.encoder_out_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.attention_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        vgg_frontend=params.vgg_frontend,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict):
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.encoder_out_dim,
+        blank_id=params.blank_id,
+        unk_id=params.unk_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict):
+    joiner = Joiner(
+        input_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict):
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+    )
+    return model
 
 
 def decode_one_batch(
@@ -180,47 +253,32 @@ def decode_one_batch(
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
-    hyp_list = []
+    hyps = []
     batch_size = encoder_out.size(0)
 
-    if (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
-        hyp_list = greedy_search_batch(
-            model=model,
-            encoder_out=encoder_out,
-        )
-    elif params.decoding_method == "modified_beam_search":
-        hyp_list = modified_beam_search(
-            model=model,
-            encoder_out=encoder_out,
-            beam=params.beam_size,
-        )
-    else:
-        for i in range(batch_size):
-            # fmt: off
-            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-            # fmt: on
-            if params.decoding_method == "greedy_search":
-                hyp = greedy_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    max_sym_per_frame=params.max_sym_per_frame,
-                )
-            elif params.decoding_method == "beam_search":
-                hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            else:
-                raise ValueError(
-                    f"Unsupported decoding method: {params.decoding_method}"
-                )
-            hyp_list.append(sp.decode(hyp).split())
-
-    hyps = [sp.decode(hyp).split() for hyp in hyp_list]
+    for i in range(batch_size):
+        # fmt: off
+        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+        # fmt: on
+        if params.decoding_method == "greedy_search":
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
+        elif params.decoding_method == "beam_search":
+            hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.decoding_method == "modified_beam_search":
+            hyp = modified_beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        else:
+            raise ValueError(
+                f"Unsupported decoding method: {params.decoding_method}"
+            )
+        hyps.append(sp.decode(hyp).split())
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -342,7 +400,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AsrDataModule.add_arguments(parser)
+    TedLiumAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -375,8 +433,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -394,9 +453,7 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(
-            average_checkpoints(filenames, device=device), strict=False
-        )
+        model.load_state_dict(average_checkpoints(filenames, device=device))
 
     model.to(device)
     model.eval()
@@ -405,17 +462,15 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    asr_datamodule = AsrDataModule(args)
-    librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
+    tedlium = TedLiumAsrDataModule(args)
+    dev_cuts = tedlium.dev_cuts()
+    test_cuts = tedlium.test_cuts()
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_dl = tedlium.valid_dataloaders(dev_cuts)
+    test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
-    test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -433,6 +488,9 @@ def main():
 
     logging.info("Done!")
 
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()

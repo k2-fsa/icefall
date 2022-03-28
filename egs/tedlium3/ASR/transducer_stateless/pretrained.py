@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# 		 2022  Xiaomi Crop.        (authors: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -24,7 +25,7 @@ Usage:
         --method greedy_search \
         --max-sym-per-frame 1 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 (2) beam search
 ./transducer_stateless/pretrained.py \
@@ -33,7 +34,7 @@ Usage:
         --method beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 (3) modified beam search
 ./transducer_stateless/pretrained.py \
@@ -42,7 +43,7 @@ Usage:
         --method modified_beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
-        /path/to/bar.wav \
+        /path/to/bar.wav
 
 You can also use `./transducer_stateless/exp/epoch-xx.pt`.
 
@@ -59,15 +60,17 @@ from typing import List
 import kaldifeat
 import sentencepiece as spm
 import torch
+import torch.nn as nn
 import torchaudio
-from beam_search import (
-    beam_search,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
+from beam_search import beam_search, greedy_search, modified_beam_search
+from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
+from model import Transducer
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+
+from icefall.env import get_env_info
+from icefall.utils import AttributeDict
 
 
 def get_parser():
@@ -114,13 +117,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--sample-rate",
-        type=int,
-        default=16000,
-        help="The sample rate of the input sound file",
-    )
-
-    parser.add_argument(
         "--beam-size",
         type=int,
         default=4,
@@ -137,13 +133,78 @@ def get_parser():
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=1,
+        default=3,
         help="""Maximum number of symbols per frame. Used only when
         --method is greedy_search.
         """,
     )
 
     return parser
+
+
+def get_params() -> AttributeDict:
+    params = AttributeDict(
+        {
+            "sample_rate": 16000,
+            # parameters for conformer
+            "feature_dim": 80,
+            "encoder_out_dim": 512,
+            "subsampling_factor": 4,
+            "attention_dim": 512,
+            "nhead": 8,
+            "dim_feedforward": 2048,
+            "num_encoder_layers": 12,
+            "vgg_frontend": False,
+            "env_info": get_env_info(),
+        }
+    )
+    return params
+
+
+def get_encoder_model(params: AttributeDict) -> nn.Module:
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        output_dim=params.encoder_out_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.attention_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        vgg_frontend=params.vgg_frontend,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        embedding_dim=params.encoder_out_dim,
+        blank_id=params.blank_id,
+        unk_id=params.unk_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict) -> nn.Module:
+    joiner = Joiner(
+        input_dim=params.encoder_out_dim,
+        output_dim=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+    )
+    return model
 
 
 def read_sound_files(
@@ -182,8 +243,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(f"{params}")
@@ -235,45 +297,33 @@ def main():
         )
 
     num_waves = encoder_out.size(0)
-    hyp_list = []
+    hyps = []
     msg = f"Using {params.method}"
     if params.method == "beam_search":
         msg += f" with beam size {params.beam_size}"
     logging.info(msg)
+    for i in range(num_waves):
+        # fmt: off
+        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+        # fmt: on
+        if params.method == "greedy_search":
+            hyp = greedy_search(
+                model=model,
+                encoder_out=encoder_out_i,
+                max_sym_per_frame=params.max_sym_per_frame,
+            )
+        elif params.method == "beam_search":
+            hyp = beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        elif params.method == "modified_beam_search":
+            hyp = modified_beam_search(
+                model=model, encoder_out=encoder_out_i, beam=params.beam_size
+            )
+        else:
+            raise ValueError(f"Unsupported method: {params.method}")
 
-    if params.method == "greedy_search" and params.max_sym_per_frame == 1:
-        hyp_list = greedy_search_batch(
-            model=model,
-            encoder_out=encoder_out,
-        )
-    elif params.method == "modified_beam_search":
-        hyp_list = modified_beam_search(
-            model=model,
-            encoder_out=encoder_out,
-            beam=params.beam_size,
-        )
-    else:
-        for i in range(num_waves):
-            # fmt: off
-            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-            # fmt: on
-            if params.method == "greedy_search":
-                hyp = greedy_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    max_sym_per_frame=params.max_sym_per_frame,
-                )
-            elif params.method == "beam_search":
-                hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            else:
-                raise ValueError(f"Unsupported method: {params.method}")
-            hyp_list.append(hyp)
-
-    hyps = [sp.decode(hyp).split() for hyp in hyp_list]
+        hyps.append(sp.decode(hyp).split())
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
