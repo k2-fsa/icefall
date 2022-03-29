@@ -69,7 +69,7 @@ class Conformer(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, 128, d_model)
+        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
@@ -1015,6 +1015,94 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_norm(x)
         x = self.out_balancer(x)
         return x
+
+
+class Noam(object):
+    """
+    Implements Noam optimizer.
+
+    Proposed in
+    "Attention Is All You Need", https://arxiv.org/pdf/1706.03762.pdf
+
+    Modified from
+    https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/optimizer.py  # noqa
+
+    Args:
+      params:
+        iterable of parameters to optimize or dicts defining parameter groups
+      model_size:
+        attention dimension of the transformer model
+      factor:
+        learning rate factor
+      warm_step:
+        warmup steps
+    """
+
+    def __init__(
+        self,
+        params,
+        model_size: int = 256,
+        factor: float = 10.0,
+        warm_step: int = 25000,
+        weight_decay=0,
+    ) -> None:
+        """Construct an Noam object."""
+        self.optimizer = torch.optim.Adam(
+            params, lr=0, betas=(0.9, 0.98), eps=1e-9, weight_decay=weight_decay
+        )
+        self._step = 0
+        self.warmup = warm_step
+        self.factor = factor
+        self.model_size = model_size
+        self._rate = 0
+
+    @property
+    def param_groups(self):
+        """Return param_groups."""
+        return self.optimizer.param_groups
+
+    def step(self):
+        """Update parameters and rate."""
+        self._step += 1
+        rate = self.rate()
+        for p in self.optimizer.param_groups:
+            p["lr"] = rate
+        self._rate = rate
+        self.optimizer.step()
+
+    def rate(self, step=None):
+        """Implement `lrate` above."""
+        if step is None:
+            step = self._step
+        return (
+            self.factor
+            * self.model_size ** (-0.5)
+            * self.warmup ** (-0.5 - -0.333)
+            * min(step ** (-0.333), step * self.warmup ** (-1.333))
+        )
+
+    def zero_grad(self):
+        """Reset gradient."""
+        self.optimizer.zero_grad()
+
+    def state_dict(self):
+        """Return state_dict."""
+        return {
+            "_step": self._step,
+            "warmup": self.warmup,
+            "factor": self.factor,
+            "model_size": self.model_size,
+            "_rate": self._rate,
+            "optimizer": self.optimizer.state_dict(),
+        }
+
+    def load_state_dict(self, state_dict):
+        """Load state_dict."""
+        for key, value in state_dict.items():
+            if key == "optimizer":
+                self.optimizer.load_state_dict(state_dict["optimizer"])
+            else:
+                setattr(self, key, value)
 
 
 if __name__ == '__main__':

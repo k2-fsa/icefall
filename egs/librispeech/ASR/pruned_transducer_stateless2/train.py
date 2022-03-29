@@ -44,7 +44,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from conformer import Conformer, Noam
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -54,7 +54,6 @@ from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
 
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
