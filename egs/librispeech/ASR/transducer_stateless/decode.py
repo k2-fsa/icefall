@@ -139,7 +139,10 @@ def get_parser():
         type=int,
         default=4,
         help="""Used only when --decoding-method is
-        beam_search or modified_beam_search""",
+        beam_search or modified_beam_search.
+        It specifies the number of active hypotheses to keep at each
+        time step.
+        """,
     )
 
     parser.add_argument(
