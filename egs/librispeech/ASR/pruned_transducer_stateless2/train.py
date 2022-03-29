@@ -291,7 +291,6 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
-            "vgg_frontend": False,
             # parameters for decoder
             "embedding_dim": 512,
             # parameters for Noam
@@ -314,7 +313,6 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
     )
     return encoder
 
