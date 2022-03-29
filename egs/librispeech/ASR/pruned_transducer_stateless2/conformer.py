@@ -954,7 +954,7 @@ class Conv2dSubsampling(nn.Module):
 
     def __init__(self, in_channels: int,
                  out_channels: int,
-                 layer1_channels: int = 64,
+                 layer1_channels: int = 32,
                  layer2_channels: int = 128) -> None:
         """
         Args:
