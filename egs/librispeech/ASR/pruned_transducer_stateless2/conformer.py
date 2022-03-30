@@ -974,7 +974,7 @@ class Conv2dSubsampling(nn.Module):
         self.conv = nn.Sequential(
             ScaledConv2d(
                 in_channels=1, out_channels=layer1_channels,
-                kernel_size=3,
+                kernel_size=3, padding=1,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
