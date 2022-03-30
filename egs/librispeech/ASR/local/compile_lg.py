@@ -88,7 +88,7 @@ def compile_LG(lang_dir: str) -> k2.Fsa:
     logging.info(type(LG.aux_labels))
     logging.info("Determinizing LG")
 
-    LG = k2.determinize(LG)
+    LG = k2.determinize(LG, k2.DeterminizeWeightPushingType.kLogWeightPushing)
     logging.info(type(LG.aux_labels))
 
     logging.info("Connecting LG after k2.determinize")
