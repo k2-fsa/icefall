@@ -44,4 +44,4 @@ class Joiner(nn.Module):
 
         logit = self.output_linear(torch.tanh(logit))
 
-        return output
+        return logit
