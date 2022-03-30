@@ -68,6 +68,7 @@ class Decoder(nn.Module):
             initial_speed=initial_speed
         )
         self.blank_id = blank_id
+        self.output_linear = ScaledLinear(embedding_dim, embedding_dim)
 
         assert context_size >= 1, context_size
         self.context_size = context_size
@@ -81,8 +82,6 @@ class Decoder(nn.Module):
                 groups=embedding_dim,
                 bias=False,
             )
-        self.output_linear = ScaledLinear(embedding_dim, vocab_size)
-
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """

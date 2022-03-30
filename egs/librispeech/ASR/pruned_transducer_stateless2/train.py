@@ -306,7 +306,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
-        output_dim=params.vocab_size,
+        output_dim=params.embedding_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.attention_dim,
         nhead=params.nhead,
@@ -328,8 +328,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
+        input_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner
@@ -344,6 +343,8 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        embedding_dim=params.embedding_dim,
+        vocab_size=params.vocab_size,
     )
     return model
 

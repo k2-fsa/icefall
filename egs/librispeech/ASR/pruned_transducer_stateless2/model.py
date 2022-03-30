@@ -19,6 +19,7 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
@@ -33,6 +34,8 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        embedding_dim: int,
+        vocab_size: int
     ):
         """
         Args:
@@ -57,6 +60,10 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+
+        # could perhaps separate this into 2 linear projections, one
+        # for lm and one for am.
+        self.simple_joiner = nn.Linear(embedding_dim, vocab_size)
 
     def forward(
         self,
@@ -133,8 +140,8 @@ class Transducer(nn.Module):
         boundary[:, 3] = x_lens
 
         simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-            lm=decoder_out,
-            am=encoder_out,
+            lm=self.simple_joiner(decoder_out),
+            am=self.simple_joiner(encoder_out),
             symbols=y_padded,
             termination_symbol=blank_id,
             lm_only_scale=lm_scale,

@@ -20,11 +20,10 @@ import torch.nn.functional as F
 from scaling import ScaledLinear
 
 class Joiner(nn.Module):
-    def __init__(self, input_dim: int, inner_dim: int, output_dim: int):
+    def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
 
-        self.inner_linear = ScaledLinear(input_dim, inner_dim)
-        self.output_linear = ScaledLinear(inner_dim, output_dim)
+        self.output_linear = ScaledLinear(input_dim, output_dim)
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
@@ -43,8 +42,6 @@ class Joiner(nn.Module):
 
         logit = encoder_out + decoder_out
 
-        logit = self.inner_linear(torch.tanh(logit))
-
-        output = self.output_linear(F.relu(logit))
+        logit = self.output_linear(torch.tanh(logit))
 
         return output

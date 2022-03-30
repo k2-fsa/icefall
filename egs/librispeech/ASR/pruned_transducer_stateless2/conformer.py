@@ -32,9 +32,10 @@ class Conformer(EncoderInterface):
     """
     Args:
         num_features (int): Number of input features
-        output_dim (int): Number of output dimension
+        output_dim (int): Model output dimension.  If not equal to the encoder dimension,
+              we will project to the output.
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
-        d_model (int): attention dimension
+        d_model (int): attention dimension, also the output dimension
         nhead (int): number of head
         dim_feedforward (int): feedforward dimention
         num_encoder_layers (int): number of encoder layers
@@ -42,7 +43,6 @@ class Conformer(EncoderInterface):
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
     """
-
     def __init__(
         self,
         num_features: int,
@@ -59,7 +59,6 @@ class Conformer(EncoderInterface):
         super(Conformer, self).__init__()
 
         self.num_features = num_features
-        self.output_dim = output_dim
         self.subsampling_factor = subsampling_factor
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
@@ -83,7 +82,11 @@ class Conformer(EncoderInterface):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers,
                                         aux_layers=list(range(0, num_encoder_layers-1, aux_layer_period)))
 
-        self.encoder_output_layer = ScaledLinear(d_model, output_dim)
+        if output_dim == d_model:
+            self.encoder_output_layer = Identity()
+        else:
+            self.encoder_output_layer = ScaledLinear(d_model, output_dim,
+                                                     initial_speed=0.5)
 
     def forward(
             self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -101,9 +104,9 @@ class Conformer(EncoderInterface):
             to turn modules on sequentially.
         Returns:
           Return a tuple containing 2 tensors:
-            - logits, its shape is (batch_size, output_seq_len, output_dim)
-            - logit_lens, a tensor of shape (batch_size,) containing the number
-              of frames in `logits` before padding.
+            - embeddings: its shape is (batch_size, output_seq_len, d_model)
+            - lengths, a tensor of shape (batch_size,) containing the number
+              of frames in `embeddings` before padding.
         """
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
@@ -117,10 +120,10 @@ class Conformer(EncoderInterface):
         x = self.encoder(x, pos_emb, src_key_padding_mask=mask,
                          warmup=warmup)  # (T, N, C)
 
-        logits = self.encoder_output_layer(x)
-        logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        x = self.encoder_output_layer(x)
+        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        return logits, lengths
+        return x, lengths
 
 
 class ConformerEncoderLayer(nn.Module):
