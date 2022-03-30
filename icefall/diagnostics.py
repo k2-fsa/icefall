@@ -140,7 +140,7 @@ def get_diagnostics_for_dim(
             stats = eigs.abs().sqrt()
         except:  # noqa
             print("Error getting eigenvalues, trying another method.")
-            eigs, _ = torch.eigs(stats)
+            eigs = torch.linalg.eigvals(stats)
             stats = eigs.abs().sqrt()
         # sqrt so it reflects data magnitude, like stddev- not variance
     elif sizes_same:
