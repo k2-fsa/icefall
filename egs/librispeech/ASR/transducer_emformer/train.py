@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless/train.py \
+./transducer_emformer/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
+  --exp-dir transducer_emformer/exp \
   --full-libri 1 \
   --max-duration 300
 """
@@ -33,6 +33,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple
@@ -43,18 +44,18 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
 from decoder import Decoder
+from emformer import Emformer
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
+from noam import Noam
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
 
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -111,7 +112,7 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless/exp/epoch-{start_epoch-1}.pt
+        transducer_emformer/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
@@ -127,7 +128,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="transducer_emformer/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -279,7 +280,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             "log_diagnostics": False,
-            # parameters for conformer
+            # parameters for Emformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             "attention_dim": 512,
@@ -287,10 +288,13 @@ def get_params() -> AttributeDict:
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
+            "left_context_length": 120,  # 120 frames
+            "segment_length": 16,
+            "right_context_length": 4,
             # parameters for decoder
             "embedding_dim": 512,
             # parameters for Noam
-            "warm_step": 80000,  # For the 100h subset, use 30000
+            "warm_step": 80000,  # For the 100h subset, use 20000
             "env_info": get_env_info(),
         }
     )
@@ -299,8 +303,7 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = Emformer(
         num_features=params.feature_dim,
         output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
@@ -309,6 +312,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
+        left_context_length=params.left_context_length,
+        segment_length=params.segment_length,
+        right_context_length=params.right_context_length,
     )
     return encoder
 
@@ -496,7 +502,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -725,7 +735,7 @@ def run(rank, world_size, args):
     params.update(vars(args))
     if params.full_libri is False:
         params.valid_interval = 800
-        params.warm_step = 30000
+        params.warm_step = 20000
 
     fix_random_seed(params.seed)
     if world_size > 1:
