@@ -27,9 +27,21 @@ Installation
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
-We recommend you to install ``k2`` first, as ``k2`` is bound to
-a specific version of PyTorch after compilation. Install ``k2`` also
-installs its dependency PyTorch, which can be reused by ``lhotse``.
+We recommend you to use the following steps to install the dependencies.
+
+- (0) Install PyTorch and torchaudio
+- (1) Install k2
+- (2) Install lhotse
+
+.. caution::
+
+  Installation order matters.
+
+(0) Install PyTorch and torchaudio
+----------------------------------
+
+Please refer `<https://pytorch.org/>`_ to install PyTorch
+and torchaudio.
 
 
 (1) Install k2
@@ -54,14 +66,15 @@ to install ``k2``.
 Please refer to `<https://lhotse.readthedocs.io/en/latest/getting-started.html#installation>`_
 to install ``lhotse``.
 
-.. HINT::
 
-  Install ``lhotse`` also installs its dependency `torchaudio <https://github.com/pytorch/audio>`_.
+.. hint::
 
-.. CAUTION::
+    We strongly recommend you to use::
 
-  If you have installed ``torchaudio``, please consider uninstalling it before
-  installing ``lhotse``. Otherwise, it may update your already installed PyTorch.
+      pip install git+https://github.com/lhotse-speech/lhotse
+
+    to install the latest version of lhotse.
+
 
 (3) Download icefall
 --------------------
