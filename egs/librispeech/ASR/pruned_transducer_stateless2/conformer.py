@@ -83,10 +83,7 @@ class Conformer(EncoderInterface):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers,
                                         aux_layers=list(range(0, num_encoder_layers-1, aux_layer_period)))
 
-        self.encoder_output_layer = nn.Sequential(
-            nn.Dropout(p=dropout), ScaledLinear(d_model, output_dim)
-        )
-
+        self.encoder_output_layer = ScaledLinear(d_model, output_dim)
 
     def forward(
             self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
