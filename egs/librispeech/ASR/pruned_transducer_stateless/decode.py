@@ -53,6 +53,19 @@ Usage:
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
+
+(5) fast beam search using LG
+./pruned_transducer_stateless/decode.py \
+        --epoch 28 \
+        --avg 15 \
+        --exp-dir ./pruned_transducer_stateless/exp \
+        --use-LG True \
+        --use-max False \
+        --max-duration 1500 \
+        --decoding-method fast_beam_search \
+        --beam 8 \
+        --max-contexts 8 \
+        --max-states 64
 """
 
 
@@ -81,10 +94,12 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -136,6 +151,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe_500",
+        help="The lang dir containing word table and LG graph",
+    )
+
+    parser.add_argument(
         "--decoding-method",
         type=str,
         default="greedy_search",
@@ -164,6 +186,36 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--use-LG",
+        type=str2bool,
+        default=False,
+        help="""Whether to use an LG graph for FSA-based beam search.
+        Used only when --decoding_method is fast_beam_search. If setting true,
+        it assumes there is an LG.pt file in lang_dir.""",
+    )
+
+    parser.add_argument(
+        "--use-max",
+        type=str2bool,
+        default=False,
+        help="""If True, use max-op to select the hypothesis that have the
+        max log_prob in case of duplicate hypotheses.
+        If False, use log_add.
+        Used only for beam_search, modified_beam_search, and fast_beam_search
+        """,
+    )
+
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search.
+        It specifies the scale for n-gram LM scores.
+        """,
     )
 
     parser.add_argument(
@@ -205,6 +257,7 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -228,6 +281,8 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      word_table:
+        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -259,9 +314,14 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            use_max=params.use_max,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        if params.use_LG:
+            for hyp in hyp_tokens:
+                hyps.append([word_table[i] for i in hyp])
+        else:
+            for hyp in sp.decode(hyp_tokens):
+                hyps.append(hyp.split())
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -277,6 +337,7 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             beam=params.beam_size,
+            use_max=params.use_max,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -298,6 +359,7 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
+                    use_max=params.use_max,
                 )
             else:
                 raise ValueError(
@@ -324,6 +386,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -337,6 +400,8 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
+      word_table:
+        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -367,8 +432,9 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
-            decoding_graph=decoding_graph,
             batch=batch,
+            word_table=word_table,
+            decoding_graph=decoding_graph,
         )
 
         for name, hyps in hyps_dict.items():
@@ -455,11 +521,14 @@ def main():
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if "fast_beam_search" in params.decoding_method:
+        params.suffix += f"-use-LG-{params.use_LG}"
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-use-max-{params.use_max}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += f"-beam-size-{params.beam_size}"
+        params.suffix += f"-use-max-{params.use_max}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -507,9 +576,21 @@ def main():
     model.device = device
 
     if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        if params.use_LG:
+            lexicon = Lexicon(params.lang_dir)
+            word_table = lexicon.word_table
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(f"{params.lang_dir}/LG.pt", map_location=device)
+            )
+            decoding_graph.scores *= params.ngram_lm_scale
+        else:
+            word_table = None
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
     else:
         decoding_graph = None
+        word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -531,6 +612,7 @@ def main():
             params=params,
             model=model,
             sp=sp,
+            word_table=word_table,
             decoding_graph=decoding_graph,
         )
 
