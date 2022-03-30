@@ -83,7 +83,7 @@ class Conformer(EncoderInterface):
                                         aux_layers=list(range(0, num_encoder_layers-1, aux_layer_period)))
 
         if output_dim == d_model:
-            self.encoder_output_layer = Identity()
+            self.encoder_output_layer = nn.Identity()
         else:
             self.encoder_output_layer = ScaledLinear(d_model, output_dim,
                                                      initial_speed=0.5)
@@ -935,10 +935,6 @@ class ConvolutionModule(nn.Module):
 
         return x.permute(2, 0, 1)
 
-
-class Identity(torch.nn.Module):
-    def forward(self, x: Tensor) -> Tensor:
-        return x
 
 
 class Conv2dSubsampling(nn.Module):
