@@ -63,7 +63,7 @@ class Transducer(nn.Module):
 
         # could perhaps separate this into 2 linear projections, one
         # for lm and one for am.
-        self.simple_joiner = nn.Linear(embedding_dim, vocab_size)
+        self.simple_joiner = ScaledLinear(embedding_dim, vocab_size)
 
     def forward(
         self,
