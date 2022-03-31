@@ -34,6 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -393,7 +394,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
