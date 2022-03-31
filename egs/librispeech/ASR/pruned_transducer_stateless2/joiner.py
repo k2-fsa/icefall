@@ -23,7 +23,8 @@ class Joiner(nn.Module):
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
 
-        self.output_linear = ScaledLinear(input_dim, output_dim)
+        self.output_linear = ScaledLinear(input_dim, output_dim,
+                                          initial_speed=0.5)
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
