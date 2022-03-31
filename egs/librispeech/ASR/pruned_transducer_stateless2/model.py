@@ -62,9 +62,9 @@ class Transducer(nn.Module):
         self.joiner = joiner
 
         self.simple_am_proj = ScaledLinear(embedding_dim, vocab_size,
-                                           initial_speed=0.5)
+                                           initial_speed=0.25)
         self.simple_lm_proj = ScaledLinear(embedding_dim, vocab_size,
-                                           initial_speed=0.5)
+                                           initial_speed=0.25)
         with torch.no_grad():
             # Initialize the two projections to be the same; this will be
             # convenient for the real joiner, which adds the endcoder
