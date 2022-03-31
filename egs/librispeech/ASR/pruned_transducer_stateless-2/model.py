@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from typing import Tuple
+
 import k2
 import torch
 import torch.nn as nn
@@ -33,6 +35,7 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        blank_predictor: nn.Module,
     ):
         """
         Args:
@@ -49,6 +52,9 @@ class Transducer(nn.Module):
             It has two inputs with shapes: (N, T, C) and (N, U, C). Its
             output shape is (N, T, U, C). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
+          blank_predictor:
+            The model to predict blanks from the encoder output. See also
+            `./blank_predictor.py`.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -57,6 +63,7 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+        self.blank_predictor = blank_predictor
 
     def forward(
         self,
@@ -66,7 +73,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -87,7 +94,11 @@ class Transducer(nn.Module):
             The scale to smooth the loss with lm (output of predictor network)
             part
         Returns:
-          Return the transducer loss.
+          Return a tuple containing:
+
+            - The loss for the "trivial" joiner
+            - The loss for the non-linear joiner
+            - The loss for predicting the blank token
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -101,8 +112,8 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
-        assert torch.all(x_lens > 0)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens)
+        assert torch.all(encoder_out_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
@@ -126,7 +137,7 @@ class Transducer(nn.Module):
             (x.size(0), 4), dtype=torch.int64, device=x.device
         )
         boundary[:, 2] = y_lens
-        boundary[:, 3] = x_lens
+        boundary[:, 3] = encoder_out_lens
 
         simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
             lm=decoder_out,
@@ -138,6 +149,19 @@ class Transducer(nn.Module):
             boundary=boundary,
             reduction="sum",
             return_grad=True,
+        )
+        #
+        # px_grad shape: (B, y_lens.max(), T+1)
+        # Note: In the paper, we use y'(t, u)
+        #
+        non_blank_occuptation = px_grad[:, :, :-1].sum(dim=1)
+        non_blank_occuptation = torch.clamp(non_blank_occuptation, min=0, max=1)
+        blank_occupation = 1 - non_blank_occuptation
+
+        blank_prediction_loss = self.blank_predictor(
+            encoder_out,
+            encoder_out_lens,
+            blank_occupation,
         )
 
         # ranges : [B, T, prune_range]
@@ -166,4 +190,4 @@ class Transducer(nn.Module):
             reduction="sum",
         )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, blank_prediction_loss)

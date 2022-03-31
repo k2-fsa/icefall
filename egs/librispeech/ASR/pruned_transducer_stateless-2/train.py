@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless/train.py \
+./pruned_transducer_stateless-2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
+  --exp-dir pruned_transducer_stateless-2/exp \
   --full-libri 1 \
   --max-duration 300
 """
@@ -44,6 +44,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from blank_predictor import BlankPredictor
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -128,7 +129,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="pruned_transducer_stateless-2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -189,6 +190,13 @@ def get_parser():
         "loss(joiner is just addition), this simple loss also uses for"
         "training (as a regularization item). We will scale the simple loss"
         "with this parameter before adding to the final loss.",
+    )
+
+    parser.add_argument(
+        "--blank-prediction-scale",
+        type=float,
+        default=0.1,
+        help="Scale to use for the blank prediction loss",
     )
 
     parser.add_argument(
@@ -333,15 +341,22 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_blank_prediction_model(params: AttributeDict) -> nn.Module:
+    blank_predictor = BlankPredictor(encoder_out_dim=params.vocab_size)
+    return blank_predictor
+
+
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
+    blank_predictor = get_blank_prediction_model(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        blank_predictor=blank_predictor,
     )
     return model
 
@@ -484,7 +499,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, blank_prediction_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -492,7 +507,11 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
-        loss = params.simple_loss_scale * simple_loss + pruned_loss
+        loss = (
+            params.simple_loss_scale * simple_loss
+            + pruned_loss
+            + params.blank_prediction_scale * blank_prediction_loss
+        )
 
     assert loss.requires_grad == is_training
 
@@ -507,6 +526,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["blank_prediction_loss"] = blank_prediction_loss.detach().cpu().item()
 
     return loss, info
 
