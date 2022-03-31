@@ -82,6 +82,7 @@ class Conformer(EncoderInterface):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers,
                                         aux_layers=list(range(0, num_encoder_layers-1, aux_layer_period)))
 
+        self.final_dropout = nn.Dropout(p=dropout)
         if output_dim == d_model:
             self.encoder_output_layer = nn.Identity()
         else:
@@ -120,6 +121,7 @@ class Conformer(EncoderInterface):
         x = self.encoder(x, pos_emb, src_key_padding_mask=mask,
                          warmup=warmup)  # (T, N, C)
 
+        x = self.final_dropout(x)
         x = self.encoder_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
