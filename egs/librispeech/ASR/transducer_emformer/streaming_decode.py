@@ -336,8 +336,6 @@ def main():
     fbank = get_feature_extractor(params)
 
     for num, cut in enumerate(test_clean_cuts):
-        if num > 3:
-            break
         logging.info("Processing {num}")
 
         audio: np.ndarray = cut.load_audio()
@@ -347,7 +345,7 @@ def main():
         assert audio.dtype == np.float32, audio.dtype
         assert audio.max() <= 1, "Should be normalized to [-1, 1])"
         decode_one_utterance(
-            audio_samples=torch.from_numpy(audio).squeeze(0),
+            audio_samples=torch.from_numpy(audio).squeeze(0).to(device),
             model=model,
             fbank=fbank,
             params=params,
@@ -355,7 +353,9 @@ def main():
         )
 
         logging.info(f"The ground truth is:\n{cut.supervisions[0].text}")
-        time.sleep(3)  # So that you can see the decoded results
+        if num >= 0:
+            break
+        time.sleep(2)  # So that you can see the decoded results
 
 
 if __name__ == "__main__":
