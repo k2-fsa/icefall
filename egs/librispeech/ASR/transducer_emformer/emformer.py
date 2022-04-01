@@ -16,7 +16,7 @@
 
 import math
 import warnings
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -125,7 +125,9 @@ class Emformer(EncoderInterface):
         )
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -161,3 +163,38 @@ class Emformer(EncoderInterface):
         logits = self.encoder_output_layer(emformer_out)
 
         return logits, emformer_out_lens
+
+    def streaming_forward(
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+        states: Optional[List[List[torch.Tensor]]] = None,
+    ):
+        """
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C).
+          x_lens:
+            A 2-D tensor of shap containing the number of valid frames for each
+            element in `x` before padding.
+          states:
+            Internal states of the model.
+        Returns:
+          Return a tuple containing 3 tensors:
+            - encoder_out, a 3-D tensor of shape (N, T, C)
+            - encoder_out_lens: a 1-D tensor of shape (N,)
+            - next_state, internal model states for the next chunk
+        """
+        x = self.encoder_embed(x)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # Caution: We assume the subsampling factor is 4!
+            x_lens = ((x_lens - 1) // 2 - 1) // 2
+        emformer_out, emformer_out_lens, states = self.model.infer(
+            x, x_lens, states
+        )
+
+        logits = self.encoder_output_layer(emformer_out)
+
+        return logits, emformer_out_lens, states

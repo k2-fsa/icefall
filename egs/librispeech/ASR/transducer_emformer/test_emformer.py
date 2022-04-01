@@ -41,11 +41,11 @@ def test_emformer():
         d_model=512,
         nhead=8,
         dim_feedforward=2048,
-        num_encoder_layers=12,
+        num_encoder_layers=20,
         segment_length=16,
         left_context_length=120,
         right_context_length=4,
-        vgg_frontend=True,
+        vgg_frontend=False,
     )
 
     x = torch.rand(N, T, C)

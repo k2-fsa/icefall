@@ -73,6 +73,64 @@ from icefall.utils import (
 )
 
 
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--attention-dim",
+        type=int,
+        default=512,
+        help="Attention dim for the Emformer",
+    )
+
+    parser.add_argument(
+        "--nhead",
+        type=int,
+        default=8,
+        help="Number of attention heads for the Emformer",
+    )
+
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Feed-forward dimension for the Emformer",
+    )
+
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=int,
+        default=12,
+        help="Number of encoder layers for the Emformer",
+    )
+
+    parser.add_argument(
+        "--left-context-length",
+        type=int,
+        default=120,
+        help="Number of frames for the left context in the Emformer",
+    )
+
+    parser.add_argument(
+        "--segment-length",
+        type=int,
+        default=16,
+        help="Number of frames for each segment in the Emformer",
+    )
+
+    parser.add_argument(
+        "--right-context-length",
+        type=int,
+        default=4,
+        help="Number of frames for right context in the Emformer",
+    )
+
+    parser.add_argument(
+        "--memory-size",
+        type=int,
+        default=0,
+        help="Number of entries in the memory for the Emformer",
+    )
+
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -222,6 +280,8 @@ def get_parser():
         """,
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -283,14 +343,7 @@ def get_params() -> AttributeDict:
             # parameters for Emformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
             "vgg_frontend": False,
-            "left_context_length": 120,  # 120 frames
-            "segment_length": 16,
-            "right_context_length": 4,
             # parameters for decoder
             "embedding_dim": 512,
             # parameters for Noam
@@ -315,6 +368,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         left_context_length=params.left_context_length,
         segment_length=params.segment_length,
         right_context_length=params.right_context_length,
+        max_memory_size=params.memory_size,
     )
     return encoder
 
