@@ -38,7 +38,7 @@ class Decoder(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        embedding_dim: int,
+        decoder_dim: int,
         blank_id: int,
         context_size: int,
     ):
