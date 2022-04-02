@@ -46,8 +46,8 @@ class Decoder(nn.Module):
         Args:
           vocab_size:
             Number of tokens of the modeling unit including blank.
-          embedding_dim:
-            Dimension of the input embedding.
+          decoder_dim:
+            Dimension of the input embedding, and of the decoder output.
           blank_id:
             The ID of the blank symbol.
           context_size:
@@ -63,23 +63,22 @@ class Decoder(nn.Module):
         initial_speed = 0.5
         self.embedding = ScaledEmbedding(
             num_embeddings=vocab_size,
-            embedding_dim=embedding_dim,
+            embedding_dim=decoder_dim,
             padding_idx=blank_id,
             initial_speed=initial_speed
         )
         self.blank_id = blank_id
-        self.output_linear = ScaledLinear(embedding_dim, embedding_dim)
 
         assert context_size >= 1, context_size
         self.context_size = context_size
         self.vocab_size = vocab_size
         if context_size > 1:
             self.conv = ScaledConv1d(
-                in_channels=embedding_dim,
-                out_channels=embedding_dim,
+                in_channels=decoder_dim,
+                out_channels=decoder_dim,
                 kernel_size=context_size,
                 padding=0,
-                groups=embedding_dim,
+                groups=decoder_dim,
                 bias=False,
             )
 
@@ -92,7 +91,7 @@ class Decoder(nn.Module):
             True to left pad the input. Should be True during training.
             False to not pad the input. Should be False during inference.
         Returns:
-          Return a tensor of shape (N, U, embedding_dim).
+          Return a tensor of shape (N, U, decoder_dim).
         """
         y = y.to(torch.int64)
         embedding_out = self.embedding(y)
@@ -108,5 +107,5 @@ class Decoder(nn.Module):
                 assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
-        embedding_out = self.output_linear(F.relu(embedding_out))
+        embedding_out = F.relu(embedding_out)
         return embedding_out

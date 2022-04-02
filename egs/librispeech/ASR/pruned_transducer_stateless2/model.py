@@ -34,23 +34,25 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
-        embedding_dim: int,
+        encoder_dim: int,
+        decoder_dim: int,
+        joiner_dim: int,
         vocab_size: int
     ):
         """
         Args:
           encoder:
             It is the transcription network in the paper. Its accepts
-            two inputs: `x` of (N, T, C) and `x_lens` of shape (N,).
-            It returns two tensors: `logits` of shape (N, T, C) and
+            two inputs: `x` of (N, T, encoder_dim) and `x_lens` of shape (N,).
+            It returns two tensors: `logits` of shape (N, T, encoder_dm) and
             `logit_lens` of shape (N,).
           decoder:
             It is the prediction network in the paper. Its input shape
-            is (N, U) and its output shape is (N, U, C). It should contain
+            is (N, U) and its output shape is (N, U, decoder_dim). It should contain
             one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, C) and (N, U, C). Its
-            output shape is (N, T, U, C). Note that its output contains
+            It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim). Its
+            output shape is (N, T, U, vocab_size). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
@@ -61,17 +63,10 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = ScaledLinear(embedding_dim, vocab_size,
+        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size,
                                            initial_speed=0.5)
-        self.simple_lm_proj = ScaledLinear(embedding_dim, vocab_size,
+        self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size,
                                            initial_speed=0.5)
-        with torch.no_grad():
-            # Initialize the two projections to be the same; this will be
-            # convenient for the real joiner, which adds the endcoder
-            # (acoustic-model/am) and decoder (language-model/lm) embeddings
-            self.simple_lm_proj.weight[:] = self.simple_am_proj.weight
-            self.simple_lm_proj.bias[:] = self.simple_am_proj.bias
-
 
     def forward(
         self,
@@ -133,7 +128,7 @@ class Transducer(nn.Module):
         # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
-        # decoder_out: [B, S + 1, C]
+        # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded)
 
         # Note: y does not start with SOS
@@ -167,13 +162,13 @@ class Transducer(nn.Module):
             s_range=prune_range,
         )
 
-        # am_pruned : [B, T, prune_range, C]
-        # lm_pruned : [B, T, prune_range, C]
+        # am_pruned : [B, T, prune_range, encoder_dim]
+        # lm_pruned : [B, T, prune_range, decoder_dim]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
             am=encoder_out, lm=decoder_out, ranges=ranges
         )
 
-        # logits : [B, T, prune_range, C]
+        # logits : [B, T, prune_range, vocab_size]
         logits = self.joiner(am_pruned, lm_pruned)
 
         pruned_loss = k2.rnnt_loss_pruned(

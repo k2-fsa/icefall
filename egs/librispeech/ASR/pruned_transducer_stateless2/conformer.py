@@ -32,8 +32,6 @@ class Conformer(EncoderInterface):
     """
     Args:
         num_features (int): Number of input features
-        output_dim (int): Model output dimension.  If not equal to the encoder dimension,
-              we will project to the output.
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
         d_model (int): attention dimension, also the output dimension
         nhead (int): number of head
@@ -47,7 +45,6 @@ class Conformer(EncoderInterface):
     def __init__(
         self,
         num_features: int,
-        output_dim: int,
         subsampling_factor: int = 4,
         d_model: int = 256,
         nhead: int = 4,
@@ -83,11 +80,6 @@ class Conformer(EncoderInterface):
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
 
-        if output_dim == d_model:
-            self.encoder_output_layer = nn.Identity()
-        else:
-            self.encoder_output_layer = ScaledLinear(d_model, output_dim,
-                                                     initial_speed=0.5)
 
     def forward(
             self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -123,7 +115,6 @@ class Conformer(EncoderInterface):
         x = self.encoder(x, pos_emb, src_key_padding_mask=mask,
                          warmup=warmup)  # (T, N, C)
 
-        x = self.encoder_output_layer(x)
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return x, lengths
@@ -1116,7 +1107,7 @@ class Noam(object):
 
 if __name__ == '__main__':
     feature_dim = 50
-    c = Conformer(num_features=feature_dim, output_dim=256, d_model=128, nhead=4)
+    c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.

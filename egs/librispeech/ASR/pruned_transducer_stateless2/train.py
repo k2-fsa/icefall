@@ -268,7 +268,7 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - attention_dim: Hidden dim for multi-head attention model.
+        - encoder_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
@@ -287,12 +287,14 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
+            "encoder_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             # parameters for decoder
-            "embedding_dim": 512,
+            "decoder_dim": 512,
+            # parameters for joiner
+            "joiner_dim": 512,
             # parameters for Noam
             "warm_step": 60000,  # For the 100h subset, use 8k
             "model_warm_step": 4000, # arg given to model, not for lrate
@@ -309,7 +311,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_features=params.feature_dim,
         output_dim=params.embedding_dim,
         subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
+        d_model=params.encoder_dim,
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
@@ -329,8 +331,10 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        input_dim=params.embedding_dim,
-        output_dim=params.vocab_size,
+        encoder_dim=params.encoder_dim
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
     )
     return joiner
 
@@ -344,7 +348,9 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        embedding_dim=params.embedding_dim,
+        encoder_dim=params.encoder_dim
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -748,7 +754,7 @@ def run(rank, world_size, args):
 
     optimizer = Noam(
         model.parameters(),
-        model_size=params.attention_dim,
+        model_size=params.encoder_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
     )

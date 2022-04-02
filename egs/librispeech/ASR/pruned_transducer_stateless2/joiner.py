@@ -20,11 +20,19 @@ import torch.nn.functional as F
 from scaling import ScaledLinear
 
 class Joiner(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int):
+    def __init__(self,
+                 encoder_dim: int,
+                 decoder_dim: int,
+                 joiner_dim: int,
+                 vocab_size: int):
         super().__init__()
 
-        self.output_linear = ScaledLinear(input_dim, output_dim,
-                                          initial_speed=0.5)
+        # We don't bother giving the 'initial_speed' arg to the decoder
+        # submodules, because it does not affect the initial convergence of the
+        # system (only the simple joiner is involved in that).
+        self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim)
+        self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim)
+        self.output_linear = ScaledLinear(joiner_dim, vocab_size)
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
@@ -41,7 +49,7 @@ class Joiner(nn.Module):
         assert encoder_out.ndim == decoder_out.ndim == 4
         assert encoder_out.shape == decoder_out.shape
 
-        logit = encoder_out + decoder_out
+        logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
 
         logit = self.output_linear(torch.tanh(logit))
 
