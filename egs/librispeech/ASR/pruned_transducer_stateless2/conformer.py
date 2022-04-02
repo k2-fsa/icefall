@@ -40,6 +40,7 @@ class Conformer(EncoderInterface):
         dim_feedforward (int): feedforward dimention
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
+        layer_dropout (float): layer-dropout rate.
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
     """
@@ -53,6 +54,7 @@ class Conformer(EncoderInterface):
         dim_feedforward: int = 2048,
         num_encoder_layers: int = 12,
         dropout: float = 0.1,
+        layer_dropout: float = 0.075,
         cnn_module_kernel: int = 31,
     ) -> None:
         super(Conformer, self).__init__()
@@ -76,6 +78,7 @@ class Conformer(EncoderInterface):
             nhead,
             dim_feedforward,
             dropout,
+            layer_dropout,
             cnn_module_kernel,
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
@@ -149,9 +152,13 @@ class ConformerEncoderLayer(nn.Module):
         nhead: int,
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
+        layer_dropout: float = 0.075,
         cnn_module_kernel: int = 31,
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
+
+        self.layer_dropout = layer_dropout
+
         self.d_model = d_model
 
         self.self_attn = RelPositionMultiheadAttention(
@@ -217,10 +224,10 @@ class ConformerEncoderLayer(nn.Module):
         src_orig = src
 
         warmup_scale = min(0.1 + warmup, 1.0)
-        # alpha = 1.0 means fully use this encoder layer, 0.0 would mean completely
-        # bypass it.
+        # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
+        # completely bypass it.
         if self.training:
-            alpha = warmup_scale if torch.rand(()).item() <= 0.9 else 0.1
+            alpha = warmup_scale if torch.rand(()).item() <= (1.0 - self.layer_dropout) else 0.1
         else:
             alpha = 1.0
 
