@@ -22,7 +22,7 @@ import torch.nn as nn
 
 class EncoderInterface(nn.Module):
     def forward(
-      self, x: torch.Tensor, x_lens: torch.Tensor
+        self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:

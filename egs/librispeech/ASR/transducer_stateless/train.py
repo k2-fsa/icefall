@@ -111,8 +111,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        # was 2c_maxabs1000_maxp0.95_noexp_convderiv2warmup_scale_0mean, then reworking initialization..
-        default="transducer_stateless/randcombine1_expscale3_rework2d",
+        default="transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -223,7 +222,6 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            "warmup_minibatches": 3000,  # use warmup mode for 3k minibatches.
             # parameters for conformer
             "feature_dim": 80,
             "encoder_out_dim": 512,
@@ -381,7 +379,6 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    is_warmup_mode: bool = False
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -418,7 +415,6 @@ def compute_loss(
             x_lens=feature_lens,
             y=y,
             modified_transducer_prob=params.modified_transducer_prob,
-            warmup_mode=is_warmup_mode
         )
 
     assert loss.requires_grad == is_training
@@ -455,7 +451,6 @@ def compute_validation_loss(
             sp=sp,
             batch=batch,
             is_training=False,
-            is_warmup_mode=False
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -517,7 +512,6 @@ def train_one_epoch(
             sp=sp,
             batch=batch,
             is_training=True,
-            is_warmup_mode=(params.batch_idx_train<params.warmup_minibatches)
         )
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -750,7 +744,6 @@ def scan_pessimistic_batches_for_oom(
                 sp=sp,
                 batch=batch,
                 is_training=True,
-                is_warmup_mode=False
             )
             loss.backward()
             clip_grad_norm_(model.parameters(), 5.0, 2.0)

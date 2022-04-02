@@ -16,7 +16,7 @@
 
 import torch
 import torch.nn as nn
-from subsampling import ScaledLinear
+
 
 class Joiner(nn.Module):
     def __init__(self, input_dim: int, output_dim: int):
@@ -24,7 +24,7 @@ class Joiner(nn.Module):
 
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.output_linear = ScaledLinear(input_dim, output_dim)
+        self.output_linear = nn.Linear(input_dim, output_dim)
 
     def forward(
         self,

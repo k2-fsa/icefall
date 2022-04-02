@@ -21,7 +21,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from subsampling import Conv2dSubsampling, VggSubsampling, ScaledLinear
+from subsampling import Conv2dSubsampling, VggSubsampling
 
 from icefall.utils import make_pad_mask
 
@@ -106,7 +106,7 @@ class Transformer(EncoderInterface):
 
         # TODO(fangjun): remove dropout
         self.encoder_output_layer = nn.Sequential(
-            nn.Dropout(p=dropout), ScaledLinear(d_model, output_dim)
+            nn.Dropout(p=dropout), nn.Linear(d_model, output_dim)
         )
 
     def forward(
