@@ -156,9 +156,12 @@ class Eve(Optimizer):
                 #  epsilon = 1.0 * 0.5 * (1.0e-04 / 0.1) = 1.0e-06.
                 # Note that this is close to the "traditional" value used for weight
                 # decay.
-
+                #
                 # this is the weight-decay amount...
-                weight_decay = (delta ** 2).mean() * (0.5 * (step_size / target_rms) ** 2)
+                #
+                # Regarding the 1/1-beta factor below: this is to compensate for the deltas on successive
+                # frames being correlated.  I have to figure out the justification.
+                weight_decay = (delta ** 2).mean() * (0.5 * (step_size / target_rms) ** 2 * (1.0 / (1.0 - beta)))
 
                 p.mul_(1 - weight_decay)
                 p.add_(delta, alpha=-step_size)
