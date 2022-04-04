@@ -164,11 +164,17 @@ class Transducer(nn.Module):
         # am_pruned : [B, T, prune_range, encoder_dim]
         # lm_pruned : [B, T, prune_range, decoder_dim]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
-            am=encoder_out, lm=decoder_out, ranges=ranges
+            am=self.joiner.encoder_proj(encoder_out),
+            lm=self.joiner.decoder_proj(decoder_out),
+            ranges=ranges
         )
 
         # logits : [B, T, prune_range, vocab_size]
-        logits = self.joiner(am_pruned, lm_pruned)
+
+        # project_input=False since we applied the decoder's input projections
+        # prior to do_rnnt_pruning (this is an optimization for speed).
+        logits = self.joiner(am_pruned, lm_pruned,
+                             project_input=False)
 
         pruned_loss = k2.rnnt_loss_pruned(
             logits=logits,

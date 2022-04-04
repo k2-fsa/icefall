@@ -35,7 +35,8 @@ class Joiner(nn.Module):
         self.output_linear = ScaledLinear(joiner_dim, vocab_size)
 
     def forward(
-        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
+            self, encoder_out: torch.Tensor, decoder_out: torch.Tensor,
+            project_input: bool = True
     ) -> torch.Tensor:
         """
         Args:
@@ -43,13 +44,20 @@ class Joiner(nn.Module):
             Output from the encoder. Its shape is (N, T, s_range, C).
           decoder_out:
             Output from the decoder. Its shape is (N, T, s_range, C).
+           project_input:
+            If true, apply input projections encoder_proj and decoder_proj.
+            If this is false, it is the user's responsibility to do this
+            manually.
         Returns:
           Return a tensor of shape (N, T, s_range, C).
         """
         assert encoder_out.ndim == decoder_out.ndim == 4
         assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
 
-        logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+        if project_input:
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+        else:
+            logit = encoder_out + decoder_out
 
         logit = self.output_linear(torch.tanh(logit))
 
