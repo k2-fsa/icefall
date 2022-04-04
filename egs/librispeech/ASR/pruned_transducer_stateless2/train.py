@@ -160,7 +160,7 @@ def get_parser():
 
     parser.add_argument(
         "--num-lr-decays",
-        type=float,
+        type=int,
         default=4,
         help="The total number of times we decay (halve) the learning rate"
     )
