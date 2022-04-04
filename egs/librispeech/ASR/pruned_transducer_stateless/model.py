@@ -128,7 +128,7 @@ class Transducer(nn.Module):
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
-        with torch.autocast(device_type=x.device.type, enabled=False):
+        with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=decoder_out.float(),
                 am=encoder_out.float(),
@@ -158,7 +158,7 @@ class Transducer(nn.Module):
         # logits : [B, T, prune_range, C]
         logits = self.joiner(am_pruned, lm_pruned)
 
-        with torch.autocast(device_type=x.device.type, enabled=False):
+        with torch.cuda.amp.autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
                 logits=logits.float(),
                 symbols=y_padded,

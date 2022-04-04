@@ -647,9 +647,7 @@ def train_one_epoch(
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        with torch.autocast(
-            device_type=model.device.type, enabled=params.use_fp16
-        ):
+        with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
@@ -920,9 +918,7 @@ def scan_pessimistic_batches_for_oom(
         batch = train_dl.dataset[cuts]
         try:
             optimizer.zero_grad()
-            with torch.autocast(
-                device_type=model.device.type, enabled=params.use_fp16
-            ):
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
