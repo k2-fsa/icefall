@@ -148,6 +148,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--warm-step",
+        type=float,
+        default=60000,
+        help="The number of warmup steps for the (modified) Noam optimizer",
+    )
+
+    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
@@ -296,7 +303,6 @@ def get_params() -> AttributeDict:
             # parameters for joiner
             "joiner_dim": 512,
             # parameters for Noam
-            "warm_step": 60000,  # For the 100h subset, use 8k
             "model_warm_step": 4000, # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
@@ -709,7 +715,6 @@ def run(rank, world_size, args):
     params.update(vars(args))
     if params.full_libri is False:
         params.valid_interval = 1600
-        params.warm_step = 30000
 
     fix_random_seed(params.seed)
     if world_size > 1:
