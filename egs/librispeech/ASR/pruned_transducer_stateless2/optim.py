@@ -140,7 +140,8 @@ class Eve(Optimizer):
 
                 # Suppose we are going to shrinkage with a small value epsilon (not the
                 # same as the eps above!), i.e. param *= (1-epsilon).  Then
-                # if E[param_elem^2] == target_rms^2,
+                # if E[param_elem^2] == target_rms^2 (because we desire equilibrium when
+                #  the RMS of the parameters equals target_rms), it follows that
                 # E[(param_elem*(1-epsilon))^2] == target_rms^2 (1 - 2epsilon + epsilon^2),
                 # which we can put as:
                 #   delta_var_from_shrinkage \simeq -2 epsilon target_rms^2.
