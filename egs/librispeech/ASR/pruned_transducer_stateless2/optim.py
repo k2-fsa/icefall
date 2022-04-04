@@ -161,7 +161,7 @@ class Eve(Optimizer):
                 #
                 # Regarding the 1/1-beta factor below: this is to compensate for the deltas on successive
                 # frames being correlated.  I have to figure out the justification.
-                weight_decay = (delta ** 2).mean() * (0.5 * (step_size / target_rms) ** 2 * (1.0 / (1.0 - beta)))
+                weight_decay = (delta ** 2).mean() * (0.5 * (step_size / target_rms) ** 2 * (1.0 / (1.0 - beta1)))
 
                 p.mul_(1 - weight_decay)
                 p.add_(delta, alpha=-step_size)
