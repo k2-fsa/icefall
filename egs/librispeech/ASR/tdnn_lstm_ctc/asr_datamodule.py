@@ -22,8 +22,6 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
-import torch
-from lhotse.utils import fix_random_seed
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
