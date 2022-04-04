@@ -28,7 +28,10 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300 \
-  --lr-factor 1.5
+  --initial-lr 0.002 \
+  --lr-decay-steps 10000 \
+  --num-lr-decays 4
+
 """
 
 
@@ -52,6 +55,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
+from optim import Eve
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
@@ -141,17 +145,24 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr-factor",
+        "--initial-lr",
         type=float,
-        default=5.0,
-        help="The lr_factor for Noam optimizer",
+        default=0.002,
+        help="The initial learning rate",
     )
 
     parser.add_argument(
-        "--warm-step",
+        "--lr-decay-steps",
         type=float,
-        default=60000,
-        help="The number of warmup steps for the (modified) Noam optimizer",
+        default=5000,
+        help="The number of steps before we decay (halve) the learning rate",
+    )
+
+    parser.add_argument(
+        "--num-lr-decays",
+        type=float,
+        default=4,
+        help="The total number of times we decay (halve) the learning rate"
     )
 
     parser.add_argument(
@@ -426,6 +437,7 @@ def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[torch.optimal.lr_scheduler._LRScheduler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
@@ -449,6 +461,7 @@ def save_checkpoint(
         model=model,
         params=params,
         optimizer=optimizer,
+        scheduler=scheduler,
         sampler=sampler,
         rank=rank,
     )
@@ -574,6 +587,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -594,6 +608,8 @@ def train_one_epoch(
         The model for training.
       optimizer:
         The optimizer we are using.
+      scheduler:
+        The learning rate scheduler, we call step() every step.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -636,6 +652,7 @@ def train_one_epoch(
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+         lr_scheduler.step()
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -651,6 +668,7 @@ def train_one_epoch(
                 model=model,
                 params=params,
                 optimizer=optimizer,
+                scheduler=scheduler,
                 sampler=train_dl.sampler,
                 rank=rank,
             )
@@ -756,16 +774,23 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank])
     model.device = device
 
-    optimizer = Noam(
+    optimizer = Eve(
         model.parameters(),
-        model_size=params.encoder_dim,
-        factor=params.lr_factor,
-        warm_step=params.warm_step,
-    )
+        lr=params.initial_lr,  betas=(0.9, 0.98),
+        eps=1e-9, target_rms=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        [ n * params.lr_decay_steps for n in range(1, params.num_lr_decays+1) ],
+        gamma=0.5)
+
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
+
+    if checkpoints and "scheduler" in checkpoints:
+        logging.info("Loading scheduler state dict")
+        scheduler.load_state_dict(checkpoints["scheduler"])
 
 
     if params.print_diagnostics:
@@ -839,6 +864,7 @@ def run(rank, world_size, args):
             params=params,
             model=model,
             optimizer=optimizer,
+            scheduler=scheduler,
             sp=sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
