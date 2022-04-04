@@ -48,7 +48,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer, Noam
+from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -437,7 +437,7 @@ def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optimal.lr_scheduler._LRScheduler] = None,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
@@ -652,7 +652,7 @@ def train_one_epoch(
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-         lr_scheduler.step()
+        scheduler.step()
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -848,7 +848,7 @@ def run(rank, world_size, args):
         fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
-        cur_lr = optimizer._rate
+        cur_lr = scheduler.get_last_lr()[0]
         if tb_writer is not None:
             tb_writer.add_scalar(
                 "train/learning_rate", cur_lr, params.batch_idx_train
@@ -908,12 +908,16 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
+            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
+            # (i.e. are not remembered by the decaying-average in adam), because
+            # we want to avoid these params being subject to shrinkage in adam.
             loss, _ = compute_loss(
                 params=params,
                 model=model,
                 sp=sp,
                 batch=batch,
                 is_training=True,
+                warmup = 0.0
             )
             loss.backward()
             optimizer.step()
