@@ -793,7 +793,7 @@ def run(rank, world_size, args):
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    if checkpoints and "scheduler" in checkpoints:
+    if checkpoints and "scheduler" in checkpoints and checkpoints["scheduler"] is not None:
         logging.info("Loading scheduler state dict")
         scheduler.load_state_dict(checkpoints["scheduler"])
 
