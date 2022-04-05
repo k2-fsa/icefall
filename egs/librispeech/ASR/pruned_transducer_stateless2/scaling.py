@@ -158,10 +158,7 @@ class ScaledLinear(nn.Linear):
         self._reset_parameters(initial_speed)  # Overrides the reset_parameters in nn.Linear
 
     def _reset_parameters(self, initial_speed: float):
-        # we plan to use Eve as the optimizer, which will eventually make the stddev approach
-        # 0.1 as that's the target_rms we set, but we initialize with a larger stddev
-        # to have the same effect as a warm-up period.
-        std = 0.25 / initial_speed
+        std = 0.1 / initial_speed
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
@@ -199,7 +196,7 @@ class ScaledConv1d(nn.Conv1d):
         self._reset_parameters(initial_speed)  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self, initial_speed: float):
-        std = 0.25 / initial_speed
+        std = 0.1 / initial_speed
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
@@ -244,7 +241,7 @@ class ScaledConv2d(nn.Conv2d):
         self._reset_parameters(initial_speed)  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self, initial_speed: float):
-        std = 0.25 / initial_speed
+        std = 0.1 / initial_speed
         a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
@@ -480,7 +477,7 @@ class ScaledEmbedding(nn.Module):
 
 
     def reset_parameters(self, initial_speed: float = 1.0) -> None:
-        std = 0.25 / initial_speed
+        std = 0.1 / initial_speed
         nn.init.normal_(self.weight, std=std)
         nn.init.constant_(self.scale, torch.tensor(1.0/std).log())
 
