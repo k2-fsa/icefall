@@ -152,17 +152,17 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr-decay-steps",
+        "--lr-num-steps",
         type=float,
-        default=5000,
-        help="The number of steps before we decay (halve) the learning rate",
+        default=3000,
+        help="Number of steps before we start to significantly decay the learning rate",
     )
 
     parser.add_argument(
-        "--num-lr-decays",
-        type=int,
-        default=4,
-        help="The total number of times we decay (halve) the learning rate"
+        "--lr-power",
+        type=float,
+        default=0.5,
+        help="Power in LR-setting rule",
     )
 
     parser.add_argument(
@@ -781,12 +781,10 @@ def run(rank, world_size, args):
     optimizer = Eve(
         model.parameters(),
         lr=params.initial_lr,  betas=(0.9, 0.98),
-        eps=1e-9, target_rms=0.1)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        eps=1e-9, weight_decay=3e-04, target_rms=0.1)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        [ n * params.lr_decay_steps for n in range(1, params.num_lr_decays+1) ],
-        gamma=0.5)
-
+        lambda step: (params.lr_num_steps/(step + params.lr_num_steps) ** params.lr_power))
 
 
     if checkpoints and "optimizer" in checkpoints:
