@@ -956,30 +956,22 @@ class Conv2dSubsampling(nn.Module):
         assert in_channels >= 7
         super().__init__()
 
-        # This initial_speed is to slightly slow down the relative speed of
-        # training during the warmup phase by increasing the magnitude of the
-        # initial parameter values.  The intention is to allow us to
-        # use a higher lr_factor.
-        initial_speed = 0.5
         self.conv = nn.Sequential(
             ScaledConv2d(
                 in_channels=1, out_channels=layer1_channels,
                 kernel_size=3, padding=1,
-                initial_speed=initial_speed,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
             ScaledConv2d(
                 in_channels=layer1_channels, out_channels=layer2_channels,
                 kernel_size=3, stride=2,
-                initial_speed=initial_speed,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
             ScaledConv2d(
                 in_channels=layer2_channels, out_channels=layer3_channels,
                 kernel_size=3, stride=2,
-                initial_speed=initial_speed,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),

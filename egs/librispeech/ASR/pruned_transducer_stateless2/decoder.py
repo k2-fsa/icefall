@@ -56,16 +56,10 @@ class Decoder(nn.Module):
         """
         super().__init__()
 
-        # This initial_speed is to slightly slow down the relative speed of
-        # training during the warmup phase by increasing the magnitude of the
-        # initial parameter values.  The intention is to allow us to
-        # use a higher lr_factor.
-        initial_speed = 0.5
         self.embedding = ScaledEmbedding(
             num_embeddings=vocab_size,
             embedding_dim=decoder_dim,
             padding_idx=blank_id,
-            initial_speed=initial_speed
         )
         self.blank_id = blank_id
 
