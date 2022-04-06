@@ -116,8 +116,6 @@ def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    assert args.jit is False, "Support torchscript will be added later"
-
     params = get_params()
     params.update(vars(args))
 
