@@ -102,7 +102,7 @@ def get_parser():
     parser.add_argument(
         "--num-paths",
         type=int,
-        default=100,
+        default=1000,
         help="""Number of paths for n-best based decoding method.
         Used only when "method" is one of the following values:
         nbest, nbest-rescoring, attention-decoder, and nbest-oracle
@@ -131,7 +131,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_5000",
+        default="data/lang_bpe_500",
         help="The lang dir",
     )
 
