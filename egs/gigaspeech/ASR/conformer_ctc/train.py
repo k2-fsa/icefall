@@ -117,7 +117,7 @@ def get_parser():
     parser.add_argument(
         "--att-rate",
         type=float,
-        default=0.8,
+        default=0.7,
         help="""The attention rate.
         The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
         """,
@@ -201,9 +201,9 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 50,
-            "reset_interval": 200,
-            "valid_interval": 3000,
+            "log_interval": 500,
+            "reset_interval": 2000,
+            "valid_interval": 30000,
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -217,7 +217,7 @@ def get_params() -> AttributeDict:
             "use_double_scores": True,
             # parameters for Noam
             "weight_decay": 1e-6,
-            "warm_step": 80000,
+            "warm_step": 100000,
             "env_info": get_env_info(),
         }
     )
