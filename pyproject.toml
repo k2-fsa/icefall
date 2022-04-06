@@ -1,5 +1,6 @@
 [tool.isort]
 profile = "black"
+skip = ["icefall/__init__.py"]
 
 [tool.black]
 line-length = 80
