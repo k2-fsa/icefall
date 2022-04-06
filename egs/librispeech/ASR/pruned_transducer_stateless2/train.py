@@ -161,7 +161,7 @@ def get_parser():
     parser.add_argument(
         "--lr-power",
         type=float,
-        default=0.5,
+        default=0.75,
         help="Power in LR-setting rule",
     )
 
@@ -780,8 +780,7 @@ def run(rank, world_size, args):
 
     optimizer = Eve(
         model.parameters(),
-        lr=params.initial_lr,  betas=(0.9, 0.98),
-        eps=1e-9, weight_decay=3e-04, target_rms=0.1)
+        lr=params.initial_lr)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lambda step: ((params.lr_num_steps/(step + params.lr_num_steps)) ** params.lr_power))

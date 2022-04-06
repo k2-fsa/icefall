@@ -60,7 +60,7 @@ class Eve(Optimizer):
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.98), eps=1e-8,
-                 weight_decay=3e-4, target_rms=0.1):
+                 weight_decay=1e-3, target_rms=0.1):
 
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
