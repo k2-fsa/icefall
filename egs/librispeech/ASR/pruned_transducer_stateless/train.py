@@ -650,7 +650,7 @@ def train_one_epoch(
         optimizer.step()
 
         if old_parameters is not None:
-            deltas = optim_step_and_measure_param_change(old_parameters)
+            deltas = optim_step_and_measure_param_change(model, old_parameters)
             tb_writer.add_scalars(
                 "train/relative_param_change_per_minibatch",
                 deltas,
