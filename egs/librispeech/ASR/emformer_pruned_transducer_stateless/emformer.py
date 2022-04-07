@@ -1,5 +1,6 @@
 import math
 from typing import List, Optional, Tuple
+import warnings
 
 import torch
 from torch import nn
@@ -1051,7 +1052,6 @@ class EmformerEncoder(nn.Module):
             - output_lengths, with shape (B,), without containing the
               right_context at the end.
         """
-        # assert x.size(0) == torch.max(lengths).item()
         right_context = self._gen_right_context(x)
         utterance = x[:x.size(0) - self.right_context_length]
         output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
@@ -1168,11 +1168,11 @@ class Emformer(EncoderInterface):
             )
         if left_context_length != 0 and left_context_length % 4 != 0:
             raise NotImplementedError(
-                "left_context_length must be a mutiple of 4."
+                "left_context_length must be 0 or a mutiple of 4."
             )
         if right_context_length != 0 and right_context_length % 4 != 0:
             raise NotImplementedError(
-                "right_context_length must be a mutiple of 4."
+                "right_context_length must be 0 or a mutiple of 4."
             )
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
@@ -1184,8 +1184,6 @@ class Emformer(EncoderInterface):
             self.encoder_embed = VggSubsampling(num_features, d_model)
         else:
             self.encoder_embed = Conv2dSubsampling(num_features, d_model)
-
-        self.encoder_pos = PositionalEncoding(d_model, dropout)
 
         self.encoder = EmformerEncoder(
             chunk_length // 4,
@@ -1228,19 +1226,20 @@ class Emformer(EncoderInterface):
 
         Returns:
           (Tensor, Tensor):
-            - output logits, with shape (B, U // 4, D).
+            - output logits, with shape (B, ((U - 1) // 2 - 1) // 2, D).
             - logits lengths, with shape (B,), without containing the
               right_context at the end.
         """
-        # TODO: x.shape
         x = self.encoder_embed(x)
-        x = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # Caution: We assume the subsampling factor is 4!
-        lengths = x_lens // 4
-        assert x.size(0) == lengths.max().item()
-        output, output_lengths = self.encoder(x, lengths)  # (T, N, C)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            x_lens = ((x_lens - 1) // 2 - 1) // 2
+        assert x.size(0) == x_lens.max().item()
+
+        output, output_lengths = self.encoder(x, x_lens)  # (T, N, C)
 
         logits = self.encoder_output_layer(output)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
@@ -1274,99 +1273,24 @@ class Emformer(EncoderInterface):
             (default: None)
         Returns:
           (Tensor, Tensor):
-            - output logits, with shape (B, U // 4, D).
+            - output logits, with shape (B, ((U - 1) // 2 - 1) // 2, D).
             - logits lengths, with shape (B,), without containing the
               right_context at the end.
             - updated states from current chunk's computation.
         """
         x = self.encoder_embed(x)
-        x = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # Caution: We assume the subsampling factor is 4!
-        lengths = x_lens // 4
-        assert x.size(0) == lengths.max().item()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            x_lens = ((x_lens - 1) // 2 - 1) // 2
+        assert x.size(0) == x_lens.max().item()
+
         output, output_lengths, output_states = \
-            self.encoder.infer(x, lengths, states)  # (T, N, C)
+            self.encoder.infer(x, x_lens, states)  # (T, N, C)
 
         logits = self.encoder_output_layer(output)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return logits, output_lengths, output_states
-
-
-class PositionalEncoding(nn.Module):
-    """This class implements the positional encoding
-    proposed in the following paper:
-
-    - Attention Is All You Need: https://arxiv.org/pdf/1706.03762.pdf
-
-        PE(pos, 2i) = sin(pos / (10000^(2i/d_modle))
-        PE(pos, 2i+1) = cos(pos / (10000^(2i/d_modle))
-
-    Note::
-
-      1 / (10000^(2i/d_model)) = exp(-log(10000^(2i/d_model)))
-                               = exp(-1* 2i / d_model * log(100000))
-                               = exp(2i * -(log(10000) / d_model))
-    """
-
-    def __init__(self, d_model: int, dropout: float = 0.1) -> None:
-        """
-        Args:
-          d_model:
-            Embedding dimension.
-          dropout:
-            Dropout probability to be applied to the output of this module.
-        """
-        super().__init__()
-        self.d_model = d_model
-        self.xscale = math.sqrt(self.d_model)
-        self.dropout = nn.Dropout(p=dropout)
-        # not doing: self.pe = None because of errors thrown by torchscript
-        self.pe = torch.zeros(1, 0, self.d_model, dtype=torch.float32)
-
-    def extend_pe(self, x: torch.Tensor) -> None:
-        """Extend the time t in the positional encoding if required.
-
-        The shape of `self.pe` is (1, T1, d_model). The shape of the input x
-        is (N, T, d_model). If T > T1, then we change the shape of self.pe
-        to (N, T, d_model). Otherwise, nothing is done.
-
-        Args:
-          x:
-            It is a tensor of shape (N, T, C).
-        Returns:
-          Return None.
-        """
-        if self.pe is not None:
-            if self.pe.size(1) >= x.size(1):
-                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
-        pe = torch.zeros(x.size(1), self.d_model, dtype=torch.float32)
-        position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32)
-            * -(math.log(10000.0) / self.d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        # Now pe is of shape (1, T, d_model), where T is x.size(1)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Add positional encoding.
-
-        Args:
-          x:
-            Its shape is (N, T, C)
-
-        Returns:
-          Return a tensor of shape (N, T, C)
-        """
-        self.extend_pe(x)
-        x = x * self.xscale + self.pe[:, : x.size(1), :]
-        return self.dropout(x)
-

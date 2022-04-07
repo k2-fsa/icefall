@@ -255,9 +255,9 @@ def test_emformer_forward():
     from emformer import Emformer
     num_features = 80
     output_dim = 1000
-    chunk_length = 16
-    L, R = 32, 16
-    B, D, U = 2, 256, 48
+    chunk_length = 8
+    L, R = 128, 4
+    B, D, U = 2, 256, 80
     for use_memory in [True, False]:
         if use_memory:
             M = 3
@@ -274,13 +274,14 @@ def test_emformer_forward():
             max_memory_size=M,
             vgg_frontend=False,
         )
-        x = torch.randn(B, U + R, num_features)
-        x_lens = torch.randint(1, U + R + 1, (B,))
-        x_lens[0] = U + R
+        x = torch.randn(B, U + R + 3, num_features)
+        x_lens = torch.randint(1, U + R + 3 + 1, (B,))
+        x_lens[0] = U + R + 3
         logits, output_lengths = model(x, x_lens)
         assert logits.shape == (B, U // 4, output_dim)
         assert torch.equal(
-            output_lengths, torch.clamp(x_lens // 4 - R // 4, min=0)
+            output_lengths,
+            torch.clamp(((x_lens - 1) // 2 - 1) // 2 - R // 4, min=0)
         )
 
 
@@ -288,9 +289,9 @@ def test_emformer_infer():
     from emformer import Emformer
     num_features = 80
     output_dim = 1000
-    chunk_length = 16
+    chunk_length = 8
     U = chunk_length
-    L, R = 32, 16
+    L, R = 128, 4
     B, D = 2, 256
     num_chunks = 3
     num_encoder_layers = 2
@@ -313,14 +314,15 @@ def test_emformer_infer():
         )
         states = None
         for chunk_idx in range(num_chunks):
-            x = torch.randn(B, U + R, num_features)
-            x_lens = torch.randint(1, U + R + 1, (B,))
-            x_lens[0] = U + R
+            x = torch.randn(B, U + R + 3, num_features)
+            x_lens = torch.randint(1, U + R + 3 + 1, (B,))
+            x_lens[0] = U + R + 3
             logits, output_lengths, states = \
                 model.infer(x, x_lens, states)
             assert logits.shape == (B, U // 4, output_dim)
             assert torch.equal(
-                output_lengths, torch.clamp(x_lens // 4 - R // 4, min=0)
+                output_lengths,
+                torch.clamp(((x_lens - 1) // 2 - 1) // 2 - R // 4, min=0)
             )
             assert len(states) == num_encoder_layers
             for state in states:
@@ -330,7 +332,7 @@ def test_emformer_infer():
                 assert state[2].shape == (L // 4, B, D)
                 assert torch.equal(
                     state[3],
-                    (chunk_idx + 1) * U // 4 * torch.ones_like(state[3])
+                    U // 4 * (chunk_idx + 1) * torch.ones_like(state[3])
                 )
 
 
