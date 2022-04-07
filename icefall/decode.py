@@ -839,9 +839,7 @@ def rescore_with_attention_decoder(
             break
         except RuntimeError as e:
             logging.info(f"Caught exception:\n{e}\n")
-            logging.info(
-                f"num_paths before decreasing: {num_paths}"
-            )
+            logging.info(f"num_paths before decreasing: {num_paths}")
             num_paths = int(num_paths / 2)
             if loop_count >= max_loop_count or num_paths <= 0:
                 logging.info(
@@ -854,9 +852,7 @@ def rescore_with_attention_decoder(
                 "is too large, or the input sound file is difficult to "
                 "decode, you will meet this exception."
             )
-            logging.info(
-                f"num_paths after decreasing: {num_paths}"
-            )
+            logging.info(f"num_paths after decreasing: {num_paths}")
         loop_count += 1
 
     # Now nbest.fsa has its scores set.
