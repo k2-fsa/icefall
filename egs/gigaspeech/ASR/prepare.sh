@@ -81,7 +81,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     # Check credentials.
     if [ ! -f $dl_dir/password ]; then
       echo -n "$0: Please apply for the download credentials by following"
-      echo -n "https://github.com/SpeechColab/GigaSpeech#dataset-download"
+      echo -n "https://github.com/SpeechColab/GigaSpeech#download"
       echo " and save it to $dl_dir/password."
       exit 1;
     fi
