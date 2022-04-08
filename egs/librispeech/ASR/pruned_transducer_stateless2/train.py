@@ -784,6 +784,7 @@ def run(rank, world_size, args):
 
     # The `epoch` variable in the lambda expression binds to the value below
     # in `for epoch in range(params.start_epoch, params.num_epochs):`.
+    epoch = 0
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lambda step: (((step + params.lr_begin_steps) / params.lr_begin_steps) ** -0.5 *
