@@ -375,11 +375,15 @@ class WenetSpeechAsrDataModule:
         if self.args.lazy_load:
             logging.info("use lazy cuts")
             cuts_train = CutSet.from_jsonl_lazy(
-                self.args.manifest_dir / "cuts_L.jsonl.gz"
+                self.args.manifest_dir
+                / "cuts_L_50_pieces.jsonl.gz"
+                # use cuts_L_50_pieces.jsonl.gz for original experiments
             )
         else:
             cuts_train = CutSet.from_file(
-                self.args.manifest_dir / "cuts_L.jsonl.gz"
+                self.args.manifest_dir
+                / "cuts_L_50_pieces.jsonl.gz"
+                # use cuts_L_50_pieces.jsonl.gz for original experiments
             )
         return cuts_train
 

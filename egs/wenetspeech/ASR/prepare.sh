@@ -117,9 +117,9 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Combine features for L"
-  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
-    pieces=$(find data/fbank/L_split_${num_splits} -name "cuts_L.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  if [ ! -f data/fbank/cuts_L_50.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_50 -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L_50.jsonl.gz
   fi
 fi
 
@@ -134,120 +134,50 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
-  gunzip -c data/manifests/supervisions_L.jsonl.gz \
-    | jq '.text' | sed 's/"//g' \
-    | ./local/text2token.py -t "char" > $lang_char_dir/text
+  # Prepare text.
+  if [ ! -f $lang_char_dir/text ]; then
+    gunzip -c data/manifests/supervisions_L.jsonl.gz \
+      | jq '.text' | sed 's/"//g' \
+      | ./local/text2token.py -t "char" > $lang_char_dir/text
+  fi
 
-  cat $lang_char_dir/text | sed 's/ /\n/g' \
-    | sort -u | sed '/^$/d' > $lang_char_dir/words.txt
-  (echo '<SIL>'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
-    cat - $lang_char_dir/words.txt | sort | uniq | awk '
-    BEGIN {
-      print "<eps> 0";
-    }
-    {
-      if ($1 == "<s>") {
-        print "<s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      if ($1 == "</s>") {
-        print "</s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      printf("%s %d\n", $1, NR);
-    }
-    END {
-      printf("#0 %d\n", NR+1);
-      printf("<s> %d\n", NR+2);
-      printf("</s> %d\n", NR+3);
-    }' > $lang_char_dir/words || exit 1;
+  # The implementation of chinese word segmentation for text,
+  # and it will take about 15 minutes.
+  if [ ! -f $lang_char_dir/text_words_segmentation ]; then
+    python ./local/text2segments.py \
+      --input $lang_char_dir/text \
+      --output $lang_char_dir/text_words_segmentation
+  fi
 
-  mv $lang_char_dir/words $lang_char_dir/words.txt
+  cat $lang_char_dir/text_words_segmentation | sed 's/ /\n/g' \
+    | sort -u | sed '/^$/d' | uniq > $lang_char_dir/words_no_ids.txt
+
+  if [ ! -f $lang_char_dir/words.txt ]; then
+    python ./local/prepare_words.py \
+      --input-file $lang_char_dir/words_no_ids.txt \
+      --output-file $lang_char_dir/words.txt
+  fi
 fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Prepare pinyin based lang"
-  lang_pinyin_dir=data/lang_pinyin
-  mkdir -p $lang_pinyin_dir
-
-  gunzip -c data/manifests/supervisions_L.jsonl.gz \
-    | jq '.text' | sed 's/"//g' \
-    | ./local/text2token.py -t "pinyin" > $lang_pinyin_dir/text
-
-  cat $lang_pinyin_dir/text | sed 's/ /\n/g' \
-    | sort -u | sed '/^$/d' > $lang_pinyin_dir/words.txt
-  (echo '<SIL>'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
-    cat - $lang_pinyin_dir/words.txt | sort | uniq | awk '
-    BEGIN {
-      print "<eps> 0";
-    }
-    {
-      if ($1 == "<s>") {
-        print "<s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      if ($1 == "</s>") {
-        print "</s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      printf("%s %d\n", $1, NR);
-    }
-    END {
-      printf("#0 %d\n", NR+1);
-      printf("<s> %d\n", NR+2);
-      printf("</s> %d\n", NR+3);
-    }' > $lang_pinyin_dir/words || exit 1;
-
-  mv $lang_pinyin_dir/words $lang_pinyin_dir/words.txt
+  log "Stage 10: Prepare char based L_disambig.pt"
+  if [ ! -f data/lang_char/L_disambig.pt ]; then
+    python ./local/prepare_char.py \
+      --lang-dir data/lang_char
+  fi
 fi
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Prepare lazy_pinyin based lang"
-  lang_lazy_pinyin_dir=data/lang_lazy_pinyin
-  mkdir -p $lang_lazy_pinyin_dir
+  log "Stage 11: Prepare pinyin based L_disambig.pt"
+  lang_pinyin_dir=data/lang_pinyin
+  mkdir -p $lang_pinyin_dir
 
-  gunzip -c data/manifests/supervisions_L.jsonl.gz \
-    | jq '.text' | sed 's/"//g' \
-    | ./local/text2token.py -t "lazy_pinyin" > $lang_lazy_pinyin_dir/text
-
-  cat $lang_lazy_pinyin_dir/text | sed 's/ /\n/g' \
-    | sort -u | sed '/^$/d' > $lang_lazy_pinyin_dir/words.txt
-  (echo '<SIL>'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
-    cat - $lang_lazy_pinyin_dir/words.txt | sort | uniq | awk '
-    BEGIN {
-      print "<eps> 0";
-    }
-    {
-      if ($1 == "<s>") {
-        print "<s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      if ($1 == "</s>") {
-        print "</s> is in the vocabulary!" | "cat 1>&2"
-        exit 1;
-      }
-      printf("%s %d\n", $1, NR);
-    }
-    END {
-      printf("#0 %d\n", NR+1);
-      printf("<s> %d\n", NR+2);
-      printf("</s> %d\n", NR+3);
-    }' > $lang_lazy_pinyin_dir/words || exit 1;
-
-  mv $lang_lazy_pinyin_dir/words $lang_lazy_pinyin_dir/words.txt
-fi
-
-if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-  log "Stage 12: Prepare L_disambig.pt"
-  if [ ! -f data/lang_char/L_disambig.pt ]; then
-    python ./local/prepare_lang_wenetspeech.py --lang-dir data/lang_char
-  fi
+  cp -r data/lang_char/words.txt $lang_pinyin_dir/
+  cp -r data/lang_char/text $lang_pinyin_dir/
+  cp -r data/lang_char/text_words_segmentation $lang_pinyin_dir/
 
   if [ ! -f data/lang_pinyin/L_disambig.pt ]; then
-    python ./local/prepare_lang_wenetspeech.py --lang-dir data/lang_pinyin
-  fi
-
-  if [ ! -f data/lang_lazy_pinyin/L_disambig.pt ]; then
-    python ./local/prepare_lang_wenetspeech.py --lang-dir data/lang_lazy_pinyin
+    python ./local/prepare_pinyin.py \
+      --lang-dir data/lang_pinyin
   fi
 fi

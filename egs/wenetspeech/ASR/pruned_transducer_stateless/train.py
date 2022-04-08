@@ -25,8 +25,10 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
-  --max-duration 300
+  --lang-dir data/lang_char \
+  --exp-dir pruned_transducer_stateless/exp-char \
+  --token-type char \
+  --max-duration 200
 """
 
 
@@ -44,8 +46,8 @@ from asr_datamodule import WenetSpeechAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from local.text2token import token2id
 from model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -59,6 +61,7 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
+from icefall.pinyin_graph_compiler import PinyinCtcTrainingGraphCompiler
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 
@@ -108,7 +111,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="pruned_transducer_stateless_pinyin/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -118,7 +121,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_lazy_pinyin",
+        default="data/lang_char",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
@@ -128,10 +131,9 @@ def get_parser():
     parser.add_argument(
         "--token-type",
         type=str,
-        default="lazy_pinyin",
-        help="""The token type
-        It refers to the token type for modeling, such as
-        char, pinyin, lazy_pinyin.
+        default="char",
+        help="""The type of token
+        It must be in ["char", "pinyin", "lazy_pinyin"].
         """,
     )
 
@@ -435,16 +437,12 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    y = ""
-    if params.token_type == "char":
-        y = graph_compiler.texts_to_ids(texts)
+
+    y = graph_compiler.texts_to_ids(texts)
+    if type(y) == list:
+        y = k2.RaggedTensor(y).to(device)
     else:
-        y = token2id(
-            texts=texts,
-            token_table=graph_compiler.token_table,
-            token_type=params.token_type,
-        )
-    y = k2.RaggedTensor(y).to(device)
+        y = y.to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
@@ -635,9 +633,19 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon, device=device, oov="<unk>"
-    )
+    graph_compiler = ""
+    if params.token_type == "char":
+        graph_compiler = CharCtcTrainingGraphCompiler(
+            lexicon=lexicon,
+            device=device,
+        )
+    if params.token_type == "pinyin":
+        graph_compiler = PinyinCtcTrainingGraphCompiler(
+            lang_dir=params.lang_dir,
+            lexicon=lexicon,
+            device=device,
+        )
+
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
 
@@ -671,6 +679,23 @@ def run(rank, world_size, args):
     wenetspeech = WenetSpeechAsrDataModule(args)
 
     train_cuts = wenetspeech.train_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 15.0 seconds
+        # You can get the statistics by local/display_manifest_statistics.py.
+        return 1.0 <= c.duration <= 15.0
+
+    def text_to_words(c: Cut):
+        # Convert text to words_segments.
+        text = c.supervisions[0].text
+        text = text.strip("\n").strip("\t")
+        words_cut = graph_compiler.text2words[text]
+        c.supervisions[0].text = words_cut
+        return c
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    if params.token_type == "pinyin":
+        train_cuts = train_cuts.map(text_to_words)
 
     train_dl = wenetspeech.train_dataloaders(train_cuts)
     valid_cuts = wenetspeech.valid_cuts()

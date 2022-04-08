@@ -188,7 +188,7 @@ def main():
 
         a_chars = [z.replace(" ", args.space) for z in a_flat]
 
-        print(" ".join(a_chars))
+        print("".join(a_chars))
         line = f.readline()
 
 
