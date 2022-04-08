@@ -1,9 +1,11 @@
 # isort:skip_file
-from . import checkpoint
-from . import decode
-from . import dist
-from . import env
-from . import utils
+from . import (
+    checkpoint,
+    decode,
+    dist,
+    env,
+    utils
+)
 
 from .checkpoint import (
     average_checkpoints,
