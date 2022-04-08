@@ -98,7 +98,7 @@ def compute_fbank_wenetspeech_splits(args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", 5)
+        device = torch.device("cuda", 0)
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
