@@ -27,10 +27,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 0 \
   --exp-dir pruned_transducer_stateless2/exp \
   --full-libri 1 \
-  --max-duration 300 \
-  --initial-lr 0.003 \
-  --lr-begin-steps 20000 \
-  --lr-end-steps 50000
+  --max-duration 300
+
 
 
 """
@@ -161,10 +159,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr-end-steps",
+        "--lr-end-epochs",
         type=float,
-        default=50000,
-        help="Number of steps that affects how rapidly the learning rate finally decreases"
+        default=10,
+        help="Number of epochs that affects how rapidly the learning rate finally decreases"
     )
 
     parser.add_argument(
@@ -783,10 +781,13 @@ def run(rank, world_size, args):
     optimizer = Eve(
         model.parameters(),
         lr=params.initial_lr)
+
+    # The `epoch` variable in the lambda expression binds to the value below
+    # in `for epoch in range(params.start_epoch, params.num_epochs):`.
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lambda step: (((step + params.lr_begin_steps) / params.lr_begin_steps) ** -0.5 *
-                      math.exp(-step / params.lr_end_steps)))
+                      math.exp(-epoch / params.lr_end_epochs)))
 
 
     if checkpoints and "optimizer" in checkpoints:
