@@ -63,11 +63,11 @@ class Emformer(EncoderInterface):
           num_encoder_layers:
             Number of encoder layers.
           segment_length:
-            Number of frames per segment.
+            Number of frames per segment before subsampling.
           left_context_length:
-            Number of frames in the left context.
+            Number of frames in the left context before subsampling.
           right_context_length:
-            Number of frames in the right context.
+            Number of frames in the right context before subsampling.
           max_memory_size:
             TODO.
           dropout:
@@ -94,6 +94,7 @@ class Emformer(EncoderInterface):
         else:
             self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
+        self.segment_length = segment_length
         self.right_context_length = right_context_length
 
         assert right_context_length % subsampling_factor == 0

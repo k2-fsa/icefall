@@ -14,3 +14,7 @@ exclude =
   .git,
   **/data/**,
   icefall/shared/make_kn_lm.py
+
+ignore =
+  # E203 whitespace before ':'
+  E203,

@@ -20,14 +20,14 @@ import argparse
 import logging
 import time
 from pathlib import Path
-from typing import List, Optional
 
-import kaldifeat
 import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from emformer import LOG_EPSILON
+from streaming_feature_extractor import Stream
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -147,10 +147,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--sample-rate",
-        type=int,
+        "--sampling-rate",
+        type=float,
         default=16000,
-        help="The sample rate of the input sound file",
+        help="Sample rate of the audio",
     )
 
     add_model_arguments(parser)
@@ -158,32 +158,159 @@ def get_parser():
     return parser
 
 
-def get_feature_extractor(
-    params: AttributeDict,
-) -> kaldifeat.Fbank:
-    logging.info("Constructing Fbank computer")
-    opts = kaldifeat.FbankOptions()
-    opts.device = params.device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = True
-    opts.frame_opts.samp_freq = params.sample_rate
-    opts.mel_opts.num_bins = params.feature_dim
+def greedy_search(
+    model: nn.Module,
+    stream: Stream,
+    encoder_out: torch.Tensor,
+    sp: spm.SentencePieceProcessor,
+):
+    """
+    Args:
+      model:
+        The RNN-T model.
+      stream:
+        A stream object.
+      encoder_out:
+        A 2-D tensor of shape (T, encoder_out_dim) containing the output of
+        the encoder model.
+      sp:
+        The BPE model.
+    """
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+    device = model.device
 
-    return kaldifeat.Fbank(opts)
+    if stream.decoder_out is None:
+        decoder_input = torch.tensor(
+            [stream.hyp.ys[-context_size:]],
+            device=device,
+            dtype=torch.int64,
+        )
+        stream.decoder_out = model.decoder(
+            decoder_input,
+            need_pad=False,
+        ).unsqueeze(1)
+        # stream.decoder_out is of shape (1, 1, decoder_out_dim)
+
+    assert encoder_out.ndim == 2
+
+    T = encoder_out.size(0)
+    for t in range(T):
+        current_encoder_out = encoder_out[t].reshape(
+            1, 1, 1, encoder_out.size(-1)
+        )
+        logits = model.joiner(current_encoder_out, stream.decoder_out)
+        # logits is of shape (1, 1, 1, vocab_size)
+        y = logits.argmax().item()
+        if y == blank_id:
+            continue
+        stream.hyp.ys.append(y)
+
+        decoder_input = torch.tensor(
+            [stream.hyp.ys[-context_size:]],
+            device=device,
+            dtype=torch.int64,
+        )
+
+        stream.decoder_out = model.decoder(
+            decoder_input,
+            need_pad=False,
+        ).unsqueeze(1)
+
+        logging.info(
+            f"Partial result:\n{sp.decode(stream.hyp.ys[context_size:])}"
+        )
+
+
+def process_feature_frames(
+    model: nn.Module,
+    stream: Stream,
+    sp: spm.SentencePieceProcessor,
+):
+    """Process the feature frames contained in ``stream.feature_frames``.
+    Args:
+      model:
+        The RNN-T model.
+      stream:
+        The stream corresponding to the input audio samples.
+      sp:
+        The BPE model.
+    """
+    # number of frames before subsampling
+    segment_length = model.encoder.segment_length
+
+    right_context_length = model.encoder.right_context_length
+
+    chunk_length = (segment_length + 3) + right_context_length
+
+    device = model.device
+    while len(stream.feature_frames) >= chunk_length:
+        # a list of tensor, each with a shape (1, feature_dim)
+        this_chunk = stream.feature_frames[:chunk_length]
+
+        stream.feature_frames = stream.feature_frames[segment_length:]
+        features = torch.cat(this_chunk, dim=0).to(device)  # (T, feature_dim)
+        features = features.unsqueeze(0)  # (1, T, feature_dim)
+        feature_lens = torch.tensor([features.size(1)], device=device)
+        (
+            encoder_out,
+            encoder_out_lens,
+            stream.states,
+        ) = model.encoder.streaming_forward(
+            features,
+            feature_lens,
+            stream.states,
+        )
+        greedy_search(
+            model=model,
+            stream=stream,
+            encoder_out=encoder_out[0],
+            sp=sp,
+        )
+
+    if stream.feature_extractor.is_last_frame(stream.num_fetched_frames - 1):
+        assert len(stream.feature_frames) < chunk_length
+
+        if len(stream.feature_frames) > 0:
+            this_chunk = stream.feature_frames[:chunk_length]
+            stream.feature_frames = []
+            features = torch.cat(this_chunk, dim=0)  # (T, feature_dim)
+            features = features.to(device).unsqueeze(0)  # (1, T, feature_dim)
+            features = torch.nn.functional.pad(
+                features,
+                (0, 0, 0, chunk_length - features.size(1)),
+                value=LOG_EPSILON,
+            )
+            feature_lens = torch.tensor([features.size(1)], device=device)
+            (
+                encoder_out,
+                encoder_out_lens,
+                stream.states,
+            ) = model.encoder.streaming_forward(
+                features,
+                feature_lens,
+                stream.states,
+            )
+            greedy_search(
+                model=model,
+                stream=stream,
+                encoder_out=encoder_out[0],
+                sp=sp,
+            )
 
 
 def decode_one_utterance(
     audio_samples: torch.Tensor,
     model: nn.Module,
-    fbank: kaldifeat.Fbank,
+    stream: Stream,
     params: AttributeDict,
     sp: spm.SentencePieceProcessor,
 ):
     """Decode one utterance.
     Args:
       audio_samples:
-        A 1-D float32 tensor of shape (num_samples,) containing the normalized
-        audio samples. Normalized means the samples is in the range [-1, 1].
+        A 1-D float32 tensor of shape (num_samples,) containing the
+        audio samples.
       model:
         The RNN-T model.
       feature_extractor:
@@ -193,80 +320,23 @@ def decode_one_utterance(
       sp:
         The BPE model.
     """
-    sample_rate = params.sample_rate
-    frame_shift = sample_rate * fbank.opts.frame_opts.frame_shift_ms / 1000
-
-    frame_shift = int(frame_shift)  # number of samples
-
-    # Note: We add 3 here because the subsampling method ((n-1)//2-1))//2
-    # is not equal to n//4. We will switch to a subsampling method that
-    # satisfies n//4, where n is the number of input frames.
-    segment_length = (params.segment_length + 3) * frame_shift
-
-    right_context_length = params.right_context_length * frame_shift
-    chunk_size = segment_length + right_context_length
-
-    opts = fbank.opts.frame_opts
-    chunk_size += (
-        (opts.frame_length_ms - opts.frame_shift_ms) / 1000 * sample_rate
-    )
-
-    chunk_size = int(chunk_size)
-
-    states: Optional[List[List[torch.Tensor]]] = None
-
-    blank_id = model.decoder.blank_id
-    context_size = model.decoder.context_size
-
-    device = model.device
-
-    hyp = [blank_id] * context_size
-
-    decoder_input = torch.tensor(hyp, device=device, dtype=torch.int64).reshape(
-        1, context_size
-    )
-
-    decoder_out = model.decoder(decoder_input, need_pad=False)
-
     i = 0
     num_samples = audio_samples.size(0)
     while i < num_samples:
-        # Note: The current approach of computing the features is not ideal
-        # since it re-computes the features for the right context.
-        chunk = audio_samples[i : i + chunk_size]  # noqa
-        i += segment_length
-        if chunk.size(0) < chunk_size:
-            chunk = torch.nn.functional.pad(
-                chunk, pad=(0, chunk_size - chunk.size(0))
-            )
-        features = fbank(chunk)
-        feature_lens = torch.tensor([features.size(0)], device=params.device)
+        # Simulate streaming.
+        this_chunk_num_samples = torch.randint(2000, 5000, (1,)).item()
 
-        features = features.unsqueeze(0)  # (1, T, C)
+        thiks_chunk_samples = audio_samples[i : (i + this_chunk_num_samples)]
+        i += this_chunk_num_samples
 
-        encoder_out, encoder_out_lens, states = model.encoder.streaming_forward(
-            features,
-            feature_lens,
-            states,
+        stream.accept_waveform(
+            sampling_rate=params.sampling_rate,
+            waveform=thiks_chunk_samples,
         )
-        for t in range(encoder_out_lens.item()):
-            # fmt: off
-            current_encoder_out = encoder_out[0:1, t:t+1, :].unsqueeze(2)
-            # fmt: on
-            logits = model.joiner(current_encoder_out, decoder_out.unsqueeze(1))
-            # logits is (1, 1, 1, vocab_size)
-            y = logits.argmax().item()
-            if y == blank_id:
-                continue
+        process_feature_frames(model=model, stream=stream, sp=sp)
 
-            hyp.append(y)
-
-            decoder_input = torch.tensor(
-                [hyp[-context_size:]], device=device, dtype=torch.int64
-            ).reshape(1, context_size)
-
-            decoder_out = model.decoder(decoder_input, need_pad=False)
-        logging.info(f"Partial result:\n{sp.decode(hyp[context_size:])}")
+    stream.input_finished()
+    process_feature_frames(model=model, stream=stream, sp=sp)
 
 
 @torch.no_grad()
@@ -333,10 +403,12 @@ def main():
 
     test_clean_cuts = librispeech.test_clean_cuts()
 
-    fbank = get_feature_extractor(params)
-
     for num, cut in enumerate(test_clean_cuts):
-        logging.info("Processing {num}")
+        logging.info(f"Processing {num}")
+        stream = Stream(
+            context_size=model.decoder.context_size,
+            blank_id=model.decoder.blank_id,
+        )
 
         audio: np.ndarray = cut.load_audio()
         # audio.shape: (1, num_samples)
@@ -347,16 +419,17 @@ def main():
         decode_one_utterance(
             audio_samples=torch.from_numpy(audio).squeeze(0).to(device),
             model=model,
-            fbank=fbank,
+            stream=stream,
             params=params,
             sp=sp,
         )
 
         logging.info(f"The ground truth is:\n{cut.supervisions[0].text}")
-        if num >= 0:
+        if num >= 2:
             break
         time.sleep(2)  # So that you can see the decoded results
 
 
 if __name__ == "__main__":
+    torch.manual_seed(20220410)
     main()
