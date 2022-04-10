@@ -791,7 +791,7 @@ def run(rank, world_size, args):
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lambda step: (((step**2 + params.lr_steps**2) / params.lr_steps**2) ** -0.25 *
-                      (((epoch**2 + params.lr_epochs**2) / params.lr_epochs**2) ** -0.25))
+                      (((epoch**2 + params.lr_epochs**2) / params.lr_epochs**2) ** -0.25)))
 
 
     if checkpoints and "optimizer" in checkpoints:
