@@ -13,7 +13,8 @@ per-file-ignores =
 exclude =
   .git,
   **/data/**,
-  icefall/shared/make_kn_lm.py
+  icefall/shared/make_kn_lm.py,
+  icefall/__init__.py
 
 ignore =
   # E203 whitespace before ':'
