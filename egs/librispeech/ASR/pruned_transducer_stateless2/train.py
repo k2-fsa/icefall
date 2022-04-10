@@ -40,7 +40,7 @@ import math
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import sentencepiece as spm
@@ -55,7 +55,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
-from optim import Eve
+from optim import Eve, Eden
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
@@ -74,6 +74,7 @@ from icefall.utils import (
     str2bool,
 )
 
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -152,7 +153,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr-steps",
+        "--lr-batches",
         type=float,
         default=5000,
         help="""Number of steps that affects how rapidly the learning rate decreases.
@@ -378,7 +379,7 @@ def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
@@ -443,7 +444,7 @@ def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
@@ -593,7 +594,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -656,17 +657,15 @@ def train_one_epoch(
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
         loss.backward()
+        scheduler.step_batch(params.batch_idx_train)
         optimizer.step()
         optimizer.zero_grad()
-        scheduler.step()
 
         if params.print_diagnostics and batch_idx == 5:
             return
 
-        if (
-            params.batch_idx_train > 0
-            and params.batch_idx_train % params.save_every_n == 0
-        ):
+        if (params.batch_idx_train > 0
+            and params.batch_idx_train % params.save_every_n == 0):
             params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
@@ -686,13 +685,17 @@ def train_one_epoch(
             )
 
         if batch_idx % params.log_interval == 0:
+            cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}"
+                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"lr: {cur_lr:.2e}"
             )
 
             if tb_writer is not None:
+                tb_writer.add_scalar("train/learning_rate", cur_lr)
+
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
@@ -784,14 +787,7 @@ def run(rank, world_size, args):
         model.parameters(),
         lr=params.initial_lr)
 
-    # The `epoch` variable in the lambda expression picks up to the value below
-    # in `for epoch in range(params.start_epoch, params.num_epochs):`.  Set it to 0
-    # here to avoid crash in constructor.
-    epoch = 0
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lambda step: (((step**2 + params.lr_steps**2) / params.lr_steps**2) ** -0.25 *
-                      (((epoch**2 + params.lr_epochs**2) / params.lr_epochs**2) ** -0.25)))
+    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
 
     if checkpoints and "optimizer" in checkpoints:
@@ -854,18 +850,13 @@ def run(rank, world_size, args):
         )
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        scheduler.step_epoch(epoch)
         fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = scheduler.get_last_lr()[0]
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
-
-        if rank == 0:
-            logging.info("epoch {}, learning rate {}".format(epoch, cur_lr))
 
         params.cur_epoch = epoch
 
