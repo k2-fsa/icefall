@@ -92,6 +92,8 @@ class EmformerAttention(nn.Module):
         self.emb_to_query = nn.Linear(embed_dim, embed_dim, bias=True)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=True)
 
+        self._reset_parameters()
+
     def _reset_parameters(self) -> None:
         nn.init.xavier_uniform_(self.emb_to_key_value.weight)
         nn.init.constant_(self.emb_to_key_value.bias, 0.0)
