@@ -45,7 +45,9 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip black==21.6b0 flake8==3.9.2
+          python3 -m pip install --upgrade pip black==21.6b0 flake8==3.9.2 click==8.0.4
+          # See https://github.com/psf/black/issues/2964
+          # The version of click should be selected from 8.0.0, 8.0.1, 8.0.2, 8.0.3, and 8.0.4
 
       - name: Run flake8
         shell: bash

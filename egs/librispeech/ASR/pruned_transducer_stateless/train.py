@@ -33,6 +33,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple
@@ -392,12 +393,16 @@ def load_checkpoint_if_available(
         "batch_idx_train",
         "best_train_loss",
         "best_valid_loss",
-        "cur_batch_idx",
     ]
     for k in keys:
         params[k] = saved_params[k]
 
-    params["start_epoch"] = saved_params["cur_epoch"]
+    if params.start_batch > 0:
+        if "cur_epoch" in saved_params:
+            params["start_epoch"] = saved_params["cur_epoch"]
+
+        if "cur_batch_idx" in saved_params:
+            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
 
@@ -492,7 +497,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -600,21 +609,6 @@ def train_one_epoch(
                 global_step=params.batch_idx_train,
             )
 
-    def maybe_log_param_relative_changes():
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            deltas = optim_step_and_measure_param_change(model, optimizer)
-            tb_writer.add_scalars(
-                "train/relative_param_change_per_minibatch",
-                deltas,
-                global_step=params.batch_idx_train,
-            )
-        else:
-            optimizer.step()
-
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
@@ -642,7 +636,26 @@ def train_one_epoch(
 
         maybe_log_weights("train/param_norms")
         maybe_log_gradients("train/grad_norms")
-        maybe_log_param_relative_changes()
+
+        old_parameters = None
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            old_parameters = {
+                n: p.detach().clone() for n, p in model.named_parameters()
+            }
+
+        optimizer.step()
+
+        if old_parameters is not None:
+            deltas = optim_step_and_measure_param_change(model, old_parameters)
+            tb_writer.add_scalars(
+                "train/relative_param_change_per_minibatch",
+                deltas,
+                global_step=params.batch_idx_train,
+            )
 
         optimizer.zero_grad()
 
@@ -783,6 +796,13 @@ def run(rank, world_size, args):
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
         return 1.0 <= c.duration <= 20.0
 
     num_in_total = len(train_cuts)
@@ -797,7 +817,9 @@ def run(rank, world_size, args):
     logging.info(f"After removing short and long utterances: {num_left}")
     logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
-    if checkpoints and "sampler" in checkpoints:
+    if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
+        # We only load the sampler's state dict when it loads a checkpoint
+        # saved in the middle of an epoch
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None

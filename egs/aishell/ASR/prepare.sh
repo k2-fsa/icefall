@@ -70,7 +70,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #     |-- lexicon.txt
   #     `-- speaker.info
 
-  if [ ! -d $dl_dir/aishell/data_aishell/wav ]; then
+  if [ ! -d $dl_dir/aishell/data_aishell/wav/train ]; then
     lhotse download aishell $dl_dir
   fi
 
