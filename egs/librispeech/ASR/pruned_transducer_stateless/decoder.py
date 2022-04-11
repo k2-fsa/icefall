@@ -37,6 +37,7 @@ class Decoder(nn.Module):
         vocab_size: int,
         embedding_dim: int,
         blank_id: int,
+        unk_id: int,
         context_size: int,
     ):
         """
@@ -47,6 +48,8 @@ class Decoder(nn.Module):
             Dimension of the input embedding.
           blank_id:
             The ID of the blank symbol.
+          unk_id:
+            The ID of the unk symbol.
           context_size:
             Number of previous words to use to predict the next word.
             1 means bigram; 2 means trigram. n means (n+1)-gram.
@@ -58,6 +61,7 @@ class Decoder(nn.Module):
             padding_idx=blank_id,
         )
         self.blank_id = blank_id
+        self.unk_id = unk_id
 
         assert context_size >= 1, context_size
         self.context_size = context_size
