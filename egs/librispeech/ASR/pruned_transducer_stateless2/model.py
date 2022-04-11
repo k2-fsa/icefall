@@ -37,7 +37,7 @@ class Transducer(nn.Module):
         encoder_dim: int,
         decoder_dim: int,
         joiner_dim: int,
-        vocab_size: int
+        vocab_size: int,
     ):
         """
         Args:
@@ -48,11 +48,11 @@ class Transducer(nn.Module):
             `logit_lens` of shape (N,).
           decoder:
             It is the prediction network in the paper. Its input shape
-            is (N, U) and its output shape is (N, U, decoder_dim). It should contain
-            one attribute: `blank_id`.
+            is (N, U) and its output shape is (N, U, decoder_dim).
+            It should contain one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim). Its
-            output shape is (N, T, U, vocab_size). Note that its output contains
+            It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim).
+            Its output shape is (N, T, U, vocab_size). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
@@ -63,8 +63,9 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size,
-                                           initial_speed=0.5)
+        self.simple_am_proj = ScaledLinear(
+            encoder_dim, vocab_size, initial_speed=0.5
+        )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
     def forward(
@@ -166,15 +167,14 @@ class Transducer(nn.Module):
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
             am=self.joiner.encoder_proj(encoder_out),
             lm=self.joiner.decoder_proj(decoder_out),
-            ranges=ranges
+            ranges=ranges,
         )
 
         # logits : [B, T, prune_range, vocab_size]
 
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned,
-                             project_input=False)
+        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
         pruned_loss = k2.rnnt_loss_pruned(
             logits=logits,
