@@ -15,6 +15,6 @@ ln -sfv /path/to/GigaSpeech download/GigaSpeech
 ## Performance Record
 |     |  Dev  | Test  |
 |-----|-------|-------|
-| WER | 11.93 | 11.86 |
+| WER | 10.47 | 10.58 |
 
 See [RESULTS](/egs/gigaspeech/ASR/RESULTS.md) for details.
