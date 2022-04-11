@@ -116,7 +116,7 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless2/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
