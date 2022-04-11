@@ -959,7 +959,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup = 0.0
+                    warmup=0.0
                 )
             loss.backward()
             optimizer.step()
