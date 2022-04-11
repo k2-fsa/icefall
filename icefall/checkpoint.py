@@ -28,15 +28,18 @@ from lhotse.dataset.sampling.base import CutSampler
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
 
+
+# use duck typing for LRScheduler since we have different possibilities, see
+# our class LRScheduler.
+LRSchedulerType = object
 
 def save_checkpoint(
     filename: Path,
     model: Union[nn.Module, DDP],
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
@@ -89,7 +92,7 @@ def load_checkpoint(
     filename: Path,
     model: nn.Module,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     strict: bool = False,
@@ -167,7 +170,7 @@ def save_checkpoint_with_global_batch_idx(
     model: Union[nn.Module, DDP],
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
