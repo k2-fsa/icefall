@@ -39,6 +39,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 550
+
 """
 
 
