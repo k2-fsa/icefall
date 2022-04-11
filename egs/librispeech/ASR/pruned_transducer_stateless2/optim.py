@@ -240,7 +240,7 @@ class LRScheduler(object):
 class Eden(LRScheduler):
     """
     Eden scheduler.
-     lr = initial_lr = (((batch**2 + lr_batches**2) / lr_batchses**2) ** -0.25 *
+     lr = initial_lr * (((batch**2 + lr_batches**2) / lr_batches**2) ** -0.25 *
                        (((epoch**2 + lr_epochs**2) / lr_epochs**2) ** -0.25))
 
      E.g. suggest initial-lr = 0.003 (passed to optimizer).
@@ -250,7 +250,9 @@ class Eden(LRScheduler):
         lr_batches: the number of batches after which we start significantly
               decreasing the learning rate, suggest 5000.
         lr_epochs: the number of epochs after which we start significantly
-              decreasing the learning rate, suggest 6.
+              decreasing the learning rate, suggest 6 if you plan to do e.g.
+              20 to 40 epochs, but may need smaller number if dataset is huge
+              and you will do few epochs.
     """
     def __init__(self, optimizer: Optimizer,
                  lr_batches: Union[int, float],
