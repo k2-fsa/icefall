@@ -1410,7 +1410,7 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        # from https://github.com/wenet-e2e/wenet/blob/main/wenet/transformer/convolution.py # noqa
+        # from https://github.com/wenet-e2e/wenet/blob/main/wenet/transformer/convolution.py  # noqa
         if causal:
             self.left_padding = kernel_size - 1
             padding = 0
