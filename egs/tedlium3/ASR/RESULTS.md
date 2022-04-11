@@ -12,7 +12,7 @@ The WERs are
 |------------------------------------|------------|------------|------------------------------------------|
 |          greedy search             | 7.27       | 6.69       | --epoch 29, --avg 13, --max-duration 100 |
 |      beam search (beam size 4)     | 6.70       | 6.04       | --epoch 29, --avg 13, --max-duration 100 |
-| modified beam search (beam size 4) | 6.77       | 6.12       | --epoch 29, --avg 13, --max-duration 100 |
+| modified beam search (beam size 4) | 6.77       | 6.14       | --epoch 29, --avg 13, --max-duration 100 |
 | fast beam search (set as default)  | 7.14       | 6.50       | --epoch 29, --avg 13, --max-duration 1500|
 
 The training command for reproducing is given below:
@@ -37,7 +37,7 @@ epoch=29
 avg=13
 
 ## greedy search
-./pruned_transducer_stateless/decode.py \
+./prured_transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir pruned_transducer_stateless/exp \
