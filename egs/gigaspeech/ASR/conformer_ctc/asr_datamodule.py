@@ -181,12 +181,6 @@ class GigaSpeechAsrDataModule:
             help="Select the GigaSpeech subset (XS|S|M|L|XL)",
         )
         group.add_argument(
-            "--lazy-load",
-            type=str2bool,
-            default=True,
-            help="lazily open CutSets to avoid OOM (for L|XL subset)",
-        )
-        group.add_argument(
             "--small-dev",
             type=str2bool,
             default=False,
@@ -361,10 +355,7 @@ class GigaSpeechAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info(f"About to get train_{self.args.subset} cuts")
         path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
-        if self.args.subset in ["L", "XL"] and self.args.lazy_load:
-            cuts_train = CutSet.from_jsonl_lazy(path)
-        else:
-            cuts_train = CutSet.from_file(path)
+        cuts_train = CutSet.from_jsonl_lazy(path)
         return cuts_train
 
     @lru_cache()
