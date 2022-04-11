@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2021 Xiaomi Corporation (Author: Liyong Guo, Fangjun Kuang)
+# Copyright 2022 Johns Hopkins University (Author: Guanbo Wang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -28,6 +29,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
 from conformer import Conformer
+from gigaspeech_scoring import asr_text_post_processing
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -168,6 +170,17 @@ def get_params() -> AttributeDict:
         }
     )
     return params
+
+
+def post_processing(
+    results: List[Tuple[List[str], List[str]]],
+) -> List[Tuple[List[str], List[str]]]:
+    new_results = []
+    for ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref))
+        new_hyp = asr_text_post_processing(" ".join(hyp))
+        new_results.append((new_ref, new_hyp))
+    return new_results
 
 
 def decode_one_batch(
@@ -488,7 +501,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
 ):
     if params.method == "attention-decoder":
         # Set it to False since there are too many logs.
@@ -498,6 +511,7 @@ def save_results(
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        results = post_processing(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
             logging.info(f"The transcripts are stored in {recog_path}")
