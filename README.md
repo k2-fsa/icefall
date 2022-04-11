@@ -176,7 +176,7 @@ The best WER using modified beam search with beam size 4 is:
 
 |     |  dev  |  test  |
 |-----|-------|--------|
-| WER |  6.72 |  6.12  |
+| WER |  6.77 |  6.14  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
 
