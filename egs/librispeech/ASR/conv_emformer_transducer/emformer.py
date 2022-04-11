@@ -458,6 +458,8 @@ class EmformerLayer(nn.Module):
         If ``True``, applies tanh to memory elements. (Default: ``False``)
       negative_inf (float, optional):
         Value to use for negative infinity in attention weights. (Default: -1e8)
+      causal (bool):
+        Whether use causal convolution (default=False).
     """
 
     def __init__(
@@ -472,6 +474,7 @@ class EmformerLayer(nn.Module):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        causal: bool = False,
     ):
         super().__init__()
 
@@ -500,7 +503,11 @@ class EmformerLayer(nn.Module):
             nn.Linear(dim_feedforward, d_model),
         )
 
-        self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module = ConvolutionModule(
+            d_model,
+            cnn_module_kernel,
+            causal=causal,
+        )
 
         self.norm_ff_macaron = nn.LayerNorm(d_model)
         self.norm_ff = nn.LayerNorm(d_model)
@@ -910,6 +917,8 @@ class EmformerEncoder(nn.Module):
         If ``true``, applies tanh to memory elements. (default: ``false``)
       negative_inf (float, optional):
         Value to use for negative infinity in attention weights. (default: -1e8)
+      causal (bool):
+        Whether use causal convolution (default=False).
     """
 
     def __init__(
@@ -926,6 +935,7 @@ class EmformerEncoder(nn.Module):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        causal: bool = False,
     ):
         super().__init__()
 
@@ -949,6 +959,7 @@ class EmformerEncoder(nn.Module):
                     max_memory_size=max_memory_size,
                     tanh_on_mem=tanh_on_mem,
                     negative_inf=negative_inf,
+                    causal=causal,
                 )
                 for layer_idx in range(num_encoder_layers)
             ]
@@ -1220,6 +1231,7 @@ class Emformer(EncoderInterface):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        causal: bool = False,
     ):
         super().__init__()
 
@@ -1261,6 +1273,7 @@ class Emformer(EncoderInterface):
             max_memory_size=max_memory_size,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
+            causal=causal,
         )
 
         # TODO(fangjun): remove dropout
@@ -1366,14 +1379,22 @@ class ConvolutionModule(nn.Module):
     Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py  # noqa
 
     Args:
-        channels (int): The number of channels of conv layers.
-        kernel_size (int): Kernerl size of conv layers.
-        bias (bool): Whether to use bias in conv layers (default=True).
-
+      channels (int):
+        The number of channels of conv layers.
+      kernel_size (int):
+        Kernerl size of conv layers.
+      bias (bool):
+        Whether to use bias in conv layers (default=True).
+      causal (bool):
+        Whether use causal convolution (default=False).
     """
 
     def __init__(
-        self, channels: int, kernel_size: int, bias: bool = True
+        self,
+        channels: int,
+        kernel_size: int,
+        bias: bool = True,
+        causal: bool = False,
     ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
@@ -1388,12 +1409,19 @@ class ConvolutionModule(nn.Module):
             padding=0,
             bias=bias,
         )
+
+        if causal:
+            self.left_padding = kernel_size - 1
+            padding = 0
+        else:
+            self.left_padding = 0
+            padding = (kernel_size - 1) // 2
         self.depthwise_conv = nn.Conv1d(
             channels,
             channels,
             kernel_size,
             stride=1,
-            padding=(kernel_size - 1) // 2,
+            padding=padding,
             groups=channels,
             bias=bias,
         )
@@ -1426,6 +1454,10 @@ class ConvolutionModule(nn.Module):
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
+        if self.left_padding > 0:
+            # manualy padding self.lorder zeros to the left
+            # make depthwise_conv causal
+            x = nn.functional.pad(x, (self.left_padding, 0), "constant", 0.0)
         x = self.depthwise_conv(x)
         # x is (batch, channels, time)
         x = x.permute(0, 2, 1)

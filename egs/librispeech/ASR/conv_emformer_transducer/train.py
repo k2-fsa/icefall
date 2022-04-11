@@ -137,6 +137,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Number of entries in the memory for the Emformer",
     )
 
+    parser.add_argument(
+        "--causal-conv",
+        type=bool,
+        default=True,
+        help="Whether use causal convolution.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -377,6 +384,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         chunk_length=params.chunk_length,
         right_context_length=params.right_context_length,
         max_memory_size=params.memory_size,
+        causal=params.causal_conv,
     )
     return encoder
 

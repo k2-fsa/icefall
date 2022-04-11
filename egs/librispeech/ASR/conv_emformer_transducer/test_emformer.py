@@ -103,6 +103,7 @@ def test_emformer_layer_forward():
             cnn_module_kernel=3,
             left_context_length=L,
             max_memory_size=M,
+            causal=True,
         )
 
         Q, KV = R + U + S, M + R + U
@@ -147,6 +148,7 @@ def test_emformer_layer_infer():
             cnn_module_kernel=3,
             left_context_length=L,
             max_memory_size=M,
+            causal=True,
         )
 
         utterance = torch.randn(U, B, D)
@@ -203,6 +205,7 @@ def test_emformer_encoder_forward():
             left_context_length=L,
             right_context_length=R,
             max_memory_size=M,
+            causal=True,
         )
 
         x = torch.randn(U + R, B, D)
@@ -239,6 +242,7 @@ def test_emformer_encoder_infer():
             left_context_length=L,
             right_context_length=R,
             max_memory_size=M,
+            causal=True,
         )
 
         states = None
@@ -284,6 +288,7 @@ def test_emformer_forward():
             right_context_length=R,
             max_memory_size=M,
             vgg_frontend=False,
+            causal=True,
         )
         x = torch.randn(B, U + R + 3, num_features)
         x_lens = torch.randint(1, U + R + 3 + 1, (B,))
@@ -324,6 +329,7 @@ def test_emformer_infer():
             right_context_length=R,
             max_memory_size=M,
             vgg_frontend=False,
+            causal=True,
         )
         states = None
         for chunk_idx in range(num_chunks):
