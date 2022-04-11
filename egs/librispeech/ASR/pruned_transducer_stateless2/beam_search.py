@@ -89,7 +89,7 @@ def fast_beam_search(
         # (shape.NumElements(), 1, joiner_dim)
         # fmt: off
         current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1).to(torch.int64)
         )
         # fmt: on
         logits = model.joiner(

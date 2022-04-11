@@ -1,5 +1,79 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Transducer 2)
+
+This is with a reworked version of the conformer encoder, with many changes.
+
+[pruned_transducer_stateless2](./pruned_transducer_stateless2)
+
+using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
+See <https://github.com/k2-fsa/icefall/pull/288>
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 25, --avg 8, --max-duration 600                                       |
+| fast beam search                    | 2.61       | 6.17       | --epoch 25, --avg 8, --max-duration 600 --decoding-method fast_beam_search    |
+| modified beam search                | 2.59       | 6.19       | --epoch 25, --avg 8, --max-duration 600 --decoding-method modified_beam_search|
+
+
+The train and decode commands are:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp --world-size 8 --num-epochs 26  --full-libri 1 --max-duration 300`
+and:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp --epoch 25 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/UKI6z9BvT6iaUkXPxex1OA>
+
+
+The WERs for librispeech 100 hours are:
+
+Trained with one job:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws1 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws1 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/AhnhooUBRPqTnaggoqo7lg> (learning rate
+schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment                                               |
+|-------------------------------------|------------|------------|-------------------------------------------------------|
+| greedy search (max sym per frame 1) | 7.12       | 18.42      | --epoch 19 --avg 8                                    |
+| greedy search (max sym per frame 1) | 6.71       | 17.77      | --epoch 29 --avg 8                                    |
+| fast beam search                    | 6.58       | 17.27      | --epoch 19 --avg 8 --decoding-method fast_beam_search |
+
+Trained with two jobs:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws2 --world-size 2 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws2 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/dvOC9wsrSdWrAIdsebJILg/>
+(learning rate schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.05       | 18.77      | --epoch 19, --avg 8   |
+| greedy search (max sym per frame 1) | 6.82       | 18.14      | --epoch 29, --avg 8   |
+| greedy search (max sym per frame 1) | 6.81       | 17.66      | --epoch 30, --avg 10  |
+
+
+Trained with 4 jobs:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws4 --world-size 4 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws4 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFbRErA/>
+(learning rate schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.31       | 19.55      | --epoch 19, --avg 8   |
+| greedy search (max sym per frame 1) | 7.08       | 18.59      | --epoch 29, --avg 8   |
+| greedy search (max sym per frame 1) | 6.86       | 18.29      | --epoch 30, --avg 10  |
+
+
+
 ### LibriSpeech BPE training results (Pruned Transducer)
 
 Conformer encoder + non-current decoder. The decoder
@@ -22,6 +96,10 @@ The WERs are:
 | greedy search (max sym per frame 3) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
 | modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
 | beam search (beam size 4)           | 2.57       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
+
+
+
+
 
 The decoding time for `test-clean` and `test-other` is given below:
 (A V100 GPU with 32 GB RAM is used for decoding. Note: Not all GPU RAM is used during decoding.)
