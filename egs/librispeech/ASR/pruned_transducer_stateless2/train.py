@@ -695,7 +695,7 @@ def train_one_epoch(
             )
 
             if tb_writer is not None:
-                tb_writer.add_scalar("train/learning_rate", cur_lr)
+                tb_writer.add_scalar("train/learning_rate", cur_params.batch_idx_train)
 
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
