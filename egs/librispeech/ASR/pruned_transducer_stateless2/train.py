@@ -870,7 +870,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if not params.print_diagnostics and not params.use_fp16:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
