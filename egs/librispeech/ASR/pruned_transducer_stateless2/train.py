@@ -28,6 +28,18 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300
+
+# For mix precision training:
+
+./pruned_transducer_stateless2/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --use_fp16 1 \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --full-libri 1 \
+  --max-duration 550
+
 """
 
 
@@ -710,7 +722,9 @@ def train_one_epoch(
             )
 
             if tb_writer is not None:
-                tb_writer.add_scalar("train/learning_rate", cur_params.batch_idx_train)
+                tb_writer.add_scalar(
+                        "train/learning_rate", cur_lr, params.batch_idx_train
+                )
 
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
