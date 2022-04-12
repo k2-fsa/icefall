@@ -24,11 +24,11 @@ To run this file, do:
 """
 
 import torch
-from streaming_feature_extractor import Stream
+from streaming_feature_extractor import FeatureExtractionStream
 
 
 def test_streaming_feature_extractor():
-    stream = Stream(context_size=2, blank_id=0)
+    stream = FeatureExtractionStream(context_size=2, blank_id=0)
     samples = torch.rand(16000)
     start = 0
     while True:

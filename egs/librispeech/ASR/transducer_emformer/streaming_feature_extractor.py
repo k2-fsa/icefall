@@ -40,7 +40,7 @@ def _create_streaming_feature_extractr() -> OnlineFeature:
     return OnlineFbank(opts)
 
 
-class Stream(object):
+class FeatureExtractionStream(object):
     def __init__(self, context_size: int, blank_id: int = 0) -> None:
         """Context size of the RNN-T decoder model."""
         self.feature_extractor = _create_streaming_feature_extractr()
@@ -61,6 +61,9 @@ class Stream(object):
         # For the RNN-T decoder, it contains the decoder output
         # corresponding to the decoder input self.hyp.ys[-context_size:]
         self.decoder_out: Optional[torch.Tensor] = None
+
+        # After calling `self.input_finished()`, we set this flag to True
+        self._done = False
 
     def accept_waveform(
         self,
@@ -97,6 +100,12 @@ class Stream(object):
         """
         self.feature_extractor.input_finished()
         self._fetch_frames()
+        self._done = True
+
+    @property
+    def done(self) -> bool:
+        """Return True if `self.input_finished()` has been invoked"""
+        return self._done
 
     def _fetch_frames(self) -> None:
         """Fetch frames from the feature extractor"""

@@ -27,6 +27,66 @@ from torchaudio.models import Emformer as _Emformer
 LOG_EPSILON = math.log(1e-10)
 
 
+def unstack_states(
+    states: List[List[torch.Tensor]],
+) -> List[List[List[torch.Tensor]]]:
+    """Unstack the emformer state corresponding to a batch of utterances
+    into a list of states, were the i-th entry is the state from the i-th
+    utterance in the batch.
+
+    Args:
+      states:
+        A list-of-list of tensors. ``len(states)`` equals to number of
+        layers in the emformer. ``states[i]]`` contains the states for
+        the i-th layer. ``states[i][k]`` is either a 3-D tensor of shape
+        ``(T, N, C)`` or a 2-D tensor of shape ``(C, N)``
+    """
+    batch_size = states[0][0].size(1)
+    num_layers = len(states)
+
+    ans = [None] * batch_size
+    for i in range(batch_size):
+        ans[i] = [[] for _ in range(num_layers)]
+
+    for li, layer in enumerate(states):
+        for s in layer:
+            s_list = s.unbind(dim=1)
+            for bi, b in enumerate(ans):
+                b[li].append(s_list[bi].unsqueeze(dim=1))
+    return ans
+
+
+def stack_states(
+    state_list: List[List[List[torch.Tensor]]],
+) -> List[List[torch.Tensor]]:
+    """Stack list of emformer states that correspond to separate utterances
+    into a single emformer state so that it can be used as an input for
+    emformer when those utterances are formed into a batch.
+
+    Note:
+      It is the inverse of :func:`unstack_states`.
+
+    Args:
+      state_list:
+        Each element in state_list corresponding to the internal state
+        of the emformer model for a single utterance.
+    Returns:
+      Return a new state corresponding to a batch of utterances.
+      See the input argument of :func:`unstack_states` for the meaning
+      of the returned tensor.
+    """
+    ans = []
+    for layer in state_list[0]:
+        # layer is a list of tensors
+        ans.append([s for s in layer])
+
+    for states in state_list[1:]:
+        for li, layer in enumerate(states):
+            for si, s in enumerate(layer):
+                ans[li][si] = torch.cat([ans[li][si], s], dim=1)
+    return ans
+
+
 class Emformer(EncoderInterface):
     """This is just a simple wrapper around torchaudio.models.Emformer.
     We may replace it with our own implementation some time later.
