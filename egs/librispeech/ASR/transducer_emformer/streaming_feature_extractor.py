@@ -60,6 +60,7 @@ class FeatureExtractionStream(object):
 
         # For the RNN-T decoder, it contains the decoder output
         # corresponding to the decoder input self.hyp.ys[-context_size:]
+        # Its shape is (decoder_out_dim,)
         self.decoder_out: Optional[torch.Tensor] = None
 
         # After calling `self.input_finished()`, we set this flag to True

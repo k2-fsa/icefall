@@ -190,11 +190,7 @@ class StreamingAudioSamples(object):
         """
         ans = []
 
-        # Note: Either branch is fine. The purpose is to simulate streaming
-        if False:
-            num = torch.randint(2000, 5000, (len(self.samples),)).tolist()
-        else:
-            num = [1024] * len(self.samples)
+        num = [1024] * len(self.samples)
 
         for i in range(len(self.samples)):
             start = self.cur_indexes[i]
@@ -293,16 +289,17 @@ class StreamList(object):
                 # has a shape (1, feature_dim)
                 chunk = stream.feature_frames[:chunk_length]
                 stream.feature_frames = stream.feature_frames[segment_length:]
-                features = torch.cat(chunk, dim=0).unsqueeze(0)
+                features = torch.cat(chunk, dim=0)
                 feature_list.append(features)
                 stream_list.append(stream)
             elif stream.done and len(stream.feature_frames) > 0:
                 chunk = stream.feature_frames[:chunk_length]
                 stream.feature_frames = []
-                features = torch.cat(chunk, dim=0).unsqueeze(0)
+                features = torch.cat(chunk, dim=0)
                 features = torch.nn.functional.pad(
                     features,
-                    (0, 0, 0, chunk_length - features.size(1)),
+                    (0, 0, 0, chunk_length - features.size(0)),
+                    mode="constant",
                     value=LOG_EPSILON,
                 )
                 feature_list.append(features)
@@ -311,7 +308,7 @@ class StreamList(object):
         if len(feature_list) == 0:
             return None, None
 
-        features = torch.cat(feature_list, dim=0)
+        features = torch.stack(feature_list, dim=0)
         return features, stream_list
 
 
@@ -346,10 +343,10 @@ def greedy_search(
         decoder_out = model.decoder(
             decoder_input,
             need_pad=False,
-        ).unsqueeze(1)
-        # decoder_out is of shape (N, 1, decoder_out_dim)
+        ).squeeze(1)
+        # decoder_out is of shape (N, decoder_out_dim)
     else:
-        decoder_out = torch.cat(
+        decoder_out = torch.stack(
             [stream.decoder_out for stream in streams],
             dim=0,
         )
@@ -358,13 +355,12 @@ def greedy_search(
 
     T = encoder_out.size(1)
     for t in range(T):
-        current_encoder_out = encoder_out[:, t : t + 1, :].unsqueeze(2)  # noqa
-        # current_encoder_out's shape: (batch_size, 1, 1, encoder_out_dim)
+        current_encoder_out = encoder_out[:, t]
+        # current_encoder_out's shape: (batch_size, encoder_out_dim)
 
         logits = model.joiner(current_encoder_out, decoder_out)
-        # logits'shape (batch_size, 1, 1, vocab_size)
+        # logits'shape (batch_size,  vocab_size)
 
-        logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
         assert logits.ndim == 2, logits.shape
         y = logits.argmax(dim=1).tolist()
         emitted = False
@@ -380,9 +376,9 @@ def greedy_search(
                 device=device,
                 dtype=torch.int64,
             )
-            decoder_out = model.decoder(
-                decoder_input, need_pad=False
-            ).unsqueeze(1)
+            decoder_out = model.decoder(decoder_input, need_pad=False).squeeze(
+                1
+            )
 
             for k, s in enumerate(streams):
                 logging.info(
@@ -392,7 +388,7 @@ def greedy_search(
     decoder_out_list = decoder_out.unbind(dim=0)
 
     for i, d in enumerate(decoder_out_list):
-        streams[i].decoder_out = d.unsqueeze(0)
+        streams[i].decoder_out = d
 
 
 def process_features(
@@ -424,6 +420,10 @@ def process_features(
         fill_value=features.size(1),
         device=device,
     )
+
+    # Caution: It has a limitation as it assumes that
+    # if one of the stream has an empty state, then all other
+    # streams also have empty states.
     if streams[0].states is None:
         states = None
     else:

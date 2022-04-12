@@ -51,8 +51,9 @@ def unstack_states(
     for li, layer in enumerate(states):
         for s in layer:
             s_list = s.unbind(dim=1)
+            # We will use stack(dim=1) later in stack_states()
             for bi, b in enumerate(ans):
-                b[li].append(s_list[bi].unsqueeze(dim=1))
+                b[li].append(s_list[bi])
     return ans
 
 
@@ -75,15 +76,23 @@ def stack_states(
       See the input argument of :func:`unstack_states` for the meaning
       of the returned tensor.
     """
+    batch_size = len(state_list)
     ans = []
     for layer in state_list[0]:
         # layer is a list of tensors
-        ans.append([s for s in layer])
+        if batch_size > 1:
+            ans.append([[s] for s in layer])
+            # Note: We will stack ans[layer][s][] later to get ans[layer][s]
+        else:
+            ans.append([s.unsqueeze(1) for s in layer])
 
-    for states in state_list[1:]:
+    for b, states in enumerate(state_list[1:], 1):
         for li, layer in enumerate(states):
             for si, s in enumerate(layer):
-                ans[li][si] = torch.cat([ans[li][si], s], dim=1)
+                ans[li][si].append(s)
+                if b == batch_size - 1:
+                    ans[li][si] = torch.stack(ans[li][si], dim=1)
+                    # We will use unbind(dim=1) later in unstack_states()
     return ans
 
 
