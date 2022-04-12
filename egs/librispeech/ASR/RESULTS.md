@@ -87,7 +87,7 @@ floats and max-duration increased from 300 to 500, after merging <https://github
 Train command was
 `python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 500 --use-fp16 True`
 
-The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFbRErA/>
+The Tensorboard log is at <https://tensorboard.dev/experiment/Km7QBHYnSLWs4qQnAJWsaA>
 
 |                                     | test-clean | test-other | comment               |
 |-------------------------------------|------------|------------|-----------------------|
@@ -95,7 +95,6 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFb
 | greedy search (max sym per frame 1) | 6.92       | 18.16      | --epoch 29  --avg 8   |
 | greedy search (max sym per frame 1) | 6.89       | 17.75      | --epoch 30  --avg 10  |
 
-https://tensorboard.dev/experiment/Km7QBHYnSLWs4qQnAJWsaA/
 
 
 
