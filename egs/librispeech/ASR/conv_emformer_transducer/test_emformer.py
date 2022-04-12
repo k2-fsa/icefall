@@ -133,6 +133,7 @@ def test_emformer_layer_infer():
     R, L = 2, 5
     chunk_length = 2
     U = chunk_length
+    K = 3
 
     for use_memory in [True, False]:
         if use_memory:
@@ -145,7 +146,7 @@ def test_emformer_layer_infer():
             nhead=8,
             dim_feedforward=1024,
             chunk_length=chunk_length,
-            cnn_module_kernel=3,
+            cnn_module_kernel=K,
             left_context_length=L,
             max_memory_size=M,
             causal=True,
@@ -157,17 +158,15 @@ def test_emformer_layer_infer():
         right_context = torch.randn(R, B, D)
         memory = torch.randn(M, B, D)
         state = None
+        conv_cache = None
         (
             output_utterance,
             output_right_context,
             output_memory,
             output_state,
+            output_conv_cache,
         ) = layer.infer(
-            utterance,
-            lengths,
-            right_context,
-            memory,
-            state,
+            utterance, lengths, right_context, memory, state, conv_cache
         )
         assert output_utterance.shape == (U, B, D)
         assert output_right_context.shape == (R, B, D)
@@ -180,6 +179,7 @@ def test_emformer_layer_infer():
         assert output_state[1].shape == (L, B, D)
         assert output_state[2].shape == (L, B, D)
         assert output_state[3].shape == (1, B)
+        assert output_conv_cache.shape == (B, D, K - 1)
 
 
 def test_emformer_encoder_forward():
@@ -226,6 +226,7 @@ def test_emformer_encoder_infer():
     U = chunk_length
     num_chunks = 3
     num_encoder_layers = 2
+    K = 3
 
     for use_memory in [True, False]:
         if use_memory:
@@ -238,7 +239,7 @@ def test_emformer_encoder_infer():
             d_model=D,
             dim_feedforward=1024,
             num_encoder_layers=num_encoder_layers,
-            cnn_module_kernel=3,
+            cnn_module_kernel=K,
             left_context_length=L,
             right_context_length=R,
             max_memory_size=M,
@@ -246,11 +247,14 @@ def test_emformer_encoder_infer():
         )
 
         states = None
+        conv_caches = None
         for chunk_idx in range(num_chunks):
             x = torch.randn(U + R, B, D)
             lengths = torch.randint(1, U + R + 1, (B,))
             lengths[0] = U + R
-            output, output_lengths, states = encoder.infer(x, lengths, states)
+            output, output_lengths, states, conv_caches = encoder.infer(
+                x, lengths, states, conv_caches
+            )
             assert output.shape == (U, B, D)
             assert torch.equal(output_lengths, torch.clamp(lengths - R, min=0))
             assert len(states) == num_encoder_layers
@@ -262,6 +266,8 @@ def test_emformer_encoder_infer():
                 assert torch.equal(
                     state[3], (chunk_idx + 1) * U * torch.ones_like(state[3])
                 )
+            for conv_cache in conv_caches:
+                assert conv_cache.shape == (B, D, K - 1)
 
 
 def test_emformer_forward():
@@ -312,6 +318,7 @@ def test_emformer_infer():
     B, D = 2, 256
     num_chunks = 3
     num_encoder_layers = 2
+    K = 3
     for use_memory in [True, False]:
         if use_memory:
             M = 3
@@ -324,7 +331,7 @@ def test_emformer_infer():
             subsampling_factor=4,
             d_model=D,
             num_encoder_layers=num_encoder_layers,
-            cnn_module_kernel=3,
+            cnn_module_kernel=K,
             left_context_length=L,
             right_context_length=R,
             max_memory_size=M,
@@ -332,11 +339,14 @@ def test_emformer_infer():
             causal=True,
         )
         states = None
+        conv_caches = None
         for chunk_idx in range(num_chunks):
             x = torch.randn(B, U + R + 3, num_features)
             x_lens = torch.randint(1, U + R + 3 + 1, (B,))
             x_lens[0] = U + R + 3
-            logits, output_lengths, states = model.infer(x, x_lens, states)
+            logits, output_lengths, states, conv_caches = model.infer(
+                x, x_lens, states, conv_caches
+            )
             assert logits.shape == (B, U // 4, output_dim)
             assert torch.equal(
                 output_lengths,
@@ -352,6 +362,8 @@ def test_emformer_infer():
                     state[3],
                     U // 4 * (chunk_idx + 1) * torch.ones_like(state[3]),
                 )
+            for conv_cache in conv_caches:
+                assert conv_cache.shape == (B, D, K - 1)
 
 
 if __name__ == "__main__":

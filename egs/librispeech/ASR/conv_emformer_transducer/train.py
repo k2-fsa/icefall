@@ -139,7 +139,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
 
     parser.add_argument(
         "--causal-conv",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether use causal convolution.",
     )
