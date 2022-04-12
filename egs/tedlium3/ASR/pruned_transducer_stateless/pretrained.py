@@ -351,8 +351,6 @@ def main():
 
     hyps = []
     msg = f"Using {params.decoding_method}"
-    if params.decoding_method == "beam_search":
-        msg += f" with beam size {params.beam_size}"
     logging.info(msg)
 
     if params.decoding_method == "fast_beam_search":

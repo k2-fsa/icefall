@@ -1,4 +1,5 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -86,7 +87,12 @@ def fast_beam_search(
         # (shape.NumElements(), 1, encoder_out_dim)
         # fmt: off
         current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1).long()
+            # in some old versions of pytorch, the type of index requires
+            # to be LongTensor. In the newest version of pytorch, the type
+            # of index can be IntTensor or LongTensor. For supporting the
+            # old and new versions of pytorch, we set the type of index
+            # to LongTensor.
         )
         # fmt: on
         logits = model.joiner(
@@ -124,6 +130,7 @@ def greedy_search(
     assert encoder_out.size(0) == 1, encoder_out.size(0)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -160,7 +167,7 @@ def greedy_search(
         # logits is (1, 1, 1, vocab_size)
 
         y = logits.argmax().item()
-        if y != blank_id:
+        if y != blank_id and y != unk_id:
             hyp.append(y)
             decoder_input = torch.tensor(
                 [hyp[-context_size:]], device=device
@@ -200,6 +207,7 @@ def greedy_search_batch(
     T = encoder_out.size(1)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     hyps = [[blank_id] * context_size for _ in range(batch_size)]
@@ -223,7 +231,7 @@ def greedy_search_batch(
         y = logits.argmax(dim=1).tolist()
         emitted = False
         for i, v in enumerate(y):
-            if v != blank_id:
+            if v != blank_id and v != unk_id:
                 hyps[i].append(v)
                 emitted = True
         if emitted:
@@ -415,6 +423,7 @@ def modified_beam_search(
     T = encoder_out.size(1)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
     device = model.device
     B = [HypothesisList() for _ in range(batch_size)]
@@ -491,7 +500,7 @@ def modified_beam_search(
 
                 new_ys = hyp.ys[:]
                 new_token = topk_token_indexes[k]
-                if new_token != blank_id:
+                if new_token != blank_id and new_token != unk_id:
                     new_ys.append(new_token)
 
                 new_log_prob = topk_log_probs[k]
@@ -532,6 +541,7 @@ def _deprecated_modified_beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -597,7 +607,7 @@ def _deprecated_modified_beam_search(
             hyp = A[topk_hyp_indexes[i]]
             new_ys = hyp.ys[:]
             new_token = topk_token_indexes[i]
-            if new_token != blank_id:
+            if new_token != blank_id and new_token != unk_id:
                 new_ys.append(new_token)
             new_log_prob = topk_log_probs[i]
             new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
@@ -634,6 +644,7 @@ def beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -714,7 +725,7 @@ def beam_search(
             # Second, process other non-blank labels
             values, indices = log_prob.topk(beam + 1)
             for i, v in zip(indices.tolist(), values.tolist()):
-                if i == blank_id:
+                if i == blank_id or i == unk_id:
                     continue
                 new_ys = y_star.ys + [i]
                 new_log_prob = y_star.log_prob + v
