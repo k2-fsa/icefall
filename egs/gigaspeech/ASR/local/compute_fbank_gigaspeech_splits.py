@@ -26,7 +26,6 @@ from lhotse import (
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    set_audio_duration_mismatch_tolerance,
 )
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -99,8 +98,6 @@ def compute_fbank_gigaspeech_splits(args):
         device = torch.device("cuda", 0)
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
-
-    set_audio_duration_mismatch_tolerance(0.01)  # 10ms tolerance
 
     for i in range(start, stop):
         idx = f"{i + 1}".zfill(num_digits)
