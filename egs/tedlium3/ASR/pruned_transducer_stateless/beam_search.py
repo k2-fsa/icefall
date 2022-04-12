@@ -88,7 +88,7 @@ def fast_beam_search(
         # (shape.NumElements(), 1, encoder_out_dim)
         # fmt: off
         current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1).long()
         )
         # fmt: on
         logits = model.joiner(
@@ -486,10 +486,7 @@ def modified_beam_search(
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
 
-            topk_hyp_indexes = torch.div(
-                topk_indexes, vocab_size, rounding_mode="trunc"
-            )
-            topk_hyp_indexes = topk_hyp_indexes.tolist()
+            topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
             topk_token_indexes = (topk_indexes % vocab_size).tolist()
 
             for k in range(len(topk_hyp_indexes)):
