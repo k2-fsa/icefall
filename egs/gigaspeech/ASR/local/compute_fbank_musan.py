@@ -24,7 +24,6 @@ from lhotse import (
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    LilcomHdf5Writer,
     combine,
 )
 from lhotse.recipes.utils import read_manifests_if_cached
@@ -86,7 +85,6 @@ def compute_fbank_musan():
             storage_path=f"{output_dir}/feats_musan",
             num_workers=num_workers,
             batch_duration=batch_duration,
-            storage_type=LilcomHdf5Writer,
         )
     )
     musan_cuts.to_json(musan_cuts_path)
