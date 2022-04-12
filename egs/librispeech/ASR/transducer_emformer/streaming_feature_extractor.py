@@ -21,7 +21,7 @@ from beam_search import Hypothesis
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 
-def _create_streaming_feature_extractr() -> OnlineFeature:
+def _create_streaming_feature_extractor() -> OnlineFeature:
     """Create a CPU streaming feature extractor.
 
     At present, we assume it returns a fbank feature extractor with
@@ -43,7 +43,7 @@ def _create_streaming_feature_extractr() -> OnlineFeature:
 class FeatureExtractionStream(object):
     def __init__(self, context_size: int, blank_id: int = 0) -> None:
         """Context size of the RNN-T decoder model."""
-        self.feature_extractor = _create_streaming_feature_extractr()
+        self.feature_extractor = _create_streaming_feature_extractor()
         self.hyp = Hypothesis(
             ys=([blank_id] * context_size),
             log_prob=torch.tensor([0.0]),
