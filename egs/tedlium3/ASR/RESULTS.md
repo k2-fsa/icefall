@@ -37,7 +37,7 @@ epoch=29
 avg=13
 
 ## greedy search
-./prured_transducer_stateless/decode.py \
+./pruned_transducer_stateless/decode.py \
   --epoch $epoch \
   --avg $avg \
   --exp-dir pruned_transducer_stateless/exp \
