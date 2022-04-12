@@ -17,9 +17,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-from typing import Optional
-from scaling import ScaledConv1d, ScaledLinear, ScaledEmbedding
+from scaling import ScaledConv1d, ScaledEmbedding
 
 
 class Decoder(nn.Module):

@@ -16,13 +16,20 @@
 # limitations under the License.
 
 import copy
-from encoder_interface import EncoderInterface
 import math
 import warnings
-from typing import Optional, Tuple, Sequence
-from scaling import DoubleSwish, ActivationBalancer, BasicNorm, ScaledLinear, ScaledConv1d, ScaledConv2d
+from typing import Optional, Tuple
 
 import torch
+from encoder_interface import EncoderInterface
+from scaling import (
+    ActivationBalancer,
+    BasicNorm,
+    DoubleSwish,
+    ScaledConv1d,
+    ScaledConv2d,
+    ScaledLinear,
+)
 from torch import Tensor, nn
 
 from icefall.utils import make_pad_mask
@@ -42,6 +49,7 @@ class Conformer(EncoderInterface):
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
     """
+
     def __init__(
         self,
         num_features: int,
@@ -80,9 +88,8 @@ class Conformer(EncoderInterface):
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
 
-
     def forward(
-            self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
+        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -112,8 +119,9 @@ class Conformer(EncoderInterface):
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
-        x = self.encoder(x, pos_emb, src_key_padding_mask=mask,
-                         warmup=warmup)  # (T, N, C)
+        x = self.encoder(
+            x, pos_emb, src_key_padding_mask=mask, warmup=warmup
+        )  # (T, N, C)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
@@ -176,17 +184,14 @@ class ConformerEncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
 
-
         self.norm_final = BasicNorm(d_model)
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
-        self.balancer = ActivationBalancer(channel_dim=-1,
-                                           min_positive=0.45,
-                                           max_positive=0.55,
-                                           max_abs=6.0)
+        self.balancer = ActivationBalancer(
+            channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
+        )
 
         self.dropout = nn.Dropout(dropout)
-
 
     def forward(
         self,
@@ -220,13 +225,16 @@ class ConformerEncoderLayer(nn.Module):
         # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
         # completely bypass it.
         if self.training:
-            alpha = warmup_scale if torch.rand(()).item() <= (1.0 - self.layer_dropout) else 0.1
+            alpha = (
+                warmup_scale
+                if torch.rand(()).item() <= (1.0 - self.layer_dropout)
+                else 0.1
+            )
         else:
             alpha = 1.0
 
         # macaron style feed forward module
         src = src + self.dropout(self.feed_forward_macaron(src))
-
 
         # multi-headed self-attention module
         src_att = self.self_attn(
@@ -248,7 +256,7 @@ class ConformerEncoderLayer(nn.Module):
         src = self.norm_final(self.balancer(src))
 
         if alpha != 1.0:
-            src = alpha * src + (1-alpha) * src_orig
+            src = alpha * src + (1 - alpha) * src_orig
 
         return src
 
@@ -275,14 +283,13 @@ class ConformerEncoder(nn.Module):
         )
         self.num_layers = num_layers
 
-
     def forward(
         self,
         src: Tensor,
         pos_emb: Tensor,
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-        warmup: float = 1.0
+        warmup: float = 1.0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -301,8 +308,6 @@ class ConformerEncoder(nn.Module):
 
         """
         output = src
-
-        num_layers = len(self.layers)
 
         for i, mod in enumerate(self.layers):
             output = mod(
@@ -428,7 +433,9 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         self.in_proj = ScaledLinear(embed_dim, 3 * embed_dim, bias=True)
-        self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=True, initial_scale=0.25)
+        self.out_proj = ScaledLinear(
+            embed_dim, embed_dim, bias=True, initial_scale=0.25
+        )
 
         # linear transformation for positional encoding.
         self.linear_pos = ScaledLinear(embed_dim, embed_dim, bias=False)
@@ -621,7 +628,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
         if torch.equal(query, key) and torch.equal(key, value):
             # self-attention
-            q, k, v = nn.functional.linear(query, in_proj_weight, in_proj_bias).chunk(3, dim=-1)
+            q, k, v = nn.functional.linear(
+                query, in_proj_weight, in_proj_bias
+            ).chunk(3, dim=-1)
 
         elif torch.equal(key, value):
             # encoder-decoder attention
@@ -653,7 +662,6 @@ class RelPositionMultiheadAttention(nn.Module):
                 _b = _b[_start:_end]
             q = nn.functional.linear(query, _w, _b)
 
-
             # This is inline in_proj function with in_proj_weight and in_proj_bias
             _b = in_proj_bias
             _start = embed_dim
@@ -671,7 +679,6 @@ class RelPositionMultiheadAttention(nn.Module):
             if _b is not None:
                 _b = _b[_start:]
             v = nn.functional.linear(value, _w, _b)
-
 
         if attn_mask is not None:
             assert (
@@ -864,9 +871,9 @@ class ConvolutionModule(nn.Module):
         # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
-        self.deriv_balancer1 = ActivationBalancer(channel_dim=1, max_abs=10.0,
-                                                  min_positive=0.05,
-                                                  max_positive=1.0)
+        self.deriv_balancer1 = ActivationBalancer(
+            channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
+        )
 
         self.depthwise_conv = ScaledConv1d(
             channels,
@@ -878,9 +885,9 @@ class ConvolutionModule(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer2 = ActivationBalancer(channel_dim=1,
-                                                  min_positive=0.05,
-                                                  max_positive=1.0)
+        self.deriv_balancer2 = ActivationBalancer(
+            channel_dim=1, min_positive=0.05, max_positive=1.0
+        )
 
         self.activation = DoubleSwish()
 
@@ -891,7 +898,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.25
+            initial_scale=0.25,
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -924,7 +931,6 @@ class ConvolutionModule(nn.Module):
         return x.permute(2, 0, 1)
 
 
-
 class Conv2dSubsampling(nn.Module):
     """Convolutional 2D subsampling (to 1/4 length).
 
@@ -936,11 +942,14 @@ class Conv2dSubsampling(nn.Module):
     https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/subsampling.py  # noqa
     """
 
-    def __init__(self, in_channels: int,
-                 out_channels: int,
-                 layer1_channels: int = 8,
-                 layer2_channels: int = 32,
-                 layer3_channels: int = 128) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        layer1_channels: int = 8,
+        layer2_channels: int = 32,
+        layer3_channels: int = 128,
+    ) -> None:
         """
         Args:
           in_channels:
@@ -958,34 +967,41 @@ class Conv2dSubsampling(nn.Module):
 
         self.conv = nn.Sequential(
             ScaledConv2d(
-                in_channels=1, out_channels=layer1_channels,
-                kernel_size=3, padding=1,
+                in_channels=1,
+                out_channels=layer1_channels,
+                kernel_size=3,
+                padding=1,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
             ScaledConv2d(
-                in_channels=layer1_channels, out_channels=layer2_channels,
-                kernel_size=3, stride=2,
+                in_channels=layer1_channels,
+                out_channels=layer2_channels,
+                kernel_size=3,
+                stride=2,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
             ScaledConv2d(
-                in_channels=layer2_channels, out_channels=layer3_channels,
-                kernel_size=3, stride=2,
+                in_channels=layer2_channels,
+                out_channels=layer3_channels,
+                kernel_size=3,
+                stride=2,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
         )
-        self.out = ScaledLinear(layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels)
+        self.out = ScaledLinear(
+            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
+        )
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
         self.out_norm = BasicNorm(out_channels, learn_eps=False)
         # constrain median of output to be close to zero.
-        self.out_balancer = ActivationBalancer(channel_dim=-1,
-                                               min_positive=0.45,
-                                               max_positive=0.55)
-
+        self.out_balancer = ActivationBalancer(
+            channel_dim=-1, min_positive=0.45, max_positive=0.55
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -1009,13 +1025,14 @@ class Conv2dSubsampling(nn.Module):
         return x
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     feature_dim = 50
     c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
-    f = c(torch.randn(batch_size, seq_len, feature_dim),
-          torch.full((batch_size,), seq_len, dtype=torch.int64),
-          warmup=0.5)
+    f = c(
+        torch.randn(batch_size, seq_len, feature_dim),
+        torch.full((batch_size,), seq_len, dtype=torch.int64),
+        warmup=0.5,
+    )

@@ -16,15 +16,17 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from scaling import ScaledLinear
 
+
 class Joiner(nn.Module):
-    def __init__(self,
-                 encoder_dim: int,
-                 decoder_dim: int,
-                 joiner_dim: int,
-                 vocab_size: int):
+    def __init__(
+        self,
+        encoder_dim: int,
+        decoder_dim: int,
+        joiner_dim: int,
+        vocab_size: int,
+    ):
         super().__init__()
 
         self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim)
@@ -32,8 +34,10 @@ class Joiner(nn.Module):
         self.output_linear = ScaledLinear(joiner_dim, vocab_size)
 
     def forward(
-            self, encoder_out: torch.Tensor, decoder_out: torch.Tensor,
-            project_input: bool = True
+        self,
+        encoder_out: torch.Tensor,
+        decoder_out: torch.Tensor,
+        project_input: bool = True,
     ) -> torch.Tensor:
         """
         Args:
@@ -52,7 +56,9 @@ class Joiner(nn.Module):
         assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
 
         if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
+                decoder_out
+            )
         else:
             logit = encoder_out + decoder_out
 
