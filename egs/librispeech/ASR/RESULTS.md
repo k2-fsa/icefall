@@ -14,12 +14,12 @@ The WERs are:
 |                                     | test-clean | test-other | comment                                                                       |
 |-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
 | greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 25 --avg 8  --max-duration 600                                        |
-| fast beam search                    | 2.61       | 6.17       | --epoch 25  --avg 8  --max-duration 600 --decoding-method fast_beam_search    |
-| modified beam search                | 2.59       | 6.19       | --epoch 25  --avg 8  --max-duration 600 --decoding-method modified_beam_search|
+| fast beam search                    | 2.61       | 6.17       | --epoch 25 --avg 8  --max-duration 600 --decoding-method fast_beam_search     |
+| modified beam search                | 2.59       | 6.19       | --epoch 25 --avg 8  --max-duration 600 --decoding-method modified_beam_search |
 | greedy search (max sym per frame 1) | 2.70       | 6.04       | --epoch 34 --avg 10 --max-duration 600                                        |
-| fast beam search                    | 2.66       | 6.00       | --epoch 34  --avg 10  --max-duration 600 --decoding-method fast_beam_search   |
-| greedy search (max sym per frame 1) | 2.60       | 6.06       | --epoch 37 --avg 10 --max-duration 600                                        |
-| fast beam search                    | 2.62       | 5.97       | --epoch 37  --avg 10  --max-duration 600 --decoding-method fast_beam_search   |
+| fast beam search                    | 2.66       | 6.00       | --epoch 34 --avg 10  --max-duration 600 --decoding-method fast_beam_search    |
+| greedy search (max sym per frame 1) | 2.62       | 6.03       | --epoch 38 --avg 10 --max-duration 600                                        |
+| fast beam search                    | 2.57       | 5.95       | --epoch 38 --avg 10  --max-duration 600 --decoding-method fast_beam_search    |
 
 
 
