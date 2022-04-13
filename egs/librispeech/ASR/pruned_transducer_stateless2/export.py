@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang
-# 					     Mingshuang Luo)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,22 +20,23 @@
 # to a single one using model averaging.
 """
 Usage:
-./transducer_stateless/export.py \
-  --exp-dir ./transducer_stateless/exp \
+./pruned_transducer_stateless2/export.py \
+  --exp-dir ./pruned_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 29 \
-  --avg 11
+  --epoch 20 \
+  --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `transducer_stateless/decode.py`, you can do:
+To use the generated file with `pruned_transducer_stateless2/decode.py`,
+you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/tedlium3/ASR
-    ./transducer_stateless/decode.py \
-        --exp-dir ./transducer_stateless/exp \
+    cd /path/to/egs/librispeech/ASR
+    ./pruned_transducer_stateless2/decode.py \
+        --exp-dir ./pruned_transducer_stateless2/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 100 \
@@ -49,15 +49,10 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-import torch.nn as nn
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
-from model import Transducer
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.env import get_env_info
-from icefall.utils import AttributeDict, str2bool
+from icefall.utils import str2bool
 
 
 def get_parser():
@@ -68,7 +63,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=20,
+        default=28,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -76,7 +71,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=10,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -85,7 +80,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="pruned_transducer_stateless2/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -117,70 +112,6 @@ def get_parser():
     return parser
 
 
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            # parameters for conformer
-            "feature_dim": 80,
-            "encoder_out_dim": 512,
-            "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            "vgg_frontend": False,
-            "env_info": get_env_info(),
-        }
-    )
-    return params
-
-
-def get_encoder_model(params: AttributeDict) -> nn.Module:
-    encoder = Conformer(
-        num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
-    )
-    return encoder
-
-
-def get_decoder_model(params: AttributeDict) -> nn.Module:
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
-        blank_id=params.blank_id,
-        unk_id=params.unk_id,
-        context_size=params.context_size,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict) -> nn.Module:
-    joiner = Joiner(
-        input_dim=params.encoder_out_dim,
-        output_dim=params.vocab_size,
-    )
-    return joiner
-
-
-def get_transducer_model(params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-    )
-    return model
-
-
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -199,9 +130,8 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)

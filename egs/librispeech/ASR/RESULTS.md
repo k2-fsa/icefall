@@ -1,5 +1,119 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Transducer 2)
+
+[pruned_transducer_stateless2](./pruned_transducer_stateless2)
+This is with a reworked version of the conformer encoder, with many changes.
+
+#### Training on fulll librispeech
+
+using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
+See <https://github.com/k2-fsa/icefall/pull/288>
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 25 --avg 8  --max-duration 600                                        |
+| fast beam search                    | 2.61       | 6.17       | --epoch 25 --avg 8  --max-duration 600 --decoding-method fast_beam_search     |
+| modified beam search                | 2.59       | 6.19       | --epoch 25 --avg 8  --max-duration 600 --decoding-method modified_beam_search |
+| greedy search (max sym per frame 1) | 2.70       | 6.04       | --epoch 34 --avg 10 --max-duration 600                                        |
+| fast beam search                    | 2.66       | 6.00       | --epoch 34 --avg 10  --max-duration 600 --decoding-method fast_beam_search    |
+| greedy search (max sym per frame 1) | 2.62       | 6.03       | --epoch 38 --avg 10 --max-duration 600                                        |
+| fast beam search                    | 2.57       | 5.95       | --epoch 38 --avg 10  --max-duration 600 --decoding-method fast_beam_search    |
+
+
+
+
+The train and decode commands are:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp --world-size 8 --num-epochs 26  --full-libri 1 --max-duration 300`
+and:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp --epoch 25 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/Xoz0oABMTWewo1slNFXkyA> (apologies, log starts
+only from epoch 3).
+
+
+#### Training on train-clean-100:
+
+Trained with 1 job:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws1 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws1 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/AhnhooUBRPqTnaggoqo7lg> (learning rate
+schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment                                               |
+|-------------------------------------|------------|------------|-------------------------------------------------------|
+| greedy search (max sym per frame 1) | 7.12       | 18.42      | --epoch 19 --avg 8                                    |
+| greedy search (max sym per frame 1) | 6.71       | 17.77      | --epoch 29 --avg 8                                    |
+| greedy search (max sym per frame 1) | 6.64       | 17.19      | --epoch 39 --avg 10                                    |
+| fast beam search                    | 6.58       | 17.27      | --epoch 29 --avg 8 --decoding-method fast_beam_search |
+| fast beam search                    | 6.53       | 16.82      | --epoch 39 --avg 10 --decoding-method fast_beam_search |
+
+Trained with 2 jobs:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws2 --world-size 2 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws2 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/dvOC9wsrSdWrAIdsebJILg/>
+(learning rate schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.05       | 18.77      | --epoch 19  --avg 8   |
+| greedy search (max sym per frame 1) | 6.82       | 18.14      | --epoch 29  --avg 8   |
+| greedy search (max sym per frame 1) | 6.81       | 17.66      | --epoch 30  --avg 10  |
+
+
+Trained with 4 jobs:
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws4 --world-size 4 --num-epochs 40  --full-libri 0 --max-duration 300`
+and decoded with:
+`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws4 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFbRErA/>
+(learning rate schedule is not visible due to a since-fixed bug).
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.31       | 19.55      | --epoch 19  --avg 8   |
+| greedy search (max sym per frame 1) | 7.08       | 18.59      | --epoch 29  --avg 8   |
+| greedy search (max sym per frame 1) | 6.86       | 18.29      | --epoch 30  --avg 10  |
+
+
+
+Trained with 1 job, with  --use-fp16=True --max-duration=300 i.e. with half-precision
+floats (but without increasing max-duration), after merging <https://github.com/k2-fsa/icefall/pull/305>.
+Train command was
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300 --use-fp16 True`
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/DAtGG9lpQJCROUDwPNxwpA>
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.10       | 18.57      | --epoch 19  --avg 8   |
+| greedy search (max sym per frame 1) | 6.81       | 17.84      | --epoch 29  --avg 8   |
+| greedy search (max sym per frame 1) | 6.63       | 17.39      | --epoch 30  --avg 10  |
+
+
+Trained with 1 job, with  --use-fp16=True --max-duration=500, i.e. with half-precision
+floats and max-duration increased from 300 to 500, after merging <https://github.com/k2-fsa/icefall/pull/305>.
+Train command was
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 500 --use-fp16 True`
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/Km7QBHYnSLWs4qQnAJWsaA>
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.10       | 18.79      | --epoch 19  --avg 8   |
+| greedy search (max sym per frame 1) | 6.92       | 18.16      | --epoch 29  --avg 8   |
+| greedy search (max sym per frame 1) | 6.89       | 17.75      | --epoch 30  --avg 10  |
+
+
+
+
 ### LibriSpeech BPE training results (Pruned Transducer)
 
 Conformer encoder + non-current decoder. The decoder
@@ -17,11 +131,15 @@ The WERs are:
 
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
-| greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
-| greedy search (max sym per frame 2) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
-| greedy search (max sym per frame 3) | 2.62       | 6.37       | --epoch 42, --avg 11, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
-| beam search (beam size 4)           | 2.57       | 6.27       | --epoch 42, --avg 11, --max-duration 100 |
+| greedy search (max sym per frame 1) | 2.62       | 6.37       | --epoch 42  --avg 11  --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.62       | 6.37       | --epoch 42  --avg 11  --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.62       | 6.37       | --epoch 42  --avg 11  --max-duration 100 |
+| modified beam search (beam size 4)  | 2.56       | 6.27       | --epoch 42  --avg 11  --max-duration 100 |
+| beam search (beam size 4)           | 2.57       | 6.27       | --epoch 42  --avg 11  --max-duration 100 |
+
+
+
+
 
 The decoding time for `test-clean` and `test-other` is given below:
 (A V100 GPU with 32 GB RAM is used for decoding. Note: Not all GPU RAM is used during decoding.)
@@ -111,7 +229,7 @@ The WERs are
 
 |                           | test-clean | test-other | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             | 2.85       | 6.98       | --epoch 28, --avg 15, --max-duration 100 |
+| greedy search             | 2.85       | 6.98       | --epoch 28  --avg 15  --max-duration 100 |
 
 The training command for reproducing is given below:
 
@@ -171,8 +289,8 @@ The WERs are
 
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
-| greedy search (max sym per frame 1) | 2.64       | 6.55       | --epoch 39, --avg 15, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.61       | 6.46       | --epoch 39, --avg 15, --max-duration 100 |
+| greedy search (max sym per frame 1) | 2.64       | 6.55       | --epoch 39  --avg 15  --max-duration 100 |
+| modified beam search (beam size 4)  | 2.61       | 6.46       | --epoch 39  --avg 15  --max-duration 100 |
 
 The training command for reproducing is given below:
 
@@ -241,10 +359,10 @@ The WERs are
 
 |                                     | test-clean | test-other | comment                                  |
 |-------------------------------------|------------|------------|------------------------------------------|
-| greedy search (max sym per frame 1) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
-| greedy search (max sym per frame 2) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
-| greedy search (max sym per frame 3) | 2.67       | 6.67       | --epoch 63, --avg 19, --max-duration 100 |
-| modified beam search (beam size 4)  | 2.67       | 6.57       | --epoch 63, --avg 19, --max-duration 100 |
+| greedy search (max sym per frame 1) | 2.67       | 6.67       | --epoch 63  --avg 19  --max-duration 100 |
+| greedy search (max sym per frame 2) | 2.67       | 6.67       | --epoch 63  --avg 19  --max-duration 100 |
+| greedy search (max sym per frame 3) | 2.67       | 6.67       | --epoch 63  --avg 19  --max-duration 100 |
+| modified beam search (beam size 4)  | 2.67       | 6.57       | --epoch 63  --avg 19  --max-duration 100 |
 
 
 The training command for reproducing is given below:
