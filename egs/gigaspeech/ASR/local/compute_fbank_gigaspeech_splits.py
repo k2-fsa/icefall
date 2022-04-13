@@ -80,11 +80,11 @@ def get_parser():
 
 def compute_fbank_gigaspeech_splits(args):
     num_splits = args.num_splits
-    output_dir = f"data/fbank/XL_split"
+    output_dir = "data/fbank/XL_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
-    num_digits = 8 # num_digits is fixed by lhotse split-lazy
+    num_digits = 8  # num_digits is fixed by lhotse split-lazy
 
     start = args.start
     stop = args.stop
