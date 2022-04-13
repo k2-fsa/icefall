@@ -367,7 +367,7 @@ class ActivationBalancer(torch.nn.Module):
            min_positive: the minimum, per channel, of the proportion of the time
                that (x > 0), below which we start to modify the derivatives.
            max_positive: the maximum, per channel, of the proportion of the time
-               that (x > 0), below which we start to modify the derivatives.
+               that (x > 0), above which we start to modify the derivatives.
            max_factor: the maximum factor by which we modify the derivatives for
               either the sign constraint or the magnitude constraint;
               e.g. with max_factor=0.02, the the derivatives would be multiplied by
@@ -413,7 +413,7 @@ class DoubleSwishFunction(torch.autograd.Function):
     """
       double_swish(x) = x * torch.sigmoid(x-1)
     This is a definition, originally motivated by its close numerical
-    similarity to swish(swish(x), where swish(x) =  x * sigmoid(x).
+    similarity to swish(swish(x)), where swish(x) =  x * sigmoid(x).
 
     Memory-efficient derivative computation:
      double_swish(x) = x * s, where s(x) = torch.sigmoid(x-1)
