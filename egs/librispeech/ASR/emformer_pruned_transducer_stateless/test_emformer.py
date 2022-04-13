@@ -342,12 +342,218 @@ def test_emformer_infer():
                 )
 
 
+def test_emformer_attention_forward_infer_consistency():
+    from emformer import EmformerEncoder
+
+    chunk_length = 4
+    num_chunks = 3
+    U = chunk_length * num_chunks
+    L, R = 1, 2
+    D = 256
+    num_encoder_layers = 1
+    memory_sizes = [0, 3]
+
+    for M in memory_sizes:
+        encoder = EmformerEncoder(
+            chunk_length=chunk_length,
+            d_model=D,
+            dim_feedforward=1024,
+            num_encoder_layers=num_encoder_layers,
+            left_context_length=L,
+            right_context_length=R,
+            max_memory_size=M,
+            dropout=0.0,
+        )
+        encoder_layer = encoder.emformer_layers[0]
+
+        x = torch.randn(U + R, 1, D)
+        lengths = torch.tensor([U])
+        right_context = encoder._gen_right_context(x)
+        utterance = x[: x.size(0) - R]
+        attention_mask = encoder._gen_attention_mask(utterance)
+        memory = (
+            encoder.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
+                :-1
+            ]
+            if encoder.use_memory
+            else torch.empty(0).to(dtype=x.dtype, device=x.device)
+        )
+        (
+            forward_output_right_context_utterance,
+            forward_output_memory,
+        ) = encoder_layer._apply_attention_forward(
+            utterance,
+            lengths,
+            right_context,
+            memory,
+            attention_mask,
+        )
+        forward_output_utterance = forward_output_right_context_utterance[
+            right_context.size(0) :  # noqa
+        ]
+
+        state = None
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_length
+            end_idx = start_idx + chunk_length
+            chunk = x[start_idx:end_idx]
+            chunk_right_context = x[end_idx : end_idx + R]  # noqa
+            chunk_length = torch.tensor([chunk_length])
+            chunk_memory = (
+                encoder.init_memory_op(chunk.permute(1, 2, 0)).permute(2, 0, 1)
+                if encoder.use_memory
+                else torch.empty(0).to(dtype=x.dtype, device=x.device)
+            )
+            (
+                infer_output_right_context_utterance,
+                infer_output_memory,
+                state,
+            ) = encoder_layer._apply_attention_infer(
+                chunk,
+                chunk_length,
+                chunk_right_context,
+                chunk_memory,
+                state,
+            )
+            infer_output_utterance = infer_output_right_context_utterance[
+                chunk_right_context.size(0) :  # noqa
+            ]
+            print(
+                infer_output_utterance
+                - forward_output_utterance[start_idx:end_idx]
+            )
+
+
+def test_emformer_layer_forward_infer_consistency():
+    from emformer import EmformerEncoder
+
+    chunk_length = 4
+    num_chunks = 3
+    U = chunk_length * num_chunks
+    L, R = 1, 2
+    D = 256
+    num_encoder_layers = 1
+    memory_sizes = [0, 3]
+
+    for M in memory_sizes:
+        encoder = EmformerEncoder(
+            chunk_length=chunk_length,
+            d_model=D,
+            dim_feedforward=1024,
+            num_encoder_layers=num_encoder_layers,
+            left_context_length=L,
+            right_context_length=R,
+            max_memory_size=M,
+            dropout=0.0,
+        )
+        encoder_layer = encoder.emformer_layers[0]
+
+        x = torch.randn(U + R, 1, D)
+        lengths = torch.tensor([U])
+        right_context = encoder._gen_right_context(x)
+        utterance = x[: x.size(0) - R]
+        attention_mask = encoder._gen_attention_mask(utterance)
+        memory = (
+            encoder.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
+                :-1
+            ]
+            if encoder.use_memory
+            else torch.empty(0).to(dtype=x.dtype, device=x.device)
+        )
+        (
+            forward_output_utterance,
+            forward_output_right_context,
+            forward_output_memory,
+        ) = encoder_layer(
+            utterance,
+            lengths,
+            right_context,
+            memory,
+            attention_mask,
+        )
+
+        state = None
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_length
+            end_idx = start_idx + chunk_length
+            chunk = x[start_idx:end_idx]
+            chunk_right_context = x[end_idx : end_idx + R]  # noqa
+            chunk_length = torch.tensor([chunk_length])
+            chunk_memory = (
+                encoder.init_memory_op(chunk.permute(1, 2, 0)).permute(2, 0, 1)
+                if encoder.use_memory
+                else torch.empty(0).to(dtype=x.dtype, device=x.device)
+            )
+            (
+                infer_output_utterance,
+                infer_right_context,
+                infer_output_memory,
+                state,
+            ) = encoder_layer.infer(
+                chunk,
+                chunk_length,
+                chunk_right_context,
+                chunk_memory,
+                state,
+            )
+            print(
+                infer_output_utterance
+                - forward_output_utterance[start_idx:end_idx]
+            )
+
+
+def test_emformer_encoder_forward_infer_consistency():
+    from emformer import EmformerEncoder
+
+    chunk_length = 4
+    num_chunks = 3
+    U = chunk_length * num_chunks
+    L, R = 1, 2
+    D = 256
+    num_encoder_layers = 3
+    memory_sizes = [0, 3]
+
+    for M in memory_sizes:
+        encoder = EmformerEncoder(
+            chunk_length=chunk_length,
+            d_model=D,
+            dim_feedforward=1024,
+            num_encoder_layers=num_encoder_layers,
+            left_context_length=L,
+            right_context_length=R,
+            max_memory_size=M,
+            dropout=0.0,
+        )
+
+        x = torch.randn(U + R, 1, D)
+        lengths = torch.tensor([U + R])
+
+        forward_output, forward_output_lengths = encoder(x, lengths)
+
+        states = None
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_length
+            end_idx = start_idx + chunk_length
+            chunk = x[start_idx : end_idx + R]  # noqa
+            chunk_right_context = x[end_idx : end_idx + R]  # noqa
+            chunk_length = torch.tensor([chunk_length])
+            infer_output, infer_output_lengths, states = encoder.infer(
+                chunk,
+                chunk_length,
+                states,
+            )
+            print(infer_output - forward_output[start_idx:end_idx])
+
+
 if __name__ == "__main__":
-    test_emformer_attention_forward()
-    test_emformer_attention_infer()
-    test_emformer_layer_forward()
-    test_emformer_layer_infer()
-    test_emformer_encoder_forward()
-    test_emformer_encoder_infer()
-    test_emformer_forward()
-    test_emformer_infer()
+    # test_emformer_attention_forward()
+    # test_emformer_attention_infer()
+    # test_emformer_layer_forward()
+    # test_emformer_layer_infer()
+    # test_emformer_encoder_forward()
+    # test_emformer_encoder_infer()
+    # test_emformer_forward()
+    # test_emformer_infer()
+    # test_emformer_attention_forward_infer_consistency()
+    # test_emformer_layer_forward_infer_consistency()
+    test_emformer_encoder_forward_infer_consistency()

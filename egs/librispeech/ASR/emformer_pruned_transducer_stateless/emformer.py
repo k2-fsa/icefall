@@ -183,9 +183,9 @@ class EmformerAttention(nn.Module):
         attention_probs = nn.functional.softmax(
             attention_weights_float, dim=-1
         ).type_as(attention_weights)
-        attention_probs = nn.functional.dropout(
-            attention_probs, p=float(self.dropout), training=self.training
-        )
+        # attention_probs = nn.functional.dropout(
+        #     attention_probs, p=float(self.dropout), training=self.training
+        # )
         return attention_probs
 
     def _forward_impl(
@@ -955,16 +955,15 @@ class EmformerEncoder(nn.Module):
     def _gen_right_context(self, x: torch.Tensor) -> torch.Tensor:
         """Hard copy each chunk's right context and concat them."""
         T = x.shape[0]
-        num_segs = math.ceil(
+        num_chunks = math.ceil(
             (T - self.right_context_length) / self.chunk_length
         )
         right_context_blocks = []
-        for seg_idx in range(num_segs - 1):
+        for seg_idx in range(num_chunks - 1):
             start = (seg_idx + 1) * self.chunk_length
             end = start + self.right_context_length
             right_context_blocks.append(x[start:end])
-        last_right_context_start_idx = T - self.right_context_length
-        right_context_blocks.append(x[last_right_context_start_idx:])
+        right_context_blocks.append(x[T - self.right_context_length :])  # noqa
         return torch.cat(right_context_blocks)
 
     def _gen_attention_mask_col_widths(
