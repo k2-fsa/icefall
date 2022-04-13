@@ -8,10 +8,10 @@ This recipe includes some different ASR models trained with TedLium3.
 There are various folders containing the name `transducer` in this folder.
 The following table lists the differences among them.
 
-|                        | Encoder   | Decoder            |
-|------------------------|-----------|--------------------|
-| `transducer_stateless` | Conformer | Embedding + Conv1d |
-
+|                                  | Encoder   | Decoder            | Comment                     |
+|----------------------------------|-----------|--------------------|-----------------------------|
+| `transducer_stateless`           | Conformer | Embedding + Conv1d |                             |
+| `pruned_transducer_stateless`    | Conformer | Embedding + Conv1d | Using k2 pruned RNN-T loss  |                      |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).

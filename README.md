@@ -18,6 +18,7 @@ We provide four recipes at present:
   - [LibriSpeech][librispeech]
   - [Aishell][aishell]
   - [TIMIT][timit]
+  - [TED-LIUM3][tedlium3]
 
 ### yesno
 
@@ -153,6 +154,31 @@ The PER for this model is:
 
 We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb?usp=sharing)
 
+### TED-LIUM3
+
+We provide two models for this recipe: [Transducer Stateless: Conformer encoder + Embedding decoder][TED-LIUM3_transducer_stateless] and [Pruned Transducer Stateless: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TED-LIUM3_pruned_transducer_stateless].
+
+#### Transducer Stateless:  Conformer encoder + Embedding decoder
+
+The best WER using modified beam search with beam size 4 is:
+
+|     |  dev  |  test  |
+|-----|-------|--------|
+| WER |  6.91 |  6.33  |
+
+Note: No auxiliary losses are used in the training and no LMs are used in the decoding.
+
+We provide a Colab notebook to run a pre-trained Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1MmY5bBxwvKLNT4A2DJnwiqRXhdchUqPN?usp=sharing)
+
+#### Pruned Transducer Stateless: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+The best WER using modified beam search with beam size 4 is:
+
+|     |  dev  |  test  |
+|-----|-------|--------|
+| WER |  6.77 |  6.14  |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
 
 ## Deployment with C++
 
@@ -175,8 +201,11 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
+[TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
+[TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
+[tedlium3]: egs/tedlium3/ASR
 [k2]: https://github.com/k2-fsa/k2

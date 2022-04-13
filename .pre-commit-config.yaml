@@ -4,6 +4,8 @@ repos:
     hooks:
       - id: black
         args: [--line-length=80]
+        additional_dependencies: ['click==8.0.1']
+        exclude: icefall\/__init__\.py
 
   - repo: https://github.com/PyCQA/flake8
     rev: 3.9.2

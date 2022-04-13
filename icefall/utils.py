@@ -25,15 +25,14 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Optional, Tuple, Union
+from typing import Dict, Iterable, List, TextIO, Tuple, Union
 
 import k2
 import k2.version
 import kaldialign
 import torch
-import torch.nn as nn
 import torch.distributed as dist
-from torch.cuda.amp import GradScaler
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 Pathlike = Union[str, Path]
@@ -758,11 +757,10 @@ def measure_gradient_norms(
 
 def optim_step_and_measure_param_change(
     model: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scaler: Optional[GradScaler] = None,
+    old_parameters: Dict[str, nn.parameter.Parameter],
 ) -> Dict[str, float]:
     """
-    Perform model weight update and measure the "relative change in parameters per minibatch."
+    Measure the "relative change in parameters per minibatch."
     It is understood as a ratio between the L2 norm of the difference between original and updates parameters,
     and the L2 norm of the original parameter. It is given by the formula:
 
@@ -770,16 +768,31 @@ def optim_step_and_measure_param_change(
             \begin{aligned}
                 \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
             \end{aligned}
-    """
-    param_copy = {n: p.detach().clone() for n, p in model.named_parameters()}
-    if scaler:
-        scaler.step(optimizer)
-    else:
+
+    This function is supposed to be used as follows:
+
+      .. code-block:: python
+
+        old_parameters = {
+            n: p.detach().clone() for n, p in model.named_parameters()
+        }
+
         optimizer.step()
+
+        deltas = optim_step_and_measure_param_change(old_parameters)
+
+    Args:
+      model: A torch.nn.Module instance.
+      old_parameters:
+        A Dict of named_parameters before optimizer.step().
+
+    Return:
+      A Dict containing the relative change for each parameter.
+    """
     relative_change = {}
     with torch.no_grad():
         for n, p_new in model.named_parameters():
-            p_orig = param_copy[n]
+            p_orig = old_parameters[n]
             delta = l2_norm(p_orig - p_new) / l2_norm(p_orig)
             relative_change[n] = delta.item()
     return relative_change
