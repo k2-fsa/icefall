@@ -85,8 +85,6 @@ class EmformerAttention(nn.Module):
         Embedding dimension.
       nhead (int):
         Number of attention heads in each Emformer layer.
-      dropout (float, optional):
-        Dropout probability. (Default: 0.0)
       weight_init_gain (float or None, optional):
         Scale factor to apply when initializing attention
         module parameters. (Default: ``None``)
@@ -100,7 +98,6 @@ class EmformerAttention(nn.Module):
         self,
         embed_dim: int,
         nhead: int,
-        dropout: float = 0.0,
         weight_init_gain: Optional[float] = None,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
@@ -115,7 +112,6 @@ class EmformerAttention(nn.Module):
 
         self.embed_dim = embed_dim
         self.nhead = nhead
-        self.dropout = dropout
         self.tanh_on_mem = tanh_on_mem
         self.negative_inf = negative_inf
 
@@ -183,9 +179,7 @@ class EmformerAttention(nn.Module):
         attention_probs = nn.functional.softmax(
             attention_weights_float, dim=-1
         ).type_as(attention_weights)
-        # attention_probs = nn.functional.dropout(
-        #     attention_probs, p=float(self.dropout), training=self.training
-        # )
+
         return attention_probs
 
     def _forward_impl(
@@ -512,7 +506,6 @@ class EmformerLayer(nn.Module):
         self.attention = EmformerAttention(
             embed_dim=d_model,
             nhead=nhead,
-            dropout=dropout,
             weight_init_gain=weight_init_gain,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
