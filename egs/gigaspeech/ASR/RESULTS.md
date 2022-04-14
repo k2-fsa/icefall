@@ -46,9 +46,6 @@ and the following command for decoding:
   --num-workers 1
 ```
 
-The tensorboard log for training is available at
-<https://tensorboard.dev/experiment/rz63cmJXSK2fV9GceJtZXQ/>
-
 Results using HLG decoding + whole lattice rescoring:
 
 |     |  Dev  | Test  |
@@ -74,3 +71,9 @@ To reproduce the above result, use the training commands above, and the followin
   --num-workers 1
 ```
 Note: the `whole-lattice-rescoring` method is about twice as fast as the `attention-decoder` method, with slightly worse WER.
+
+Pretrained model is available at
+<https://huggingface.co/wgb14/icefall-asr-gigaspeech-conformer-ctc>
+
+The tensorboard log for training is available at
+<https://tensorboard.dev/experiment/rz63cmJXSK2fV9GceJtZXQ/>
