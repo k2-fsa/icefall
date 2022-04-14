@@ -102,6 +102,13 @@ class AsrDataModule:
         )
 
         group.add_argument(
+            "--on-the-fly-num-workers",
+            type=int,
+            default=0,
+            help="The number of workers for on-the-fly feature extraction",
+        )
+
+        group.add_argument(
             "--enable-spec-aug",
             type=str2bool,
             default=True,
@@ -212,7 +219,10 @@ class AsrDataModule:
         train = K2SpeechRecognitionDataset(
             cut_transforms=transforms,
             input_strategy=(
-                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+                OnTheFlyFeatures(
+                    extractor=Fbank(FbankConfig(num_mel_bins=80)),
+                    num_workers=self.args.on_the_fly_num_workers,
+                )
                 if on_the_fly_feats
                 else PrecomputedFeatures()
             ),
