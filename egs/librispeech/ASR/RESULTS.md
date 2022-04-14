@@ -2,9 +2,10 @@
 
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
+[pruned_transducer_stateless2](./pruned_transducer_stateless2)
 This is with a reworked version of the conformer encoder, with many changes.
 
-[pruned_transducer_stateless2](./pruned_transducer_stateless2)
+#### Training on fulll librispeech
 
 using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
 See <https://github.com/k2-fsa/icefall/pull/288>
@@ -33,9 +34,9 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/Xoz0oABMTWewo1slNF
 only from epoch 3).
 
 
-The WERs for librispeech 100 hours are:
+#### Training on train-clean-100:
 
-Trained with one job:
+Trained with 1 job:
 `python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws1 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300`
 and decoded with:
 `python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws1 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
@@ -51,7 +52,7 @@ schedule is not visible due to a since-fixed bug).
 | fast beam search                    | 6.58       | 17.27      | --epoch 29 --avg 8 --decoding-method fast_beam_search |
 | fast beam search                    | 6.53       | 16.82      | --epoch 39 --avg 10 --decoding-method fast_beam_search |
 
-Trained with two jobs:
+Trained with 2 jobs:
 `python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws2 --world-size 2 --num-epochs 40  --full-libri 0 --max-duration 300`
 and decoded with:
 `python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws2 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
@@ -80,6 +81,21 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFb
 | greedy search (max sym per frame 1) | 7.31       | 19.55      | --epoch 19  --avg 8   |
 | greedy search (max sym per frame 1) | 7.08       | 18.59      | --epoch 29  --avg 8   |
 | greedy search (max sym per frame 1) | 6.86       | 18.29      | --epoch 30  --avg 10  |
+
+
+
+Trained with 1 job, with  --use-fp16=True --max-duration=300 i.e. with half-precision
+floats (but without increasing max-duration), after merging <https://github.com/k2-fsa/icefall/pull/305>.
+Train command was
+`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300 --use-fp16 True`
+
+The Tensorboard log is at <https://tensorboard.dev/experiment/DAtGG9lpQJCROUDwPNxwpA>
+
+|                                     | test-clean | test-other | comment               |
+|-------------------------------------|------------|------------|-----------------------|
+| greedy search (max sym per frame 1) | 7.10       | 18.57      | --epoch 19  --avg 8   |
+| greedy search (max sym per frame 1) | 6.81       | 17.84      | --epoch 29  --avg 8   |
+| greedy search (max sym per frame 1) | 6.63       | 17.39      | --epoch 30  --avg 10  |
 
 
 Trained with 1 job, with  --use-fp16=True --max-duration=500, i.e. with half-precision
