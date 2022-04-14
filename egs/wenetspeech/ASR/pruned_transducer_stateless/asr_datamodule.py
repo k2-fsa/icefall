@@ -34,12 +34,14 @@ from lhotse.cut import Cut
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
+    BucketingSampler,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
     SpecAugment,
 )
+from lhotse.dataset.webdataset import export_to_webdataset
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from torch.utils.data import DataLoader
 
@@ -361,10 +363,15 @@ class WenetSpeechAsrDataModule:
         sampler = DynamicBucketingSampler(
             cuts, max_duration=self.args.max_duration, shuffle=False
         )
-        test_dl = DataLoader(
-            test,
-            batch_size=None,
+
+        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
+        test_iter_dataset = IterableDatasetWrapper(
+            dataset=test,
             sampler=sampler,
+        )
+        test_dl = DataLoader(
+            test_iter_dataset,
+            batch_size=None,
             num_workers=self.args.num_workers,
         )
         return test_dl
