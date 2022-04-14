@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./transducer_stateless/train.py \
+./transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless/exp \
+  --exp-dir transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 250 \
   --lr-factor 2.5
@@ -104,14 +104,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless2/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="transducer_stateless2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
