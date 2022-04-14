@@ -70,7 +70,6 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
-        modified_transducer_prob: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -82,8 +81,6 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
-          modified_transducer_prob:
-            The probability to use modified transducer loss.
         Returns:
           Return the transducer loss.
         """
