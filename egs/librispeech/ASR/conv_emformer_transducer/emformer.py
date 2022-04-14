@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# It is modified based on
-# https://github.com/pytorch/audio/blob/main/torchaudio/models/emformer.py.
+# It is modified based on https://github.com/pytorch/audio/blob/main/torchaudio/models/emformer.py.  # noqa
 
 import math
 import warnings
@@ -56,8 +55,6 @@ class EmformerAttention(nn.Module):
         Embedding dimension.
       nhead (int):
         Number of attention heads in each Emformer layer.
-      dropout (float, optional):
-        Dropout probability. (Default: 0.0)
       tanh_on_mem (bool, optional):
         If ``True``, applies tanh to memory elements. (Default: ``False``)
       negative_inf (float, optional):
@@ -68,7 +65,6 @@ class EmformerAttention(nn.Module):
         self,
         embed_dim: int,
         nhead: int,
-        dropout: float = 0.0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
     ):
@@ -82,7 +78,6 @@ class EmformerAttention(nn.Module):
 
         self.embed_dim = embed_dim
         self.nhead = nhead
-        self.dropout = dropout
         self.tanh_on_mem = tanh_on_mem
         self.negative_inf = negative_inf
 
@@ -154,9 +149,7 @@ class EmformerAttention(nn.Module):
         attention_probs = nn.functional.softmax(
             attention_weights_float, dim=-1
         ).type_as(attention_weights)
-        attention_probs = nn.functional.dropout(
-            attention_probs, p=float(self.dropout), training=self.training
-        )
+
         return attention_probs
 
     def _forward_impl(
@@ -481,7 +474,6 @@ class EmformerLayer(nn.Module):
         self.attention = EmformerAttention(
             embed_dim=d_model,
             nhead=nhead,
-            dropout=0.0,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
         )
