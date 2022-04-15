@@ -45,6 +45,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -83,6 +84,8 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
+
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 def get_parser():
@@ -332,7 +335,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 2000,
+            "valid_interval": 3000,
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -867,6 +870,7 @@ def run(rank, world_size, args):
     wenetspeech = WenetSpeechAsrDataModule(args)
 
     train_cuts = wenetspeech.train_cuts()
+    valid_cuts = wenetspeech.valid_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -890,8 +894,8 @@ def run(rank, world_size, args):
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     if params.token_type == "pinyin":
         train_cuts = train_cuts.map(text_to_words)
+        # valid_cuts = valid_cuts.map(text_to_words)
 
-    valid_cuts = wenetspeech.valid_cuts()
     valid_dl = wenetspeech.valid_dataloaders(valid_cuts)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:

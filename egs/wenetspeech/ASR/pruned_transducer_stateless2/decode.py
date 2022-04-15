@@ -129,10 +129,22 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+
+    parser.add_argument(
+        "--token-type",
+        type=str,
+        default="char",
+        help="""The type of token
+        It must be in ["char", "pinyin", "lazy_pinyin"]
+        """,
     )
 
     parser.add_argument(
@@ -268,8 +280,10 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
         )
+        # print(hyp_tokens)
+        # print(lexicon.token_table)
         for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens])
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -277,7 +291,7 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens])
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
         batch_size = encoder_out.size(0)
 
@@ -358,6 +372,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        texts = [list(str(text)) for text in texts]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -371,8 +386,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
-                ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -507,12 +521,59 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    wenetspeech = WenetSpeechAsrDataModule(args)
-    test_net_cuts = wenetspeech.test_net_cuts()
-    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    # Note: Please use "pip install webdataset==0.1.103"
+    # for installing the webdataset.
+    import glob
+    import os
 
-    test_net_dl = wenetspeech.valid_dataloaders(test_net_cuts)
-    test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
+    from lhotse import CutSet
+    from lhotse.dataset.webdataset import export_to_webdataset
+
+    wenetspeech = WenetSpeechAsrDataModule(args)
+
+    test_net = "test_net"
+    test_meet = "test_meet"
+
+    if not os.path.exists(f"{test_net}/shared-0.tar"):
+        test_net_cuts = wenetspeech.test_net_cuts()
+        export_to_webdataset(
+            test_net_cuts,
+            output_path=f"{test_net}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    if not os.path.exists(f"{test_meet}/shared-0.tar"):
+        test_meeting_cuts = wenetspeech.test_meeting_cuts()
+        export_to_webdataset(
+            test_meeting_cuts,
+            output_path=f"{test_meet}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    test_net_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+    ]
+    cuts_test_net_webdataset = CutSet.from_webdataset(
+        test_net_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_meet_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(test_meet, "shared-*.tar")))
+    ]
+    cuts_test_meet_webdataset = CutSet.from_webdataset(
+        test_meet_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
+    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meet_webdataset)
 
     test_sets = ["TEST_NET", "TEST_MEETING"]
     test_dl = [test_net_dl, test_meeting_dl]

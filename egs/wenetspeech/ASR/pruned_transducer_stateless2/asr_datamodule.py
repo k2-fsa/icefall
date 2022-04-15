@@ -383,12 +383,22 @@ class WenetSpeechAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+            cuts,
+            max_duration=self.args.max_duration,
+            rank=0,
+            world_size=1,
+            shuffle=False,
+        )
+
+        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
+
+        test_iter_dataset = IterableDatasetWrapper(
+            dataset=test,
+            sampler=sampler,
         )
         test_dl = DataLoader(
-            test,
+            test_iter_dataset,
             batch_size=None,
-            sampler=sampler,
             num_workers=self.args.num_workers,
         )
         return test_dl
