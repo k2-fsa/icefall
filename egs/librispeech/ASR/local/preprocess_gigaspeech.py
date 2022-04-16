@@ -101,11 +101,6 @@ def preprocess_giga_speech():
                 + cut_set.perturb_speed(0.9)
                 + cut_set.perturb_speed(1.1)
             )
-
-        logging.info("About to split cuts into smaller chunks.")
-        cut_set = cut_set.trim_to_supervisions(
-            keep_overlapping=False, min_duration=None
-        )
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 
