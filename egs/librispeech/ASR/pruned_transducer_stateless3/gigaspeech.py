@@ -16,9 +16,11 @@
 # limitations under the License.
 
 
+import glob
 import logging
 from pathlib import Path
 
+import lhotse
 from lhotse import CutSet, load_manifest
 
 
@@ -40,9 +42,14 @@ class GigaSpeech:
         self.manifest_dir = Path(manifest_dir)
 
     def train_XL_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_XL_raw.jsonl.gz"
-        logging.info(f"About to get train-XL cuts from {f}")
-        return CutSet.from_jsonl_lazy(f)
+        logging.info("About to get train-XL cuts")
+
+        filenames = list(
+            glob.glob(f"{self.manifest_dir}/XL_split_2000/cuts_XL.*.jsonl.gz")
+        )
+        logging.info(f"Loading {len(filenames)} splits")
+
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in filenames)
 
     def train_L_cuts(self) -> CutSet:
         f = self.manifest_dir / "cuts_L_raw.jsonl.gz"

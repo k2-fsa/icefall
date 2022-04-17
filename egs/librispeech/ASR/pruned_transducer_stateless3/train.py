@@ -986,7 +986,7 @@ def run(rank, world_size, args):
     giga_train_dl = asr_datamodule.train_dataloaders(
         train_giga_cuts,
         dynamic_bucketing=True,
-        on_the_fly_feats=True,
+        on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )
 
