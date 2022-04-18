@@ -25,7 +25,7 @@ To run this file, do:
 import warnings
 
 import torch
-from emformer import Emformer
+from emformer import Emformer, stack_states, unstack_states
 
 
 def test_emformer():
@@ -65,8 +65,41 @@ def test_emformer():
     print(f"Number of encoder parameters: {num_param}")
 
 
+def test_emformer_streaming_forward():
+    N = 3
+    C = 80
+
+    output_dim = 500
+
+    encoder = Emformer(
+        num_features=C,
+        output_dim=output_dim,
+        d_model=512,
+        nhead=8,
+        dim_feedforward=2048,
+        num_encoder_layers=20,
+        segment_length=16,
+        left_context_length=120,
+        right_context_length=4,
+        vgg_frontend=False,
+    )
+
+    x = torch.rand(N, 23, C)
+    x_lens = torch.full((N,), 23)
+    y, y_lens, states = encoder.streaming_forward(x=x, x_lens=x_lens)
+
+    state_list = unstack_states(states)
+    states2 = stack_states(state_list)
+
+    for ss, ss2 in zip(states, states2):
+        for s, s2 in zip(ss, ss2):
+            assert torch.allclose(s, s2), f"{s.sum()}, {s2.sum()}"
+
+
+@torch.no_grad()
 def main():
-    test_emformer()
+    #  test_emformer()
+    test_emformer_streaming_forward()
 
 
 if __name__ == "__main__":
