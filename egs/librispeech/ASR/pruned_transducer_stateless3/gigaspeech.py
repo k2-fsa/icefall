@@ -18,6 +18,7 @@
 
 import glob
 import logging
+import re
 from pathlib import Path
 
 import lhotse
@@ -31,7 +32,7 @@ class GigaSpeech:
           manifest_dir:
             It is expected to contain the following files::
 
-                - cuts_XL_raw.jsonl.gz
+                - XL_split_2000/cuts_XL.*.jsonl.gz
                 - cuts_L_raw.jsonl.gz
                 - cuts_M_raw.jsonl.gz
                 - cuts_S_raw.jsonl.gz
@@ -47,9 +48,20 @@ class GigaSpeech:
         filenames = list(
             glob.glob(f"{self.manifest_dir}/XL_split_2000/cuts_XL.*.jsonl.gz")
         )
-        logging.info(f"Loading {len(filenames)} splits")
 
-        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in filenames)
+        pattern = re.compile(r"cuts_XL.([0-9]+).jsonl.gz")
+        idx_filenames = [
+            (int(pattern.search(f).group(1)), f) for f in filenames
+        ]
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+
+        sorted_filenames = [f[1] for f in idx_filenames]
+
+        logging.info(f"Loading {len(sorted_filenames)} splits")
+
+        return lhotse.combine(
+            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        )
 
     def train_L_cuts(self) -> CutSet:
         f = self.manifest_dir / "cuts_L_raw.jsonl.gz"
