@@ -360,15 +360,22 @@ class WenetSpeechAsrDataModule:
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            buffer_size=30000,
+            rank=0,
+            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
-        valid_dl = DataLoader(
-            validate,
+
+        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
+
+        dev_iter_dataset = IterableDatasetWrapper(
+            dataset=validate,
             sampler=valid_sampler,
+        )
+        valid_dl = DataLoader(
+            dev_iter_dataset,
             batch_size=None,
-            num_workers=2,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
         )
 
@@ -410,13 +417,13 @@ class WenetSpeechAsrDataModule:
             logging.info("use lazy cuts")
             cuts_train = CutSet.from_jsonl_lazy(
                 self.args.manifest_dir
-                / "cuts_L_50_pieces.jsonl.gz"
+                / "cuts_L.jsonl.gz"
                 # use cuts_L_50_pieces.jsonl.gz for original experiments
             )
         else:
             cuts_train = CutSet.from_file(
                 self.args.manifest_dir
-                / "cuts_L_50_pieces.jsonl.gz"
+                / "cuts_L.jsonl.gz"
                 # use cuts_L_50_pieces.jsonl.gz for original experiments
             )
         return cuts_train

@@ -531,8 +531,17 @@ def main():
 
     wenetspeech = WenetSpeechAsrDataModule(args)
 
+    dev = "dev"
     test_net = "test_net"
     test_meet = "test_meet"
+
+    if not os.path.exists(f"{dev}/shared-0.tar"):
+        dev_cuts = wenetspeech.valid_cuts()
+        export_to_webdataset(
+            dev_cuts,
+            output_path=f"{dev}/shared-%d.tar",
+            shard_size=300,
+        )
 
     if not os.path.exists(f"{test_net}/shared-0.tar"):
         test_net_cuts = wenetspeech.test_net_cuts()
@@ -549,6 +558,17 @@ def main():
             output_path=f"{test_meet}/shared-%d.tar",
             shard_size=300,
         )
+
+    dev_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+    ]
+    cuts_dev_webdataset = CutSet.from_webdataset(
+        dev_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
 
     test_net_shards = [
         str(path)
@@ -572,11 +592,12 @@ def main():
         shuffle_shards=True,
     )
 
+    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
     test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
     test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meet_webdataset)
 
-    test_sets = ["TEST_NET", "TEST_MEETING"]
-    test_dl = [test_net_dl, test_meeting_dl]
+    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
+    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
