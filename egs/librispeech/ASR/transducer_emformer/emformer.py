@@ -27,6 +27,75 @@ from torchaudio.models import Emformer as _Emformer
 LOG_EPSILON = math.log(1e-10)
 
 
+def unstack_states(
+    states: List[List[torch.Tensor]],
+) -> List[List[List[torch.Tensor]]]:
+    """Unstack the emformer state corresponding to a batch of utterances
+    into a list of states, were the i-th entry is the state from the i-th
+    utterance in the batch.
+
+    Args:
+      states:
+        A list-of-list of tensors. ``len(states)`` equals to number of
+        layers in the emformer. ``states[i]]`` contains the states for
+        the i-th layer. ``states[i][k]`` is either a 3-D tensor of shape
+        ``(T, N, C)`` or a 2-D tensor of shape ``(C, N)``
+    """
+    batch_size = states[0][0].size(1)
+    num_layers = len(states)
+
+    ans = [None] * batch_size
+    for i in range(batch_size):
+        ans[i] = [[] for _ in range(num_layers)]
+
+    for li, layer in enumerate(states):
+        for s in layer:
+            s_list = s.unbind(dim=1)
+            # We will use stack(dim=1) later in stack_states()
+            for bi, b in enumerate(ans):
+                b[li].append(s_list[bi])
+    return ans
+
+
+def stack_states(
+    state_list: List[List[List[torch.Tensor]]],
+) -> List[List[torch.Tensor]]:
+    """Stack list of emformer states that correspond to separate utterances
+    into a single emformer state so that it can be used as an input for
+    emformer when those utterances are formed into a batch.
+
+    Note:
+      It is the inverse of :func:`unstack_states`.
+
+    Args:
+      state_list:
+        Each element in state_list corresponding to the internal state
+        of the emformer model for a single utterance.
+    Returns:
+      Return a new state corresponding to a batch of utterances.
+      See the input argument of :func:`unstack_states` for the meaning
+      of the returned tensor.
+    """
+    batch_size = len(state_list)
+    ans = []
+    for layer in state_list[0]:
+        # layer is a list of tensors
+        if batch_size > 1:
+            ans.append([[s] for s in layer])
+            # Note: We will stack ans[layer][s][] later to get ans[layer][s]
+        else:
+            ans.append([s.unsqueeze(1) for s in layer])
+
+    for b, states in enumerate(state_list[1:], 1):
+        for li, layer in enumerate(states):
+            for si, s in enumerate(layer):
+                ans[li][si].append(s)
+                if b == batch_size - 1:
+                    ans[li][si] = torch.stack(ans[li][si], dim=1)
+                    # We will use unbind(dim=1) later in unstack_states()
+    return ans
+
+
 class Emformer(EncoderInterface):
     """This is just a simple wrapper around torchaudio.models.Emformer.
     We may replace it with our own implementation some time later.
@@ -63,11 +132,11 @@ class Emformer(EncoderInterface):
           num_encoder_layers:
             Number of encoder layers.
           segment_length:
-            Number of frames per segment.
+            Number of frames per segment before subsampling.
           left_context_length:
-            Number of frames in the left context.
+            Number of frames in the left context before subsampling.
           right_context_length:
-            Number of frames in the right context.
+            Number of frames in the right context before subsampling.
           max_memory_size:
             TODO.
           dropout:
@@ -94,6 +163,7 @@ class Emformer(EncoderInterface):
         else:
             self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
+        self.segment_length = segment_length
         self.right_context_length = right_context_length
 
         assert right_context_length % subsampling_factor == 0
