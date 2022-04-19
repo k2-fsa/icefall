@@ -62,6 +62,6 @@ class Joiner(nn.Module):
             # We reuse the beam_search.py from transducer_stateless,
             # which expects that the joiner network outputs
             # a 2-D tensor.
-            logits = logits.unsqueeze(2).unsqueeze(1)
+            logits = logits.squeeze(2).squeeze(1)
 
         return logits
