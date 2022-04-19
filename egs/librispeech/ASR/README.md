@@ -10,13 +10,14 @@ There are various folders containing the name `transducer` in this folder.
 The following table lists the differences among them.
 
 |                                       | Encoder             | Decoder            | Comment                                           |
-|---------------------------------------|---------------------|--------------------|---------------------------------------------------|
-| `transducer`                          | Conformer           | LSTM               |                                                   |
-| `transducer_stateless`                | Conformer           | Embedding + Conv1d |                                                   |
-| `transducer_lstm`                     | LSTM                | LSTM               |                                                   |
-| `transducer_stateless_multi_datasets` | Conformer           | Embedding + Conv1d | Using data from GigaSpeech as extra training data |
-| `pruned_transducer_stateless`         | Conformer           | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
-| `pruned_transducer_stateless2`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
+|---------------------------------------|---------------------|--------------------|-------------------------------------------------------|
+| `transducer`                          | Conformer           | LSTM               |                                                       |
+| `transducer_stateless`                | Conformer           | Embedding + Conv1d | Using optimized_transducer from computing RNN-T loss  |
+| `transducer_stateless2`               | Conformer           | Embedding + Conv1d | Using torchaudio for computing RNN-T loss             |
+| `transducer_lstm`                     | LSTM                | LSTM               |                                                       |
+| `transducer_stateless_multi_datasets` | Conformer           | Embedding + Conv1d | Using data from GigaSpeech as extra training data     |
+| `pruned_transducer_stateless`         | Conformer           | Embedding + Conv1d | Using k2 pruned RNN-T loss                            |
+| `pruned_transducer_stateless2`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss                            |
 
 
 The decoder in `transducer_stateless` is modified from the paper
