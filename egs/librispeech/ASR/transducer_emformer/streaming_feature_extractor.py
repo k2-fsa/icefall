@@ -17,7 +17,7 @@
 from typing import List, Optional
 
 import torch
-from beam_search import Hypothesis
+from beam_search import Hypothesis, HypothesisList
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 
@@ -41,14 +41,10 @@ def _create_streaming_feature_extractor() -> OnlineFeature:
 
 
 class FeatureExtractionStream(object):
-    def __init__(self, context_size: int, blank_id: int = 0) -> None:
-        """Context size of the RNN-T decoder model."""
+    def __init__(
+        self,
+    ) -> None:
         self.feature_extractor = _create_streaming_feature_extractor()
-        self.hyp = Hypothesis(
-            ys=([blank_id] * context_size),
-            log_prob=torch.tensor([0.0]),
-        )  # for greedy search, will extend it to beam search
-
         # It contains a list of 1-D tensors representing the feature frames.
         self.feature_frames: List[torch.Tensor] = []
 
@@ -57,11 +53,6 @@ class FeatureExtractionStream(object):
         # For the emformer model, it contains the states of each
         # encoder layer.
         self.states: Optional[List[List[torch.Tensor]]] = None
-
-        # For the RNN-T decoder, it contains the decoder output
-        # corresponding to the decoder input self.hyp.ys[-context_size:]
-        # Its shape is (decoder_out_dim,)
-        self.decoder_out: Optional[torch.Tensor] = None
 
         # After calling `self.input_finished()`, we set this flag to True
         self._done = False
@@ -85,9 +76,9 @@ class FeatureExtractionStream(object):
             check to ensure that the input sampling rate equals to the one
             used in the extractor. If they are not equal, then no resampling
             will be performed; instead an error will be thrown.
-        waveform:
-          A 1-D torch tensor of dtype torch.float32 containing audio samples.
-          It should be on CPU.
+          waveform:
+            A 1-D torch tensor of dtype torch.float32 containing audio samples.
+            It should be on CPU.
         """
         self.feature_extractor.accept_waveform(
             sampling_rate=sampling_rate,
@@ -114,3 +105,33 @@ class FeatureExtractionStream(object):
             frame = self.feature_extractor.get_frame(self.num_fetched_frames)
             self.feature_frames.append(frame)
             self.num_fetched_frames += 1
+
+
+class GreedySearchStream(FeatureExtractionStream):
+    def __init__(self, context_size: int) -> None:
+        """FeatureExtractionStream class for greedy search."""
+        super().__init__()
+        self.context_size = context_size
+        # For the RNN-T decoder, it contains the decoder output
+        # corresponding to the decoder input self.hyp.ys[-context_size:]
+        # Its shape is (decoder_out_dim,)
+        self.hyp: Hypothesis = None
+        self.decoder_out: Optional[torch.Tensor] = None
+
+    @property
+    def result(self) -> List[int]:
+        return self.hyp.ys[self.context_size :]
+
+
+class ModifiedBeamSearchStream(FeatureExtractionStream):
+    def __init__(self, context_size: int) -> None:
+        """FeatureExtractionStream class for modified beam search decoding."""
+        super().__init__()
+        self.context_size = context_size
+        self.hyps = HypothesisList()
+        self.best_hyp = None
+
+    @property
+    def result(self) -> List[int]:
+        best_hyp = self.hyps.get_most_probable(length_norm=True)
+        return best_hyp.ys[self.context_size :]
