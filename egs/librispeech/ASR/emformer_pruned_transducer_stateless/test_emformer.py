@@ -682,6 +682,44 @@ def test_emformer_infer_batch_single_consistency():
         assert torch.allclose(batch_logits, single_logits, atol=1e-5, rtol=0.0)
 
 
+def test_emformer_infer_states_stack():
+    from emformer import Emformer, unstack_states, stack_states
+
+    num_features = 80
+    output_dim = 1000
+    chunk_length = 8
+    U = chunk_length
+    L, R = 128, 4
+    B, D = 2, 256
+    num_encoder_layers = 2
+    for use_memory in [True, False]:
+        if use_memory:
+            M = 3
+        else:
+            M = 0
+        model = Emformer(
+            num_features=num_features,
+            output_dim=output_dim,
+            chunk_length=chunk_length,
+            subsampling_factor=4,
+            d_model=D,
+            num_encoder_layers=num_encoder_layers,
+            left_context_length=L,
+            right_context_length=R,
+            max_memory_size=M,
+            vgg_frontend=False,
+        )
+
+        x = torch.randn(B, U + R + 3, num_features)
+        x_lens = torch.full((B, ), U + R + 3)
+        logits, output_lengths, states = model.infer(x, x_lens,)
+        states2 = stack_states(unstack_states(states))
+
+        for ss, ss2 in zip(states, states2):
+            for s, s2 in zip(ss, ss2):
+                assert torch.allclose(s, s2), f"{s.sum()}, {s2.sum()}"
+
+
 if __name__ == "__main__":
     test_emformer_attention_forward()
     test_emformer_attention_infer()
@@ -695,3 +733,4 @@ if __name__ == "__main__":
     test_emformer_layer_forward_infer_consistency()
     test_emformer_encoder_forward_infer_consistency()
     test_emformer_infer_batch_single_consistency()
+    test_emformer_infer_states_stack()
