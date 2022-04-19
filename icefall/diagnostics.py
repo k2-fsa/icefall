@@ -111,7 +111,7 @@ def get_diagnostics_for_dim(
         options object
       sizes_same:
         True if all the tensor sizes are the same on this dimension
-        stats_type: either "abs" or "positive" or "eigs" or "value",
+      stats_type: either "abs" or "positive" or "eigs" or "value",
         imdictates the type of stats we accumulate, abs is mean absolute
         value, "positive" is proportion of positive to nonnegative values,
         "eigs" is eigenvalues after doing outer product on this dim, sum
@@ -135,8 +135,13 @@ def get_diagnostics_for_dim(
             return ""
         count = sum(counts)
         stats = stats / count
-        stats, _ = torch.symeig(stats)
-        stats = stats.abs().sqrt()
+        try:
+            eigs, _ = torch.symeig(stats)
+            stats = eigs.abs().sqrt()
+        except:  # noqa
+            print("Error getting eigenvalues, trying another method.")
+            eigs = torch.linalg.eigvals(stats)
+            stats = eigs.abs().sqrt()
         # sqrt so it reflects data magnitude, like stddev- not variance
     elif sizes_same:
         stats = torch.stack(stats).sum(dim=0)

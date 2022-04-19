@@ -28,7 +28,10 @@ from lhotse.dataset.sampling.base import CutSampler
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
+
+# use duck typing for LRScheduler since we have different possibilities, see
+# our class LRScheduler.
+LRSchedulerType = object
 
 
 def save_checkpoint(
@@ -36,7 +39,7 @@ def save_checkpoint(
     model: Union[nn.Module, DDP],
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
@@ -89,7 +92,7 @@ def load_checkpoint(
     filename: Path,
     model: nn.Module,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     strict: bool = False,
@@ -167,7 +170,7 @@ def save_checkpoint_with_global_batch_idx(
     model: Union[nn.Module, DDP],
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
-    scheduler: Optional[_LRScheduler] = None,
+    scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
@@ -216,27 +219,62 @@ def save_checkpoint_with_global_batch_idx(
     )
 
 
-def find_checkpoints(out_dir: Path) -> List[str]:
+def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
     """Find all available checkpoints in a directory.
 
     The checkpoint filenames have the form: `checkpoint-xxx.pt`
     where xxx is a numerical value.
 
+    Assume you have the following checkpoints in the folder `foo`:
+
+        - checkpoint-1.pt
+        - checkpoint-20.pt
+        - checkpoint-300.pt
+        - checkpoint-4000.pt
+
+    Case 1 (Return all checkpoints)::
+
+      find_checkpoints(out_dir='foo')
+
+    Case 2 (Return checkpoints newer than checkpoint-20.pt, i.e.,
+    checkpoint-4000.pt, checkpoint-300.pt, and checkpoint-20.pt)
+
+        find_checkpoints(out_dir='foo', iteration=20)
+
+    Case 3 (Return checkpoints older than checkpoint-20.pt, i.e.,
+    checkpoint-20.pt, checkpoint-1.pt)::
+
+        find_checkpoints(out_dir='foo', iteration=-20)
+
     Args:
       out_dir:
         The directory where to search for checkpoints.
+      iteration:
+        If it is 0, return all available checkpoints.
+        If it is positive, return the checkpoints whose iteration number is
+        greater than or equal to `iteration`.
+        If it is negative, return the checkpoints whose iteration number is
+        less than or equal to `-iteration`.
     Returns:
       Return a list of checkpoint filenames, sorted in descending
       order by the numerical value in the filename.
     """
     checkpoints = list(glob.glob(f"{out_dir}/checkpoint-[0-9]*.pt"))
     pattern = re.compile(r"checkpoint-([0-9]+).pt")
-    idx_checkpoints = [
+    iter_checkpoints = [
         (int(pattern.search(c).group(1)), c) for c in checkpoints
     ]
+    # iter_checkpoints is a list of tuples. Each tuple contains
+    # two elements: (iteration_number, checkpoint-iteration_number.pt)
 
-    idx_checkpoints = sorted(idx_checkpoints, reverse=True, key=lambda x: x[0])
-    ans = [ic[1] for ic in idx_checkpoints]
+    iter_checkpoints = sorted(
+        iter_checkpoints, reverse=True, key=lambda x: x[0]
+    )
+    if iteration >= 0:
+        ans = [ic[1] for ic in iter_checkpoints if ic[0] >= iteration]
+    else:
+        ans = [ic[1] for ic in iter_checkpoints if ic[0] <= -iteration]
+
     return ans
 
 

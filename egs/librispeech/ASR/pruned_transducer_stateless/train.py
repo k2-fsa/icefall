@@ -33,6 +33,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple
@@ -318,6 +319,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -496,7 +498,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -604,21 +610,6 @@ def train_one_epoch(
                 global_step=params.batch_idx_train,
             )
 
-    def maybe_log_param_relative_changes():
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            deltas = optim_step_and_measure_param_change(model, optimizer)
-            tb_writer.add_scalars(
-                "train/relative_param_change_per_minibatch",
-                deltas,
-                global_step=params.batch_idx_train,
-            )
-        else:
-            optimizer.step()
-
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
@@ -646,7 +637,26 @@ def train_one_epoch(
 
         maybe_log_weights("train/param_norms")
         maybe_log_gradients("train/grad_norms")
-        maybe_log_param_relative_changes()
+
+        old_parameters = None
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            old_parameters = {
+                n: p.detach().clone() for n, p in model.named_parameters()
+            }
+
+        optimizer.step()
+
+        if old_parameters is not None:
+            deltas = optim_step_and_measure_param_change(model, old_parameters)
+            tb_writer.add_scalars(
+                "train/relative_param_change_per_minibatch",
+                deltas,
+                global_step=params.batch_idx_train,
+            )
 
         optimizer.zero_grad()
 
@@ -747,8 +757,9 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)

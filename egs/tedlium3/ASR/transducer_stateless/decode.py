@@ -21,7 +21,7 @@ Usage:
 (1) greedy search
 ./transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 16 \
+        --avg 11 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method greedy_search
@@ -29,7 +29,7 @@ Usage:
 (2) beam search
 ./transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 16 \
+        --avg 11 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method beam_search \
@@ -38,7 +38,7 @@ Usage:
 (3) modified beam search
 ./transducer_stateless/decode.py \
         --epoch 29 \
-        --avg 16 \
+        --avg 11 \
         --exp-dir ./transducer_stateless/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
