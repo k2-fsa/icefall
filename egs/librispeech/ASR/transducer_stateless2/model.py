@@ -18,7 +18,6 @@ Note we use `rnnt_loss` from torchaudio, which exists only in
 torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
 """
 
-import random
 
 import k2
 import torch
