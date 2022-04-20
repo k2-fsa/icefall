@@ -5,6 +5,7 @@ set -eou pipefail
 nj=15
 stage=0
 stop_stage=100
+use_whole_text=True
 
 # Split L subset to this number of pieces
 # This is to avoid OOM during feature extraction.
@@ -98,7 +99,25 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Split L subset into ${num_splits} pieces (may take 30 minutes)"
+  log "Stage 5: Split S subset into ${num_splits} pieces"
+  split_dir=data/fbank/S_split_${num_splits}
+  if [ ! -f $split_dir/.split_completed ]; then
+    lhotse split $num_splits ./data/fbank/cuts_S_raw.jsonl.gz $split_dir
+    touch $split_dir/.split_completed
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Split M subset into ${num_splits} piece"
+  split_dir=data/fbank/M_split_${num_splits}
+  if [ ! -f $split_dir/.split_completed ]; then
+    lhotse split $num_splits ./data/fbank/cuts_M_raw.jsonl.gz $split_dir
+    touch $split_dir/.split_completed
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Split L subset into ${num_splits} pieces"
   split_dir=data/fbank/L_split_${num_splits}
   if [ ! -f $split_dir/.split_completed ]; then
     lhotse split $num_splits ./data/fbank/cuts_L_raw.jsonl.gz $split_dir
@@ -106,39 +125,80 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 fi
 
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Compute features for L"
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Compute features for S"
   python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset S \
     --num-workers 20 \
     --batch-duration 600 \
     --start 0 \
     --num-splits $num_splits
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Combine features for L"
-  if [ ! -f data/fbank/cuts_L_50.jsonl.gz ]; then
-    pieces=$(find data/fbank/L_split_50 -name "cuts_L.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_L_50.jsonl.gz
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Compute features for M"
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset M \
+    --num-workers 20 \
+    --batch-duration 600 \
+    --start 0 \
+    --num-splits $num_splits
+fi
+
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Compute features for L"
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 20 \
+    --batch-duration 600 \
+    --start 0 \
+    --num-splits $num_splits
+fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Combine features for S"
+  if [ ! -f data/fbank/cuts_S.jsonl.gz ]; then
+    pieces=$(find data/fbank/S_split_1000 -name "cuts_S.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_S.jsonl.gz
   fi
 fi
 
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Compute fbank for musan"
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "Stage 12: Combine features for M"
+  if [ ! -f data/fbank/cuts_M.jsonl.gz ]; then
+    pieces=$(find data/fbank/M_split_1000 -name "cuts_M.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_M.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
+  log "Stage 13: Combine features for L"
+  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
+  log "Stage 14: Compute fbank for musan"
   mkdir -p data/fbank
   ./local/compute_fbank_musan.py
 fi
 
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Prepare char based lang"
+if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
+  log "Stage 15: Prepare char based lang"
   lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
   # Prepare text.
   if [ ! -f $lang_char_dir/text ]; then
     gunzip -c data/manifests/supervisions_L.jsonl.gz \
-      | jq '.text' | sed 's/"//g' \
+      | jq 'text' | sed 's/"//g' \
       | ./local/text2token.py -t "char" > $lang_char_dir/text
+    # if use the whole text to generate the text, you can use
+    # the following command:
+    # grep "\"text\":" $dl_dir/WenetSpeech/WenetSpeech.json |
+    #   sed -e 's/["text:\t ]*//g' > $lang_char_dir/text
   fi
 
   # The implementation of chinese word segmentation for text,
@@ -159,16 +219,16 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   fi
 fi
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Prepare char based L_disambig.pt"
+if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
+  log "Stage 16: Prepare char based L_disambig.pt"
   if [ ! -f data/lang_char/L_disambig.pt ]; then
     python ./local/prepare_char.py \
       --lang-dir data/lang_char
   fi
 fi
 
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Prepare pinyin based L_disambig.pt"
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Prepare pinyin based L_disambig.pt"
   lang_pinyin_dir=data/lang_pinyin
   mkdir -p $lang_pinyin_dir
 
