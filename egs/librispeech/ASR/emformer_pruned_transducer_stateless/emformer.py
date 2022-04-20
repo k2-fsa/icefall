@@ -1280,6 +1280,7 @@ class Emformer(EncoderInterface):
 
         self.subsampling_factor = subsampling_factor
         self.right_context_length = right_context_length
+        self.chunk_length = chunk_length
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
         if chunk_length % 4 != 0:
