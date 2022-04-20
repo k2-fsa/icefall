@@ -7,7 +7,7 @@ This is with a reworked version of the conformer encoder, with many changes.
 
 #### Training on fulll librispeech
 
-using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
+Using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
 See <https://github.com/k2-fsa/icefall/pull/288>
 
 The WERs are:
@@ -353,7 +353,11 @@ You can find a pretrained model by visiting
 ##### 2022-04-19
 
 [transducer_stateless2](./transducer_stateless2)
+
 This version uses torchaudio's RNN-T loss.
+
+Using commit `fce7f3cd9a486405ee008bcbe4999264f27774a3`.
+See <https://github.com/k2-fsa/icefall/pull/316>
 
 |                                     | test-clean | test-other | comment                                                                        |
 |-------------------------------------|------------|------------|--------------------------------------------------------------------------------|
