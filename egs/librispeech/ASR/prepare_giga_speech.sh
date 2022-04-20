@@ -28,10 +28,10 @@ stop_stage=100
 # This is to avoid OOM during feature extraction.
 num_splits=2000
 # We use lazy split from lhotse.
-# The XL subset contains 113916 cuts after speed perturbing with factors
-# 0.9 and 1.1. We want to split it into 2000 splits, so each split
-# contains about 113916 / 2000 = 57 cuts. As a result, there will be 1999 splits.
-chunk_size=57 # number of cuts in each split. The last split may contain fewer cuts.
+# The XL subset (10k hours) contains 37956 cuts without speed perturbing.
+# We want to split it into 2000 splits, so each split
+# contains about 37956 / 2000 = 19 cuts. As a result, there will be 1998 splits.
+chunk_size=19 # number of cuts in each split. The last split may contain fewer cuts.
 
 dl_dir=$PWD/download
 
@@ -130,6 +130,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     touch $split_dir/.split_completed
   fi
 fi
+
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute features for XL"
   # Note: The script supports --start and --stop options.

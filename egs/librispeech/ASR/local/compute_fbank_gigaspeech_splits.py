@@ -18,15 +18,12 @@
 
 import argparse
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
 import torch
-from lhotse import (
-    CutSet,
-    KaldifeatFbank,
-    KaldifeatFbankConfig,
-)
+from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -99,8 +96,9 @@ def compute_fbank_gigaspeech_splits(args):
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
+    num_digits = 8  # num_digits is fixed by lhotse split-lazy
     for i in range(start, stop):
-        idx = i
+        idx = f"{i + 1}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
         cuts_path = output_dir / f"cuts_XL.{idx}.jsonl.gz"
@@ -117,6 +115,9 @@ def compute_fbank_gigaspeech_splits(args):
         cut_set = CutSet.from_file(raw_cuts_path)
 
         logging.info("Computing features")
+        if (output_dir / f"feats_XL_{idx}.lca").exists():
+            logging.info(f"Removing {output_dir}/feats_XL_{idx}.lca")
+            os.remove(output_dir / f"feats_XL_{idx}.lca")
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
