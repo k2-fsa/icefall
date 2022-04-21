@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
 from typing import Tuple
 
 import torch
@@ -87,7 +88,9 @@ class LstmEncoder(EncoderInterface):
         x = self.encoder_embed(x)
 
         # Caution: We assume the subsampling factor is 4!
-        lengths = ((x_lens - 1) // 2 - 1) // 2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lengths = ((x_lens - 1) // 2 - 1) // 2
         assert x.size(1) == lengths.max().item(), (
             x.size(1),
             lengths.max(),
