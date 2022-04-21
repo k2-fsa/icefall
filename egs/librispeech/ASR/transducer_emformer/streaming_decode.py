@@ -330,7 +330,7 @@ def greedy_search(
       model:
         The RNN-T model.
       streams:
-        A list of GreedySearchDecodingStream objects.
+        A list of stream objects.
       encoder_out:
         A 3-D tensor of shape (N, T, encoder_out_dim) containing the output of
         the encoder model.
@@ -407,8 +407,8 @@ def modified_beam_search(
     Args:
       model:
         The RNN-T model.
-      stream:
-        A stream object.
+      streams:
+        A list of stream objects.
       encoder_out:
         A 3-D tensor of shape (N, T, encoder_out_dim) containing the output of
         the encoder model.
