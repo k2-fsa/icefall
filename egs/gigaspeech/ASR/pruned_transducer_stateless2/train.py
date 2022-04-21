@@ -317,7 +317,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 500,
             "reset_interval": 2000,
-            "valid_interval": 3000,
+            "valid_interval": 20000,
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -330,7 +330,7 @@ def get_params() -> AttributeDict:
             # parameters for joiner
             "joiner_dim": 512,
             # parameters for Noam
-            "model_warm_step": 10000,  # arg given to model, not for lrate
+            "model_warm_step": 20000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
