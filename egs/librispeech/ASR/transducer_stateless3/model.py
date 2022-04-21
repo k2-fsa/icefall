@@ -18,8 +18,8 @@
 import k2
 import torch
 import torch.nn as nn
+import torchaudio
 from encoder_interface import EncoderInterface
-from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
@@ -51,9 +51,10 @@ class Transducer(nn.Module):
             is (N, U) and its output shape is (N, U, decoder_dim).
             It should contain one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim).
-            Its output shape is (N, T, U, vocab_size). Note that its output contains
-            unnormalized probs, i.e., not processed by log-softmax.
+            It has two inputs with shapes: (N, T, encoder_dim) and
+            (N, U, decoder_dim).
+            Its output shape is (N, T, U, vocab_size). Note that its output
+            contains unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
