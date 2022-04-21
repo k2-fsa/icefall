@@ -319,6 +319,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -609,21 +610,6 @@ def train_one_epoch(
                 global_step=params.batch_idx_train,
             )
 
-    def maybe_log_param_relative_changes():
-        if (
-            params.log_diagnostics
-            and tb_writer is not None
-            and params.batch_idx_train % (params.log_interval * 5) == 0
-        ):
-            deltas = optim_step_and_measure_param_change(model, optimizer)
-            tb_writer.add_scalars(
-                "train/relative_param_change_per_minibatch",
-                deltas,
-                global_step=params.batch_idx_train,
-            )
-        else:
-            optimizer.step()
-
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
@@ -651,7 +637,26 @@ def train_one_epoch(
 
         maybe_log_weights("train/param_norms")
         maybe_log_gradients("train/grad_norms")
-        maybe_log_param_relative_changes()
+
+        old_parameters = None
+        if (
+            params.log_diagnostics
+            and tb_writer is not None
+            and params.batch_idx_train % (params.log_interval * 5) == 0
+        ):
+            old_parameters = {
+                n: p.detach().clone() for n, p in model.named_parameters()
+            }
+
+        optimizer.step()
+
+        if old_parameters is not None:
+            deltas = optim_step_and_measure_param_change(model, old_parameters)
+            tb_writer.add_scalars(
+                "train/relative_param_change_per_minibatch",
+                deltas,
+                global_step=params.batch_idx_train,
+            )
 
         optimizer.zero_grad()
 
@@ -752,8 +757,9 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -805,13 +811,23 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
+    try:
+        num_left = len(train_cuts)
+        num_removed = num_in_total - num_left
+        removed_percent = num_removed / num_in_total * 100
 
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+        logging.info(
+            f"Before removing short and long utterances: {num_in_total}"
+        )
+        logging.info(f"After removing short and long utterances: {num_left}")
+        logging.info(
+            f"Removed {num_removed} utterances ({removed_percent:.5f}%)"
+        )
+    except TypeError as e:
+        # You can ignore this error as previous versions of Lhotse work fine
+        # for the above code. In recent versions of Lhotse, it uses
+        # lazy filter, producing cutsets that don't have the __len__  method
+        logging.info(str(e))
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
