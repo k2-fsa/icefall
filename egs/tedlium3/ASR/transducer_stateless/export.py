@@ -25,7 +25,7 @@ Usage:
   --exp-dir ./transducer_stateless/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 29 \
-  --avg 16
+  --avg 11
 
 It will generate a file exp_dir/pretrained.pt
 

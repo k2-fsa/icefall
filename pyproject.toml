@@ -10,4 +10,5 @@ exclude = '''
   | \.github
 )/
   | make_kn_lm.py
+  | icefall\/__init__\.py
 '''
