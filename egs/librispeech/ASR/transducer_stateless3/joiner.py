@@ -33,6 +33,10 @@ class Joiner(nn.Module):
         self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim)
         self.output_linear = ScaledLinear(joiner_dim, vocab_size)
 
+        self.encoder_dim = encoder_dim
+        self.decoder_dim = decoder_dim
+        self.joiner_dim = joiner_dim
+
     def forward(
         self,
         encoder_out: torch.Tensor,
@@ -42,9 +46,9 @@ class Joiner(nn.Module):
         """
         Args:
           encoder_out:
-            Output from the encoder. Its shape is (N, T, s_range, C).
+            Output from the encoder. Its shape is (N, T, joiner_dim).
           decoder_out:
-            Output from the decoder. Its shape is (N, T, s_range, C).
+            Output from the decoder. Its shape is (N, U, joiner_dim).
            project_input:
             If true, apply input projections encoder_proj and decoder_proj.
             If this is false, it is the user's responsibility to do this
@@ -52,16 +56,30 @@ class Joiner(nn.Module):
         Returns:
           Return a tensor of shape (N, T, s_range, C).
         """
-        assert encoder_out.ndim == decoder_out.ndim == 4
-        assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
+        assert encoder_out.ndim == decoder_out.ndim == 3
+        assert encoder_out.size(0) == decoder_out.size(0)
 
         if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
-                decoder_out
-            )
+            assert encoder_out.size(2) == self.encoder_dim
+            assert decoder_out.size(2) == self.decoder_dim
+            encoder_out = self.encoder_proj(encoder_out)
+            decoder_out = self.decoder_proj(decoder_out)
         else:
-            logit = encoder_out + decoder_out
+            assert encoder_out.size(2) == self.joiner_dim
+            assert decoder_out.size(2) == self.joiner_dim
 
-        logit = self.output_linear(torch.tanh(logit))
+        encoder_out = encoder_out.unsqueeze(2)  # (N, T, 1, C)
+        decoder_out = decoder_out.unsqueeze(1)  # (N, 1, U, C)
+        x = encoder_out + decoder_out  # (N, T, U, C)
 
-        return logit
+        activations = torch.tanh(x)
+
+        logits = self.output_linear(activations)
+
+        if not self.training:
+            # We reuse the beam_search.py from transducer_stateless,
+            # which expects that the joiner network outputs
+            # a 2-D tensor.
+            logits = logits.squeeze(2).squeeze(1)
+
+        return logits
