@@ -367,7 +367,7 @@ class HypothesisList(object):
         return ", ".join(s)
 
 
-def _get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
+def get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
     """Return a ragged shape with axes [utt][num_hyps].
 
     Args:
@@ -431,7 +431,7 @@ def modified_beam_search(
         current_encoder_out = encoder_out[:, t : t + 1, :].unsqueeze(2)  # noqa
         # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
 
-        hyps_shape = _get_hyps_shape(B).to(device)
+        hyps_shape = get_hyps_shape(B).to(device)
 
         A = [list(b) for b in B]
         B = [HypothesisList() for _ in range(batch_size)]

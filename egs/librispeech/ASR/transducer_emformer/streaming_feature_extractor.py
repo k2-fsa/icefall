@@ -14,11 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
-
-import torch
-from beam_search import Hypothesis, HypothesisList
+from beam_search import HypothesisList
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
+from typing import List, Optional
+import torch
 
 
 def _create_streaming_feature_extractor() -> OnlineFeature:
@@ -41,21 +40,28 @@ def _create_streaming_feature_extractor() -> OnlineFeature:
 
 
 class FeatureExtractionStream(object):
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self, context_size: int, decoding_method: str) -> None:
         self.feature_extractor = _create_streaming_feature_extractor()
         # It contains a list of 1-D tensors representing the feature frames.
         self.feature_frames: List[torch.Tensor] = []
-
         self.num_fetched_frames = 0
+        # After calling `self.input_finished()`, we set this flag to True
+        self._done = False
 
         # For the emformer model, it contains the states of each
         # encoder layer.
         self.states: Optional[List[List[torch.Tensor]]] = None
 
-        # After calling `self.input_finished()`, we set this flag to True
-        self._done = False
+        # It use different attributes for different decoding methods.
+        self.context_size = context_size
+        self.decoding_method = decoding_method
+        if decoding_method == "greedy_search":
+            self.hyp: List[int] = None
+            self.decoder_out: Optional[torch.Tensor] = None
+        elif decoding_method == "modified_beam_search":
+            self.hyps = HypothesisList()
+        else:
+            raise ValueError(f"Unsupported decoding method: {decoding_method}")
 
     def accept_waveform(
         self,
@@ -106,32 +112,11 @@ class FeatureExtractionStream(object):
             self.feature_frames.append(frame)
             self.num_fetched_frames += 1
 
-
-class GreedySearchStream(FeatureExtractionStream):
-    def __init__(self, context_size: int) -> None:
-        """FeatureExtractionStream class for greedy search."""
-        super().__init__()
-        self.context_size = context_size
-        # For the RNN-T decoder, it contains the decoder output
-        # corresponding to the decoder input self.hyp.ys[-context_size:]
-        # Its shape is (decoder_out_dim,)
-        self.hyp: Hypothesis = None
-        self.decoder_out: Optional[torch.Tensor] = None
-
-    @property
-    def result(self) -> List[int]:
-        return self.hyp.ys[self.context_size :]
-
-
-class ModifiedBeamSearchStream(FeatureExtractionStream):
-    def __init__(self, context_size: int) -> None:
-        """FeatureExtractionStream class for modified beam search decoding."""
-        super().__init__()
-        self.context_size = context_size
-        self.hyps = HypothesisList()
-        self.best_hyp = None
-
-    @property
-    def result(self) -> List[int]:
-        best_hyp = self.hyps.get_most_probable(length_norm=True)
-        return best_hyp.ys[self.context_size :]
+    def decoding_result(self) -> List[int]:
+        """Obtain current decoding result."""
+        if self.decoding_method == "greedy_search":
+            return self.hyp[self.context_size :]
+        else:
+            assert self.decoding_method == "modified_beam_search"
+            best_hyp = self.hyps.get_most_probable(length_norm=True)
+            return best_hyp.ys[self.context_size :]
