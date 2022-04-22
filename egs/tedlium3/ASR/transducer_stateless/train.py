@@ -26,7 +26,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir transducer_stateless/exp \
-  --max-duration 200
+  --max-duration 300
 """
 
 

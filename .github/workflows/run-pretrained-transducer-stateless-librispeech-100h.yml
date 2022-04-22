@@ -39,11 +39,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install graphviz
-        shell: bash
-        run: |
-          sudo apt-get -qq install graphviz
-
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -76,97 +71,11 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j2 _kaldifeat
 
-      - name: Download pre-trained model
+      - name: Inference with pre-trained model
         shell: bash
         run: |
           sudo apt-get -qq install git-lfs tree sox
-          cd egs/librispeech/ASR
-          mkdir tmp
-          cd tmp
-          git lfs install
-          git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21
-
-          cd ..
-          tree tmp
-          soxi tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/*.wav
-          ls -lh tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/*.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 1)
-        shell: bash
-        run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./transducer_stateless_multi_datasets/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 1 \
-            --checkpoint ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/data/lang_bpe_500/bpe.model \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1089-134686-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0002.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 2)
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./transducer_stateless_multi_datasets/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 2 \
-            --checkpoint ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/data/lang_bpe_500/bpe.model \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1089-134686-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0002.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 3)
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./transducer_stateless_multi_datasets/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 3 \
-            --checkpoint ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/data/lang_bpe_500/bpe.model \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1089-134686-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0002.wav
-
-      - name: Run beam search decoding
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./transducer_stateless_multi_datasets/pretrained.py \
-            --method beam_search \
-            --beam-size 4 \
-            --checkpoint ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/data/lang_bpe_500/bpe.model \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1089-134686-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0002.wav
-
-      - name: Run modified beam search decoding
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./transducer_stateless_multi_datasets/pretrained.py \
-            --method modified_beam_search \
-            --beam-size 4 \
-            --checkpoint ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/data/lang_bpe_500/bpe.model \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1089-134686-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0001.wav \
-            ./tmp/icefall-asr-librispeech-100h-transducer-stateless-multi-datasets-bpe-500-2022-02-21/test_wavs/1221-135766-0002.wav
+          .github/scripts/run-pre-trained-transducer-stateless-librispeech-100h.sh
