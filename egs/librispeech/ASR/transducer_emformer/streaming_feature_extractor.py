@@ -66,7 +66,7 @@ class FeatureExtractionStream(object):
         self.context_size = context_size
         self.decoding_method = decoding_method
         if decoding_method == "greedy_search":
-            self.hyp: List[int] = None
+            self.hyp: Optional[List[int]] = None
             self.decoder_out: Optional[torch.Tensor] = None
         elif decoding_method == "modified_beam_search":
             self.hyps = HypothesisList()
