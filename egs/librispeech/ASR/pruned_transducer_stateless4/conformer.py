@@ -296,7 +296,7 @@ class ConformerEncoder(nn.Module):
         assert num_layers - 1 not in aux_layers
         self.aux_layers = set(aux_layers + [num_layers - 1])
 
-        num_channels = encoder_layer.norm_final.weight.numel()
+        num_channels = encoder_layer.norm_final.num_channels
         self.combiner = RandomCombine(
             num_inputs=len(self.aux_layers),
             num_channels=num_channels,

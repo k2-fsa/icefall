@@ -21,22 +21,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless2/train.py \
+./pruned_transducer_stateless4/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless2/train.py \
+./pruned_transducer_stateless4/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
   --use_fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -138,7 +138,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -322,10 +322,10 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
+            "encoder_dim": 384,
             "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
+            "dim_feedforward": 1536,
+            "num_encoder_layers": 24,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
