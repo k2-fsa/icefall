@@ -21,22 +21,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless2/train.py \
+./pruned2_knowledge/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned2_knowledge/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless2/train.py \
+./pruned2_knowledge/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
   --use_fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned2_knowledge/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -138,7 +138,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned2_knowledge/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
