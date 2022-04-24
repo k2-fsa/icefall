@@ -146,12 +146,7 @@ def fast_beam_search_nbest_oracle(
         nbest_scale=nbest_scale,
     )
 
-    # We assume the labels of nbest.fsa are token IDs and the aux_labels
-    # are word IDs.
-    word_fsa = k2.invert(nbest.fsa)
-    word_ids = get_texts(word_fsa, return_ragged=True)
-
-    hyps = k2.levenshtein_graph(word_ids)
+    hyps = nbest.build_levenshtein_graphs()
     refs = k2.levenshtein_graph(ref_texts, device=hyps.device)
 
     levenshtein_alignment = k2.levenshtein_alignment(
