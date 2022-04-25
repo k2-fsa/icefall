@@ -1196,6 +1196,19 @@ def _test_knowledge_base_lookup():
 
     start = timeit.default_timer()
 
+# Epoch 0, batch 0, loss 1.0109944343566895
+# Epoch 10, batch 0, loss 1.0146660804748535
+# Epoch 20, batch 0, loss 1.0119813680648804
+# Epoch 30, batch 0, loss 1.0105408430099487
+# Epoch 40, batch 0, loss 1.0077732801437378
+# Epoch 50, batch 0, loss 1.0050103664398193
+# Epoch 60, batch 0, loss 1.0033129453659058
+# Epoch 70, batch 0, loss 1.0014232397079468
+# Epoch 80, batch 0, loss 0.9977912306785583
+# Epoch 90, batch 0, loss 0.8274348974227905
+# Epoch 100, batch 0, loss 0.3368612825870514
+# Epoch 110, batch 0, loss 0.11323091387748718
+# Time taken:  17.591704960912466
     for epoch in range(120):
         for n, (x,y) in enumerate(train_pairs):
             y_out = m(x)
