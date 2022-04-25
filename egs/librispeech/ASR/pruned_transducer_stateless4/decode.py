@@ -18,36 +18,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless2/decode.py \
+./pruned_transducer_stateless4/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./pruned_transducer_stateless4/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./pruned_transducer_stateless2/decode.py \
+./pruned_transducer_stateless4/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./pruned_transducer_stateless4/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless2/decode.py \
+./pruned_transducer_stateless4/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./pruned_transducer_stateless4/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless2/decode.py \
+./pruned_transducer_stateless4/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./pruned_transducer_stateless4/exp \
         --max-duration 1500 \
         --decoding-method fast_beam_search \
         --beam 4 \
@@ -74,7 +74,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -124,7 +124,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4/exp",
         help="The experiment dir",
     )
 
@@ -196,6 +196,8 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
