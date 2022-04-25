@@ -417,9 +417,12 @@ def get_indexes_for_samples(P: Tensor,
         # right=True means we find
         # P_cumsum[...,index-1] <= this_samples[...,k] < P_cumsum[...,index],
         # which is what we want, as opposed to ... < ... <= (i.e. swap < and <=)
-        idx = ans_indexes[...,n] = torch.searchsorted(P_cumsum[...,n,:], # (*, M)
-                                                      this_samples, # (*, K)
-                                                      right=True)
+        # .contiguous() suppresses a warning about searchsorted needing contiguous
+        # input.  N tends to be 2 or 3 so this copy is not too big a deal.
+        idx = ans_indexes[...,n] = torch.searchsorted(
+            P_cumsum[...,n,:].contiguous(), # (*, M)
+            this_samples, # (*, K)
+            right=True)
         this_P = torch.gather(P[...,n,:], dim=-1, index=idx)  # shape: (*, K)
 
         if n == 0:
