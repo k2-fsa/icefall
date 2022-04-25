@@ -916,11 +916,11 @@ class KnowledgeBaseLookup(nn.Module):
         super(KnowledgeBaseLookup, self).__init__()
         self.knowledge_base = knowledge_base  # shared!
         self.in_proj = ScaledLinear(embedding_dim, M * N,
-                                    initial_scale=5.0)
+                                    initial_scale=1.0)
         # initial_scale = 4.0 because the knowlege_base activations are
         # quite small -- if we use our optimizer they'll have stddev <= 0.1.
         self.out_proj = ScaledLinear(D, embedding_dim,
-                                     initial_scale = 10.0)
+                                     initial_scale = 4.0)
         self.M = M
         self.N = N
         self.K = K
@@ -938,7 +938,7 @@ class KnowledgeBaseLookup(nn.Module):
         x = self.in_proj(x) # now (*, M*N)
         x = x.reshape(*x.shape[:-1], self.N, self.M) # now (*, N, M)
         x = x.log_softmax(dim=-1) # now normalized logprobs, dim= (*, N, M)
-        if random.random() < 0.01:
+        if random.random() < 0.001:
             entropy = (x * x.exp()).sum(dim=-1).mean()
             print("Entropy = ", entropy)
         weights, indexes, = sample_combined(x, self.K, input_is_log=True)
