@@ -18,6 +18,7 @@
 import collections
 from itertools import repeat
 from typing import Optional, Tuple
+from torch.cuda.amp import custom_fwd, custom_bwd
 
 import torch
 import torch.nn as nn
@@ -39,6 +40,7 @@ _pair = _ntuple(2)
 
 class ActivationBalancerFunction(torch.autograd.Function):
     @staticmethod
+    @custom_fwd
     def forward(
         ctx,
         x: Tensor,
@@ -85,6 +87,7 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x
 
     @staticmethod
+    @custom_bwd
     def backward(
         ctx, x_grad: Tensor
     ) -> Tuple[Tensor, None, None, None, None, None, None]:
@@ -426,6 +429,7 @@ class DoubleSwishFunction(torch.autograd.Function):
     """
 
     @staticmethod
+    @custom_fwd
     def forward(ctx, x: Tensor) -> Tensor:
         x = x.detach()
         s = torch.sigmoid(x - 1.0)
@@ -434,6 +438,7 @@ class DoubleSwishFunction(torch.autograd.Function):
         return y
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, y_grad: Tensor) -> Tensor:
         s, y = ctx.saved_tensors
         return (y * (1 - s) + s) * y_grad
