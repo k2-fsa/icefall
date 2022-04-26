@@ -24,16 +24,16 @@ The generated fbank features are saved in data/fbank.
 """
 import argparse
 import logging
-import os
 from pathlib import Path
-from parso import parse
+from tqdm import tqdm
 
 import torch
-from lhotse import load_manifest_lazy, LilcomHdf5Writer
+from lhotse import load_manifest_lazy, LilcomChunkyWriter
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
     KaldifeatMelOptions,
+    KaldifeatFrameOptions,
 )
 from lhotse.manipulation import combine
 
@@ -84,16 +84,15 @@ def compute_fbank_spgispeech(args):
 
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
-    num_mel_bins = 80
 
-    dataset_parts = (
-        "train",
-        "val",
-    )
+    sampling_rate = 16000
+    num_mel_bins = 80
 
     extractor = KaldifeatFbank(
         KaldifeatFbankConfig(
-            mel_opts=KaldifeatMelOptions(num_bins=num_mel_bins), device="cuda"
+            frame_opts=KaldifeatFrameOptions(sampling_rate=sampling_rate),
+            mel_opts=KaldifeatMelOptions(num_bins=num_mel_bins),
+            device="cuda",
         )
     )
 
@@ -111,14 +110,13 @@ def compute_fbank_spgispeech(args):
         for i in range(start, stop):
             idx = f"{i + 1}".zfill(num_digits)
             logging.info(f"Processing train split {i}")
-            cs = cut_sets[i]
-            cs = cs.compute_and_store_features_batch(
+            cs = cut_sets[i].compute_and_store_features_batch(
                 extractor=extractor,
                 storage_path=output_dir / f"feats_train_{idx}",
                 manifest_path=src_dir / f"cuts_train_{idx}.jsonl.gz",
                 batch_duration=500,
                 num_workers=4,
-                storage_type=LilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
 
     if args.test:
@@ -134,7 +132,7 @@ def compute_fbank_spgispeech(args):
                 manifest_path=src_dir / f"cuts_{partition}.jsonl.gz",
                 batch_duration=500,
                 num_workers=4,
-                storage_type=LilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
 
 

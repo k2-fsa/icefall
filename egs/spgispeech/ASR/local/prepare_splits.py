@@ -54,6 +54,11 @@ def split_spgispeech_train():
     dev_cuts = train_dev_cuts.subset(first=4000)
     train_cuts = train_dev_cuts.filter(lambda c: c not in dev_cuts)
 
+    # Add speed perturbation
+    train_cuts = (
+        train_cuts + train_cuts.perturb_speed(0.9) + train_cuts.perturb_speed(1.1)
+    )
+
     # Write the manifests to disk.
     train_cuts.to_file(src_dir / "cuts_train_raw.jsonl.gz")
     dev_cuts.to_file(src_dir / "cuts_dev_raw.jsonl.gz")

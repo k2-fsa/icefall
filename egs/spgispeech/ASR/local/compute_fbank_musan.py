@@ -24,11 +24,16 @@ The generated fbank features are saved in data/fbank.
 """
 
 import logging
-import os
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig, combine
+from lhotse import LilcomChunkyWriter, CutSet, combine
+from lhotse.features.kaldifeat import (
+    KaldifeatFbank,
+    KaldifeatFbankConfig,
+    KaldifeatMelOptions,
+    KaldifeatFrameOptions,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -44,8 +49,17 @@ torch.set_num_interop_threads(1)
 def compute_fbank_musan():
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
-    num_jobs = min(15, os.cpu_count())
+
+    sampling_rate = 16000
     num_mel_bins = 80
+
+    extractor = KaldifeatFbank(
+        KaldifeatFbankConfig(
+            frame_opts=KaldifeatFrameOptions(sampling_rate=sampling_rate),
+            mel_opts=KaldifeatMelOptions(num_bins=num_mel_bins),
+            device="cuda",
+        )
+    )
 
     dataset_parts = (
         "music",
@@ -65,25 +79,22 @@ def compute_fbank_musan():
 
     logging.info("Extracting features for Musan")
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
-
-    with get_executor() as ex:  # Initialize the executor only once.
-        # create chunks of Musan with duration 5 - 10 seconds
-        musan_cuts = (
-            CutSet.from_manifests(
-                recordings=combine(part["recordings"] for part in manifests.values())
-            )
-            .cut_into_windows(10.0)
-            .filter(lambda c: c.duration > 5)
-            .compute_and_store_features(
-                extractor=extractor,
-                storage_path=f"{output_dir}/feats_musan",
-                num_jobs=num_jobs if ex is None else 80,
-                executor=ex,
-                storage_type=ChunkedLilcomHdf5Writer,
-            )
+    # create chunks of Musan with duration 5 - 10 seconds
+    musan_cuts = (
+        CutSet.from_manifests(
+            recordings=combine(part["recordings"] for part in manifests.values())
         )
-        musan_cuts.to_file(musan_cuts_path)
+        .cut_into_windows(10.0)
+        .filter(lambda c: c.duration > 5)
+        .compute_and_store_features_batch(
+            extractor=extractor,
+            storage_path=output_dir / f"feats_musan",
+            manifest_path=src_dir / f"cuts_musan.jsonl.gz",
+            batch_duration=500,
+            num_workers=4,
+            storage_type=LilcomChunkyWriter,
+        )
+    )
 
 
 if __name__ == "__main__":
