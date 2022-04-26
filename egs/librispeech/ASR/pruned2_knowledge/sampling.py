@@ -729,7 +729,7 @@ class SampleCombinedFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
     def forward(ctx, p: Tensor, K: int, input_is_log: bool) -> Tuple[Tensor, Tensor]:
-        if random.random() < 0.0005:
+        if random.random() < 0.001:
             print("dtype[1] = ", p.dtype)
         with torch.no_grad():
             weights, indexes = sample_combined_forward(p, K, input_is_log)
@@ -892,7 +892,7 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
          tensor of shape (*, D), containing weighted sums of rows of
          `knowledge_base`
         """
-        if random.random() < 0.0005:
+        if random.random() < 0.001:
             print("dtype[1] = ", weights.dtype)
         ctx.save_for_backward(weights.detach(), indexes.detach(),
                               knowledge_base.detach())
