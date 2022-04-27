@@ -198,6 +198,13 @@ class WenetSpeechAsrDataModule:
             help="lazily open CutSets to avoid OOM (for L|XL subset)",
         )
 
+        group.add_argument(
+            "--training-subset",
+            type=str,
+            default="L",
+            help="The training subset for using",
+        )
+
     def train_dataloaders(
         self,
         cuts_train: CutSet,
@@ -316,6 +323,7 @@ class WenetSpeechAsrDataModule:
 
         if sampler_state_dict is not None:
             logging.info("Loading sampler state dict")
+            print(sampler_state_dict.keys())
             train_sampler.load_state_dict(sampler_state_dict)
 
         # 'seed' is derived from the current random state, which will have
@@ -396,7 +404,6 @@ class WenetSpeechAsrDataModule:
             world_size=1,
             shuffle=False,
         )
-
         from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
 
         test_iter_dataset = IterableDatasetWrapper(
@@ -417,14 +424,12 @@ class WenetSpeechAsrDataModule:
             logging.info("use lazy cuts")
             cuts_train = CutSet.from_jsonl_lazy(
                 self.args.manifest_dir
-                / "cuts_L.jsonl.gz"
-                # use cuts_L_50_pieces.jsonl.gz for original experiments
+                / f"cuts_{self.args.training_subset}.jsonl.gz"
             )
         else:
             cuts_train = CutSet.from_file(
                 self.args.manifest_dir
-                / "cuts_L.jsonl.gz"
-                # use cuts_L_50_pieces.jsonl.gz for original experiments
+                / f"cuts_{self.args.training_subset}.jsonl.gz"
             )
         return cuts_train
 

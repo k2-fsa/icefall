@@ -251,7 +251,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=200,
+        default=8000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -277,6 +277,26 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--valid-interval",
+        type=int,
+        default=3000,
+        help="""When training_subset is L, set the valid_interval to 3000.
+        When training_subset is M, set the valid_interval to 1000.
+        When training_subset is S, set the valid_interval to 400.
+        """,
+    )
+
+    parser.add_argument(
+        "--model-warm-step",
+        type=int,
+        default=3000,
+        help="""When training_subset is L, set the model_warm_step to 3000.
+        When training_subset is M, set the model_warm_step to 500.
+        When training_subset is S, set the model_warm_step to 100.
+        """,
     )
 
     return parser
@@ -333,9 +353,8 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 1,
+            "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
@@ -348,7 +367,6 @@ def get_params() -> AttributeDict:
             # parameters for joiner
             "joiner_dim": 512,
             # parameters for Noam
-            "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
