@@ -34,7 +34,7 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import AudioSamples, OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
@@ -192,6 +192,13 @@ class LibriSpeechAsrDataModule:
             "with training dataset. ",
         )
 
+        group.add_argument(
+            "--input-strategy",
+            type=str,
+            default="PrecomputedFeatures",
+            help="AudioSamples or PrecomputedFeatures",
+        )
+
     def train_dataloaders(
         self,
         cuts_train: CutSet,
@@ -263,6 +270,9 @@ class LibriSpeechAsrDataModule:
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
+            input_strategy=AudioSamples()
+            if self.args.input_strategy == "AudioSamples"
+            else PrecomputedFeatures(),
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -371,7 +381,7 @@ class LibriSpeechAsrDataModule:
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
         sampler = BucketingSampler(
