@@ -23,6 +23,8 @@ from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
+from vq_prediction import JointCodebookLoss
+
 
 class Transducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
@@ -38,6 +40,7 @@ class Transducer(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
+        num_codebooks: int,
     ):
         """
         Args:
@@ -67,6 +70,11 @@ class Transducer(nn.Module):
             encoder_dim, vocab_size, initial_speed=0.5
         )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+        # Two consecutive output frames of hubert are concatenated together.
+        # Detailed in following `forward` function.
+        self.codebook_loss_net = JointCodebookLoss(
+            predictor_channels=encoder_dim, num_codebooks=num_codebooks * 2
+        )
 
     def forward(
         self,
@@ -77,6 +85,7 @@ class Transducer(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         warmup: float = 1.0,
+        codebook_indices: torch.Tensor = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -100,6 +109,8 @@ class Transducer(nn.Module):
           warmup:
             A value warmup >= 0 that determines which modules are active, values
             warmup > 1 "are fully warmed up" and all modules will be active.
+          codebook_indices:
+            codebook_indices from a teacher model.
         Returns:
           Return the transducer loss.
 
@@ -115,7 +126,45 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens, middle_layer_output = self.encoder(
+            x, x_lens, warmup=warmup
+        )
+
+        if self.training:
+            # Do distillation.
+            assert codebook_indices is not None
+            assert hasattr(self, "codebook_loss_net")
+
+            # Output rate of hubert is 50 frames per second,
+            # while that of current encoder is 25.
+            # Following code handling two issues:
+            # 1.
+            #   Roughly speaking, to generate another frame output,
+            #   hubert needes extra two frames,
+            #   while current encoder needs extra four frames.
+            #   Suppose there are only extra three frames provided,
+            #   hubert will generate another frame while current encoder does nothing.
+            # 2.
+            #   codebook loss is a frame-wise loss, to enalbe 25 frames studnet output
+            #   learns from 50 frames teacher output, two successive frames of teacher model
+            #   output is concatenated together.
+            t_expected = middle_layer_output.shape[1]
+            N, T, C = codebook_indices.shape
+
+            # Handling issue 1.
+            if T >= t_expected * 2:
+                codebook_indices = codebook_indices[:, : t_expected * 2, :]
+            # Handling issue 2.
+            codebook_indices = codebook_indices.reshape(N, t_expected, C * 2)
+
+            assert middle_layer_output.shape[1] == codebook_indices.shape[1]
+            codebook_loss = self.codebook_loss_net(
+                middle_layer_output, codebook_indices
+            )
+        else:
+            # when codebook index is not available.
+            codebook_loss = None
+
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -190,4 +239,4 @@ class Transducer(nn.Module):
                 reduction="sum",
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, codebook_loss)
