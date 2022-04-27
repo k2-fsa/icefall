@@ -142,7 +142,7 @@ class Conformer(EncoderInterface):
 
         if len(self.output_layers) > 1:
             assert len(self.output_layers) == len(layers_result)
-            return x, lengths, layers_result[0]
+            return x, lengths, layers_result[0].permute(1, 0, 2)
         return x, lengths
 
 
