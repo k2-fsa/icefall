@@ -18,36 +18,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless2/decode.py \
+./vq_pruned_transducer_stateless2/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./vq_pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./pruned_transducer_stateless2/decode.py \
+./vq_pruned_transducer_stateless2/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./vq_pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless2/decode.py \
+./vq_pruned_transducer_stateless2/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./vq_pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless2/decode.py \
+./vq_pruned_transducer_stateless2/decode.py \
         --epoch 28 \
         --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+        --exp-dir ./vq_pruned_transducer_stateless2/exp \
         --max-duration 1500 \
         --decoding-method fast_beam_search \
         --beam 4 \
@@ -124,7 +124,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="vq_pruned_transducer_stateless2/exp",
         help="The experiment dir",
     )
 
