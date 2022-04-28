@@ -13,6 +13,13 @@ bytes_per_frame=8
 enable_refine=True
 
 if [ $stage -eq -1 ]; then
+  # Preparation state.
+
+  # Install fairseq according to:
+  # https://github.com/pytorch/fairseq
+  # when testing this code:
+  # commit 806855bf660ea748ed7ffb42fe8dcc881ca3aca0 is used
+
   echo "Download hubert model."
   mkdir -p ${hubert_model_dir}
   # For more models refer to: https://github.com/pytorch/fairseq/tree/main/examples/hubert
