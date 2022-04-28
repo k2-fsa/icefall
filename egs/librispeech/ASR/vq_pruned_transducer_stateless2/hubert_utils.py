@@ -62,8 +62,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--job-idx",
+        "--manifest-idx",
         type=int,
+        help="Split manifest is 1-based."
     )
 
     parser.add_argument(
