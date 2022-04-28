@@ -26,7 +26,7 @@ class Joiner(nn.Module):
         self.output_linear = nn.Linear(input_dim, output_dim)
 
     def forward(
-        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
+        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor, *unused
     ) -> torch.Tensor:
         """
         Args:
@@ -51,5 +51,7 @@ class Joiner(nn.Module):
         logit = F.relu(logit)
 
         output = self.output_linear(logit)
+        if not self.training:
+            output = output.squeeze(2).squeeze(1)
 
         return output

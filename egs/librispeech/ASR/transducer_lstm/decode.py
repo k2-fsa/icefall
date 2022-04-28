@@ -24,15 +24,24 @@ Usage:
         --exp-dir ./transducer_lstm/exp \
         --max-duration 100 \
         --decoding-method greedy_search
-(2) beam search
 
+(2) beam search
 ./transducer_lstm/decode.py \
         --epoch 14 \
         --avg 7 \
         --exp-dir ./transducer_lstm/exp \
         --max-duration 100 \
         --decoding-method beam_search \
-        --beam-size 8
+        --beam-size 4
+
+(3) modified beam search
+./transducer_lstm/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_lstm/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
 """
 
 
@@ -71,14 +80,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=77,
+        default=29,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=55,
+        default=13,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -112,8 +121,9 @@ def get_parser():
     parser.add_argument(
         "--beam-size",
         type=int,
-        default=5,
-        help="Used only when --decoding-method is beam_search",
+        default=4,
+        help="""Used only when --decoding-method is
+        beam_search or modified_beam_search""",
     )
 
     parser.add_argument(
@@ -123,7 +133,6 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
-
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -348,12 +357,19 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search", "beam_search")
+    assert params.decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if params.decoding_method == "beam_search":
+    if "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
+    else:
+        params.suffix += f"-context-{params.context_size}"
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -422,9 +438,6 @@ def main():
 
     logging.info("Done!")
 
-
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
