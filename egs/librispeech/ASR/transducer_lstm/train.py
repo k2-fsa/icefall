@@ -506,7 +506,6 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    warmup: float = 1.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -523,8 +522,6 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
-     warmup: a floating point value which increases throughout training;
-        values >= 1.0 are fully warmed up and have all modules present.
     """
     device = model.device
     feature = batch["inputs"]
@@ -547,21 +544,9 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            warmup=warmup,
         )
-        # after the main warmup step, we keep pruned_loss_scale small
-        # for the same amount of time (model_warm_step), to avoid
-        # overwhelming the simple_loss and causing it to diverge,
-        # in case it had not fully learned the alignment yet.
-        pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
-        )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+
+        loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -677,7 +662,6 @@ def train_one_epoch(
                 sp=sp,
                 batch=batch,
                 is_training=True,
-                warmup=(params.batch_idx_train / params.model_warm_step),
             )
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -949,9 +933,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
@@ -959,7 +940,6 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
                 )
             loss.backward()
             optimizer.step()
