@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-#
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2022  Xiaomi Corp.        (authors: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,33 +14,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
 """
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer_lstm/test_encoder.py
+    python ./pruned_transducer_stateless4/test_model.py
 """
 
-from encoder import LstmEncoder
+from train import get_params, get_transducer_model
 
 
-def test_encoder():
-    encoder = LstmEncoder(
-        num_features=80,
-        hidden_size=1024,
-        proj_size=512,
-        output_dim=512,
-        subsampling_factor=4,
-        num_encoder_layers=12,
-    )
-    num_params = sum(p.numel() for p in encoder.parameters() if p.requires_grad)
-    print(num_params)
-    # 93979284
-    # 66427392
+def test_model():
+    params = get_params()
+    params.vocab_size = 500
+    params.blank_id = 0
+    params.context_size = 2
+    model = get_transducer_model(params)
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
 
 
 def main():
-    test_encoder()
+    test_model()
 
 
 if __name__ == "__main__":

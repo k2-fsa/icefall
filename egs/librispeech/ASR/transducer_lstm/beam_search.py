@@ -1,1 +1,1 @@
-../transducer_stateless/beam_search.py
+../pruned_transducer_stateless2/beam_search.py
