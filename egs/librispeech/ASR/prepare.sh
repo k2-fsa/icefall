@@ -118,6 +118,24 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     ./local/compute_fbank_librispeech.py
     touch data/fbank/.librispeech.done
   fi
+
+  if [ ! -e data/fbank/.librispeech-validated.done ]; then
+    log "Validating data/fbank for LibriSpeech"
+    parts=(
+      train-clean-100
+      train-clean-360
+      train-other-500
+      test-clean
+      test-other
+      dev-clean
+      dev-other
+    )
+    for part in ${parts[@]}; do
+      python3 ./local/validate_manifest.py \
+        data/fbank/cuts_${part}.json.gz
+    done
+    touch data/fbank/.librispeech-validated.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
