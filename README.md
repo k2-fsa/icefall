@@ -35,7 +35,7 @@ We do provide a Colab notebook for this recipe.
 
 ### LibriSpeech
 
-Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/README.md>
+Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
 for the **latest** results.
 
 We provide 4 models for this recipe:

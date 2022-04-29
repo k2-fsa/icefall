@@ -8,9 +8,11 @@ Same as `Pruned Transducer 2` but using the XL subset from
 
 During training, it selects either a batch from GigaSpeech with prob `giga_prob`
 or a batch from LibriSpeech with prob `1 - giga_prob`. All utterances within
-a batch comes from the same dataset.
+a batch come from the same dataset.
 
-See <https://github.com/k2-fsa/icefall/pull/312>
+Using commit `ac84220de91dee10c00e8f4223287f937b1930b6`.
+
+See <https://github.com/k2-fsa/icefall/pull/312>.
 
 The WERs are:
 
@@ -47,13 +49,13 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 The tensorboard log can be found at
 <https://tensorboard.dev/experiment/gaD34WeYSMCOkzoo3dZXGg/>
-(Note: The training process is killed manually at `epoch-28.pt`.)
+(Note: The training process is killed manually after saving `epoch-28.pt`.)
 
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-04-29>
 
-Decoding commands are:
+The decoding commands are:
 
 ```bash
 
