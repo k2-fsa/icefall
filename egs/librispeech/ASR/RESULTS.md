@@ -127,6 +127,29 @@ The Nbest oracle WER is computed using the following steps:
   - 5. The path with the lowest edit distance is the final output and is used to
        compute the WER
 
+The command to compute the Nbest oracle WER is:
+
+```bash
+for epoch in 27; do
+  for avg in 10 ; do
+    for num_paths in 50 100 200 400; do
+      for nbest_scale in 0.5 0.8 1.0; do
+        ./pruned_transducer_stateless3/decode.py \
+            --epoch $epoch \
+            --avg $avg \
+            --exp-dir ./pruned_transducer_stateless3/exp \
+            --max-duration 600 \
+            --decoding-method fast_beam_search_nbest_oracle \
+            --num-paths $num_paths \
+            --max-states 32 \
+            --beam 8 \
+            --nbest-scale $nbest_scale
+      done
+    done
+  done
+done
+```
+
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
 [pruned_transducer_stateless2](./pruned_transducer_stateless2)
