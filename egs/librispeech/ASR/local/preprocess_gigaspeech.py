@@ -94,7 +94,8 @@ def preprocess_giga_speech():
         #  if partition not in ["DEV", "TEST"]:
         #      logging.info(
         #          f"Speed perturb for {partition} with factors 0.9 and 1.1 "
-        #          "(Perturbing may take 8 minutes and saving may take 20 minutes)"
+        #          "(Perturbing may take 8 minutes and saving may"
+        #          " take 20 minutes)"
         #      )
         #      cut_set = (
         #          cut_set
