@@ -1,4 +1,9 @@
-# Introduction Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html> for how to run models in this recipe.
+# Introduction
+
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html> for how to run models in this recipe.
+
+[./RESULTS.md](./RESULTS.md) contains the latest results.
+
 # Transducers
 
 There are various folders containing the name `transducer` in this folder.

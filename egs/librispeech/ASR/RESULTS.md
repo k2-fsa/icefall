@@ -10,7 +10,9 @@ During training, it selects either a batch from GigaSpeech with prob `giga_prob`
 or a batch from LibriSpeech with prob `1 - giga_prob`. All utterances within
 a batch comes from the same dataset.
 
-See <https://github.com/k2-fsa/icefall/pull/312>
+Using commit `ac84220de91dee10c00e8f4223287f937b1930b6`.
+
+See <https://github.com/k2-fsa/icefall/pull/312>.
 
 The WERs are:
 
