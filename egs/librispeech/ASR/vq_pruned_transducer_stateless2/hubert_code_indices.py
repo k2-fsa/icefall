@@ -92,9 +92,7 @@ def compute_codeindices(
 
         # [N, T, C]
         codebook_indices = codebook_indices.to("cpu").numpy()
-        assert np.all(
-            codebook_indices[np.where(codebook_indices < 0)] == -100
-        )
+        assert np.min(codebook_indices) >= 0
         assert np.max(codebook_indices) < 256
 
         supervisions = batch["supervisions"]
