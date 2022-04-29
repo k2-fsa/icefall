@@ -31,17 +31,16 @@ from fairseq.models.hubert.hubert import HubertModel
 from omegaconf import OmegaConf
 
 vq_config = {
+    # TODO: Maybe better to convert this class to yaml driven config.
     # parameters about hubert model inference.
     "model_dir": "./vq_pruned_transducer_stateless2/exp/hubert_models/",
-    "model_id": "hubert_xtralarge_ll60k_finetune_ls960",
     "input_strategy": "AudioSamples",
     "enable_spec_aug": False,
     "enable_musan": False,
     "total_layers": 48,
     "memory_embedding_dim": 1280,
     # parameters about quantizer.
-    "num_utts": 100,
-    "memory_layer": 36,
+    "num_utts": 1000,
     "memory_dir": "./vq_pruned_transducer_stateless2/exp/mem/",
     "bytes_per_frame": 8,
     "refine_iter": 5,
@@ -62,9 +61,19 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--manifest-idx",
+        "--model-id",
+        type=str,
+        default="hubert_xtralarge_ll60k_finetune_ls960",
+    )
+
+    parser.add_argument(
+        "--manifest-idx", type=int, help="Split manifest is 1-based."
+    )
+
+    parser.add_argument(
+        "--memory-layer",
         type=int,
-        help="Split manifest is 1-based."
+        help="layer to extract teacher embeddings, 1-based.",
     )
 
     parser.add_argument(
