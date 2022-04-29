@@ -1,5 +1,105 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Transducer 3)
+
+[pruned_transducer_stateless3](./pruned_transducer_stateless3)
+Same as `Pruned Transducer 2` but using the XL subset from
+[GigaSpeech](https://github.com/SpeechColab/GigaSpeech) as extra training data.
+
+During training, it selects either a batch from GigaSpeech with prob `giga_prob`
+or a batch from LibriSpeech with prob `1 - giga_prob`. All utterances within
+a batch comes from the same dataset.
+
+See <https://github.com/k2-fsa/icefall/pull/312>
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|----------------------------------------|
+| greedy search (max sym per frame 1) | 2.21       | 5.09       | --epoch 27 --avg 2  --max-duration 600 |
+| greedy search (max sym per frame 1) | 2.25       | 5.02       | --epoch 27 --avg 12 --max-duration 600 |
+| modified beam search                | 2.19       | 5.03       | --epoch 25 --avg 6  --max-duration 600 |
+| modified beam search                | 2.23       | 4.94       | --epoch 27 --avg 10 --max-duration 600 |
+| beam search                         | 2.16       | 4.95       | --epoch 25 --avg 7  --max-duration 600 |
+| fast beam search                    | 2.21       | 4.96       | --epoch 27 --avg 10 --max-duration 600 |
+| fast beam search                    | 2.19       | 4.97       | --epoch 27 --avg 12 --max-duration 600 |
+
+The training commands are:
+
+```bash
+./prepare.sh
+./prepare_giga_speech.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless3/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless3/exp \
+  --max-duration 300 \
+  --use-fp16 1 \
+  --lr-epochs 4 \
+  --num-workers 2 \
+  --giga-prob 0.8
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/gaD34WeYSMCOkzoo3dZXGg/>
+(Note: The training process is killed manually at `epoch-28.pt`.)
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-04-29>
+
+Decoding commands are:
+
+```bash
+
+# greedy search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 27 \
+    --avg 2 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame 1
+
+# modified beam search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 25 \
+    --avg 6 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --max-sym-per-frame 1
+
+# beam search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 25 \
+    --avg 7 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --max-sym-per-frame 1
+
+# fast beam search
+
+for epoch in 27; do
+  for avg in 10 12; do
+    ./pruned_transducer_stateless3/decode.py \
+        --epoch $epoch \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp \
+        --max-duration 600 \
+        --decoding-method fast_beam_search \
+        --max-states 32 \
+        --beam 8
+  done
+done
+```
+
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
 [pruned_transducer_stateless2](./pruned_transducer_stateless2)

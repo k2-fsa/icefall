@@ -968,7 +968,6 @@ def run(rank, world_size, args):
         train_giga_cuts = gigaspeech.train_S_cuts()
 
     train_giga_cuts = filter_short_and_long_utterances(train_giga_cuts)
-    train_giga_cuts = train_giga_cuts.repeat(times=None)
 
     if args.enable_musan:
         cuts_musan = load_manifest(

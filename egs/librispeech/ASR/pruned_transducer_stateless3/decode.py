@@ -511,6 +511,10 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+        params.suffix += f"-beam-{params.beam}"
+        params.suffix += f"-max-contexts-{params.max_contexts}"
+        params.suffix += f"-max-states-{params.max_states}"
         params.suffix += f"-num-paths-{params.num_paths}"
         params.suffix += f"-nbest-scale-{params.nbest_scale}"
     elif "beam_search" in params.decoding_method:
