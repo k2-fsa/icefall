@@ -183,6 +183,10 @@ and:
 The Tensorboard log is at <https://tensorboard.dev/experiment/Xoz0oABMTWewo1slNFXkyA> (apologies, log starts
 only from epoch 3).
 
+The pretrained models, training logs, decoding logs, and decoding results
+can be found at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless2-2022-04-29>
+
 
 #### Training on train-clean-100:
 

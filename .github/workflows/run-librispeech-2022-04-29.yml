@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-librispeech-2022-03-12
+name: run-librispeech-2022-04-29
 # stateless pruned transducer (reworked model) + giga speech
 
 on:
@@ -79,4 +79,7 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+
+          .github/scripts/run-librispeech-pruned-transducer-stateless2-2022-04-29.sh
+
           .github/scripts/run-librispeech-pruned-transducer-stateless3-2022-04-29.sh
