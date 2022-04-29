@@ -85,7 +85,6 @@ Decoding commands are:
     --max-sym-per-frame 1
 
 # fast beam search
-
 for epoch in 27; do
   for avg in 10 12; do
     ./pruned_transducer_stateless3/decode.py \
@@ -99,6 +98,34 @@ for epoch in 27; do
   done
 done
 ```
+
+The following table shows the
+[Nbest oracle WER](http://kaldi-asr.org/doc/lattices.html#lattices_operations_oracle)
+for fast beam search.
+| epoch | avg | num_paths | nbest_scale | test-clean | test-other |
+|-------|-----|-----------|-------------|------------|------------|
+|  27   | 10  |   50      | 0.5         |  0.91      |  2.74      |
+|  27   | 10  |   50      | 0.8         |  0.94      |  2.82      |
+|  27   | 10  |   50      | 1.0         |  1.06      |  2.88      |
+|  27   | 10  |   100     | 0.5         |  0.82      |  2.58      |
+|  27   | 10  |   100     | 0.8         |  0.92      |  2.65      |
+|  27   | 10  |   100     | 1.0         |  0.95      |  2.77      |
+|  27   | 10  |   200     | 0.5         |  0.81      |  2.50      |
+|  27   | 10  |   200     | 0.8         |  0.85      |  2.56      |
+|  27   | 10  |   200     | 1.0         |  0.91      |  2.64      |
+|  27   | 10  |   400     | 0.5         |  N/A       |  N/A       |
+|  27   | 10  |   400     | 0.8         |  0.81      |  2.49      |
+|  27   | 10  |   400     | 1.0         |  0.85      |  2.54      |
+
+The Nbest oracle WER is computed using the following steps:
+
+  - 1. Use `fast_beam_search` to produce a lattice.
+  - 2. Extract `N` paths from the lattice using [k2.random_path](https://k2-fsa.github.io/k2/python_api/api.html#random-paths)
+  - 3. [Unique](https://k2-fsa.github.io/k2/python_api/api.html#unique) paths so that each path
+       has a distinct sequence of tokens
+  - 4. Compute the edit distance of each path with the ground truth
+  - 5. The path with the lowest edit distance is the final output and is used to
+       compute the WER
 
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
