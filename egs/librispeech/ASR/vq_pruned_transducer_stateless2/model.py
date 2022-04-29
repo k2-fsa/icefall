@@ -133,6 +133,10 @@ class Transducer(nn.Module):
         if self.training:
             # Do distillation.
             assert codebook_indices is not None
+            assert torch.all(
+                codebook_indices[torch.where(codebook_indices < 0)] == -100
+            )
+            assert torch.max(codebook_indices) < 256
             assert hasattr(self, "codebook_loss_net")
 
             # Output rate of hubert is 50 frames per second,
