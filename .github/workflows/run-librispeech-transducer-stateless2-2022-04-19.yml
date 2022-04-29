@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-librispeech-2022-03-12
-# stateless transducer + k2 pruned rnnt-loss
+name: run-librispeech-2022-04-19
+# stateless transducer + torchaudio rnn-t loss
 
 on:
   push:
@@ -25,7 +25,7 @@ on:
     types: [labeled]
 
 jobs:
-  run_librispeech_2022_03_12:
+  run_librispeech_2022_04_19:
     if: github.event.label.name == 'ready' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -79,4 +79,4 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          .github/scripts/run-librispeech-pruned-transducer-stateless-2022-03-12.sh
+          .github/scripts/run-librispeech-transducer-stateless2-2022-04-19.sh

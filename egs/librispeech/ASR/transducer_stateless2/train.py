@@ -21,11 +21,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./transducer_stateless/train.py \
+./transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer_stateless/exp \
+  --exp-dir transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 250 \
   --lr-factor 2.5
@@ -104,14 +104,14 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless/exp/epoch-{start_epoch-1}.pt
+        transducer_stateless2/exp/epoch-{start_epoch-1}.pt
         """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_stateless/exp",
+        default="transducer_stateless2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -138,17 +138,6 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
-    )
-
-    parser.add_argument(
-        "--modified-transducer-prob",
-        type=float,
-        default=0.25,
-        help="""The probability to use modified transducer loss.
-        In modified transduer, it limits the maximum number of symbols
-        per frame to 1. See also the option --max-sym-per-frame in
-        transducer_stateless/decode.py
-        """,
     )
 
     parser.add_argument(
@@ -414,7 +403,6 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
-            modified_transducer_prob=params.modified_transducer_prob,
         )
 
     assert loss.requires_grad == is_training

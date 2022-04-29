@@ -134,7 +134,7 @@ This is with a reworked version of the conformer encoder, with many changes.
 
 #### Training on fulll librispeech
 
-using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
+Using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
 See <https://github.com/k2-fsa/icefall/pull/288>
 
 The WERs are:
@@ -475,6 +475,78 @@ sym=1
 
 You can find a pretrained model by visiting
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-multi-datasets-bpe-500-2022-03-01>
+
+
+##### 2022-04-19
+
+[transducer_stateless2](./transducer_stateless2)
+
+This version uses torchaudio's RNN-T loss.
+
+Using commit `fce7f3cd9a486405ee008bcbe4999264f27774a3`.
+See <https://github.com/k2-fsa/icefall/pull/316>
+
+|                                     | test-clean | test-other | comment                                                                        |
+|-------------------------------------|------------|------------|--------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 2.65       | 6.30       | --epoch 59 --avg 10  --max-duration 600                                        |
+| greedy search (max sym per frame 2) | 2.62       | 6.23       | --epoch 59 --avg 10  --max-duration 100                                        |
+| greedy search (max sym per frame 3) | 2.62       | 6.23       | --epoch 59 --avg 10  --max-duration 100                                        |
+| modified beam search                | 2.63       | 6.15       | --epoch 59 --avg 10  --max-duration 100 --decoding-method modified_beam_search |
+| beam search                         | 2.59       | 6.15       | --epoch 59 --avg 10  --max-duration 100 --decoding-method beam_search          |
+
+**Note**: This model is trained with standard RNN-T loss. Neither modified transducer nor pruned RNN-T is used.
+You can see that there is a performance degradation in WER when we limit the max symbol per frame to 1.
+
+The number of active paths in `modified_beam_search` and `beam_search` is 4.
+
+The training and decoding commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless2/exp-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5
+
+epoch=59
+avg=10
+# greedy search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 600 \
+  --decoding-method greedy_search \
+  --max-sym-per-frame 1
+
+# modified beam search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 100 \
+  --decoding-method modified_beam_search \
+
+# beam search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 100 \
+  --decoding-method beam_search \
+```
+
+The tensorboard log is at <https://tensorboard.dev/experiment/oAlle3dxQD2EY8ePwjIGuw/>.
+
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless2-torchaudio-2022-04-19>
+
 
 
 ##### 2022-02-07
