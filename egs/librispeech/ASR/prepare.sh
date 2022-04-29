@@ -242,3 +242,14 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
     ./local/compile_hlg.py --lang-dir $lang_dir
   done
 fi
+
+# Compile LG for RNN-T fast_beam_search decoding
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Compile LG"
+  ./local/compile_lg.py --lang-dir data/lang_phone
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    ./local/compile_lg.py --lang-dir $lang_dir
+  done
+fi

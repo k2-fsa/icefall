@@ -1,4 +1,5 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
+#                                                  Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,7 +22,7 @@ import k2
 import torch
 from model import Transducer
 
-from icefall.decode import one_best_decoding
+from icefall.decode import Nbest, one_best_decoding
 from icefall.utils import get_texts
 
 
@@ -33,6 +34,7 @@ def fast_beam_search(
     beam: float,
     max_states: int,
     max_contexts: int,
+    use_max: bool = False,
 ) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -52,6 +54,9 @@ def fast_beam_search(
         Max states per stream per frame.
       max_contexts:
         Max contexts pre stream per frame.
+      use_max:
+        True to use max operation to select the hypothesis with the largest
+        log_prob when there are duplicate hypotheses; False to use log-add.
     Returns:
       Return the decoded result.
     """
@@ -86,7 +91,12 @@ def fast_beam_search(
         # (shape.NumElements(), 1, encoder_out_dim)
         # fmt: off
         current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1)
+            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1).long()
+            # in some old versions of pytorch, the type of index requires
+            # to be LongTensor. In the newest version of pytorch, the type
+            # of index can be IntTensor or LongTensor. For supporting the
+            # old and new versions of pytorch, we set the type of index
+            # to LongTensor.
         )
         # fmt: on
         logits = model.joiner(
@@ -98,9 +108,67 @@ def fast_beam_search(
     decoding_streams.terminate_and_flush_to_streams()
     lattice = decoding_streams.format_output(encoder_out_lens.tolist())
 
-    best_path = one_best_decoding(lattice)
-    hyps = get_texts(best_path)
-    return hyps
+    if use_max:
+        best_path = one_best_decoding(lattice)
+        hyps = get_texts(best_path)
+        return hyps
+    else:
+        num_paths = 200
+        use_double_scores = True
+        nbest_scale = 0.8
+
+        nbest = Nbest.from_lattice(
+            lattice=lattice,
+            num_paths=num_paths,
+            use_double_scores=use_double_scores,
+            nbest_scale=nbest_scale,
+        )
+        # The following code is modified from nbest.intersect()
+        word_fsa = k2.invert(nbest.fsa)
+        if hasattr(lattice, "aux_labels"):
+            # delete token IDs as it is not needed
+            del word_fsa.aux_labels
+        word_fsa.scores.zero_()
+
+        word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
+        path_to_utt_map = nbest.shape.row_ids(1)
+
+        if hasattr(lattice, "aux_labels"):
+            # lattice has token IDs as labels and word IDs as aux_labels.
+            # inv_lattice has word IDs as labels and token IDs as aux_labels
+            inv_lattice = k2.invert(lattice)
+            inv_lattice = k2.arc_sort(inv_lattice)
+        else:
+            inv_lattice = k2.arc_sort(lattice)
+
+        if inv_lattice.shape[0] == 1:
+            path_lattice = k2.intersect_device(
+                inv_lattice,
+                word_fsa_with_epsilon_loops,
+                b_to_a_map=torch.zeros_like(path_to_utt_map),
+                sorted_match_a=True,
+            )
+        else:
+            path_lattice = k2.intersect_device(
+                inv_lattice,
+                word_fsa_with_epsilon_loops,
+                b_to_a_map=path_to_utt_map,
+                sorted_match_a=True,
+            )
+
+        # path_lattice has word IDs as labels and token IDs as aux_labels
+        path_lattice = k2.top_sort(k2.connect(path_lattice))
+
+        tot_scores = path_lattice.get_tot_scores(
+            use_double_scores=use_double_scores, log_semiring=True
+        )
+
+        ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+        best_hyp_indexes = ragged_tot_scores.argmax()
+
+        best_path = k2.index_fsa(nbest.fsa, best_hyp_indexes)
+        hyps = get_texts(best_path)
+        return hyps
 
 
 def greedy_search(
@@ -124,6 +192,7 @@ def greedy_search(
     assert encoder_out.size(0) == 1, encoder_out.size(0)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -160,7 +229,7 @@ def greedy_search(
         # logits is (1, 1, 1, vocab_size)
 
         y = logits.argmax().item()
-        if y != blank_id:
+        if y != blank_id and y != unk_id:
             hyp.append(y)
             decoder_input = torch.tensor(
                 [hyp[-context_size:]], device=device
@@ -200,6 +269,7 @@ def greedy_search_batch(
     T = encoder_out.size(1)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     hyps = [[blank_id] * context_size for _ in range(batch_size)]
@@ -223,7 +293,7 @@ def greedy_search_batch(
         y = logits.argmax(dim=1).tolist()
         emitted = False
         for i, v in enumerate(y):
-            if v != blank_id:
+            if v != blank_id and v != unk_id:
                 hyps[i].append(v)
                 emitted = True
         if emitted:
@@ -272,7 +342,7 @@ class HypothesisList(object):
     def data(self) -> Dict[str, Hypothesis]:
         return self._data
 
-    def add(self, hyp: Hypothesis) -> None:
+    def add(self, hyp: Hypothesis, use_max: bool = False) -> None:
         """Add a Hypothesis to `self`.
 
         If `hyp` already exists in `self`, its probability is updated using
@@ -281,13 +351,20 @@ class HypothesisList(object):
         Args:
           hyp:
             The hypothesis to be added.
+          use_max:
+            True to select the hypothesis with the larger log_prob in case there
+            already exists a hypothesis whose `ys` equals to `hyp.ys`.
+            False to use log_add.
         """
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
+            if use_max:
+                old_hyp.log_prob = max(old_hyp.log_prob, hyp.log_prob)
+            else:
+                torch.logaddexp(
+                    old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
+                )
         else:
             self._data[key] = hyp
 
@@ -395,6 +472,7 @@ def modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     beam: int = 4,
+    use_max: bool = False,
 ) -> List[List[int]]:
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
 
@@ -405,6 +483,9 @@ def modified_beam_search(
         Output from the encoder. Its shape is (N, T, C).
       beam:
         Number of active paths during the beam search.
+      use_max:
+        True to use max operation to select the hypothesis with the largest
+        log_prob when there are duplicate hypotheses; False to use log-add.
     Returns:
       Return a list-of-list of token IDs. ans[i] is the decoding results
       for the i-th utterance.
@@ -415,6 +496,7 @@ def modified_beam_search(
     T = encoder_out.size(1)
 
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
     device = model.device
     B = [HypothesisList() for _ in range(batch_size)]
@@ -423,7 +505,8 @@ def modified_beam_search(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-            )
+            ),
+            use_max=use_max,
         )
 
     for t in range(T):
@@ -491,7 +574,7 @@ def modified_beam_search(
 
                 new_ys = hyp.ys[:]
                 new_token = topk_token_indexes[k]
-                if new_token != blank_id:
+                if new_token != blank_id and new_token != unk_id:
                     new_ys.append(new_token)
 
                 new_log_prob = topk_log_probs[k]
@@ -508,6 +591,7 @@ def _deprecated_modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     beam: int = 4,
+    use_max: bool = False,
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -523,6 +607,9 @@ def _deprecated_modified_beam_search(
         A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
       beam:
         Beam size.
+      use_max:
+        True to use max operation to select the hypothesis with the largest
+        log_prob when there are duplicate hypotheses; False to use log-add.
     Returns:
       Return the decoded result.
     """
@@ -532,6 +619,7 @@ def _deprecated_modified_beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -543,12 +631,13 @@ def _deprecated_modified_beam_search(
         Hypothesis(
             ys=[blank_id] * context_size,
             log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-        )
+        ),
+        use_max=use_max,
     )
 
     for t in range(T):
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
+        current_encoder_out = encoder_out[:, t:t + 1, :].unsqueeze(2)
         # current_encoder_out is of shape (1, 1, 1, encoder_out_dim)
         # fmt: on
         A = list(B)
@@ -597,11 +686,11 @@ def _deprecated_modified_beam_search(
             hyp = A[topk_hyp_indexes[i]]
             new_ys = hyp.ys[:]
             new_token = topk_token_indexes[i]
-            if new_token != blank_id:
+            if new_token != blank_id and new_token != unk_id:
                 new_ys.append(new_token)
             new_log_prob = topk_log_probs[i]
             new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
-            B.add(new_hyp)
+            B.add(new_hyp, use_max=use_max)
 
     best_hyp = B.get_most_probable(length_norm=True)
     ys = best_hyp.ys[context_size:]  # [context_size:] to remove blanks
@@ -613,6 +702,7 @@ def beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     beam: int = 4,
+    use_max: bool = False,
 ) -> List[int]:
     """
     It implements Algorithm 1 in https://arxiv.org/pdf/1211.3711.pdf
@@ -626,6 +716,9 @@ def beam_search(
         A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
       beam:
         Beam size.
+      use_max:
+        True to use max operation to select the hypothesis with the largest
+        log_prob when there are duplicate hypotheses; False to use log-add.
     Returns:
       Return the decoded result.
     """
@@ -634,6 +727,7 @@ def beam_search(
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
+    unk_id = model.decoder.unk_id
     context_size = model.decoder.context_size
 
     device = model.device
@@ -650,7 +744,9 @@ def beam_search(
     t = 0
 
     B = HypothesisList()
-    B.add(Hypothesis(ys=[blank_id] * context_size, log_prob=0.0))
+    B.add(
+        Hypothesis(ys=[blank_id] * context_size, log_prob=0.0), use_max=use_max
+    )
 
     max_sym_per_utt = 20000
 
@@ -709,16 +805,22 @@ def beam_search(
             new_y_star_log_prob = y_star.log_prob + skip_log_prob
 
             # ys[:] returns a copy of ys
-            B.add(Hypothesis(ys=y_star.ys[:], log_prob=new_y_star_log_prob))
+            B.add(
+                Hypothesis(ys=y_star.ys[:], log_prob=new_y_star_log_prob),
+                use_max=use_max,
+            )
 
             # Second, process other non-blank labels
             values, indices = log_prob.topk(beam + 1)
             for i, v in zip(indices.tolist(), values.tolist()):
-                if i == blank_id:
+                if i == blank_id or i == unk_id:
                     continue
                 new_ys = y_star.ys + [i]
                 new_log_prob = y_star.log_prob + v
-                A.add(Hypothesis(ys=new_ys, log_prob=new_log_prob))
+                A.add(
+                    Hypothesis(ys=new_ys, log_prob=new_log_prob),
+                    use_max=use_max,
+                )
 
             # Check whether B contains more than "beam" elements more probable
             # than the most probable in A
