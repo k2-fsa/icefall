@@ -95,7 +95,7 @@ class Conformer(EncoderInterface):
                 extra_output_layer >= 0
                 and extra_output_layer < num_encoder_layers - 1
             )
-            self.output_layers.insert(extra_output_layer, 0)
+            self.output_layers.insert(0, extra_output_layer)
         self.encoder = ConformerEncoder(
             encoder_layer, num_encoder_layers, output_layers=self.output_layers
         )
