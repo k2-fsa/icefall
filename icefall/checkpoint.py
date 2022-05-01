@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn as nn
 from lhotse.dataset.sampling.base import CutSampler
+from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
@@ -37,6 +38,7 @@ LRSchedulerType = object
 def save_checkpoint(
     filename: Path,
     model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -51,6 +53,8 @@ def save_checkpoint(
         The checkpoint filename.
       model:
         The model to be saved. We only save its `state_dict()`.
+      model_avg:
+        The stored model averaged from the start of training.
       params:
         User defined parameters, e.g., epoch, loss.
       optimizer:
@@ -80,6 +84,9 @@ def save_checkpoint(
         "sampler": sampler.state_dict() if sampler is not None else None,
     }
 
+    if model_avg is not None:
+        checkpoint["model_avg"] = model_avg.state_dict()
+
     if params:
         for k, v in params.items():
             assert k not in checkpoint
@@ -91,6 +98,7 @@ def save_checkpoint(
 def load_checkpoint(
     filename: Path,
     model: nn.Module,
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
@@ -117,6 +125,10 @@ def load_checkpoint(
         model.load_state_dict(checkpoint["model"], strict=strict)
 
     checkpoint.pop("model")
+
+    if model_avg is not None and "model_avg" in checkpoint:
+        model_avg.load_state_dict(checkpoint["model_avg"], strict=strict)
+        checkpoint.pop("model_avg")
 
     def load(name, obj):
         s = checkpoint.get(name, None)
@@ -181,6 +193,7 @@ def save_checkpoint_with_global_batch_idx(
     out_dir: Path,
     global_batch_idx: int,
     model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -201,6 +214,8 @@ def save_checkpoint_with_global_batch_idx(
       model:
         The neural network model whose `state_dict` will be saved in the
         checkpoint.
+      model_avg:
+        The stored model averaged from the start of training.
       params:
         A dict of training configurations to be saved.
       optimizer:
@@ -223,6 +238,7 @@ def save_checkpoint_with_global_batch_idx(
     save_checkpoint(
         filename=filename,
         model=model,
+        model_avg=model_avg,
         params=params,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -327,3 +343,105 @@ def remove_checkpoints(
     to_remove = checkpoints[topk:]
     for c in to_remove:
         os.remove(c)
+
+
+def update_averaged_model(
+    params: Dict[str, Tensor],
+    model_cur: Union[nn.Module, DDP],
+    model_avg: nn.Module,
+) -> None:
+    """Update the averaged model,
+
+    Args:
+      params:
+        User defined parameters, e.g., epoch, loss.
+      model_cur:
+        The current model.
+      model_avg:
+        The stored model averaged from start of training to update.
+    """
+    weight_cur = params.average_period / params.batch_idx_train
+    weight_avg = 1 - weight_cur
+
+    if isinstance(model_cur, DDP):
+        model_cur = model_cur.module
+
+    cur = model_cur.state_dict()
+    avg = model_avg.state_dict()
+
+    uniqued: Dict[int, str] = dict()
+    for k, v in avg.items():
+        v_data_ptr = v.data_ptr()
+        if v_data_ptr in uniqued:
+            continue
+        uniqued[v_data_ptr] = k
+
+    uniqued_names = list(uniqued.values())
+    for k in uniqued_names:
+        avg[k] *= weight_avg
+        avg[k] += cur[k] * weight_cur
+
+
+def average_checkpoints_with_averaged_model(
+    filename_start: str,
+    filename_end: str,
+    device: torch.device = torch.device("cpu"),
+) -> Dict[str, Tensor]:
+    """Average model parameters over the range with given
+    start model(excluded) and end model.
+
+    Let start = batch_idx_train of model-start,
+        end = batch_idx_train of model-end,
+    Then the average model over epoch [start+1, start+2, ..., end] is
+        avg = (model_end * end - model_start * start) / (start - end)
+
+    The model index could be epoch number or checkpoint number.
+
+    Args:
+      filename_start:
+        Checkpoint filename of the start model. We assume it
+        is saved by :func:`save_checkpoint`.
+      filename_end:
+        Checkpoint filename of the end model. We assume it
+        is saved by :func:`save_checkpoint`.
+      device:
+        Move checkpoints to this device before averaging.
+    """
+    state_dict_start = torch.load(filename_start, map_location=device)
+    state_dict_end = torch.load(filename_end, map_location=device)
+
+    batch_idx_train_start = state_dict_start["batch_idx_train"]
+    batch_idx_train_end = state_dict_end["batch_idx_train"]
+    interval = batch_idx_train_end - batch_idx_train_start
+    weight_start = -batch_idx_train_start / interval
+    weight_end = batch_idx_train_end / interval
+
+    avg = state_dict_end["model_avg"]
+    model_start = state_dict_start["model_avg"]
+
+    # Identify shared parameters. Two parameters are said to be shared
+    # if they have the same data_ptr
+    uniqued: Dict[int, str] = dict()
+    for k, v in avg.items():
+        v_data_ptr = v.data_ptr()
+        if v_data_ptr in uniqued:
+            continue
+        uniqued[v_data_ptr] = k
+
+    uniqued_names = list(uniqued.values())
+    for k in uniqued_names:
+        avg[k] *= weight_end
+        avg[k] += model_start[k] * weight_start
+
+    return avg
+
+
+def load_checkpoint_with_averaged_model(
+    filename: str,
+    model: nn.Module,
+    strict: bool = True,
+) -> None:
+    """Load checkpoint with aaveraged model."""
+    logging.info(f"Loading checkpoint from {filename}, using averaged model")
+    checkpoint = torch.load(filename, map_location="cpu")
+    model.load_state_dict(checkpoint["model_avg"], strict=strict)
