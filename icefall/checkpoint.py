@@ -416,8 +416,9 @@ def average_checkpoints_with_averaged_model(
     weight_start = -batch_idx_train_start / interval
     weight_end = batch_idx_train_end / interval
 
-    avg = state_dict_end["model_avg"]
+    model_end = state_dict_end["model_avg"]
     model_start = state_dict_start["model_avg"]
+    avg = model_end
 
     # Identify shared parameters. Two parameters are said to be shared
     # if they have the same data_ptr
@@ -434,14 +435,3 @@ def average_checkpoints_with_averaged_model(
         avg[k] += model_start[k] * weight_start
 
     return avg
-
-
-def load_checkpoint_with_averaged_model(
-    filename: str,
-    model: nn.Module,
-    strict: bool = True,
-) -> None:
-    """Load checkpoint with aaveraged model."""
-    logging.info(f"Loading checkpoint from {filename}, using averaged model")
-    checkpoint = torch.load(filename, map_location="cpu")
-    model.load_state_dict(checkpoint["model_avg"], strict=strict)

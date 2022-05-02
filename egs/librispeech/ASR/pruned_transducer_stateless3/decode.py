@@ -536,22 +536,21 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         assert params.iter == 0
-        if True:
-            start = params.epoch - params.avg
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"averaging modes over range with {filename_start} (excluded) "
-                f"and {filename_end}"
+        start = params.epoch - params.avg
+        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+        logging.info(
+            f"averaging modes over range with {filename_start} (excluded) "
+            f"and {filename_end}"
+        )
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints_with_averaged_model(
+                filename_start=filename_start,
+                filename_end=filename_end,
+                device=device,
             )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
+        )
 
     model.to(device)
     model.eval()
