@@ -118,6 +118,24 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     ./local/compute_fbank_librispeech.py
     touch data/fbank/.librispeech.done
   fi
+
+  if [ ! -e data/fbank/.librispeech-validated.done ]; then
+    log "Validating data/fbank for LibriSpeech"
+    parts=(
+      train-clean-100
+      train-clean-360
+      train-other-500
+      test-clean
+      test-other
+      dev-clean
+      dev-other
+    )
+    for part in ${parts[@]}; do
+      python3 ./local/validate_manifest.py \
+        data/fbank/cuts_${part}.json.gz
+    done
+    touch data/fbank/.librispeech-validated.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
@@ -240,5 +258,16 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
+  done
+fi
+
+# Compile LG for RNN-T fast_beam_search decoding
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Compile LG"
+  ./local/compile_lg.py --lang-dir data/lang_phone
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi

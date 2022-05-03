@@ -1,5 +1,157 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Transducer 3)
+
+[pruned_transducer_stateless3](./pruned_transducer_stateless3)
+Same as `Pruned Transducer 2` but using the XL subset from
+[GigaSpeech](https://github.com/SpeechColab/GigaSpeech) as extra training data.
+
+During training, it selects either a batch from GigaSpeech with prob `giga_prob`
+or a batch from LibriSpeech with prob `1 - giga_prob`. All utterances within
+a batch come from the same dataset.
+
+Using commit `ac84220de91dee10c00e8f4223287f937b1930b6`.
+
+See <https://github.com/k2-fsa/icefall/pull/312>.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|----------------------------------------|
+| greedy search (max sym per frame 1) | 2.21       | 5.09       | --epoch 27 --avg 2  --max-duration 600 |
+| greedy search (max sym per frame 1) | 2.25       | 5.02       | --epoch 27 --avg 12 --max-duration 600 |
+| modified beam search                | 2.19       | 5.03       | --epoch 25 --avg 6  --max-duration 600 |
+| modified beam search                | 2.23       | 4.94       | --epoch 27 --avg 10 --max-duration 600 |
+| beam search                         | 2.16       | 4.95       | --epoch 25 --avg 7  --max-duration 600 |
+| fast beam search                    | 2.21       | 4.96       | --epoch 27 --avg 10 --max-duration 600 |
+| fast beam search                    | 2.19       | 4.97       | --epoch 27 --avg 12 --max-duration 600 |
+
+The training commands are:
+
+```bash
+./prepare.sh
+./prepare_giga_speech.sh
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless3/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless3/exp \
+  --max-duration 300 \
+  --use-fp16 1 \
+  --lr-epochs 4 \
+  --num-workers 2 \
+  --giga-prob 0.8
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/gaD34WeYSMCOkzoo3dZXGg/>
+(Note: The training process is killed manually after saving `epoch-28.pt`.)
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-04-29>
+
+The decoding commands are:
+
+```bash
+
+# greedy search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 27 \
+    --avg 2 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search \
+    --max-sym-per-frame 1
+
+# modified beam search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 25 \
+    --avg 6 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --max-sym-per-frame 1
+
+# beam search
+./pruned_transducer_stateless3/decode.py \
+    --epoch 25 \
+    --avg 7 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --max-sym-per-frame 1
+
+# fast beam search
+for epoch in 27; do
+  for avg in 10 12; do
+    ./pruned_transducer_stateless3/decode.py \
+        --epoch $epoch \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp \
+        --max-duration 600 \
+        --decoding-method fast_beam_search \
+        --max-states 32 \
+        --beam 8
+  done
+done
+```
+
+The following table shows the
+[Nbest oracle WER](http://kaldi-asr.org/doc/lattices.html#lattices_operations_oracle)
+for fast beam search.
+| epoch | avg | num_paths | nbest_scale | test-clean | test-other |
+|-------|-----|-----------|-------------|------------|------------|
+|  27   | 10  |   50      | 0.5         |  0.91      |  2.74      |
+|  27   | 10  |   50      | 0.8         |  0.94      |  2.82      |
+|  27   | 10  |   50      | 1.0         |  1.06      |  2.88      |
+|  27   | 10  |   100     | 0.5         |  0.82      |  2.58      |
+|  27   | 10  |   100     | 0.8         |  0.92      |  2.65      |
+|  27   | 10  |   100     | 1.0         |  0.95      |  2.77      |
+|  27   | 10  |   200     | 0.5         |  0.81      |  2.50      |
+|  27   | 10  |   200     | 0.8         |  0.85      |  2.56      |
+|  27   | 10  |   200     | 1.0         |  0.91      |  2.64      |
+|  27   | 10  |   400     | 0.5         |  N/A       |  N/A       |
+|  27   | 10  |   400     | 0.8         |  0.81      |  2.49      |
+|  27   | 10  |   400     | 1.0         |  0.85      |  2.54      |
+
+The Nbest oracle WER is computed using the following steps:
+
+  - 1. Use `fast_beam_search` to produce a lattice.
+  - 2. Extract `N` paths from the lattice using [k2.random_path](https://k2-fsa.github.io/k2/python_api/api.html#random-paths)
+  - 3. [Unique](https://k2-fsa.github.io/k2/python_api/api.html#unique) paths so that each path
+       has a distinct sequence of tokens
+  - 4. Compute the edit distance of each path with the ground truth
+  - 5. The path with the lowest edit distance is the final output and is used to
+       compute the WER
+
+The command to compute the Nbest oracle WER is:
+
+```bash
+for epoch in 27; do
+  for avg in 10 ; do
+    for num_paths in 50 100 200 400; do
+      for nbest_scale in 0.5 0.8 1.0; do
+        ./pruned_transducer_stateless3/decode.py \
+            --epoch $epoch \
+            --avg $avg \
+            --exp-dir ./pruned_transducer_stateless3/exp \
+            --max-duration 600 \
+            --decoding-method fast_beam_search_nbest_oracle \
+            --num-paths $num_paths \
+            --max-states 32 \
+            --beam 8 \
+            --nbest-scale $nbest_scale
+      done
+    done
+  done
+done
+```
+
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
 [pruned_transducer_stateless2](./pruned_transducer_stateless2)
@@ -7,7 +159,7 @@ This is with a reworked version of the conformer encoder, with many changes.
 
 #### Training on fulll librispeech
 
-using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
+Using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
 See <https://github.com/k2-fsa/icefall/pull/288>
 
 The WERs are:
@@ -32,6 +184,10 @@ and:
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/Xoz0oABMTWewo1slNFXkyA> (apologies, log starts
 only from epoch 3).
+
+The pretrained models, training logs, decoding logs, and decoding results
+can be found at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless2-2022-04-29>
 
 
 #### Training on train-clean-100:
@@ -348,6 +504,78 @@ sym=1
 
 You can find a pretrained model by visiting
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless-multi-datasets-bpe-500-2022-03-01>
+
+
+##### 2022-04-19
+
+[transducer_stateless2](./transducer_stateless2)
+
+This version uses torchaudio's RNN-T loss.
+
+Using commit `fce7f3cd9a486405ee008bcbe4999264f27774a3`.
+See <https://github.com/k2-fsa/icefall/pull/316>
+
+|                                     | test-clean | test-other | comment                                                                        |
+|-------------------------------------|------------|------------|--------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 2.65       | 6.30       | --epoch 59 --avg 10  --max-duration 600                                        |
+| greedy search (max sym per frame 2) | 2.62       | 6.23       | --epoch 59 --avg 10  --max-duration 100                                        |
+| greedy search (max sym per frame 3) | 2.62       | 6.23       | --epoch 59 --avg 10  --max-duration 100                                        |
+| modified beam search                | 2.63       | 6.15       | --epoch 59 --avg 10  --max-duration 100 --decoding-method modified_beam_search |
+| beam search                         | 2.59       | 6.15       | --epoch 59 --avg 10  --max-duration 100 --decoding-method beam_search          |
+
+**Note**: This model is trained with standard RNN-T loss. Neither modified transducer nor pruned RNN-T is used.
+You can see that there is a performance degradation in WER when we limit the max symbol per frame to 1.
+
+The number of active paths in `modified_beam_search` and `beam_search` is 4.
+
+The training and decoding commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 60 \
+  --start-epoch 0 \
+  --exp-dir transducer_stateless2/exp-2 \
+  --full-libri 1 \
+  --max-duration 300 \
+  --lr-factor 5
+
+epoch=59
+avg=10
+# greedy search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 600 \
+  --decoding-method greedy_search \
+  --max-sym-per-frame 1
+
+# modified beam search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 100 \
+  --decoding-method modified_beam_search \
+
+# beam search
+./transducer_stateless2/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./transducer_stateless2/exp-2 \
+  --max-duration 100 \
+  --decoding-method beam_search \
+```
+
+The tensorboard log is at <https://tensorboard.dev/experiment/oAlle3dxQD2EY8ePwjIGuw/>.
+
+
+You can find a pre-trained model, decoding logs, and decoding results at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-transducer-stateless2-torchaudio-2022-04-19>
+
 
 
 ##### 2022-02-07

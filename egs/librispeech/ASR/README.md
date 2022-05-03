@@ -1,8 +1,8 @@
-
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html>
-for how to run models in this recipe.
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html> for how to run models in this recipe.
+
+[./RESULTS.md](./RESULTS.md) contains the latest results.
 
 # Transducers
 
@@ -12,11 +12,13 @@ The following table lists the differences among them.
 |                                       | Encoder             | Decoder            | Comment                                           |
 |---------------------------------------|---------------------|--------------------|---------------------------------------------------|
 | `transducer`                          | Conformer           | LSTM               |                                                   |
-| `transducer_stateless`                | Conformer           | Embedding + Conv1d |                                                   |
+| `transducer_stateless`                | Conformer           | Embedding + Conv1d | Using optimized_transducer from computing RNN-T loss  |
+| `transducer_stateless2`               | Conformer           | Embedding + Conv1d | Using torchaudio for computing RNN-T loss             |
 | `transducer_lstm`                     | LSTM                | LSTM               |                                                   |
 | `transducer_stateless_multi_datasets` | Conformer           | Embedding + Conv1d | Using data from GigaSpeech as extra training data |
 | `pruned_transducer_stateless`         | Conformer           | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
 | `pruned_transducer_stateless2`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
+| `pruned_transducer_stateless3`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss + using GigaSpeech as extra training data |
 
 
 The decoder in `transducer_stateless` is modified from the paper

@@ -39,11 +39,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install graphviz
-        shell: bash
-        run: |
-          sudo apt-get -qq install graphviz
-
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -76,98 +71,11 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release ..
           make -j2 _kaldifeat
 
-      - name: Download pre-trained model
+      - name: Inference with pre-trained model
         shell: bash
         run: |
           sudo apt-get -qq install git-lfs tree sox
-          cd egs/aishell/ASR
-          mkdir tmp
-          cd tmp
-          git lfs install
-          git clone https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01
-
-          cd ..
-          tree tmp
-          soxi tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
-          ls -lh tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 1)
-        shell: bash
-        run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/aishell/ASR
-          ./transducer_stateless_modified/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 1 \
-            --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 2)
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/aishell/ASR
-          ./transducer_stateless_modified/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 2 \
-            --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
-
-      - name: Run greedy search decoding (max-sym-per-frame 3)
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/aishell/ASR
-          ./transducer_stateless_modified/pretrained.py \
-            --method greedy_search \
-            --max-sym-per-frame 3 \
-            --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
-
-      - name: Run beam search decoding
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/aishell/ASR
-          ./transducer_stateless_modified/pretrained.py \
-            --method beam_search \
-            --beam-size 4 \
-            --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
-
-
-      - name: Run modified beam search decoding
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          cd egs/aishell/ASR
-          ./transducer_stateless_modified/pretrained.py \
-            --method modified_beam_search \
-            --beam-size 4 \
-            --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
-            --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
-            ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+          .github/scripts/run-pre-trained-transducer-stateless-modified-aishell.sh
