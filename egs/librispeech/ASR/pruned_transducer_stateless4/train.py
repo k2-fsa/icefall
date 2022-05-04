@@ -74,8 +74,10 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import save_checkpoint_with_global_batch_idx
-from icefall.checkpoint import update_averaged_model
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
+)
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
