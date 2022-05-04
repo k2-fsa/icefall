@@ -378,6 +378,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         embedding_dim=params.embedding_dim,
         blank_id=params.blank_id,
+        unk_id=params.unk_id,
         context_size=params.context_size,
     )
     return decoder
@@ -813,6 +814,7 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
