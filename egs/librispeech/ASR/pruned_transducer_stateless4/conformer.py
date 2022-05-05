@@ -1314,6 +1314,7 @@ def _test_random_combine_main():
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
     )
+    f  # to remove flake8 warnings
 
 
 if __name__ == "__main__":
