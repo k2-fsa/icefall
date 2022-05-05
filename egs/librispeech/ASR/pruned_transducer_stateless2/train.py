@@ -691,9 +691,8 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except RuntimeError as e:
-            if "CUDA out of memory" in str(e):
-                display_and_save_batch(batch, params=params, sp=sp)
+        except:
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
