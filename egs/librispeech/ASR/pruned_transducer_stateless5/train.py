@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2022  Xiaomi Corp.   (authors: Fangjun Kuang
 #                                                  Wei Kang
-#                                                  Mingshuang Luo)
+#                                                  Mingshuang Luo
+#                                                  Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -48,6 +49,7 @@ cd egs/librispeech/ASR/
 
 
 import argparse
+import copy
 import logging
 import random
 import warnings
@@ -81,7 +83,10 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import save_checkpoint_with_global_batch_idx
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
+)
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
@@ -135,10 +140,10 @@ def get_parser():
     parser.add_argument(
         "--start-epoch",
         type=int,
-        default=0,
+        default=1,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless3/exp/epoch-{start_epoch-1}.pt
+        exp-dir/epoch-{start_epoch-1}.pt
         """,
     )
 
@@ -269,6 +274,19 @@ def get_parser():
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
         It does not affect checkpoints with name `epoch-xxx.pt`.
+        """,
+    )
+
+    parser.add_argument(
+        "--average-period",
+        type=int,
+        default=1000,
+        help="""Update the averaged model, namely `model_avg`, after processing
+        this number of batches. `model_avg` is a separate version of model,
+        in which each floating-point parameter is the average of all the
+        parameters from the start of training. Each time we take the average,
+        we do: `model_avg = model * (average_period / batch_idx_train) +
+            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
         """,
     )
 
@@ -423,6 +441,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
 def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -430,7 +449,7 @@ def load_checkpoint_if_available(
 
     If params.start_batch is positive, it will load the checkpoint from
     `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
-    params.start_epoch is positive, it will load the checkpoint from
+    params.start_epoch is larger than 1, it will load the checkpoint from
     `params.start_epoch - 1`.
 
     Apart from loading state dict for `model` and `optimizer` it also updates
@@ -442,6 +461,8 @@ def load_checkpoint_if_available(
         The return value of :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer that we are using.
       scheduler:
@@ -451,7 +472,7 @@ def load_checkpoint_if_available(
     """
     if params.start_batch > 0:
         filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
-    elif params.start_epoch > 0:
+    elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
         return None
@@ -461,6 +482,7 @@ def load_checkpoint_if_available(
     saved_params = load_checkpoint(
         filename,
         model=model,
+        model_avg=model_avg,
         optimizer=optimizer,
         scheduler=scheduler,
     )
@@ -485,6 +507,7 @@ def load_checkpoint_if_available(
 def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
@@ -498,6 +521,8 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer used in the training.
       sampler:
@@ -511,6 +536,7 @@ def save_checkpoint(
     save_checkpoint_impl(
         filename=filename,
         model=model,
+        model_avg=model_avg,
         params=params,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -667,6 +693,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
     scaler: GradScaler,
+    model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -696,6 +723,8 @@ def train_one_epoch(
         For selecting which dataset to use.
       scaler:
         The scaler used for mix precision training.
+      model_avg:
+        The stored model averaged from the start of training.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -773,6 +802,17 @@ def train_one_epoch(
             return
 
         if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
+
+        if (
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
@@ -780,6 +820,7 @@ def train_one_epoch(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
                 model=model,
+                model_avg=model_avg,
                 params=params,
                 optimizer=optimizer,
                 scheduler=scheduler,
@@ -915,13 +956,25 @@ def run(rank, world_size, args):
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model)
+
+    checkpoints = load_checkpoint_if_available(
+        params=params, model=model, model_avg=model_avg
+    )
 
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     model.device = device
+
+    if rank == 0:
+        model_avg.to(device)
+        model_avg.device = device
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
@@ -1014,10 +1067,10 @@ def run(rank, world_size, args):
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    for epoch in range(params.start_epoch, params.num_epochs):
-        scheduler.step_epoch(epoch)
-        fix_random_seed(params.seed + epoch)
-        train_dl.sampler.set_epoch(epoch)
+    for epoch in range(params.start_epoch, params.num_epochs + 1):
+        scheduler.step_epoch(epoch - 1)
+        fix_random_seed(params.seed + epoch - 1)
+        train_dl.sampler.set_epoch(epoch - 1)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
@@ -1027,6 +1080,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
@@ -1047,6 +1101,7 @@ def run(rank, world_size, args):
         save_checkpoint(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             sampler=train_dl.sampler,
@@ -1071,7 +1126,7 @@ def scan_pessimistic_batches_for_oom(
     from lhotse.dataset import find_pessimistic_batches
 
     logging.info(
-        "Sanity check -- see if any of the batches in epoch 0 would cause OOM."
+        "Sanity check -- see if any of the batches in epoch 1 would cause OOM."
     )
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():

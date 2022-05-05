@@ -86,8 +86,8 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
          tensor of shape (*, D), containing weighted sums of rows of
          `knowledge_base`
         """
-        if random.random() < 0.001:
-            print("dtype[1] = ", weights.dtype)
+        #  if random.random() < 0.001:
+        #      print("dtype[1] = ", weights.dtype)
         ctx.save_for_backward(weights.detach(), indexes.detach(),
                               knowledge_base.detach())
         with torch.no_grad():
@@ -174,7 +174,7 @@ class KnowledgeBaseLookup(nn.Module):
         assert torch.all(x - x == 0)
         if random.random() < 0.001:
             entropy = (x * x.exp()).sum(dim=-1).mean()
-            print("Entropy = ", entropy)
+            #  print("Entropy = ", entropy)
         # only need 'combined_indexes', call them 'indexes'.
         _, indexes, weights = sample_combined(x, self.K, input_is_log=True)
         x = weighted_matrix_lookup(weights, indexes, self.knowledge_base) # now (*, D)
