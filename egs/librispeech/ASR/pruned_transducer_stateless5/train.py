@@ -25,22 +25,22 @@ cd egs/librispeech/ASR/
 ./prepare.sh
 ./prepare_giga_speech.sh
 
-./pruned_transducer_stateless3/train.py \
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless3/exp \
+  --exp-dir pruned_transducer_stateless5/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless3/train.py \
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
   --use_fp16 1 \
-  --exp-dir pruned_transducer_stateless3/exp \
+  --exp-dir pruned_transducer_stateless5/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -154,7 +154,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless5/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -346,10 +346,11 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
+            "encoder_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
+            "num_encoder_layers": 18,
+            "knowledge_D": 512,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
@@ -372,6 +373,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        knowledge_D=params.knowledge_D,
     )
     return encoder
 
