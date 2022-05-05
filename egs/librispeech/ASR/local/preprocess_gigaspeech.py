@@ -91,21 +91,20 @@ def preprocess_giga_speech():
         )
         # Run data augmentation that needs to be done in the
         # time domain.
-        if partition not in ["DEV", "TEST"]:
-            logging.info(
-                f"Speed perturb for {partition} with factors 0.9 and 1.1 "
-                "(Perturbing may take 8 minutes and saving may take 20 minutes)"
-            )
-            cut_set = (
-                cut_set
-                + cut_set.perturb_speed(0.9)
-                + cut_set.perturb_speed(1.1)
-            )
-
-        logging.info("About to split cuts into smaller chunks.")
-        cut_set = cut_set.trim_to_supervisions(
-            keep_overlapping=False, min_duration=None
-        )
+        #  if partition not in ["DEV", "TEST"]:
+        #      logging.info(
+        #          f"Speed perturb for {partition} with factors 0.9 and 1.1 "
+        #          "(Perturbing may take 8 minutes and saving may"
+        #          " take 20 minutes)"
+        #      )
+        #      cut_set = (
+        #          cut_set
+        #          + cut_set.perturb_speed(0.9)
+        #          + cut_set.perturb_speed(1.1)
+        #      )
+        #
+        # Note: No need to perturb the training subset as not all of the
+        # data is going to be used in the training.
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 
