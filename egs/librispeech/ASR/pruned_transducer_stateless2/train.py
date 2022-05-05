@@ -156,15 +156,16 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="The initial learning rate.  This value should not need to be changed.",
+        help="The initial learning rate.  This value should not need to "
+        "be changed.",
     )
 
     parser.add_argument(
         "--lr-batches",
         type=float,
         default=5000,
-        help="""Number of steps that affects how rapidly the learning rate decreases.
-        We suggest not to change this.""",
+        help="""Number of steps that affects how rapidly the learning rate
+        decreases. We suggest not to change this.""",
     )
 
     parser.add_argument(
@@ -962,7 +963,6 @@ def display_and_save_batch(
 
     supervisions = batch["supervisions"]
     features = batch["inputs"]
-    cuts = supervisions["cut"]
 
     logging.info(f"features shape: {features.shape}")
 
