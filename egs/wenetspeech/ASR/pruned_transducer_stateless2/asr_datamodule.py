@@ -338,7 +338,7 @@ class WenetSpeechAsrDataModule:
         if sampler_state_dict is not None:
             logging.info("Loading sampler state dict")
             train_dl.sampler.load_state_dict(sampler_state_dict)
-        
+
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:

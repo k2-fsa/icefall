@@ -900,7 +900,7 @@ def run(rank, world_size, args):
     train_dl = wenetspeech.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-    
+
     if not params.print_diagnostics and params.start_batch == 0:
         scan_pessimistic_batches_for_oom(
             model=model,
@@ -909,7 +909,7 @@ def run(rank, world_size, args):
             graph_compiler=graph_compiler,
             params=params,
         )
-    
+
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")

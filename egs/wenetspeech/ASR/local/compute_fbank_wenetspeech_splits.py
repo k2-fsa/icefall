@@ -91,7 +91,7 @@ def get_parser():
 
 def compute_fbank_wenetspeech_splits(args):
     subset = args.training_subset
-    subset = str(subset) 
+    subset = str(subset)
     num_splits = args.num_splits
     output_dir = f"data/fbank/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
