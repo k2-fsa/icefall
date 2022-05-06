@@ -233,6 +233,9 @@ class StreamList(object):
             for _ in range(batch_size)
         ]
 
+    def __getitem__(self, i) -> FeatureExtractionStream:
+        return self.streams[i]
+
     @property
     def done(self) -> bool:
         """Return True if all streams have reached end of utterance.
@@ -667,8 +670,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     params.device = device
