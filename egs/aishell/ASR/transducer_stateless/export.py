@@ -197,7 +197,6 @@ def main():
 
     lexicon = Lexicon(params.lang_dir)
     
-    # params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
