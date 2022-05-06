@@ -47,7 +47,7 @@ function onFileChange() {
 
   let reader = new FileReader();
   reader.onload = function() {
-    let view = new Int16Array(reader.result);
+    let view = new Uint8Array(reader.result);
     console.log('bytes: ' + view.byteLength);
     // we assume the input file is a wav file.
     // TODO: add some checks here.

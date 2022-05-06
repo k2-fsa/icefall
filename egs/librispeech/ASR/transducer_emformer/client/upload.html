@@ -14,7 +14,7 @@
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
 
-  <title>Hello next-gen Kaldi</title>
+  <title>Hello next-gen Kaldi (Upload file for recognition)</title>
 </head>
 
 
@@ -26,24 +26,20 @@
     });
   </script>
 
-  <ul class="list-unstyled">
-  <li class="media">
-    <div class="media-body">
-      <h5 class="mt-0 mb-1">Upload</h5>
-      <p>Recognition from a selected file</p>
-    </div>
-  <li>
+  <h3>Recognition from a selected file</h3>
+  <form>
+  <div class="mb-3">
+    <label for="file" class="form-label">Select file</label>
+    <input class="form-control" type="file" id="file" accept=".wav" onchange="onFileChange()" disabled="true"></input>
+  </div>
 
-  <li class="media">
-    <div class="media-body">
-      <h5 class="mt-0 mb-1">Record</h5>
-      <p>Recognition from real-time recording</p>
-    </div>
-  </li>
-  </ul>
+  <div class="mb-3">
+    <label for="results" class="form-label">Recognition results</label>
+    <textarea class="form-control" id="results" rows="3"></textarea>
+  </div>
+  </form>
 
-  Code is available at
-  <a href="https://github.com/k2-fsa/icefall/tree/streaming/egs/librispeech/ASR/transducer_emformer"> https://github.com/k2-fsa/icefall/tree/streaming/egs/librispeech/ASR/transducer_emformer</a>
+
 
   <!-- Optional JavaScript -->
   <!-- jQuery first, then Popper.js, then Bootstrap JS -->
@@ -57,6 +53,6 @@
           crossorigin="anonymous">
   </script>
 
-
+  <script src="./upload.js"> </script>
 </body>
 </html>
