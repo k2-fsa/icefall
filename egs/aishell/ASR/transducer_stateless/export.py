@@ -196,7 +196,7 @@ def main():
     logging.info(f"device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    
+
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
