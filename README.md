@@ -35,6 +35,9 @@ We do provide a Colab notebook for this recipe.
 
 ### LibriSpeech
 
+Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
+for the **latest** results.
+
 We provide 4 models for this recipe:
 
 - [conformer CTC model][LibriSpeech_conformer_ctc]
@@ -91,6 +94,20 @@ Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
 
 We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
+
+
+#### k2 pruned RNN-T
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.57       | 5.95       |
+
+#### k2 pruned RNN-T + GigaSpeech
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.19       | 4.97       |
+
 
 ### Aishell
 
