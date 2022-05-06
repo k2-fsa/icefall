@@ -867,6 +867,10 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank])
     model.device = device
 
+    if rank == 0:
+        model_avg = model_avg.to(torch.device("cpu"))
+        model_avg.device = device
+
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
