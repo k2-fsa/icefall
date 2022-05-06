@@ -18,7 +18,7 @@
 </head>
 
 
-<body onload="initWebSocket()">
+<body>
   <div id="nav"></div>
   <script>
     $(function(){
@@ -26,19 +26,25 @@
     });
   </script>
 
-  <h3>Recognition from a selected file</h3>
-  <form>
-  <div class="mb-3">
-    <label for="file" class="form-label">Select file</label>
-    <input class="form-control" type="file" id="file" accept=".wav" onchange="onFileChange()" disabled="true"></input>
+  <h3>Recognition from real-time recordings</h3>
+  <div class="container">
+    <div class="row">
+       <div class="col-12">
+        <canvas id="canvas" height="60px" display="block" margin-bottom="0.5rem"></canvas>
+      </div>
+    </div>
+    <div class="row">
+       <div class="col">
+        <button class="btn btn-primary btn-block" id="record">Record</button>
+       </div>
+       <div class="col">
+        <button class="btn btn-primary btn-block" id="stop">Stop</button>
+       </div>
+    </div>
   </div>
 
-  <div class="mb-3">
-    <label for="results" class="form-label">Recognition results</label>
-    <textarea class="form-control" id="results" rows="3"></textarea>
-  </div>
-  </form>
-
+  <section flex="1" overflow="auto" id="sound-clips">
+  </section>
 
 
   <!-- Optional JavaScript -->
@@ -53,6 +59,6 @@
           crossorigin="anonymous">
   </script>
 
-  <script src="./upload.js"> </script>
+  <script src="./record.js"> </script>
 </body>
 </html>
