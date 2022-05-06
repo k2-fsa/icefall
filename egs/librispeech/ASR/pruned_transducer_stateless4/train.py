@@ -868,7 +868,7 @@ def run(rank, world_size, args):
     model.device = device
 
     if rank == 0:
-        model_avg = model_avg.to(torch.device("cpu"))
+        model_avg.to(torch.device("cpu"))
         model_avg.device = device
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
