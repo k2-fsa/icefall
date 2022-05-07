@@ -98,7 +98,7 @@ if [ $stage -eq 4 ]; then
     # Note: order of split manfiests is 1-based, while gpu is 0-based.
     export CUDA_VISIBLE_DEVICES=`(expr $1 + 5)`
     ./vq_pruned_transducer_stateless2/hubert_code_indices.py \
-      --memory-layer=${memory_layer}
+      --memory-layer=${memory_layer} \
       --num-splits $num_jobs \
       --subset=$2 \
       --manifest-idx $1 \
@@ -117,7 +117,7 @@ if [ $stage -eq 4 ]; then
   wait
 fi
 
-cdidx_manifests_dir=`pwd`/data/globalrandom-scaledquantizer-refine_iter-5-${num_utts}-$model_id-${mem_layer}layer-${quantizer_id}-bytes_per_frame-${bytes_per_frame}-enable-refine-True
+cdidx_manifests_dir=`pwd`/data/globalrandom-scaledquantizer-refine_iter-5-${num_utts}-$model_id-${memory_layer}layer-${quantizer_id}-bytes_per_frame-${bytes_per_frame}-enable-refine-True
 if [ $stage -eq 5 ]; then
   for subset in ${train_subsets}; do
     combined_list=`find $cdidx_manifests_dir/splits$num_jobs/ -name cuts_train-${sbuset}*`

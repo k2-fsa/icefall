@@ -33,6 +33,7 @@ from omegaconf import OmegaConf
 vq_config = {
     # TODO: Maybe better to convert this class to yaml driven config.
     # parameters about hubert model inference.
+    "exp_dir": "./vq_pruned_transducer_stateless2/exp/",
     "model_dir": "./vq_pruned_transducer_stateless2/exp/hubert_models/",
     "input_strategy": "AudioSamples",
     "enable_spec_aug": False,

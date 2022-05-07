@@ -29,15 +29,12 @@ from icefall.utils import (
     setup_logger,
 )
 
-from hubert_utils import extract_layers_result, load_hubert_model, vq_config
-
-
-def get_parser():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    return parser
-
+from hubert_utils import (
+    extract_layers_result,
+    load_hubert_model,
+    get_parser,
+    vq_config,
+)
 
 def compute_memory(
     model: torch.nn.Module,

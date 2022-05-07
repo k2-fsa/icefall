@@ -444,6 +444,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params.extra_output_layer=None
 
     assert params.decoding_method in (
         "greedy_search",

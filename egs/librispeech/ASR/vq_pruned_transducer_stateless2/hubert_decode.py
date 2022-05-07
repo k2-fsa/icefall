@@ -159,11 +159,11 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
 
     params = AttributeDict()
     params.update(vars(args))
     params.update(vq_config)
+    params.exp_dir = Path(params.exp_dir)
 
     setup_logger(f"{params.exp_dir}/log-ctc_greedy_search/log-decode")
     logging.info("Decoding started")
