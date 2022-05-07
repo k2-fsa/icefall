@@ -250,7 +250,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = model.device
+    device = next(model.parameters()).device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
@@ -560,7 +560,6 @@ def main():
 
     model.to(device)
     model.eval()
-    model.device = device
 
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)

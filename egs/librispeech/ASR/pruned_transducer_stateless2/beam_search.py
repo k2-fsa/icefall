@@ -276,7 +276,7 @@ def greedy_search(
     context_size = model.decoder.context_size
     unk_id = getattr(model, "unk_id", blank_id)
 
-    device = model.device
+    device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
         [blank_id] * context_size, device=device, dtype=torch.int64
@@ -350,7 +350,7 @@ def greedy_search_batch(
     assert encoder_out.ndim == 3
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
 
-    device = model.device
+    device = next(model.parameters()).device
 
     batch_size = encoder_out.size(0)
     T = encoder_out.size(1)
@@ -580,7 +580,7 @@ def modified_beam_search(
     blank_id = model.decoder.blank_id
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
-    device = model.device
+    device = next(model.parameters()).device
     B = [HypothesisList() for _ in range(batch_size)]
     for i in range(batch_size):
         B[i].add(
@@ -705,7 +705,7 @@ def _deprecated_modified_beam_search(
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
 
-    device = model.device
+    device = next(model.parameters()).device
 
     T = encoder_out.size(1)
 
@@ -813,7 +813,7 @@ def beam_search(
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
 
-    device = model.device
+    device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
         [blank_id] * context_size,
