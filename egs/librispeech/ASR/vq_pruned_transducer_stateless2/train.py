@@ -54,8 +54,10 @@ from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut, MonoCut
 from lhotse.dataset.sampling.base import CutSampler
+from icefall.utils import make_pad_mask
 from lhotse.utils import fix_random_seed
 from lhotse.dataset.collation import collate_custom_field
+from mask import compute_mask_indices
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -270,6 +272,18 @@ def get_parser():
         type=int,
         default=8,
         help="number of code books",
+    )
+
+    parser.add_argument(
+        "--mask-codebook-indices",
+        type=str2bool,
+        default="False",
+    )
+
+    parser.add_argument(
+        "--mask-prob",
+        type=float,
+        default="0.8",
     )
 
     return parser
@@ -553,6 +567,7 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
+    info = MetricsTracker()
     if is_training:
         cuts = batch["supervisions"]["cut"]
         # -100 is identical to ignore_value in CE loss computation.
@@ -562,6 +577,27 @@ def compute_loss(
         codebook_indices, codebook_indices_lens = collate_custom_field(
             cuts_pre_mixed, "codebook_indices", pad_value=-100
         )
+        if params.mask_codebook_indices:
+            # codebook_loss.shape == (N, T, C)
+            # Only (N, T) is needed to compute mask region
+            shape = codebook_indices.shape[:2]
+            mask_length=10
+
+            # length of current encoder output is:
+            # lengths = ((feature_lens - 1) // 2 - 1) // 2
+            # output rate of hubert is 2 * times of that
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lengths = (feature_lens - 1) // 2 - 1
+            # True means padded frames
+            padding_mask = make_pad_mask(lengths)
+            mask = compute_mask_indices(shape, padding_mask=padding_mask,mask_prob=params.mask_prob, mask_length=10, no_overlap=True)
+            ori_numel = (codebook_indices != -100).sum()
+            codebook_indices= codebook_indices.masked_fill(~torch.tensor(mask).unsqueeze(2), -100)
+            masked_numel = (codebook_indices != -100).sum()
+            info["ori_numel"] = ori_numel
+            info["masked_numel"] = masked_numel
+
         codebook_indices = codebook_indices.to(device)
     else:
         codebook_indices = None
@@ -595,7 +631,6 @@ def compute_loss(
 
     assert loss.requires_grad == is_training
 
-    info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         info["frames"] = (
