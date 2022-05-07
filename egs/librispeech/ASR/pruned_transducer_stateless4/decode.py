@@ -540,23 +540,52 @@ def main():
             model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
-        assert params.iter == 0 and params.avg > 0
-        start = params.epoch - params.avg
-        assert start >= 1
-        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-        logging.info(
-            f"Calculating the averaged model over epoch range from "
-            f"{start} (excluded) to {params.epoch}"
-        )
-        model.to(device)
-        model.load_state_dict(
-            average_checkpoints_with_averaged_model(
-                filename_start=filename_start,
-                filename_end=filename_end,
-                device=device,
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg + 1:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            filename_start = filenames[-1]
+            filename_end = filenames[0]
+            logging.info(
+                f"Calculating the averaged model over iteration checkpoints"
+                f" from {filename_start} (excluded) to {filename_end}"
             )
-        )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+        else:
+            assert params.avg > 0
+            start = params.epoch - params.avg
+            assert start >= 1
+            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+            logging.info(
+                f"Calculating the averaged model over epoch range from "
+                f"{start} (excluded) to {params.epoch}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
 
     model.to(device)
     model.eval()
