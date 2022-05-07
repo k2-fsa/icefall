@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang,
+# Copyright 2022 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                            Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -557,7 +557,7 @@ def main():
             filename_start = filenames[-1]
             filename_end = filenames[0]
             logging.info(
-                f"Calculating the averaged model over iteration checkpoints"
+                "Calculating the averaged model over iteration checkpoints"
                 f" from {filename_start} (excluded) to {filename_end}"
             )
             model.to(device)
