@@ -149,3 +149,15 @@ if [ $stage -eq 6 ]; then
     --num-epochs 30 \
     --codebook-loss-scale 0.1
 fi
+
+if [ $stage -eq 7 ]; then
+  # Expected result:
+  # errs-test-clean-beam_size_4-epoch-19-avg-10-beam-4.txt:%WER = 5.67
+  # errs-test-other-beam_size_4-epoch-19-avg-10-beam-4.txt:%WER = 15.60
+  ./vq_pruned_transducer_stateless2/decode.py \
+    --decoding-method "modified_beam_search" \
+    --epoch $epoch \
+    --avg 10 \
+    --max-duration 200 \
+    --exp-dir ./vq_pruned_transducer_stateless2/exp
+fi
