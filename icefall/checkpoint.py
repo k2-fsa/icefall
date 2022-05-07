@@ -1,5 +1,5 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                    Zengwei Yao)
+# Copyright  2021-2022  Xiaomi Corporation  (authors: Fangjun Kuang,
+#                                                     Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -405,7 +405,7 @@ def average_checkpoints_with_averaged_model(
     (3) avg = (model_end + model_start * (weight_start / weight_end))
               * weight_end
 
-    The model index could be epoch number or checkpoint number.
+    The model index could be epoch number or iteration number.
 
     Args:
       filename_start:
