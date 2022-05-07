@@ -18,7 +18,7 @@
 </head>
 
 
-<body>
+<body onload="initWebSocket()">
   <div id="nav"></div>
   <script>
     $(function(){
@@ -42,6 +42,13 @@
        </div>
     </div>
   </div>
+
+  <div class="mb-3">
+    <label for="results" class="form-label">Recognition results</label>
+    <textarea class="form-control" id="results" rows="8"></textarea>
+  </div>
+
+  <button class="btn btn-primary btn-block" id="clear">Clear results</button>
 
   <section flex="1" overflow="auto" id="sound-clips">
   </section>
