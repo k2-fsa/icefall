@@ -1,5 +1,5 @@
-# Copyright      2022  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                    Zengwei Yao)
+# Copyright  2021-2022  Xiaomi Corporation  (authors: Fangjun Kuang,
+#                                                     Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
