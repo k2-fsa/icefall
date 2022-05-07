@@ -199,6 +199,23 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
     # grep "\"text\":" $dl_dir/WenetSpeech/WenetSpeech.json |
     #   sed -e 's/["text:\t ]*//g' > $lang_char_dir/text
   fi
+
+  # The implementation of chinese word segmentation for text,
+  # and it will take about 15 minutes.
+  if [ ! -f $lang_char_dir/text_words_segmentation ]; then
+    python ./local/text2segments.py \
+      --input $lang_char_dir/text \
+      --output $lang_char_dir/text_words_segmentation
+  fi
+
+  cat $lang_char_dir/text_words_segmentation | sed 's/ /\n/g' \
+    | sort -u | sed '/^$/d' | uniq > $lang_char_dir/words_no_ids.txt
+
+  if [ ! -f $lang_char_dir/words.txt ]; then
+    python ./local/prepare_words.py \
+      --input-file $lang_char_dir/words_no_ids.txt \
+      --output-file $lang_char_dir/words.txt
+  fi
 fi
 
 if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
