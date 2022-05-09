@@ -552,7 +552,7 @@ class EmformerLayer(nn.Module):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
-        causal: bool = False,
+        causal: bool = True,
     ):
         super().__init__()
 
@@ -1058,7 +1058,7 @@ class EmformerEncoder(nn.Module):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
-        causal: bool = False,
+        causal: bool = True,
     ):
         super().__init__()
 
@@ -1087,6 +1087,8 @@ class EmformerEncoder(nn.Module):
                 for layer_idx in range(num_encoder_layers)
             ]
         )
+
+        self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
         self.left_context_length = left_context_length
         self.right_context_length = right_context_length
@@ -1384,7 +1386,7 @@ class Emformer(EncoderInterface):
         max_memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
-        causal: bool = False,
+        causal: bool = True,
     ):
         super().__init__()
 
@@ -1555,7 +1557,7 @@ class ConvolutionModule(nn.Module):
         channels: int,
         kernel_size: int,
         bias: bool = True,
-        causal: bool = False,
+        causal: bool = True,
     ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
