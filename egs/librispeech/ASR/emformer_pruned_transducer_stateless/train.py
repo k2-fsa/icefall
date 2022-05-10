@@ -130,6 +130,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Number of entries in the memory for the Emformer",
     )
 
+    parser.add_argument(
+        "--tanh-on-mem",
+        type=str2bool,
+        default=False,
+        help="Whether to apply tanh on memory",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -369,6 +376,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         chunk_length=params.chunk_length,
         right_context_length=params.right_context_length,
         max_memory_size=params.memory_size,
+        tanh_on_mem=params.tanh_on_mem,
     )
     return encoder
 
