@@ -199,7 +199,6 @@ def test_emformer_encoder_forward():
     chunk_length = 4
     right_context_length = 2
     left_context_length = 2
-    left_context_length = 2
     num_chunks = 3
     U = num_chunks * chunk_length
 
@@ -223,10 +222,8 @@ def test_emformer_encoder_forward():
         x = torch.randn(U + right_context_length, B, D)
         lengths = torch.randint(1, U + right_context_length + 1, (B,))
         lengths[0] = U + right_context_length
-        PE = 2 * U - 1
-        pos_emb = torch.randn(PE, D)
 
-        output, output_lengths = encoder(x, lengths, pos_emb)
+        output, output_lengths = encoder(x, lengths)
         assert output.shape == (U, B, D)
         assert torch.equal(
             output_lengths, torch.clamp(lengths - right_context_length, min=0)
@@ -266,11 +263,7 @@ def test_emformer_encoder_infer():
                 1, chunk_length + right_context_length + 1, (B,)
             )
             lengths[0] = chunk_length + right_context_length
-            PE = left_context_length + 2 * chunk_length - 1
-            pos_emb = torch.randn(PE, D)
-            output, output_lengths, states = encoder.infer(
-                x, lengths, pos_emb, states
-            )
+            output, output_lengths, states = encoder.infer(x, lengths, states)
             assert output.shape == (chunk_length, B, D)
             assert torch.equal(
                 output_lengths,
@@ -383,6 +376,7 @@ def test_emformer_infer():
 
 
 def test_emformer_attention_forward_infer_consistency():
+    # TODO: delete
     from emformer import EmformerEncoder
 
     chunk_length = 4
@@ -474,7 +468,7 @@ def test_emformer_layer_forward_infer_consistency():
     chunk_length = 4
     num_chunks = 3
     U = chunk_length * num_chunks
-    L, R = 1, 2
+    left_context_length, right_context_length = 1, 2
     D = 256
     num_encoder_layers = 1
     memory_sizes = [0, 3]
@@ -485,18 +479,22 @@ def test_emformer_layer_forward_infer_consistency():
             d_model=D,
             dim_feedforward=1024,
             num_encoder_layers=num_encoder_layers,
-            left_context_length=L,
-            right_context_length=R,
+            left_context_length=left_context_length,
+            right_context_length=right_context_length,
             max_memory_size=M,
             dropout=0.1,
         )
         encoder.eval()
         encoder_layer = encoder.emformer_layers[0]
+        encoder_pos = encoder.encoder_pos
 
-        x = torch.randn(U + R, 1, D)
+        x = torch.randn(U + right_context_length, 1, D)
+
+        # training mode with full utterance
+        x_forward, pos_emb = encoder_pos(x, U, U)
         lengths = torch.tensor([U])
-        right_context = encoder._gen_right_context(x)
-        utterance = x[: x.size(0) - R]
+        right_context = encoder._gen_right_context(x_forward)
+        utterance = x_forward[:U]
         attention_mask = encoder._gen_attention_mask(utterance)
         memory = (
             encoder.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
@@ -515,15 +513,20 @@ def test_emformer_layer_forward_infer_consistency():
             right_context,
             memory,
             attention_mask,
+            pos_emb,
         )
 
         state = None
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_length
             end_idx = start_idx + chunk_length
-            chunk = x[start_idx:end_idx]
-            chunk_right_context = x[end_idx : end_idx + R]  # noqa
-            chunk_length = torch.tensor([chunk_length])
+            cur_x, pos_emb = encoder_pos(
+                x[start_idx : end_idx + right_context_length],
+                pos_len=chunk_length + left_context_length,
+                neg_len=chunk_length,
+            )
+            chunk = cur_x[:chunk_length]
+            chunk_right_context = cur_x[chunk_length:]
             chunk_memory = (
                 encoder.init_memory_op(chunk.permute(1, 2, 0)).permute(2, 0, 1)
                 if encoder.use_memory
@@ -536,9 +539,10 @@ def test_emformer_layer_forward_infer_consistency():
                 state,
             ) = encoder_layer.infer(
                 chunk,
-                chunk_length,
+                torch.tensor([chunk_length]),
                 chunk_right_context,
                 chunk_memory,
+                pos_emb,
                 state,
             )
             forward_output_chunk = forward_output_utterance[start_idx:end_idx]
@@ -551,7 +555,7 @@ def test_emformer_layer_forward_infer_consistency():
 
 
 def test_emformer_encoder_forward_infer_consistency():
-    from emformer import EmformerEncoder, RelPositionalEncoding
+    from emformer import EmformerEncoder
 
     chunk_length = 4
     num_chunks = 3
@@ -573,28 +577,22 @@ def test_emformer_encoder_forward_infer_consistency():
             dropout=0.1,
         )
         encoder.eval()
-        encoder_pos = RelPositionalEncoding(D, dropout_rate=0)
 
         x = torch.randn(U + right_context_length, 1, D)
         lengths = torch.tensor([U + right_context_length])
-        _, pos_emb = encoder_pos(x, U, U)
 
-        forward_output, forward_output_lengths = encoder(x, lengths, pos_emb)
+        # training mode with full utterance
+        forward_output, forward_output_lengths = encoder(x, lengths)
 
+        # streaming inference mode with individual chunks
         states = None
-        _, pos_emb = encoder_pos(
-            x, chunk_length + left_context_length, chunk_length
-        )
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_length
             end_idx = start_idx + chunk_length
             chunk = x[start_idx : end_idx + right_context_length]  # noqa
             chunk_length = torch.tensor([chunk_length])
             infer_output_chunk, infer_output_lengths, states = encoder.infer(
-                chunk,
-                chunk_length,
-                pos_emb,
-                states,
+                chunk, chunk_length, states
             )
             forward_output_chunk = forward_output[start_idx:end_idx]
             assert torch.allclose(
@@ -615,7 +613,7 @@ def test_emformer_infer_batch_single_consistency():
     chunk_length = 8
     num_chunks = 3
     U = num_chunks * chunk_length
-    L, R = 128, 4
+    left_context_length, right_context_length = 128, 4
     B, D = 2, 256
     num_encoder_layers = 2
     for use_memory in [True, False]:
@@ -630,8 +628,8 @@ def test_emformer_infer_batch_single_consistency():
             subsampling_factor=4,
             d_model=D,
             num_encoder_layers=num_encoder_layers,
-            left_context_length=L,
-            right_context_length=R,
+            left_context_length=left_context_length,
+            right_context_length=right_context_length,
             max_memory_size=M,
             vgg_frontend=False,
         )
@@ -689,20 +687,25 @@ def test_emformer_infer_batch_single_consistency():
                     ],
                 )
 
-        x = torch.randn(B, U + R + 3, num_features)
+        x = torch.randn(B, U + right_context_length + 3, num_features)
+
+        # batch-wise inference
         batch_logits = []
         batch_states = []
         states = None
         for chunk_idx in range(num_chunks):
             start_idx = chunk_idx * chunk_length
             end_idx = start_idx + chunk_length
-            chunk = x[:, start_idx : end_idx + R + 3]  # noqa
-            lengths = torch.tensor([chunk_length + R + 3]).expand(B)
+            chunk = x[:, start_idx : end_idx + right_context_length + 3]  # noqa
+            lengths = torch.tensor(
+                [chunk_length + right_context_length + 3]
+            ).expand(B)
             logits, output_lengths, states = model.infer(chunk, lengths, states)
             batch_logits.append(logits)
             batch_states.append(save_states(states))
         batch_logits = torch.cat(batch_logits, dim=1)
 
+        # single-wise inference
         single_logits = []
         for sample_idx in range(B):
             sample = x[sample_idx : sample_idx + 1]  # noqa
@@ -711,17 +714,21 @@ def test_emformer_infer_batch_single_consistency():
             for chunk_idx in range(num_chunks):
                 start_idx = chunk_idx * chunk_length
                 end_idx = start_idx + chunk_length
-                chunk = sample[:, start_idx : end_idx + R + 3]  # noqa
-                lengths = torch.tensor([chunk_length + R + 3])
+                chunk = sample[
+                    :, start_idx : end_idx + right_context_length + 3
+                ]
+                lengths = torch.tensor(
+                    [chunk_length + right_context_length + 3]
+                )
                 logits, output_lengths, states = model.infer(
                     chunk, lengths, states
                 )
                 chunk_logits.append(logits)
-
                 assert_states_equal(batch_states[chunk_idx], states, sample_idx)
 
             chunk_logits = torch.cat(chunk_logits, dim=1)
             single_logits.append(chunk_logits)
+
         single_logits = torch.cat(single_logits, dim=0)
 
         assert torch.allclose(batch_logits, single_logits, atol=1e-5, rtol=0.0)
@@ -734,7 +741,7 @@ def test_emformer_infer_states_stack():
     output_dim = 1000
     chunk_length = 8
     U = chunk_length
-    L, R = 128, 4
+    left_context_length, right_context_length = 128, 4
     B, D = 2, 256
     num_encoder_layers = 2
     for use_memory in [True, False]:
@@ -749,14 +756,14 @@ def test_emformer_infer_states_stack():
             subsampling_factor=4,
             d_model=D,
             num_encoder_layers=num_encoder_layers,
-            left_context_length=L,
-            right_context_length=R,
+            left_context_length=left_context_length,
+            right_context_length=right_context_length,
             max_memory_size=M,
             vgg_frontend=False,
         )
 
-        x = torch.randn(B, U + R + 3, num_features)
-        x_lens = torch.full((B,), U + R + 3)
+        x = torch.randn(B, U + right_context_length + 3, num_features)
+        x_lens = torch.full((B,), U + right_context_length + 3)
         logits, output_lengths, states = model.infer(
             x,
             x_lens,
@@ -790,8 +797,8 @@ if __name__ == "__main__":
     test_emformer_forward()
     test_emformer_infer()
     # test_emformer_attention_forward_infer_consistency()
-    # test_emformer_layer_forward_infer_consistency()
+    test_emformer_layer_forward_infer_consistency()
     test_emformer_encoder_forward_infer_consistency()
-    # test_emformer_infer_batch_single_consistency()
-    # test_emformer_infer_states_stack()
+    test_emformer_infer_batch_single_consistency()
+    test_emformer_infer_states_stack()
     test_rel_positional_encoding()
