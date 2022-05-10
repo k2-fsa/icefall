@@ -24,6 +24,15 @@ stop_stage=100
 # DEV 12 hours
 # Test 40 hours
 
+# Split XL subset to this number of pieces
+# This is to avoid OOM during feature extraction.
+num_splits=2000
+# We use lazy split from lhotse.
+# The XL subset (10k hours) contains 37956 cuts without speed perturbing.
+# We want to split it into 2000 splits, so each split
+# contains about 37956 / 2000 = 19 cuts. As a result, there will be 1998 splits.
+chunk_size=19 # number of cuts in each split. The last split may contain fewer cuts.
+
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
@@ -106,4 +115,28 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
    python3 ./local/preprocess_gigaspeech.py
    touch data/fbank/.preprocess_complete
   fi
+fi
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
+  python3 ./local/compute_fbank_gigaspeech_dev_test.py
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Split XL subset into ${num_splits} pieces"
+  split_dir=data/fbank/XL_split_${num_splits}
+  if [ ! -f $split_dir/.split_completed ]; then
+    lhotse split-lazy ./data/fbank/cuts_XL_raw.jsonl.gz $split_dir $chunk_size
+    touch $split_dir/.split_completed
+  fi
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Compute features for XL"
+  # Note: The script supports --start and --stop options.
+  # You can use several machines to compute the features in parallel.
+  python3 ./local/compute_fbank_gigaspeech_splits.py \
+    --num-workers $nj \
+    --batch-duration 600 \
+    --num-splits $num_splits
 fi
