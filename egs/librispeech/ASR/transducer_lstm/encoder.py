@@ -30,13 +30,11 @@ class LstmEncoder(EncoderInterface):
         hidden_size: int,
         output_dim: int,
         subsampling_factor: int = 4,
-        num_encoder_layers: int = 12,
+        num_encoder_layers: int = 6,
         dropout: float = 0.1,
         vgg_frontend: bool = False,
-        proj_size: int = 0,
     ):
         super().__init__()
-        real_hidden_size = proj_size if proj_size > 0 else hidden_size
         assert (
             subsampling_factor == 4
         ), "Only subsampling_factor==4 is supported at present"
@@ -47,26 +45,19 @@ class LstmEncoder(EncoderInterface):
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
         if vgg_frontend:
-            self.encoder_embed = VggSubsampling(num_features, real_hidden_size)
+            self.encoder_embed = VggSubsampling(num_features, output_dim)
         else:
-            self.encoder_embed = Conv2dSubsampling(
-                num_features, real_hidden_size
-            )
+            self.encoder_embed = Conv2dSubsampling(num_features, output_dim)
 
         self.rnn = nn.LSTM(
-            input_size=hidden_size,
+            input_size=output_dim,
             hidden_size=hidden_size,
             num_layers=num_encoder_layers,
             bias=True,
-            proj_size=proj_size,
+            proj_size=output_dim,
             batch_first=True,
             dropout=dropout,
             bidirectional=False,
-        )
-
-        self.encoder_output_layer = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(real_hidden_size, output_dim),
         )
 
     def forward(
@@ -96,23 +87,18 @@ class LstmEncoder(EncoderInterface):
             lengths.max(),
         )
 
-        if False:
-            # It is commented out as DPP complains that not all parameters are
-            # used. Need more checks later for the reason.
-            #
-            # Caution: We assume the dataloader returns utterances with
-            # duration being sorted in decreasing order
+        if True:
+            # This branch is more efficient than the else branch
             packed_x = pack_padded_sequence(
                 input=x,
                 lengths=lengths.cpu(),
                 batch_first=True,
-                enforce_sorted=True,
+                enforce_sorted=False,
             )
 
             packed_rnn_out, _ = self.rnn(packed_x)
-            rnn_out, _ = pad_packed_sequence(packed_x, batch_first=True)
+            rnn_out, _ = pad_packed_sequence(packed_rnn_out, batch_first=True)
         else:
             rnn_out, _ = self.rnn(x)
 
-        logits = self.encoder_output_layer(rnn_out)
-        return logits, lengths
+        return rnn_out, lengths

@@ -42,7 +42,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 """
 
-
 import argparse
 import logging
 import warnings
@@ -339,9 +338,9 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "encoder_dim": 512,
-            "encoder_hidden_size": 1024,
-            "num_encoder_layers": 4,
-            "proj_size": 512,
+            "encoder_hidden_size": 2048,
+            "num_encoder_layers": 6,
+            "dropout": 0.1,
             "vgg_frontend": False,
             # parameters for decoder
             "decoder_dim": 512,
@@ -363,6 +362,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         output_dim=params.encoder_dim,
         subsampling_factor=params.subsampling_factor,
         num_encoder_layers=params.num_encoder_layers,
+        dropout=params.dropout,
         vgg_frontend=params.vgg_frontend,
     )
     return encoder
