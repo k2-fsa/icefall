@@ -270,6 +270,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -277,6 +278,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
