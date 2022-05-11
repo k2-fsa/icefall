@@ -218,7 +218,7 @@ class Nbest(object):
         # word_seq is a k2.RaggedTensor sharing the same shape as `path`
         # but it contains word IDs. Note that it also contains 0s and -1s.
         # The last entry in each sublist is -1.
-        # It axes is [utt][path][word_id]
+        # Its axes are [utt][path][word_id]
         if isinstance(lattice.aux_labels, torch.Tensor):
             word_seq = k2.ragged.index(lattice.aux_labels, path)
         else:

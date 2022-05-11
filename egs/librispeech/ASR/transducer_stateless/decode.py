@@ -22,7 +22,8 @@ Usage:
         --epoch 14 \
         --avg 7 \
         --exp-dir ./transducer_stateless/exp \
-        --max-duration 100 \
+        --max-duration 1000 \
+        --max-sym-per-frame 1 \
         --decoding-method greedy_search
 
 (2) beam search
@@ -30,7 +31,7 @@ Usage:
         --epoch 14 \
         --avg 7 \
         --exp-dir ./transducer_stateless/exp \
-        --max-duration 100 \
+        --max-duration 1000 \
         --decoding-method beam_search \
         --beam-size 4
 
@@ -39,9 +40,20 @@ Usage:
         --epoch 14 \
         --avg 7 \
         --exp-dir ./transducer_stateless/exp \
-        --max-duration 100 \
+        --max-duration 1000 \
         --decoding-method modified_beam_search \
         --beam-size 4
+
+(4) fast beam search
+./transducer_stateless/decode.py \
+        --epoch 14 \
+        --avg 7 \
+        --exp-dir ./transducer_stateless/exp \
+        --max-duration 1000 \
+        --decoding-method fast_beam_search \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 """
 
 
@@ -49,14 +61,16 @@ import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -68,6 +82,7 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -115,6 +130,7 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
+          - fast_beam_search
         """,
     )
 
@@ -123,7 +139,36 @@ def get_parser():
         type=int,
         default=4,
         help="""Used only when --decoding-method is
-        beam_search or modified_beam_search""",
+        beam_search or modified_beam_search.
+        It specifies the number of active hypotheses to keep at each
+        time step.
+        """,
+    )
+
+    parser.add_argument(
+        "--beam",
+        type=float,
+        default=4,
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --decoding-method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=4,
+        help="""Used only when --decoding-method is
+        fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-states",
+        type=int,
+        default=8,
+        help="""Used only when --decoding-method is
+        fast_beam_search""",
     )
 
     parser.add_argument(
@@ -141,6 +186,17 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--use-max",
+        type=str2bool,
+        default=False,
+        help="""If True, use max-op to select the hypothesis that have the
+        max log_prob in case of duplicate hypotheses.
+        If False, use log_add.
+        Used only for beam_search, modified_beam_search, and fast_beam_search
+        """,
+    )
+
     return parser
 
 
@@ -149,6 +205,7 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -190,7 +247,18 @@ def decode_one_batch(
     )
     hyp_list: List[List[int]] = []
 
-    if (
+    if params.decoding_method == "fast_beam_search":
+        hyp_list = fast_beam_search(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            use_max=params.use_max,
+        )
+    elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
     ):
@@ -203,6 +271,7 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             beam=params.beam_size,
+            use_max=params.use_max,
         )
     else:
         batch_size = encoder_out.size(0)
@@ -221,6 +290,7 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
+                    use_max=params.use_max,
                 )
             else:
                 raise ValueError(
@@ -232,6 +302,14 @@ def decode_one_batch(
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
+    elif params.decoding_method == "fast_beam_search":
+        return {
+            (
+                f"beam_{params.beam}_"
+                f"max_contexts_{params.max_contexts}_"
+                f"max_states_{params.max_states}"
+            ): hyps
+        }
     else:
         return {f"beam_{params.beam_size}": hyps}
 
@@ -241,6 +319,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -281,6 +360,7 @@ def decode_dataset(
             model=model,
             sp=sp,
             batch=batch,
+            decoding_graph=decoding_graph,
         )
 
         for name, hyps in hyps_dict.items():
@@ -358,15 +438,22 @@ def main():
     params.update(vars(args))
 
     assert params.decoding_method in (
-        "greedy_search",
         "beam_search",
+        "fast_beam_search",
+        "greedy_search",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if "beam_search" in params.decoding_method:
+    if "fast_beam_search" == params.decoding_method:
+        params.suffix += f"-beam-{params.beam}"
+        params.suffix += f"-max-contexts-{params.max_contexts}"
+        params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-use-max-{params.use_max}"
+    elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += f"-use-max-{params.use_max}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -408,6 +495,11 @@ def main():
     model.eval()
     model.device = device
 
+    if params.decoding_method == "fast_beam_search":
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    else:
+        decoding_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -428,6 +520,7 @@ def main():
             params=params,
             model=model,
             sp=sp,
+            decoding_graph=decoding_graph,
         )
 
         save_results(
