@@ -1,6 +1,9 @@
-FROM pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel
 
 # install normal source
+
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -25,13 +28,6 @@ RUN apt-get update && \
 	    vim && \
         rm -rf /var/lib/apt/lists/*
 
-
-RUN mv /opt/conda/lib/libcufft.so.10 /opt/libcufft.so.10.bak && \
-    mv /opt/conda/lib/libcurand.so.10 /opt/libcurand.so.10.bak && \
-    mv /opt/conda/lib/libcublas.so.11 /opt/libcublas.so.11.bak && \
-    mv /opt/conda/lib/libnvrtc.so.11.0 /opt/libnvrtc.so.11.1.bak && \
-    mv /opt/conda/lib/libnvToolsExt.so.1 /opt/libnvToolsExt.so.1.bak && \
-    mv /opt/conda/lib/libcudart.so.11.0 /opt/libcudart.so.11.0.bak
 
 # cmake
 
@@ -72,20 +68,26 @@ RUN git clone https://github.com/csukuangfj/kaldifeat.git /opt/kaldifeat && \
     cd -
 
 
+RUN conda install pytorch torchvision torchaudio=0.11 cudatoolkit=11.3 -c pytorch
+
+
+
 #install k2 from source
+# RUN conda install -c k2-fsa -c pytorch -c conda-forge k2 cudatoolkit=11.3 pytorch=1.10.0
 RUN git clone https://github.com/k2-fsa/k2.git /opt/k2 && \
     cd /opt/k2 && \
     python3 setup.py install && \
     cd -
+# RUN pip install k2
 
 # install  lhotse
-RUN pip install git+https://github.com/lhotse-speech/lhotse
-#RUN pip install lhotse
+# RUN pip install git+https://github.com/lhotse-speech/lhotse
+RUN pip install lhotse
 
 # install icefall
-RUN git clone https://github.com/k2-fsa/icefall && \
-    cd icefall && \
-    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    
+# RUN git clone https://github.com/k2-fsa/icefall && \
+#     cd icefall && \
+#     pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
 ENV PYTHONPATH /workspace/icefall:$PYTHONPATH  
 
