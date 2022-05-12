@@ -111,7 +111,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=20,
+        default=30,
         help="Number of epochs to train.",
     )
 

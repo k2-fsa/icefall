@@ -98,14 +98,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
+        default=29,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=8,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
