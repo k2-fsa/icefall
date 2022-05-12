@@ -141,6 +141,10 @@ jobs:
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
       - name: Display decoding results for pruned_transducer_stateless3
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         shell: bash
@@ -156,6 +160,9 @@ jobs:
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Upload decoding results for pruned_transducer_stateless2
         uses: actions/upload-artifact@v2

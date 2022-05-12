@@ -137,6 +137,10 @@ jobs:
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
+          echo "===fast_beam_search==="
+          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
           echo "===modified_beam_search==="
           find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2

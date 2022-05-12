@@ -140,6 +140,10 @@ jobs:
           find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
       - name: Upload decoding results for transducer_stateless
         uses: actions/upload-artifact@v2
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
