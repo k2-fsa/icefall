@@ -19,30 +19,39 @@ Usage:
 
 (1) greedy search
 ./transducer_stateless2/pretrained.py \
-        --checkpoint ./transducer_stateless2/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method greedy_search \
-        --max-sym-per-frame 1 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method greedy_search \
+    --max-sym-per-frame 1 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 (2) beam search
 ./transducer_stateless2/pretrained.py \
-        --checkpoint ./transducer_stateless2/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 (3) modified beam search
 ./transducer_stateless2/pretrained.py \
-        --checkpoint ./transducer_stateless2/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method modified_beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method modified_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
+
+(4) fast beam search
+./transducer_stateless2/pretrained.py \
+    --checkpoint ./transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method fast_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 You can also use `./transducer_stateless2/exp/epoch-xx.pt`.
 
@@ -56,12 +65,14 @@ import logging
 import math
 from typing import List
 
+import k2
 import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import (
     beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -87,9 +98,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        help="""Path to bpe.model.
-        Used only when method is ctc-decoding.
-        """,
+        help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -100,6 +109,7 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
+          - fast_beam_search
         """,
     )
 
@@ -124,7 +134,33 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --method is beam_search and modified_beam_search ",
+        help="""An integer indicating how many candidates we will keep for each
+        frame. Used only when --method is beam_search or
+        modified_beam_search.""",
+    )
+
+    parser.add_argument(
+        "--beam",
+        type=float,
+        default=4,
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=4,
+        help="""Used only when --method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-states",
+        type=int,
+        default=8,
+        help="""Used only when --method is fast_beam_search""",
     )
 
     parser.add_argument(
@@ -241,15 +277,28 @@ def main():
         msg += f" with beam size {params.beam_size}"
     logging.info(msg)
 
-    if params.method == "greedy_search" and params.max_sym_per_frame == 1:
+    if params.method == "fast_beam_search":
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        hyp_list = fast_beam_search_one_best(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+        )
+    elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_list = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
     elif params.method == "modified_beam_search":
         hyp_list = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
     else:

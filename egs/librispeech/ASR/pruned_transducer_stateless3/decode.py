@@ -22,15 +22,15 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method greedy_search
 
-(2) beam search
+(2) beam search (not recommended)
 ./pruned_transducer_stateless3/decode.py \
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method beam_search \
         --beam-size 4
 
@@ -39,7 +39,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
@@ -48,7 +48,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 1500 \
+        --max-duration 600 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
@@ -307,6 +307,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -314,6 +315,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -403,9 +405,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
