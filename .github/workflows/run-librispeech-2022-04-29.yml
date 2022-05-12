@@ -35,7 +35,7 @@ on:
 
 jobs:
   run_librispeech_2022_04_29:
-    if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -111,6 +111,7 @@ jobs:
         shell: bash
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
           mkdir -p egs/librispeech/ASR/data
           ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
@@ -125,44 +126,54 @@ jobs:
 
           .github/scripts/run-librispeech-pruned-transducer-stateless3-2022-04-29.sh
 
-      - name: Display decoding results
-        if: github.event_name == 'schedule'
+      - name: Display decoding results for pruned_transducer_stateless2
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         shell: bash
         run: |
           cd egs/librispeech/ASR
           tree pruned_transducer_stateless2/exp
-          cd pruned_transducer_stateless2
-          echo "results for pruned_transducer_stateless2"
+          cd pruned_transducer_stateless2/exp
           echo "===greedy search==="
-          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
           echo "===fast_beam_search==="
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
-          cd ../
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+      - name: Display decoding results for pruned_transducer_stateless3
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        shell: bash
+        run: |
+          cd egs/librispeech/ASR
           tree pruned_transducer_stateless3/exp
-          cd pruned_transducer_stateless3
-          echo "results for pruned_transducer_stateless3"
+          cd pruned_transducer_stateless3/exp
           echo "===greedy search==="
-          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
           echo "===fast_beam_search==="
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Upload decoding results for pruned_transducer_stateless2
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-pruned_transducer_stateless2-2022-04-29
           path: egs/librispeech/ASR/pruned_transducer_stateless2/exp/
 
       - name: Upload decoding results for pruned_transducer_stateless3
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-pruned_transducer_stateless3-2022-04-29
           path: egs/librispeech/ASR/pruned_transducer_stateless3/exp/

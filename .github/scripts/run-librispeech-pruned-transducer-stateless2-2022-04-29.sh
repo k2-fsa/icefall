@@ -51,7 +51,8 @@ for method in modified_beam_search beam_search fast_beam_search; do
 done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" ]]; then
+echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
   mkdir -p pruned_transducer_stateless2/exp
   ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless2/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
@@ -62,9 +63,9 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" ]]; then
   log "Decoding test-clean and test-other"
 
   # use a small value for decoding with CPU
-  max_duration=50
+  max_duration=100
 
-  for method in greedy_search fast_beam_search; do
+  for method in greedy_search fast_beam_search modified_beam_search; do
     log "Decoding with $method"
 
     ./pruned_transducer_stateless2/decode.py \
