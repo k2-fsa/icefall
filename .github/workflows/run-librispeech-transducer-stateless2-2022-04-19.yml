@@ -35,7 +35,7 @@ on:
 
 jobs:
   run_librispeech_2022_04_19:
-    if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -111,6 +111,7 @@ jobs:
         shell: bash
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
           mkdir -p egs/librispeech/ASR/data
           ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
@@ -124,7 +125,7 @@ jobs:
           .github/scripts/run-librispeech-transducer-stateless2-2022-04-19.sh
 
       - name: Display decoding results
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         shell: bash
         run: |
           cd egs/librispeech/ASR/
@@ -142,7 +143,7 @@ jobs:
 
       - name: Upload decoding results for transducer_stateless2
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-transducer_stateless2-2022-04-19
           path: egs/librispeech/ASR/transducer_stateless2/exp/

@@ -606,6 +606,7 @@ def modified_beam_search(
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
+
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
         lengths=encoder_out_lens.cpu(),
@@ -720,7 +721,7 @@ def modified_beam_search(
                 B[i].add(new_hyp)
 
     B = B + finalized_B
-    best_hyps = [b.get_most_probable(length_norm=False) for b in B]
+    best_hyps = [b.get_most_probable(length_norm=True) for b in B]
 
     sorted_ans = [h.ys[context_size:] for h in best_hyps]
     ans = []
