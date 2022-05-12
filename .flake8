@@ -10,6 +10,7 @@ per-file-ignores =
     egs/gigaspeech/ASR/*/conformer.py: E501,
     egs/librispeech/ASR/pruned_transducer_stateless2/*.py: E501,
     egs/gigaspeech/ASR/pruned_transducer_stateless2/*.py: E501,
+    egs/librispeech/ASR/pruned_transducer_stateless4/*.py: E501,
     egs/librispeech/ASR/*/optim.py: E501,
     egs/librispeech/ASR/*/scaling.py: E501,
 
