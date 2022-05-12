@@ -63,7 +63,7 @@ class Conformer(EncoderInterface):
         cnn_module_kernel: int = 31,
         knowledge_M: int = 256,
         knowledge_N: int = 2,
-        knowledge_D: int = 256,
+        knowledge_D: int = 512,
         knowledge_K: int = 16,
     ) -> None:
         super(Conformer, self).__init__()
@@ -178,7 +178,7 @@ class ConformerEncoderLayer(nn.Module):
         cnn_module_kernel: int = 31,
         knowledge_M: int = 256,
         knowledge_N: int = 2,
-        knowledge_D: int = 256,
+        knowledge_D: int = 512,
         knowledge_K: int = 16,
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
