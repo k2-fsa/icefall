@@ -13,7 +13,7 @@ Results are:
 
 To reproduce the above result, use the following commands for training:
 
-```
+```bash
 cd egs/gigaspeech/ASR
 ./prepare.sh
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
@@ -28,7 +28,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 and the following commands for decoding:
 
-```
+```bash
 # greedy search
 ./pruned_transducer_stateless2/decode.py \
   --epoch 29 \
@@ -86,7 +86,7 @@ Scale values used in n-gram LM rescoring and attention rescoring for the best WE
 
 To reproduce the above result, use the following commands for training:
 
-```
+```bash
 cd egs/gigaspeech/ASR
 ./prepare.sh
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
@@ -100,7 +100,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 and the following command for decoding:
 
-```
+```bash
 ./conformer_ctc/decode.py \
   --epoch 18 \
   --avg 6 \
@@ -125,7 +125,7 @@ Scale values used in n-gram LM rescoring and attention rescoring for the best WE
 
 To reproduce the above result, use the training commands above, and the following command for decoding:
 
-```
+```bash
 ./conformer_ctc/decode.py \
   --epoch 18 \
   --avg 6 \
