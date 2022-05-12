@@ -729,7 +729,7 @@ class EmformerLayer(nn.Module):
         lengths: torch.Tensor,
         memory: torch.Tensor,
         pos_emb: torch.Tensor,
-        attention_mask: Optional[torch.Tensor],
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Apply attention module in non-infer mode."""
         if attention_mask is None:
@@ -897,8 +897,8 @@ class EmformerLayer(nn.Module):
             right_context_end_idx,
             lengths,
             memory,
-            attention_mask,
             pos_emb,
+            attention_mask,
         )
 
         right_context_utterance = self._apply_conv_module_forward(
