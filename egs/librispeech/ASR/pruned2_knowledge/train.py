@@ -323,7 +323,7 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "encoder_dim": 512,
-            "nhead": 4,
+            "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 18,
             # parameters for decoder
