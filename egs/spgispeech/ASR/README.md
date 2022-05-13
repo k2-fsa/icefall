@@ -1,21 +1,34 @@
+# SPGISpeech
 
-# Introduction
+SPGISpeech consists of 5,000 hours of recorded company earnings calls and their respective 
+transcriptions. The original calls were split into slices ranging from 5 to 15 seconds in 
+length to allow easy training for speech recognition systems. Calls represent a broad 
+cross-section of international business English; SPGISpeech contains approximately 50,000 
+speakers, one of the largest numbers of any speech corpus, and offers a variety of L1 and 
+L2 English accents. The format of each WAV file is single channel, 16kHz, 16 bit audio.
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech.html>
-for how to run models in this recipe.
+Transcription text represents the output of several stages of manual post-processing. 
+As such, the text contains polished English orthography following a detailed style guide, 
+including proper casing, punctuation, and denormalized non-standard words such as numbers 
+and acronyms, making SPGISpeech suited for training fully formatted end-to-end models.
 
-# Transducers
+Official reference:
 
-There are various folders containing the name `transducer` in this folder.
-The following table lists the differences among them.
+O’Neill, P.K., Lavrukhin, V., Majumdar, S., Noroozi, V., Zhang, Y., Kuchaiev, O., Balam, 
+J., Dovzhenko, Y., Freyberg, K., Shulman, M.D., Ginsburg, B., Watanabe, S., & Kucsko, G. 
+(2021). SPGISpeech: 5, 000 hours of transcribed financial audio for fully formatted 
+end-to-end speech recognition. ArXiv, abs/2104.02014.
 
-|                                       | Encoder   | Decoder            | Comment                                           |
-|---------------------------------------|-----------|--------------------|---------------------------------------------------|
-| `transducer`                          | Conformer | LSTM               |                                                   |
-| `transducer_stateless`                | Conformer | Embedding + Conv1d |                                                   |
-| `transducer_lstm`                     | LSTM      | LSTM               |                                                   |
-| `transducer_stateless_multi_datasets` | Conformer | Embedding + Conv1d | Using data from GigaSpeech as extra training data |
+ArXiv link: https://arxiv.org/abs/2104.02014
 
-The decoder in `transducer_stateless` is modified from the paper
-[Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
-We place an additional Conv1d layer right after the input embedding layer.
+## Performance Record
+
+| Decoding method           | val        | 
+|---------------------------|------------|
+| greedy search             | 2.40       |
+| beam search               | 2.24       |
+| modified beam search      | 2.30       |
+| fast beam search          | 2.35       |
+
+See [RESULTS](/egs/spgispeech/ASR/RESULTS.md) for details.
+
