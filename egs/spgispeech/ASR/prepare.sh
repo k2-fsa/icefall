@@ -124,51 +124,35 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Prepare lexicon using g2p_en"
-  lang_dir=data/lang_phone
-  mkdir -p $lang_dir
-
-  # Add special words to words.txt
-  echo "<eps> 0" > $lang_dir/words.txt
-  echo "!SIL 1" >> $lang_dir/words.txt
-  echo "[UNK] 2" >> $lang_dir/words.txt
-
-  # Add regular words to words.txt
-  gunzip -c data/manifests/cuts_train_raw.jsonl.gz \
-    | jq '.supervisions[0].text' \
-    | sed 's:"::g' \
-    | sed 's: :\n:g' \
-    | sort \
-    | uniq \
-    | sed '/^$/d' \
-    | awk '{print $0,NR+2}' \
-    >> $lang_dir/words.txt
-
-  # Add remaining special word symbols expected by LM scripts.
-  num_words=$(cat $lang_dir/words.txt | wc -l)
-  echo "<s> ${num_words}" >> $lang_dir/words.txt
-  num_words=$(cat $lang_dir/words.txt | wc -l)
-  echo "</s> ${num_words}" >> $lang_dir/words.txt
-  num_words=$(cat $lang_dir/words.txt | wc -l)
-  echo "#0 ${num_words}" >> $lang_dir/words.txt
-
-  if [ ! -f $lang_dir/L_disambig.pt ]; then
-    # We use g2pen, which was trained on CMUdict and looks it up before
-    # resorting to an LSTM G2P model.
-    pip install g2p_en
-    ./local/prepare_lang_g2pen.py --lang-dir $lang_dir
-  fi
-fi
-
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Prepare BPE based lang"
+  log "Stage 8: Prepare BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
-    # We reuse words.txt from phone based lexicon
-    # so that the two can share G.pt later.
-    cp data/lang_phone/words.txt $lang_dir
+
+    # Add special words to words.txt
+    echo "<eps> 0" > $lang_dir/words.txt
+    echo "!SIL 1" >> $lang_dir/words.txt
+    echo "[UNK] 2" >> $lang_dir/words.txt
+
+    # Add regular words to words.txt
+    gunzip -c data/manifests/cuts_train_raw.jsonl.gz \
+      | jq '.supervisions[0].text' \
+      | sed 's:"::g' \
+      | sed 's: :\n:g' \
+      | sort \
+      | uniq \
+      | sed '/^$/d' \
+      | awk '{print $0,NR+2}' \
+      >> $lang_dir/words.txt
+
+    # Add remaining special word symbols expected by LM scripts.
+    num_words=$(cat $lang_dir/words.txt | wc -l)
+    echo "<s> ${num_words}" >> $lang_dir/words.txt
+    num_words=$(cat $lang_dir/words.txt | wc -l)
+    echo "</s> ${num_words}" >> $lang_dir/words.txt
+    num_words=$(cat $lang_dir/words.txt | wc -l)
+    echo "#0 ${num_words}" >> $lang_dir/words.txt
 
     ./local/train_bpe_model.py \
       --lang-dir $lang_dir \
@@ -181,8 +165,8 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   done
 fi
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Train LM"
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Train LM"
   lm_dir=data/lm
 
   if [ ! -f $lm_dir/G.arpa ]; then
@@ -201,8 +185,8 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   fi
 fi
 
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Compile HLG"
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do
