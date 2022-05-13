@@ -14,17 +14,6 @@ stop_stage=100
 #      You can find train.csv, val.csv, train, and val in this directory, which belong
 #      to the SPGISpeech dataset.
 #
-#  - $dl_dir/lm
-#      This directory contains the following files downloaded from
-#       http://www.openslr.org/resources/11
-#
-#        - 3-gram.pruned.1e-7.arpa.gz
-#        - 3-gram.pruned.1e-7.arpa
-#        - 4-gram.arpa.gz
-#        - 4-gram.arpa
-#        - librispeech-vocab.txt
-#        - librispeech-lexicon.txt
-#
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
 #       http://www.openslr.org/17/
@@ -55,12 +44,6 @@ log() {
 
 log "dl_dir: $dl_dir"
 
-if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "Stage -1: Download LM"
-  [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
-  ./local/download_lm.py --out-dir=$dl_dir/lm
-fi
-
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
 
@@ -71,7 +54,6 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   if [ ! -d $dl_dir/spgispeech/train.csv ]; then
     lhotse download spgispeech $dl_dir
-    exit 1
   fi
 
   # If you have pre-downloaded it to /path/to/musan,
@@ -110,28 +92,26 @@ fi
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank features for spgispeech dev and val"
   mkdir -p data/fbank
-  queue-freegpu.pl --mem 2G --gpu 1 --config conf/gpu.conf exp/extract_feats_dev_val.log \
-    python local/compute_fbank_spgispeech.py --test
+  python local/compute_fbank_spgispeech.py --test
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank features for train"
   mkdir -p data/fbank
-  queue-freegpu.pl --mem 2G --gpu 1  --config conf/gpu.conf exp/extract_feats_train.log \
-    python local/compute_fbank_spgispeech.py --train --num-splits 20
+  python local/compute_fbank_spgispeech.py --train --num-splits 20
 
   log "Combine features from train splits (may take ~1h)"
   if [ ! -f data/manifests/cuts_train.jsonl.gz ]; then
     pieces=$(find data/manifests -name "cuts_train_[0-9]*.jsonl.gz")
     lhotse combine $pieces data/manifests/cuts_train.jsonl.gz
   fi
+  gunzip -c data/manifests/train_cuts.jsonl.gz | shuf | gzip -c > data/manifests/train_cuts_shuf.jsonl.gz
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Compute fbank features for musan"
   mkdir -p data/fbank
-  queue-freegpu.pl --mem 2G --gpu 1 --config conf/gpu.conf exp/extract_feats_musan.log \
-    python local/compute_fbank_musan.py
+  python local/compute_fbank_musan.py
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then

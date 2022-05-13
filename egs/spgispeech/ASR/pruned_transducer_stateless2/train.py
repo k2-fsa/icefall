@@ -168,7 +168,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=4,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -243,7 +243,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=20,
+        default=10,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -820,13 +820,33 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     spgispeech = SPGISpeechAsrDataModule(args)
 
     train_cuts = spgispeech.train_cuts()
+
+    # Ideally we should filter utterances that are too long or too short, but SPGISpeech
+    # contains regular length utterances so we don't need to do that. Here are the
+    # statistics of the training data (obtained by `train_cuts.describe()`):
+
+    # Cuts count: 5886320
+    # Total duration (hours): 15070.1
+    # Speech duration (hours): 15070.1 (100.0%)
+    # ***
+    # Duration statistics (seconds):
+    # mean    9.2
+    # std     2.8
+    # min     4.6
+    # 25%     6.9
+    # 50%     8.9
+    # 75%     11.2
+    # 99%     16.0
+    # 99.5%   16.3
+    # 99.9%   16.6
+    # max     16.7
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -901,6 +921,37 @@ def run(rank, world_size, args):
         cleanup_dist()
 
 
+def display_and_save_batch(
+    batch: dict,
+    params: AttributeDict,
+    sp: spm.SentencePieceProcessor,
+) -> None:
+    """Display the batch statistics and save the batch into disk.
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      params:
+        Parameters for training. See :func:`get_params`.
+      sp:
+        The BPE model.
+    """
+    from lhotse.utils import uuid4
+
+    filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
+    logging.info(f"Saving batch to {filename}")
+    torch.save(batch, filename)
+
+    supervisions = batch["supervisions"]
+    features = batch["inputs"]
+
+    logging.info(f"features shape: {features.shape}")
+
+    y = sp.encode(supervisions["text"], out_type=int)
+    num_tokens = sum(len(i) for i in y)
+    logging.info(f"num tokens: {num_tokens}")
+
+
 def scan_pessimistic_batches_for_oom(
     model: nn.Module,
     train_dl: torch.utils.data.DataLoader,
@@ -941,6 +992,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
+                display_and_save_batch(batch, params=params, sp=sp)
             raise
 
 

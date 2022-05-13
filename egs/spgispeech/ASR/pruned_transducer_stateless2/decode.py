@@ -19,16 +19,14 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
+        --avg-last-n 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
+        --avg-last-n 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method beam_search \
@@ -36,8 +34,7 @@ Usage:
 
 (3) modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
+        --avg-last-n 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
@@ -45,8 +42,7 @@ Usage:
 
 (4) fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
+        --avg-last-n 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 1500 \
         --decoding-method fast_beam_search \
@@ -66,7 +62,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import SPGISpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search,
@@ -186,8 +182,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -245,9 +240,7 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
-    )
+    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -262,10 +255,7 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -385,9 +375,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -419,8 +407,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -438,7 +425,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    SPGISpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -514,16 +501,16 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    spgispeech = SPGISpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_cuts = spgispeech.dev_cuts()
+    val_cuts = spgispeech.val_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    dev_dl = spgispeech.test_dataloaders(dev_cuts)
+    val_dl = spgispeech.test_dataloaders(val_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "val"]
+    test_dl = [dev_dl, val_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
