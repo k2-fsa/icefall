@@ -16,7 +16,7 @@ The WERs are
 |---------------------------|------------|------------|------------------------------------------|
 | greedy search             | 2.46       | 2.40       | --avg-last-n 10 --max-duration 500 |
 | beam search               | 2.27       | 2.24       | --avg-last-n 10 --max-duration 500 --beam-size 4 |
-| modified beam search      | 2.34       | 2.30       | --avg-last-n 10 --max-duration 500 --beam-size 4 |
+| modified beam search      | 2.28       | 2.24       | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | fast beam search          | 2.38       | 2.35       | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
 
 **NOTE:** SPGISpeech transcripts can be prepared in `ortho` or `norm` ways, which refer to whether the
@@ -44,14 +44,14 @@ The decoding command is:
 ```
 # greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --avg-last-n 10 \
+        --iter 696000 --avg 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 # beam search
 ./pruned_transducer_stateless2/decode.py \
-        --avg-last-n 10 \
+        --iter 696000 --avg 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method beam_search \
@@ -59,7 +59,7 @@ The decoding command is:
 
 # modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --avg-last-n 10 \
+        --iter 696000 --avg 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method modified_beam_search \
@@ -67,7 +67,7 @@ The decoding command is:
 
 # fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --avg-last-n 10 \
+        --iter 696000 --avg 10 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 1500 \
         --decoding-method fast_beam_search \
