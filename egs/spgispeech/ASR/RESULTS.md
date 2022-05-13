@@ -41,7 +41,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 ```
 
 The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/ejG7VpakRYePNNj6AbDEUw/#scalars>
+<https://tensorboard.dev/experiment/ExSoBmrPRx6liMTGLu0Tgw/#scalars>
 
 The decoding command is:
 ```
