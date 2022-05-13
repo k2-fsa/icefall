@@ -81,3 +81,41 @@ jobs:
           sudo apt-get install -y -q git-lfs
 
           .github/scripts/download-gigaspeech-dev-test-dataset.sh
+
+      - name: Inference with pre-trained model
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          ln -s ~/tmp/giga-dev-dataset-fbank/data egs/gigaspeech/ASR/
+
+          ls -lh egs/gigaspeech/ASR/data/fbank
+
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+
+          .github/scripts/run-gigaspeech-pruned-transducer-stateless2-2022-05-12.sh
+
+      - name: Display decoding results for pruned_transducer_stateless
+        # if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        shell: bash
+        run: |
+          cd egs/gigaspeech/ASR/
+          tree ./pruned_transducer_stateless2/exp
+
+          sudo apt-get -qq install tree
+
+          cd pruned_transducer_stateless2
+          echo "results for pruned_transducer_stateless2"
+          echo "===greedy search==="
+          find exp/greedy_search -name "log-*" -exec grep -n --color "best for dev" {} + | sort -n -k2
+          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test" {} + | sort -n -k2
+
+      - name: Upload decoding results for gigaspeech pruned_transducer_stateless2
+        uses: actions/upload-artifact@v2
+        # if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        with:
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12
+          path: egs/gigaspeech/ASR/pruned_transducer_stateless2/exp/

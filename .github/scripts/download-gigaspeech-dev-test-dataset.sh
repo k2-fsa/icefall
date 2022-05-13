@@ -7,7 +7,7 @@
 # this script.
 
 mkdir -p ~/tmp
-cd tmp
+cd ~/tmp
 
 git lfs install
 git clone https://huggingface.co/csukuangfj/giga-dev-dataset-fbank
