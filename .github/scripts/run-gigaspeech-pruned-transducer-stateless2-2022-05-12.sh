@@ -30,7 +30,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   log "Decoding dev and test"
 
   # use a small value for decoding with CPU
-  max_duration=600
+  max_duration=100
 
   # Test only greedy_search to reduce CI running time
   # for method in greedy_search fast_beam_search modified_beam_search; do
