@@ -102,7 +102,61 @@ def test_emformer_attention_infer():
         assert next_val.shape == (L + U, B, D)
 
 
+def test_convolution_module_forward():
+    from emformer import ConvolutionModule
+
+    B, D = 2, 256
+    chunk_length = 4
+    right_context_length = 2
+    num_chunks = 3
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+    kernel_size = 31
+    conv_module = ConvolutionModule(
+        chunk_length, right_context_length, D, kernel_size,
+    )
+
+    utterance = torch.randn(U, B, D)
+    right_context = torch.randn(R, B, D)
+    cache = torch.randn(B, D, kernel_size - 1)
+
+    utterance, right_context, new_cache = conv_module(
+        utterance, right_context, cache
+    )
+    assert utterance.shape == (U, B, D)
+    assert right_context.shape == (R, B, D)
+    assert new_cache.shape == (B, D, kernel_size - 1)
+
+
+def test_convolution_module_infer():
+    from emformer import ConvolutionModule
+
+    B, D = 2, 256
+    chunk_length = 4
+    right_context_length = 2
+    num_chunks = 1
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+    kernel_size = 31
+    conv_module = ConvolutionModule(
+        chunk_length, right_context_length, D, kernel_size,
+    )
+
+    utterance = torch.randn(U, B, D)
+    right_context = torch.randn(R, B, D)
+    cache = torch.randn(B, D, kernel_size - 1)
+
+    utterance, right_context, new_cache = conv_module.infer(
+        utterance, right_context, cache
+    )
+    assert utterance.shape == (U, B, D)
+    assert right_context.shape == (R, B, D)
+    assert new_cache.shape == (B, D, kernel_size - 1)
+
+
 if __name__ == "__main__":
     test_rel_positional_encoding()
     test_emformer_attention_forward()
     test_emformer_attention_infer()
+    test_convolution_module_forward()
+    test_convolution_module_infer()
