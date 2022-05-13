@@ -19,7 +19,7 @@ This script checks that there are no OOV tokens in the BPE-based lexicon.
 
 Usage example:
 
-    python3 ./local/validate_lexicon.py \
+    python3 ./local/validate_bpe_lexicon.py \
             --lexicon /path/to/lexicon.txt \
             --bpe-model /path/to/bpe.model
 """
