@@ -3,6 +3,13 @@
 
 #### 2022-05-12
 
+#### Conformer encoder + embedding decoder
+
+Conformer encoder + non-current decoder. The encoder a reworked 
+version of the conformer encoder, with many changes. The decoder 
+contains only an embedding layer, a Conv1d (with kernel size 2) and 
+a linear layer (to transform tensor dim). k2 pruned RNN-T loss is used.
+
 Results are:
 
 |                      |  Dev  | Test  |
