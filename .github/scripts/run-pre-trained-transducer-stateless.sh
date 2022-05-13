@@ -33,7 +33,7 @@ for sym in 1 2 3; do
     $repo/test_wavs/1221-135766-0002.wav
 done
 
-for method in modified_beam_search beam_search; do
+for method in fast_beam_search modified_beam_search beam_search; do
   log "$method"
 
   ./transducer_stateless/pretrained.py \
@@ -46,15 +46,31 @@ for method in modified_beam_search beam_search; do
     $repo/test_wavs/1221-135766-0002.wav
 done
 
-for method in modified_beam_search beam_search; do
-  log "$method"
+echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
+echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+  mkdir -p transducer_stateless/exp
+  ln -s $PWD/$repo/exp/pretrained.pt transducer_stateless/exp/epoch-999.pt
+  ln -s $PWD/$repo/data/lang_bpe_500 data/
 
-  ./transducer_stateless_multi_datasets/pretrained.py \
-    --method $method \
-    --beam-size 4 \
-    --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
-    $repo/test_wavs/1089-134686-0001.wav \
-    $repo/test_wavs/1221-135766-0001.wav \
-    $repo/test_wavs/1221-135766-0002.wav
-done
+  ls -lh data
+  ls -lh transducer_stateless/exp
+
+  log "Decoding test-clean and test-other"
+
+  # use a small value for decoding with CPU
+  max_duration=100
+
+  for method in greedy_search fast_beam_search modified_beam_search; do
+    log "Decoding with $method"
+
+    ./transducer_stateless/decode.py \
+      --decoding-method $method \
+      --epoch 999 \
+      --avg 1 \
+      --max-duration $max_duration \
+      --exp-dir transducer_stateless/exp
+  done
+
+  rm transducer_stateless/exp/*.pt
+fi

@@ -95,7 +95,7 @@ def get_env_info() -> Dict[str, Any]:
         "k2-git-sha1": k2.version.__git_sha1__,
         "k2-git-date": k2.version.__git_date__,
         "lhotse-version": lhotse.__version__,
-        "torch-version": torch.__version__,
+        "torch-version": str(torch.__version__),
         "torch-cuda-available": torch.cuda.is_available(),
         "torch-cuda-version": torch.version.cuda,
         "python-version": sys.version[:3],

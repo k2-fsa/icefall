@@ -1,4 +1,78 @@
 ## Results
+### GigaSpeech BPE training results (Pruned Transducer 2)
+
+#### 2022-05-12
+
+#### Conformer encoder + embedding decoder
+
+Conformer encoder + non-recurrent decoder. The encoder is a
+reworked version of the conformer encoder, with many changes. The
+decoder contains only an embedding layer, a Conv1d (with kernel
+size 2) and a linear layer (to transform tensor dim). k2 pruned
+RNN-T loss is used.
+
+Results are:
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.59 | 10.87 |
+|   fast beam search   | 10.56 | 10.80 |
+| modified beam search | 10.52 | 10.62 |
+
+To reproduce the above result, use the following commands for training:
+
+```bash
+cd egs/gigaspeech/ASR
+./prepare.sh
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+./pruned_transducer_stateless2/train.py \
+  --max-duration 120 \
+  --num-workers 1 \
+  --world-size 8 \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --use-fp16 True
+```
+
+and the following commands for decoding:
+
+```bash
+# greedy search
+./pruned_transducer_stateless2/decode.py \
+  --epoch 29 \
+  --avg 11 \
+  --decoding-method greedy_search \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-duration 20 \
+  --num-workers 1
+
+# fast beam search
+./pruned_transducer_stateless2/decode.py \
+  --epoch 29 \
+  --avg 9 \
+  --decoding-method fast_beam_search \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-duration 20 \
+  --num-workers 1
+
+# modified beam search
+./pruned_transducer_stateless2/decode.py \
+  --epoch 29 \
+  --avg 8 \
+  --decoding-method modified_beam_search \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-duration 20 \
+  --num-workers 1
+```
+
+Pretrained model is available at
+<https://huggingface.co/wgb14/icefall-asr-gigaspeech-pruned-transducer-stateless2>
+
+The tensorboard log for training is available at
+<https://tensorboard.dev/experiment/zmmM0MLASnG1N2RmJ4MZBw/>
 
 ### GigaSpeech BPE training results (Conformer-CTC)
 
@@ -20,7 +94,7 @@ Scale values used in n-gram LM rescoring and attention rescoring for the best WE
 
 To reproduce the above result, use the following commands for training:
 
-```
+```bash
 cd egs/gigaspeech/ASR
 ./prepare.sh
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
@@ -34,7 +108,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 and the following command for decoding:
 
-```
+```bash
 ./conformer_ctc/decode.py \
   --epoch 18 \
   --avg 6 \
@@ -59,7 +133,7 @@ Scale values used in n-gram LM rescoring and attention rescoring for the best WE
 
 To reproduce the above result, use the training commands above, and the following command for decoding:
 
-```
+```bash
 ./conformer_ctc/decode.py \
   --epoch 18 \
   --avg 6 \
