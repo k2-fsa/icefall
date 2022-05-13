@@ -8,11 +8,11 @@ Same as `Pruned Stateless Transducer 2` but with more layers.
 
 See <https://github.com/k2-fsa/icefall/pull/330>
 
-Note models in `pruned_transducer_stateless` and `pruned_transducer_stateless2`
+Note that models in `pruned_transducer_stateless` and `pruned_transducer_stateless2`
 have about 80 M parameters.
 
 The notations `large` and `medium` below are from the [Conformer](https://arxiv.org/pdf/2005.08100.pdf)
-paper, where the large model has about 188 M parameters and the medium model
+paper, where the large model has about 118 M parameters and the medium model
 has 30.8 M parameters.
 
 #### Large
