@@ -13,8 +13,9 @@ ln -sfv /path/to/GigaSpeech download/GigaSpeech
 ```
 
 ## Performance Record
-|     |  Dev  | Test  |
-|-----|-------|-------|
-| WER | 10.47 | 10.58 |
+|                                |  Dev  | Test  |
+|--------------------------------|-------|-------|
+|         `conformer_ctc`        | 10.47 | 10.58 |
+| `pruned_transducer_stateless2` | 10.52 | 10.62 |
 
 See [RESULTS](/egs/gigaspeech/ASR/RESULTS.md) for details.
