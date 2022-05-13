@@ -20,27 +20,26 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless3/export.py \
-  --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/export.py \
+  --exp-dir ./pruned_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless3/decode.py`,
+To use the generated file with `pruned_transducer_stateless2/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless3/decode.py \
-        --exp-dir ./pruned_transducer_stateless3/exp \
+    ./pruned_transducer_stateless2/decode.py \
+        --exp-dir ./pruned_transducer_stateless2/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 600 \
-        --decoding-method greedy_search \
+        --max-duration 100 \
         --bpe-model data/lang_bpe_500/bpe.model
 """
 
@@ -52,11 +51,7 @@ import sentencepiece as spm
 import torch
 from train import get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import str2bool
 
 
@@ -69,19 +64,8 @@ def get_parser():
         "--epoch",
         type=int,
         default=28,
-        help="""It specifies the checkpoint to use for averaging.
-        Note: Epoch counts from 0.
-        You can specify --avg to use more checkpoints for model averaging.""",
-    )
-
-    parser.add_argument(
-        "--iter",
-        type=int,
-        default=0,
-        help="""If positive, --epoch is ignored and it
-        will use the checkpoint exp_dir/checkpoint-iter.pt.
-        You can specify --avg to use more checkpoints for model averaging.
-        """,
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
 
     parser.add_argument(
@@ -90,13 +74,13 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        "'--epoch'. ",
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless2/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -157,24 +141,7 @@ def main():
 
     model.to(device)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
+    if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1

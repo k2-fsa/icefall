@@ -12,13 +12,14 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide four recipes at present:
+We provide 6 recipes at present:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [Aishell][aishell]
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
+  - [GigaSpeech][gigaspeech]
 
 ### yesno
 
@@ -197,6 +198,23 @@ The best WER using modified beam search with beam size 4 is:
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
 
+### GigaSpeech
+
+#### Conformer CTC
+
+|     |  Dev  | Test  |
+|-----|-------|-------|
+| WER | 10.47 | 10.58 |
+
+#### Pruned stateless RNN-T
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.59 | 10.87 |
+|   fast beam search   | 10.56 | 10.80 |
+| modified beam search | 10.52 | 10.62 |
+
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -225,4 +243,5 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [tedlium3]: egs/tedlium3/ASR
+[gigaspeech]: egs/gigaspeech/ASR
 [k2]: https://github.com/k2-fsa/k2

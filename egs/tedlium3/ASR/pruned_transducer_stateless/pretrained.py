@@ -72,23 +72,16 @@ import k2
 import kaldifeat
 import sentencepiece as spm
 import torch
-import torch.nn as nn
 import torchaudio
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
 )
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
-from model import Transducer
 from torch.nn.utils.rnn import pad_sequence
-
-from icefall.env import get_env_info
-from icefall.utils import AttributeDict
+from train import get_params, get_transducer_model
 
 
 def get_parser():
@@ -185,74 +178,14 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--sample-rate",
+        type=int,
+        default=16000,
+        help="The sample rate of the input sound file",
+    )
+
     return parser
-
-
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "sample_rate": 16000,
-            # parameters for conformer
-            "feature_dim": 80,
-            "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            "vgg_frontend": False,
-            # parameters for decoder
-            "embedding_dim": 512,
-            "env_info": get_env_info(),
-        }
-    )
-    return params
-
-
-def get_encoder_model(params: AttributeDict) -> nn.Module:
-    encoder = Conformer(
-        num_features=params.feature_dim,
-        output_dim=params.vocab_size,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
-    )
-    return encoder
-
-
-def get_decoder_model(params: AttributeDict) -> nn.Module:
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        embedding_dim=params.embedding_dim,
-        blank_id=params.blank_id,
-        unk_id=params.unk_id,
-        context_size=params.context_size,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict) -> nn.Module:
-    joiner = Joiner(
-        input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
-        output_dim=params.vocab_size,
-    )
-    return joiner
-
-
-def get_transducer_model(params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-    )
-    return model
 
 
 def read_sound_files(
@@ -354,7 +287,7 @@ def main():
     logging.info(msg)
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -372,6 +305,7 @@ def main():
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -379,6 +313,7 @@ def main():
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):

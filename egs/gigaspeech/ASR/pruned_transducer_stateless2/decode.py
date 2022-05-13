@@ -22,15 +22,15 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
+        --max-duration 100 \
         --decoding-method greedy_search
 
-(2) beam search (not recommended)
+(2) beam search
 ./pruned_transducer_stateless2/decode.py \
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
+        --max-duration 100 \
         --decoding-method beam_search \
         --beam-size 4
 
@@ -39,7 +39,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
+        --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
@@ -48,7 +48,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
+        --max-duration 1500 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
@@ -66,7 +66,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -74,6 +74,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from gigaspeech_scoring import asr_text_post_processing
 from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -97,29 +98,28 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
-        You can specify --avg to use more checkpoints for model averaging.""",
+        default=29,
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
-
-    parser.add_argument(
-        "--iter",
-        type=int,
-        default=0,
-        help="""If positive, --epoch is ignored and it
-        will use the checkpoint exp_dir/checkpoint-iter.pt.
-        You can specify --avg to use more checkpoints for model averaging.
-        """,
-    )
-
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=8,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        "'--epoch'. ",
+    )
+
+    parser.add_argument(
+        "--avg-last-n",
+        type=int,
+        default=0,
+        help="""If positive, --epoch and --avg are ignored and it
+        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
+        where xxx is the number of processed batches while
+        saving that checkpoint.
+        """,
     )
 
     parser.add_argument(
@@ -152,7 +152,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An integer indicating how many candidates we will keep for each
+        help="""An interger indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -199,6 +199,17 @@ def get_parser():
     )
 
     return parser
+
+
+def post_processing(
+    results: List[Tuple[List[str], List[str]]],
+) -> List[Tuple[List[str], List[str]]]:
+    new_results = []
+    for ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((new_ref, new_hyp))
+    return new_results
 
 
 def decode_one_batch(
@@ -357,10 +368,7 @@ def decode_dataset(
     except TypeError:
         num_batches = "?"
 
-    if params.decoding_method == "greedy_search":
-        log_interval = 50
-    else:
-        log_interval = 10
+    log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -404,6 +412,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = post_processing(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -441,7 +450,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    GigaSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -456,19 +465,13 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
-    else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-
+    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -485,9 +488,8 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -495,20 +497,8 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
+    if params.avg_last_n > 0:
+        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
         logging.info(f"averaging {filenames}")
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
@@ -536,18 +526,18 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    gigaspeech = GigaSpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_cuts = gigaspeech.dev_cuts()
+    test_cuts = gigaspeech.test_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    dev_dl = gigaspeech.test_dataloaders(dev_cuts)
+    test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dls = [dev_dl, test_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
