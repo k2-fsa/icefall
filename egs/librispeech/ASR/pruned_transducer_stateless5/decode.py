@@ -18,41 +18,41 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless4/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless4/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
+(2) beam search (not recommended)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless4/exp \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless4/exp \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
 
 
@@ -69,7 +69,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -98,33 +98,34 @@ def get_parser():
         "--epoch",
         type=int,
         default=28,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 0.
+        You can specify --avg to use more checkpoints for model averaging.""",
     )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
+    )
+
     parser.add_argument(
         "--avg",
         type=int,
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
-    )
-
-    parser.add_argument(
-        "--avg-last-n",
-        type=int,
-        default=0,
-        help="""If positive, --epoch and --avg are ignored and it
-        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
-        where xxx is the number of processed batches while
-        saving that checkpoint.
-        """,
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless5/exp",
         help="The experiment dir",
     )
 
@@ -151,7 +152,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -253,7 +254,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -271,6 +272,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -278,6 +280,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -357,9 +360,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -455,13 +458,19 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    if params.iter > 0:
+        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+    else:
+        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -478,8 +487,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -487,8 +497,20 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
         logging.info(f"averaging {filenames}")
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
