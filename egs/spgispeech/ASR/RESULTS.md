@@ -40,17 +40,43 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --use-fp16 True
 ```
 
-The tensorboard training log can be found at
-<https://tensorboard.dev/experiment/ExSoBmrPRx6liMTGLu0Tgw/#scalars>
-
 The decoding command is:
 ```
-## fast beam search
-./pruned_transducer_stateless/decode.py \
-  --avg-last-n 10 \
-  --exp-dir pruned_transducer_stateless/exp \
-  --max-duration 500 \
-  --beam-size 4 \
-  --max-contexts 4 \
-  --max-states 8
+# greedy search
+./pruned_transducer_stateless2/decode.py \
+        --avg-last-n 10 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --max-duration 100 \
+        --decoding-method greedy_search
+
+# beam search
+./pruned_transducer_stateless2/decode.py \
+        --avg-last-n 10 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --max-duration 100 \
+        --decoding-method beam_search \
+        --beam-size 4
+
+# modified beam search
+./pruned_transducer_stateless2/decode.py \
+        --avg-last-n 10 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
+
+# fast beam search
+./pruned_transducer_stateless2/decode.py \
+        --avg-last-n 10 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --max-duration 1500 \
+        --decoding-method fast_beam_search \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 ```
+
+Pretrained model is available at <https://huggingface.co/desh2608/icefall-asr-spgispeech-pruned-transducer-stateless2>
+
+The tensorboard training log can be found at
+<https://tensorboard.dev/experiment/ExSoBmrPRx6liMTGLu0Tgw/#scalars>
