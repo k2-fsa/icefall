@@ -22,7 +22,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method greedy_search
 
 (2) beam search
@@ -30,7 +30,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method beam_search \
         --beam-size 4
 
@@ -39,7 +39,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
@@ -48,7 +48,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 1500 \
+        --max-duration 600 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
@@ -99,27 +99,28 @@ def get_parser():
         "--epoch",
         type=int,
         default=29,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 0.
+        You can specify --avg to use more checkpoints for model averaging.""",
     )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
+    )
+
     parser.add_argument(
         "--avg",
         type=int,
         default=8,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
-    )
-
-    parser.add_argument(
-        "--avg-last-n",
-        type=int,
-        default=0,
-        help="""If positive, --epoch and --avg are ignored and it
-        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
-        where xxx is the number of processed batches while
-        saving that checkpoint.
-        """,
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
@@ -152,7 +153,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -465,7 +466,11 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    if params.iter > 0:
+        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+    else:
+        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -488,8 +493,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -497,8 +503,20 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
         logging.info(f"averaging {filenames}")
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
