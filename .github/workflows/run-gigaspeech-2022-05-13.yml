@@ -110,7 +110,6 @@ jobs:
           echo "results for pruned_transducer_stateless2"
           echo "===greedy search==="
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for dev" {} + | sort -n -k2
-          find exp/greedy_search -name "log-*" -exec grep -n --color "best for test" {} + | sort -n -k2
 
       - name: Upload decoding results for gigaspeech pruned_transducer_stateless2
         uses: actions/upload-artifact@v2
