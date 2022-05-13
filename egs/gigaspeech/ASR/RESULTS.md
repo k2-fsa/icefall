@@ -5,10 +5,10 @@
 
 #### Conformer encoder + embedding decoder
 
-Conformer encoder + non-recurrent decoder. The encoder is a 
-reworked version of the conformer encoder, with many changes. The 
-decoder contains only an embedding layer, a Conv1d (with kernel 
-size 2) and a linear layer (to transform tensor dim). k2 pruned 
+Conformer encoder + non-recurrent decoder. The encoder is a
+reworked version of the conformer encoder, with many changes. The
+decoder contains only an embedding layer, a Conv1d (with kernel
+size 2) and a linear layer (to transform tensor dim). k2 pruned
 RNN-T loss is used.
 
 Results are:
