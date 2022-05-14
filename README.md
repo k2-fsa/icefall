@@ -107,7 +107,7 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.19       | 4.97       |
+| WER | 2.00       | 4.63       |
 
 
 ### Aishell
