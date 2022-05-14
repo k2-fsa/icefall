@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # This script downloads the test-clean and test-other datasets
-# of LibriSpeech and unzip them to the folder ~/tmp/download,
-# which is cached by GitHub actions for later runs.
+# of LibriSpeech and unzips them to the folder ~/tmp/download,
+# which are cached by GitHub actions for later runs.
 #
 # You will find directories ~/tmp/download/LibriSpeech after running
 # this script.

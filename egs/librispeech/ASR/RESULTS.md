@@ -10,6 +10,25 @@ During training, it selects either a batch from GigaSpeech with prob `giga_prob`
 or a batch from LibriSpeech with prob `1 - giga_prob`. All utterances within
 a batch come from the same dataset.
 
+#### 2022-05-10
+
+Using commit `TODO`.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|----------------------------------------|
+| greedy search (max sym per frame 1) | 2.21       | 5.09       | --epoch 27 --avg 2  --max-duration 600 |
+| greedy search (max sym per frame 1) | 2.25       | 5.02       | --epoch 27 --avg 12 --max-duration 600 |
+| modified beam search                | 2.19       | 5.03       | --epoch 25 --avg 6  --max-duration 600 |
+| modified beam search                | 2.23       | 4.94       | --epoch 27 --avg 10 --max-duration 600 |
+| beam search                         | 2.16       | 4.95       | --epoch 25 --avg 7  --max-duration 600 |
+| fast beam search                    | 2.21       | 4.96       | --epoch 27 --avg 10 --max-duration 600 |
+| fast beam search                    | 2.19       | 4.97       | --epoch 27 --avg 12 --max-duration 600 |
+
+
+#### 2022-04-29
+
 Using commit `ac84220de91dee10c00e8f4223287f937b1930b6`.
 
 See <https://github.com/k2-fsa/icefall/pull/312>.

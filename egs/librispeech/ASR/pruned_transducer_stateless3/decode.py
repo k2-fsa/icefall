@@ -19,40 +19,67 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method greedy_search
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
 (2) beam search (not recommended)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
-(4) fast beam search
+(4) fast beam search (one best)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
+
+(5) fast beam search (nbest)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(6) fast beam search (nbest with n-gram LM rescoring)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_with_nbest_rescoring \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --num-paths 200 \
+    --nbest-scale 0.5 \
+    --lm-dir ./data/lm
 """
 
 
@@ -69,8 +96,10 @@ import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search_nbest,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
+    fast_beam_search_with_nbest_rescoring,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -147,7 +176,9 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
+          - fast_beam_search_with_nbest_rescoring
         """,
     )
 
@@ -168,7 +199,9 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, or fast_beam_search_with_nbest_rescoring
+        """,
     )
 
     parser.add_argument(
@@ -176,7 +209,9 @@ def get_parser():
         type=int,
         default=4,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, or fast_beam_search_with_nbest_rescoring
+        """,
     )
 
     parser.add_argument(
@@ -184,7 +219,9 @@ def get_parser():
         type=int,
         default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, or fast_beam_search_with_nbest_rescoring
+        """,
     )
 
     parser.add_argument(
@@ -194,6 +231,7 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -207,7 +245,8 @@ def get_parser():
         type=int,
         default=100,
         help="""Number of paths for computed nbest oracle WER
-        when the decoding method is fast_beam_search_nbest_oracle.
+        when the decoding method is fast_beam_search_nbest_oracle,
+        fast_beam_search_nbest, or fast_beam_search_with_nbest_rescoring.
         """,
     )
 
@@ -216,9 +255,40 @@ def get_parser():
         type=float,
         default=0.5,
         help="""Scale applied to lattice scores when computing nbest paths.
-        Used only when the decoding_method is fast_beam_search_nbest_oracle.
+        Used only when the decoding_method is fast_beam_search_nbest_oracle,
+        fast_beam_search_nbest, or fast_beam_search_with_nbest_rescoring.
         """,
     )
+
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="""Softmax temperature.
+        The output of the model is (logits / temperature).log_softmax().
+        """,
+    )
+
+    parser.add_argument(
+        "--lm-dir",
+        type=Path,
+        default=Path("./data/lm"),
+        help="""Used only when --decoding-method is
+        fast_beam_search_with_nbest_rescoring.
+        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+        """,
+    )
+
+    parser.add_argument(
+        "--words-txt",
+        type=Path,
+        default=Path("./data/lang_bpe_500/words.txt"),
+        help="""Used only when --decoding-method is
+        fast_beam_search_with_nbest_rescoring.
+        It is the word table.
+        """,
+    )
+
     return parser
 
 
@@ -228,6 +298,8 @@ def decode_one_batch(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
+    G: Optional[k2.Fsa] = None,
+    word_table: Optional[k2.SymbolTable] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -252,8 +324,17 @@ def decode_one_batch(
         for the format of the `batch`.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is
-        fast_beam_search or fast_beam_search_nbest_oracle.
+        only when decoding method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, or fast_beam_search_with_nbest_rescoring.
+      G:
+        Optional. Used only when decoding method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        or fast_beam_search_with_nbest_rescoring.
+        It an FsaVec containing an acceptor.
+      word_table:
+        Optional. Used only when decoding method is
+        fast_beam_search_with_nbest_rescoring. It is the word symbol table
+        containing mappings between words and IDs.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -282,6 +363,22 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            temperature=params.temperature,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "fast_beam_search_nbest":
+        hyp_tokens = fast_beam_search_nbest(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -297,9 +394,30 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=sp.encode(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+        ngram_lm_scale_list = [-0.3, -0.2, -0.1, -0.05, -0.02, 0]
+        ngram_lm_scale_list += [0.01, 0.02, 0.05]
+        hyp_tokens = fast_beam_search_with_nbest_rescoring(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_states=params.max_states,
+            max_contexts=params.max_contexts,
+            ngram_lm_scale_list=ngram_lm_scale_list,
+            num_paths=params.num_paths,
+            G=G,
+            sp=sp,
+            word_table=word_table,
+            use_double_scores=True,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
+        )
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -317,6 +435,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -338,6 +457,7 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
+                    temperature=params.temperature,
                 )
             else:
                 raise ValueError(
@@ -352,7 +472,19 @@ def decode_one_batch(
             (
                 f"beam_{params.beam}_"
                 f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
+                f"max_states_{params.max_states}_"
+                f"temperature_{params.temperature}"
+            ): hyps
+        }
+    elif params.decoding_method == "fast_beam_search_nbest":
+        return {
+            (
+                f"beam_{params.beam}_"
+                f"max_contexts_{params.max_contexts}_"
+                f"max_states_{params.max_states}_"
+                f"num_paths_{params.num_paths}_"
+                f"nbest_scale_{params.nbest_scale}_"
+                f"temperature_{params.temperature}"
             ): hyps
         }
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
@@ -362,11 +494,31 @@ def decode_one_batch(
                 f"max_contexts_{params.max_contexts}_"
                 f"max_states_{params.max_states}_"
                 f"num_paths_{params.num_paths}_"
-                f"nbest_scale_{params.nbest_scale}"
+                f"nbest_scale_{params.nbest_scale}_"
+                f"temperature_{params.temperature}"
             ): hyps
         }
+    elif params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+        prefix = (
+            f"beam_{params.beam}_"
+            f"max_contexts_{params.max_contexts}_"
+            f"max_states_{params.max_states}_"
+            f"num_paths_{params.num_paths}_"
+            f"nbest_scale_{params.nbest_scale}_"
+            f"temperature_{params.temperature}_"
+        )
+        ans: Dict[str, List[List[str]]] = {}
+        for key, hyp in hyp_tokens.items():
+            t: List[str] = sp.decode(hyp)
+            ans[prefix + key] = [s.split() for s in t]
+        return ans
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {
+            (
+                f"beam_size_{params.beam_size}_"
+                f"temperature_{params.temperature}"
+            ): hyps
+        }
 
 
 def decode_dataset(
@@ -375,6 +527,8 @@ def decode_dataset(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
+    G: Optional[k2.Fsa] = None,
+    word_table: Optional[k2.SymbolTable] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -389,7 +543,17 @@ def decode_dataset(
         The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        only when decoding method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, or fast_beam_search_with_nbest_rescoring.
+      G:
+        Optional. Used only when decoding method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        or fast_beam_search_with_nbest_rescoring.
+        It an FsaVec containing an acceptor.
+      word_table:
+        Optional. Used only when decoding method is
+        fast_beam_search_with_nbest_rescoring. It is the word symbol table
+        containing mappings between words and IDs.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -419,6 +583,8 @@ def decode_dataset(
             sp=sp,
             decoding_graph=decoding_graph,
             batch=batch,
+            G=G,
+            word_table=word_table,
         )
 
         for name, hyps in hyps_dict.items():
@@ -438,6 +604,7 @@ def decode_dataset(
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
+
     return results
 
 
@@ -485,6 +652,68 @@ def save_results(
     logging.info(s)
 
 
+def load_ngram_LM(
+    lm_dir: Path, word_table: k2.SymbolTable, device: torch.device
+) -> k2.Fsa:
+    """Read a ngram model from the given directory.
+
+    Args:
+      lm_dir:
+        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+      word_table:
+        The word table mapping words to IDs and vice versa.
+      device:
+        The resulting FSA will be moved to this device.
+    Returns:
+      Return an FsaVec containing a single acceptor.
+    """
+    lm_dir = Path(lm_dir)
+    assert lm_dir.is_dir(), f"{lm_dir} does not exist"
+
+    pt_file = lm_dir / "G_4_gram.pt"
+
+    if pt_file.is_file():
+        logging.info(f"Loading pre-compiled {pt_file}")
+        d = torch.load(pt_file, map_location=device)
+        G = k2.Fsa.from_dict(d)
+        return G
+
+    txt_file = lm_dir / "G_4_gram.fst.txt"
+
+    assert txt_file.is_file(), f"{txt_file} does not exist"
+    logging.info(f"Loading {txt_file}")
+    logging.warning("It may take 8 minutes (Will be cached for later use).")
+    with open(txt_file) as f:
+        G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+
+        # G.aux_labels is not needed in later computations, so
+        # remove it here.
+        del G.aux_labels
+        # Now G is an acceptor
+
+        first_word_disambig_id = word_table["#0"]
+        # CAUTION: The following line is crucial.
+        # Arcs entering the back-off state have label equal to #0.
+        # We have to change it to 0 here.
+        G.labels[G.labels >= first_word_disambig_id] = 0
+
+        # See https://github.com/k2-fsa/k2/issues/874
+        # for why we need to set G.properties to None
+        G.__dict__["_properties"] = None
+
+        G = k2.Fsa.from_fsas([G]).to(device)
+        G = k2.arc_sort(G)
+
+        # Save a dummy value so that it can be loaded in C++.
+        # See https://github.com/pytorch/pytorch/issues/67902
+        # for why we need to do this.
+        G.dummy = 1
+
+        logging.info(f"Saving to {pt_file} for later use")
+        torch.save(G.as_dict(), pt_file)
+        return G
+
+
 @torch.no_grad()
 def main():
     parser = get_parser()
@@ -499,7 +728,9 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_nbest",
         "fast_beam_search_nbest_oracle",
+        "fast_beam_search_with_nbest_rescoring",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
@@ -513,19 +744,27 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+        params.suffix += f"-temperature-{params.temperature}"
+    elif params.decoding_method in (
+        "fast_beam_search_nbest",
+        "fast_beam_search_nbest_oracle",
+        "fast_beam_search_with_nbest_rescoring",
+    ):
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
         params.suffix += f"-num-paths-{params.num_paths}"
         params.suffix += f"-nbest-scale-{params.nbest_scale}"
+        params.suffix += f"-temperature-{params.temperature}"
     elif "beam_search" in params.decoding_method:
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
         )
+        params.suffix += f"-temperature-{params.temperature}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+        params.suffix += f"-temperature-{params.temperature}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -585,11 +824,25 @@ def main():
 
     if params.decoding_method in (
         "fast_beam_search",
+        "fast_beam_search_nbest",
         "fast_beam_search_nbest_oracle",
+        "fast_beam_search_with_nbest_rescoring",
     ):
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
+
+    if params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+        logging.info(f"Loading word symbol table from {params.words_txt}")
+        word_table = k2.SymbolTable.from_file(params.words_txt)
+        G = load_ngram_LM(
+            lm_dir=params.lm_dir,
+            word_table=word_table,
+            device=device,
+        )
+    else:
+        word_table = None
+        G = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -613,6 +866,8 @@ def main():
             model=model,
             sp=sp,
             decoding_graph=decoding_graph,
+            G=G,
+            word_table=word_table,
         )
 
         save_results(
