@@ -19,38 +19,38 @@ Usage:
 
 (1) greedy search
 ./pruned_transducer_stateless/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method greedy_search \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method greedy_search \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 (2) beam search
 ./pruned_transducer_stateless/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 (3) modified beam search
 ./pruned_transducer_stateless/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method modified_beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method modified_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 (4) fast beam search
 ./pruned_transducer_stateless/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method fast_beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method fast_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 You can also use `./pruned_transducer_stateless/exp/epoch-xx.pt`.
 
@@ -232,6 +232,9 @@ def main():
 
     logging.info("Creating model")
     model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
     model.load_state_dict(checkpoint["model"], strict=False)
