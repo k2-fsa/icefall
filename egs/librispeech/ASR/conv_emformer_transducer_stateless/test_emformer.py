@@ -154,9 +154,131 @@ def test_convolution_module_infer():
     assert new_cache.shape == (B, D, kernel_size - 1)
 
 
+def test_emformer_encoder_layer_forward():
+    from emformer import EmformerEncoderLayer
+
+    B, D = 2, 256
+    chunk_length = 8
+    right_context_length = 2
+    left_context_length = 8
+    kernel_size = 31
+    num_chunks = 3
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+
+    for use_memory in [True, False]:
+        if use_memory:
+            S = num_chunks
+            M = S - 1
+        else:
+            S, M = 0, 0
+
+        layer = EmformerEncoderLayer(
+            d_model=D,
+            nhead=8,
+            dim_feedforward=1024,
+            chunk_length=chunk_length,
+            cnn_module_kernel=kernel_size,
+            left_context_length=left_context_length,
+            right_context_length=right_context_length,
+            max_memory_size=M,
+        )
+
+        Q, KV = R + U + S, M + R + U
+        utterance = torch.randn(U, B, D)
+        lengths = torch.randint(1, U + 1, (B,))
+        lengths[0] = U
+        right_context = torch.randn(R, B, D)
+        memory = torch.randn(M, B, D)
+        attention_mask = torch.rand(Q, KV) >= 0.5
+        PE = 2 * U - 1
+        pos_emb = torch.randn(PE, D)
+
+        output_utterance, output_right_context, output_memory = layer(
+            utterance,
+            lengths,
+            right_context,
+            memory,
+            attention_mask,
+            pos_emb,
+        )
+        assert output_utterance.shape == (U, B, D)
+        assert output_right_context.shape == (R, B, D)
+        assert output_memory.shape == (M, B, D)
+
+
+def test_emformer_encoder_layer_infer():
+    from emformer import EmformerEncoderLayer
+
+    B, D = 2, 256
+    chunk_length = 8
+    right_context_length = 2
+    left_context_length = 8
+    kernel_size = 31
+    num_chunks = 1
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+
+    for use_memory in [True, False]:
+        if use_memory:
+            M = 3
+        else:
+            M = 0
+
+        layer = EmformerEncoderLayer(
+            d_model=D,
+            nhead=8,
+            dim_feedforward=1024,
+            chunk_length=chunk_length,
+            cnn_module_kernel=kernel_size,
+            left_context_length=left_context_length,
+            right_context_length=right_context_length,
+            max_memory_size=M,
+        )
+
+        utterance = torch.randn(U, B, D)
+        lengths = torch.randint(1, U + 1, (B,))
+        lengths[0] = U
+        right_context = torch.randn(R, B, D)
+        memory = torch.randn(M, B, D)
+        state = None
+        PE = left_context_length + 2 * U - 1
+        pos_emb = torch.randn(PE, D)
+        conv_cache = None
+        (
+            output_utterance,
+            output_right_context,
+            output_memory,
+            output_state,
+            conv_cache,
+        ) = layer.infer(
+            utterance,
+            lengths,
+            right_context,
+            memory,
+            pos_emb,
+            state,
+            conv_cache,
+        )
+        assert output_utterance.shape == (U, B, D)
+        assert output_right_context.shape == (R, B, D)
+        if use_memory:
+            assert output_memory.shape == (1, B, D)
+        else:
+            assert output_memory.shape == (0, B, D)
+        assert len(output_state) == 4
+        assert output_state[0].shape == (M, B, D)
+        assert output_state[1].shape == (left_context_length, B, D)
+        assert output_state[2].shape == (left_context_length, B, D)
+        assert output_state[3].shape == (1, B)
+        assert conv_cache.shape == (B, D, kernel_size - 1)
+
+
 if __name__ == "__main__":
     test_rel_positional_encoding()
     test_emformer_attention_forward()
     test_emformer_attention_infer()
     test_convolution_module_forward()
     test_convolution_module_infer()
+    test_emformer_encoder_layer_forward()
+    test_emformer_encoder_layer_infer()
