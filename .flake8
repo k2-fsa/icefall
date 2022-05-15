@@ -13,6 +13,9 @@ per-file-ignores =
     egs/librispeech/ASR/pruned_transducer_stateless4/*.py: E501,
     egs/librispeech/ASR/*/optim.py: E501,
     egs/librispeech/ASR/*/scaling.py: E501,
+    egs/tedlium3/ASR/*/beam_search.py: E226,
+    egs/tedlium3/ASR/*/pretrained.py: E226,
+    egs/tedlium3/ASR/*/decode.py: E226,
 
     # invalid escape sequence (cause by tex formular), W605
     icefall/utils.py: E501, W605
@@ -26,3 +29,5 @@ exclude =
 ignore =
   # E203 whitespace before ':'
   E203,
+  # W503 line break before binary operator
+  W503,
