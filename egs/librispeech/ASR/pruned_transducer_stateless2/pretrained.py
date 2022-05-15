@@ -19,20 +19,38 @@ Usage:
 
 (1) greedy search
 ./pruned_transducer_stateless2/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method greedy_search \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method greedy_search \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
-(1) beam search
+(2) beam search
 ./pruned_transducer_stateless2/pretrained.py \
-        --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
-        --bpe-model ./data/lang_bpe_500/bpe.model \
-        --method beam_search \
-        --beam-size 4 \
-        /path/to/foo.wav \
-        /path/to/bar.wav \
+    --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
+
+(3) modified beam search
+./pruned_transducer_stateless2/pretrained.py \
+    --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method modified_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
+
+(4) fast beam search
+./pruned_transducer_stateless2/pretrained.py \
+    --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --method fast_beam_search \
+    --beam-size 4 \
+    /path/to/foo.wav \
+    /path/to/bar.wav
 
 You can also use `./pruned_transducer_stateless2/exp/epoch-xx.pt`.
 
@@ -79,9 +97,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        help="""Path to bpe.model.
-        Used only when method is ctc-decoding.
-        """,
+        help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -117,7 +133,33 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --method is beam_search and modified_beam_search",
+        help="""An integer indicating how many candidates we will keep for each
+        frame. Used only when --method is beam_search or
+        modified_beam_search.""",
+    )
+
+    parser.add_argument(
+        "--beam",
+        type=float,
+        default=4,
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=4,
+        help="""Used only when --method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-states",
+        type=int,
+        default=8,
+        help="""Used only when --method is fast_beam_search""",
     )
 
     parser.add_argument(
@@ -244,9 +286,9 @@ def main():
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
-            beam=8.0,
-            max_contexts=32,
-            max_states=8,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -254,6 +296,7 @@ def main():
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
 
@@ -263,6 +306,7 @@ def main():
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
