@@ -122,16 +122,7 @@ def _update_factorization(x: Tensor, x_factorized: Tensor,
         this_mean = _mean_like(x_norm_var, shape)
         f  = ((1.0 - speed) + speed * this_mean)
         factors.append(f)
-    # temp
-    #import random
-    #if random.random() < 0.1:
-    #    print("factor norms: ", list((x-1.0).abs().mean().item() for x in factors))
     x_factorized *= _product(*factors)
-    # TEMP
-    #import random
-    #if random.random() < 1.0:
-    #    x_norm, norm = (x**2).mean().sqrt(), (x_factorized**2).mean().sqrt()
-    #    print(f"numel,x_norm,factor_norm,eps={x.numel()},{x_norm},{norm},{eps}")
 
 def _get_factor_grads(x: Tensor, x_grad: Tensor) -> List[Tensor]:
     """
@@ -570,11 +561,6 @@ class Eve(Optimizer):
                         target_rms * (p.numel() ** 0.5)
                     )
                     p.mul_(1 - (weight_decay * is_above_target_rms))
-
-
-                if state["step"] % 50 == 0 and False:
-                    delta = (exp_avg / denom) * -step_size
-                    print("This_delta norm = ", delta.norm())
 
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
