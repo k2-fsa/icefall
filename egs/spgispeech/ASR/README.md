@@ -23,11 +23,10 @@ ArXiv link: https://arxiv.org/abs/2104.02014
 
 ## Performance Record
 
-| Decoding method           | val        |
-|---------------------------|------------|
-| greedy search             | 2.40       |
-| beam search               | 2.24       |
-| modified beam search      | 2.24       |
-| fast beam search          | 2.35       |
+| Decoding method           | val WER    | val CER |
+|---------------------------|------------|---------|
+| greedy search             | 2.40       |  0.99   |
+| modified beam search      | 2.24       |  0.91   |
+| fast beam search          | 2.35       |  0.97   |
 
 See [RESULTS](/egs/spgispeech/ASR/RESULTS.md) for details.

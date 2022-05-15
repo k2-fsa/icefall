@@ -15,7 +15,6 @@ The WERs are
 |                           | dev | val | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
 | greedy search             | 2.46       | 2.40       | --avg-last-n 10 --max-duration 500 |
-| beam search               | 2.27       | 2.24       | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | modified beam search      | 2.28       | 2.24       | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | fast beam search          | 2.38       | 2.35       | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
 
@@ -48,14 +47,6 @@ The decoding command is:
         --exp-dir ./pruned_transducer_stateless2/exp \
         --max-duration 100 \
         --decoding-method greedy_search
-
-# beam search
-./pruned_transducer_stateless2/decode.py \
-        --iter 696000 --avg 10 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
 
 # modified beam search
 ./pruned_transducer_stateless2/decode.py \

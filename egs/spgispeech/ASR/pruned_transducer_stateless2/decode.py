@@ -69,7 +69,7 @@ import torch.nn as nn
 from asr_datamodule import SPGISpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -252,7 +252,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -400,6 +400,7 @@ def save_results(
     results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
     test_set_wers = dict()
+    test_set_cers = dict()
     for key, results in results_dict.items():
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
@@ -409,31 +410,56 @@ def save_results(
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        wers_filename = (
+            params.res_dir / f"wers-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        with open(errs_filename, "w") as f:
+        with open(wers_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
 
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
+        # we also compute CER for spgispeech dataset.
+        results_char = []
+        for res in results:
+            results_char.append((list("".join(res[0])), list("".join(res[1]))))
+        cers_filename = (
+            params.res_dir / f"cers-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+        with open(cers_filename, "w") as f:
+            cer = write_error_stats(
+                f, f"{test_set_name}-{key}", results_char, enable_log=True
+            )
+            test_set_cers[key] = cer
 
-    test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
+        logging.info("Wrote detailed error stats to {}".format(wers_filename))
+
+    test_set_wers = {
+        k: v for k, v in sorted(test_set_wers.items(), key=lambda x: x[1])
+    }
+    test_set_cers = {
+        k: v for k, v in sorted(test_set_cers.items(), key=lambda x: x[1])
+    }
     errs_info = (
         params.res_dir
         / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
-        for key, val in test_set_wers:
-            print("{}\t{}".format(key, val), file=f)
+        print("settings\tWER\tCER", file=f)
+        for key in test_set_wers:
+            print(
+                "{}\t{}\t{}".format(
+                    key, test_set_wers[key], test_set_cers[key]
+                ),
+                file=f,
+            )
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, WER/CER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
-    for key, val in test_set_wers:
-        s += "{}\t{}{}\n".format(key, val, note)
+    for key in test_set_wers:
+        s += "{}\t{}\t{}{}\n".format(
+            key, test_set_wers[key], test_set_cers[key], note
+        )
         note = ""
     logging.info(s)
 
