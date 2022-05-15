@@ -184,13 +184,20 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       done > $lang_dir/transcript_words.txt
     fi
 
-    ./local/train_bpe_model.py \
-      --lang-dir $lang_dir \
-      --vocab-size $vocab_size \
-      --transcript $lang_dir/transcript_words.txt
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_words.txt
+    fi
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
       ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+
+      log "Validating $lang_dir/lexicon.txt"
+      ./local/validate_bpe_lexicon.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --bpe-model $lang_dir/bpe.model
     fi
   done
 fi
