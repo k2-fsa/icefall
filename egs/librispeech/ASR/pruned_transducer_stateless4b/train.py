@@ -66,7 +66,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
-from optim import Eden, Eve
+from optim import Eden, Eve, Abel
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -701,6 +701,11 @@ def train_one_epoch(
             continue
         cur_batch_idx = batch_idx
 
+        if params.batch_idx_train % 2000 == 0 and params.batch_idx_train > 0:
+            mmodel = model.module if hasattr(model, 'module') else model
+            mmodel.encoder.orthogonalize()
+            optimizer.reset()
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -871,7 +876,7 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Eve(model.parameters(), lr=params.initial_lr)
+    optimizer = Abel(model.parameters(), lr=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 

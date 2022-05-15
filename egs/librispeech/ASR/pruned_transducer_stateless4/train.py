@@ -701,11 +701,6 @@ def train_one_epoch(
             continue
         cur_batch_idx = batch_idx
 
-        if params.batch_idx_train % 2000 == 0 and params.batch_idx_train > 0:
-            mmodel = model.module if hasattr(model, 'module') else model
-            mmodel.encoder.orthogonalize()
-            optimizer.reset()
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
