@@ -19,53 +19,53 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) beam search
+(2) beam search (not recommended)
 ./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
 (4) fast beam search
 ./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 
 (5) fast beam search using LG
 ./pruned_transducer_stateless/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless/exp \
-        --use-LG True \
-        --use-max False \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 8 \
-        --max-contexts 8 \
-        --max-states 64
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless/exp \
+    --use-LG True \
+    --use-max False \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 8 \
+    --max-contexts 8 \
+    --max-states 64
 """
 
 
@@ -82,7 +82,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -174,7 +174,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -307,7 +307,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -330,6 +330,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -337,6 +338,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             use_max=params.use_max,
         )
@@ -421,9 +423,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):

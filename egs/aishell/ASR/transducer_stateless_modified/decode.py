@@ -19,48 +19,63 @@
 Usage:
 (1) greedy search
 ./transducer_stateless_modified/decode.py \
-        --epoch 64 \
-        --avg 33 \
-        --exp-dir ./transducer_stateless_modified/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+    --epoch 14 \
+    --avg 7 \
+    --exp-dir ./transducer_stateless_modified/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) beam search
+(2) beam search (not recommended)
 ./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_modified/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 14 \
+    --avg 7 \
+    --exp-dir ./transducer_stateless_modified/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./transducer_stateless_modified/decode.py \
-        --epoch 14 \
-        --avg 7 \
-        --exp-dir ./transducer_stateless_modified/exp \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 14 \
+    --avg 7 \
+    --exp-dir ./transducer_stateless_modified/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+(4) fast beam search
+./transducer_stateless_modified/decode.py \
+    --epoch 14 \
+    --avg 7 \
+    --exp-dir ./transducer_stateless_modified/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
+
 
 import argparse
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
-from beam_search import beam_search, greedy_search, modified_beam_search
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
-from model import Transducer
+from beam_search import (
+    beam_search,
+    fast_beam_search_one_best,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -113,6 +128,7 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
+          - fast_beam_search
         """,
     )
 
@@ -120,7 +136,35 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --decoding-method is beam_search",
+        help="""An integer indicating how many candidates we will keep for each
+        frame. Used only when --decoding-method is beam_search or
+        modified_beam_search.""",
+    )
+
+    parser.add_argument(
+        "--beam",
+        type=float,
+        default=4,
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --decoding-method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=4,
+        help="""Used only when --decoding-method is
+        fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--max-states",
+        type=int,
+        default=8,
+        help="""Used only when --decoding-method is
+        fast_beam_search""",
     )
 
     parser.add_argument(
@@ -130,84 +174,24 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
-        default=3,
-        help="Maximum number of symbols per frame",
+        default=1,
+        help="""Maximum number of symbols per frame.
+        Used only when --decoding_method is greedy_search""",
     )
+
     return parser
-
-
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            # parameters for conformer
-            "feature_dim": 80,
-            "encoder_out_dim": 512,
-            "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            "vgg_frontend": False,
-            "env_info": get_env_info(),
-        }
-    )
-    return params
-
-
-def get_encoder_model(params: AttributeDict):
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
-        num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
-    )
-    return encoder
-
-
-def get_decoder_model(params: AttributeDict):
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        embedding_dim=params.encoder_out_dim,
-        blank_id=params.blank_id,
-        context_size=params.context_size,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict):
-    joiner = Joiner(
-        input_dim=params.encoder_out_dim,
-        output_dim=params.vocab_size,
-    )
-    return joiner
-
-
-def get_transducer_model(params: AttributeDict):
-    encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-    )
-    return model
 
 
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
+    token_table: k2.SymbolTable,
     batch: dict,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -228,8 +212,11 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      lexicon:
-        It contains the token symbol table and the word symbol table.
+      token_table:
+        It maps token ID to a string.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -247,44 +234,80 @@ def decode_one_batch(
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
-    hyps = []
-    batch_size = encoder_out.size(0)
 
-    for i in range(batch_size):
-        # fmt: off
-        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-        # fmt: on
-        if params.decoding_method == "greedy_search":
-            hyp = greedy_search(
-                model=model,
-                encoder_out=encoder_out_i,
-                max_sym_per_frame=params.max_sym_per_frame,
-            )
-        elif params.decoding_method == "beam_search":
-            hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        elif params.decoding_method == "modified_beam_search":
-            hyp = modified_beam_search(
-                model=model, encoder_out=encoder_out_i, beam=params.beam_size
-            )
-        else:
-            raise ValueError(
-                f"Unsupported decoding method: {params.decoding_method}"
-            )
-        hyps.append([lexicon.token_table[i] for i in hyp])
+    if params.decoding_method == "fast_beam_search":
+        hyp_tokens = fast_beam_search_one_best(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+        )
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+        )
+    elif params.decoding_method == "modified_beam_search":
+        hyp_tokens = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+        )
+    else:
+        hyp_tokens = []
+        batch_size = encoder_out.size(0)
+        for i in range(batch_size):
+            # fmt: off
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+            # fmt: on
+            if params.decoding_method == "greedy_search":
+                hyp = greedy_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    max_sym_per_frame=params.max_sym_per_frame,
+                )
+            elif params.decoding_method == "beam_search":
+                hyp = beam_search(
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported decoding method: {params.decoding_method}"
+                )
+            hyp_tokens.append(hyp)
+
+    hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
+    elif params.decoding_method == "fast_beam_search":
+        return {
+            (
+                f"beam_{params.beam}_"
+                f"max_contexts_{params.max_contexts}_"
+                f"max_states_{params.max_states}"
+            ): hyps
+        }
     else:
-        return {f"beam_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}": hyps}
 
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
+    token_table: k2.SymbolTable,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -295,6 +318,11 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
+      token_table:
+        It maps a token ID to a string.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -310,9 +338,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -321,7 +349,8 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            lexicon=lexicon,
+            token_table=token_table,
+            decoding_graph=decoding_graph,
             batch=batch,
         )
 
@@ -356,6 +385,7 @@ def save_results(
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         store_transcripts(filename=recog_path, texts=results)
+        logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
@@ -406,13 +436,21 @@ def main():
     assert params.decoding_method in (
         "greedy_search",
         "beam_search",
+        "fast_beam_search",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    if "beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam_size}"
+
+    if "fast_beam_search" in params.decoding_method:
+        params.suffix += f"-beam-{params.beam}"
+        params.suffix += f"-max-contexts-{params.max_contexts}"
+        params.suffix += f"-max-states-{params.max_states}"
+    elif "beam_search" in params.decoding_method:
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -452,6 +490,11 @@ def main():
     model.eval()
     model.device = device
 
+    if params.decoding_method == "fast_beam_search":
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    else:
+        decoding_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -467,7 +510,8 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
-            lexicon=lexicon,
+            token_table=lexicon.token_table,
+            decoding_graph=decoding_graph,
         )
 
         save_results(
@@ -478,9 +522,6 @@ def main():
 
     logging.info("Done!")
 
-
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
