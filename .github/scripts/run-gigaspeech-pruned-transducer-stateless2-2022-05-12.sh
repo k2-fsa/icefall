@@ -19,7 +19,7 @@ echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
 if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
   mkdir -p pruned_transducer_stateless2/exp
-  ln -s $PWD/$repo/exp/pretrained-epoch-29-avg-11.pt pruned_transducer_stateless2/exp/epoch-999.pt
+  ln -s $PWD/$repo/exp/pretrained-iter-3488000-avg-20.pt pruned_transducer_stateless2/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
 
   ls -lh data
