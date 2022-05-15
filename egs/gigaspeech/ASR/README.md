@@ -16,6 +16,6 @@ ln -sfv /path/to/GigaSpeech download/GigaSpeech
 |                                |  Dev  | Test  |
 |--------------------------------|-------|-------|
 |         `conformer_ctc`        | 10.47 | 10.58 |
-| `pruned_transducer_stateless2` | 10.52 | 10.62 |
+| `pruned_transducer_stateless2` | 10.40 | 10.51 |
 
 See [RESULTS](/egs/gigaspeech/ASR/RESULTS.md) for details.

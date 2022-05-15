@@ -11,13 +11,15 @@ decoder contains only an embedding layer, a Conv1d (with kernel
 size 2) and a linear layer (to transform tensor dim). k2 pruned
 RNN-T loss is used.
 
+The best WER, as of 2022-05-12, for the gigaspeech is below
+
 Results are:
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 10.59 | 10.87 |
-|   fast beam search   | 10.56 | 10.80 |
-| modified beam search | 10.52 | 10.62 |
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
 
 To reproduce the above result, use the following commands for training:
 
@@ -39,33 +41,30 @@ and the following commands for decoding:
 ```bash
 # greedy search
 ./pruned_transducer_stateless2/decode.py \
-  --epoch 29 \
-  --avg 11 \
+  --iter 3488000 \
+  --avg 20 \
   --decoding-method greedy_search \
   --exp-dir pruned_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --max-duration 20 \
-  --num-workers 1
+  --max-duration 600
 
 # fast beam search
 ./pruned_transducer_stateless2/decode.py \
-  --epoch 29 \
-  --avg 9 \
+  --iter 3488000 \
+  --avg 20 \
   --decoding-method fast_beam_search \
   --exp-dir pruned_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --max-duration 20 \
-  --num-workers 1
+  --max-duration 600
 
 # modified beam search
 ./pruned_transducer_stateless2/decode.py \
-  --epoch 29 \
-  --avg 8 \
+  --iter 3488000 \
+  --avg 15 \
   --decoding-method modified_beam_search \
   --exp-dir pruned_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --max-duration 20 \
-  --num-workers 1
+  --max-duration 600
 ```
 
 Pretrained model is available at

@@ -200,19 +200,22 @@ We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless mod
 
 ### GigaSpeech
 
+We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
+and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+
 #### Conformer CTC
 
 |     |  Dev  | Test  |
 |-----|-------|-------|
 | WER | 10.47 | 10.58 |
 
-#### Pruned stateless RNN-T
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 10.59 | 10.87 |
-|   fast beam search   | 10.56 | 10.80 |
-| modified beam search | 10.52 | 10.62 |
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
 
 
 ## Deployment with C++
@@ -238,6 +241,8 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
+[GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
+[GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
