@@ -210,9 +210,9 @@ We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless mod
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 10.59 | 10.87 |
-|   fast beam search   | 10.56 | 10.80 |
-| modified beam search | 10.52 | 10.62 |
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
 
 
 ## Deployment with C++
