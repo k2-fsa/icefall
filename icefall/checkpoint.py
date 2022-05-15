@@ -1,4 +1,5 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright  2021-2022  Xiaomi Corporation  (authors: Fangjun Kuang,
+#                                                     Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -25,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn as nn
 from lhotse.dataset.sampling.base import CutSampler
+from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
@@ -37,6 +39,7 @@ LRSchedulerType = object
 def save_checkpoint(
     filename: Path,
     model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -51,6 +54,8 @@ def save_checkpoint(
         The checkpoint filename.
       model:
         The model to be saved. We only save its `state_dict()`.
+      model_avg:
+        The stored model averaged from the start of training.
       params:
         User defined parameters, e.g., epoch, loss.
       optimizer:
@@ -80,6 +85,9 @@ def save_checkpoint(
         "sampler": sampler.state_dict() if sampler is not None else None,
     }
 
+    if model_avg is not None:
+        checkpoint["model_avg"] = model_avg.state_dict()
+
     if params:
         for k, v in params.items():
             assert k not in checkpoint
@@ -91,6 +99,7 @@ def save_checkpoint(
 def load_checkpoint(
     filename: Path,
     model: nn.Module,
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
@@ -117,6 +126,11 @@ def load_checkpoint(
         model.load_state_dict(checkpoint["model"], strict=strict)
 
     checkpoint.pop("model")
+
+    if model_avg is not None and "model_avg" in checkpoint:
+        logging.info("Loading averaged model")
+        model_avg.load_state_dict(checkpoint["model_avg"], strict=strict)
+        checkpoint.pop("model_avg")
 
     def load(name, obj):
         s = checkpoint.get(name, None)
@@ -150,12 +164,25 @@ def average_checkpoints(
     n = len(filenames)
 
     avg = torch.load(filenames[0], map_location=device)["model"]
+
+    # Identify shared parameters. Two parameters are said to be shared
+    # if they have the same data_ptr
+    uniqued: Dict[int, str] = dict()
+
+    for k, v in avg.items():
+        v_data_ptr = v.data_ptr()
+        if v_data_ptr in uniqued:
+            continue
+        uniqued[v_data_ptr] = k
+
+    uniqued_names = list(uniqued.values())
+
     for i in range(1, n):
         state_dict = torch.load(filenames[i], map_location=device)["model"]
-        for k in avg:
+        for k in uniqued_names:
             avg[k] += state_dict[k]
 
-    for k in avg:
+    for k in uniqued_names:
         if avg[k].is_floating_point():
             avg[k] /= n
         else:
@@ -168,6 +195,7 @@ def save_checkpoint_with_global_batch_idx(
     out_dir: Path,
     global_batch_idx: int,
     model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -188,6 +216,8 @@ def save_checkpoint_with_global_batch_idx(
       model:
         The neural network model whose `state_dict` will be saved in the
         checkpoint.
+      model_avg:
+        The stored model averaged from the start of training.
       params:
         A dict of training configurations to be saved.
       optimizer:
@@ -210,6 +240,7 @@ def save_checkpoint_with_global_batch_idx(
     save_checkpoint(
         filename=filename,
         model=model,
+        model_avg=model_avg,
         params=params,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -314,3 +345,129 @@ def remove_checkpoints(
     to_remove = checkpoints[topk:]
     for c in to_remove:
         os.remove(c)
+
+
+def update_averaged_model(
+    params: Dict[str, Tensor],
+    model_cur: Union[nn.Module, DDP],
+    model_avg: nn.Module,
+) -> None:
+    """Update the averaged model:
+    model_avg = model_cur * (average_period / batch_idx_train)
+      + model_avg * ((batch_idx_train - average_period) / batch_idx_train)
+
+    Args:
+      params:
+        User defined parameters, e.g., epoch, loss.
+      model_cur:
+        The current model.
+      model_avg:
+        The averaged model to be updated.
+    """
+    weight_cur = params.average_period / params.batch_idx_train
+    weight_avg = 1 - weight_cur
+
+    if isinstance(model_cur, DDP):
+        model_cur = model_cur.module
+
+    cur = model_cur.state_dict()
+    avg = model_avg.state_dict()
+
+    average_state_dict(
+        state_dict_1=avg,
+        state_dict_2=cur,
+        weight_1=weight_avg,
+        weight_2=weight_cur,
+    )
+
+
+def average_checkpoints_with_averaged_model(
+    filename_start: str,
+    filename_end: str,
+    device: torch.device = torch.device("cpu"),
+) -> Dict[str, Tensor]:
+    """Average model parameters over the range with given
+    start model (excluded) and end model.
+
+    Let start = batch_idx_train of model-start;
+        end = batch_idx_train of model-end;
+        interval = end - start.
+    Then the average model over range from start (excluded) to end is
+    (1) avg = (model_end * end - model_start * start) / interval.
+    It can be written as
+    (2) avg = model_end * weight_end + model_start * weight_start,
+        where weight_end = end / interval,
+              weight_start = -start / interval = 1 - weight_end.
+    Since the terms `weight_end` and `weight_start` would be large
+    if the model has been trained for lots of batches, which would cause
+    overflow when multiplying the model parameters.
+    To avoid this, we rewrite (2) as:
+    (3) avg = (model_end + model_start * (weight_start / weight_end))
+              * weight_end
+
+    The model index could be epoch number or iteration number.
+
+    Args:
+      filename_start:
+        Checkpoint filename of the start model. We assume it
+        is saved by :func:`save_checkpoint`.
+      filename_end:
+        Checkpoint filename of the end model. We assume it
+        is saved by :func:`save_checkpoint`.
+      device:
+        Move checkpoints to this device before averaging.
+    """
+    state_dict_start = torch.load(filename_start, map_location=device)
+    state_dict_end = torch.load(filename_end, map_location=device)
+
+    batch_idx_train_start = state_dict_start["batch_idx_train"]
+    batch_idx_train_end = state_dict_end["batch_idx_train"]
+    interval = batch_idx_train_end - batch_idx_train_start
+    assert interval > 0, interval
+    weight_end = batch_idx_train_end / interval
+    weight_start = 1 - weight_end
+
+    model_end = state_dict_end["model_avg"]
+    model_start = state_dict_start["model_avg"]
+    avg = model_end
+
+    # scale the weight to avoid overflow
+    average_state_dict(
+        state_dict_1=avg,
+        state_dict_2=model_start,
+        weight_1=1.0,
+        weight_2=weight_start / weight_end,
+        scaling_factor=weight_end,
+    )
+
+    return avg
+
+
+def average_state_dict(
+    state_dict_1: Dict[str, Tensor],
+    state_dict_2: Dict[str, Tensor],
+    weight_1: float,
+    weight_2: float,
+    scaling_factor: float = 1.0,
+) -> Dict[str, Tensor]:
+    """Average two state_dict with given weights:
+    state_dict_1 = (state_dict_1 * weight_1 + state_dict_2 * weight_2)
+      * scaling_factor
+    It is an in-place operation on state_dict_1 itself.
+    """
+    # Identify shared parameters. Two parameters are said to be shared
+    # if they have the same data_ptr
+    uniqued: Dict[int, str] = dict()
+    for k, v in state_dict_1.items():
+        v_data_ptr = v.data_ptr()
+        if v_data_ptr in uniqued:
+            continue
+        uniqued[v_data_ptr] = k
+
+    uniqued_names = list(uniqued.values())
+    for k in uniqued_names:
+        state_dict_1[k] *= weight_1
+        state_dict_1[k] += (
+            state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
+        )
+        state_dict_1[k] *= scaling_factor
