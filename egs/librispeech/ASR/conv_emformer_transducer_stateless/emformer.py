@@ -309,7 +309,7 @@ class ConvolutionModule(nn.Module):
         right_context: torch.Tensor,
         cache: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Causal convolution module applied on both utterance and right_context.
+        """Causal convolution module.
 
         Args:
           utterance (torch.Tensor):
