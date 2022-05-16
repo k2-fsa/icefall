@@ -97,8 +97,7 @@ class Transducer(nn.Module):
         y_lens = row_splits[1:] - row_splits[:-1]
 
         blank_id = self.decoder.blank_id
-        sos_id = self.decoder.sos_id
-        sos_y = add_sos(y, sos_id=sos_id)
+        sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
         sos_y_padded = sos_y_padded.to(torch.int64)
