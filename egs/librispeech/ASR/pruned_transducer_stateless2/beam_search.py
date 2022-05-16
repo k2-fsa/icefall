@@ -361,9 +361,10 @@ def fast_beam_search_with_nbest_rescoring(
     oov_word_id = word_table[oov_word]
 
     word_ids_list: List[List[int]] = []
+
     for words in word_list:
         this_word_ids = []
-        for w in words:
+        for w in words.split():
             if w in word_table:
                 this_word_ids.append(word_table[w])
             else:
