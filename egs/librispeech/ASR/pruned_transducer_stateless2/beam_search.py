@@ -389,6 +389,7 @@ def fast_beam_search_with_nbest_rescoring(
         ret_arc_maps=False,
     )
 
+    rescored_word_fsas = k2.remove_epsilon_self_loops(rescored_word_fsas)
     rescored_word_fsas = k2.top_sort(k2.connect(rescored_word_fsas))
     ngram_lm_scores = rescored_word_fsas.get_tot_scores(
         use_double_scores=True,
