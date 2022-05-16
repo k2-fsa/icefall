@@ -11,3 +11,5 @@ log
 *.bak
 *-bak
 *bak.py
+birch
+.vscode

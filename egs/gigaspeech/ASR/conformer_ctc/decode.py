@@ -660,7 +660,10 @@ def main():
     )
 
     if params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        if params.epoch == 0:
+            load_checkpoint(f"{params.exp_dir}/pretrained.pt", model)
+        else:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1
         filenames = []
@@ -684,8 +687,8 @@ def main():
     dev_dl = gigaspeech.test_dataloaders(dev_cuts)
     test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    test_sets = ["dev", "test"]
-    test_dls = [dev_dl, test_dl]
+    test_sets = ["test"]
+    test_dls = [test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
