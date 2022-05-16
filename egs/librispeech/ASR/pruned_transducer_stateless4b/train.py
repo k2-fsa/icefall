@@ -703,7 +703,7 @@ def train_one_epoch(
 
         if params.batch_idx_train % 2000 == 0 and params.batch_idx_train > 0:
             mmodel = model.module if hasattr(model, 'module') else model
-            mmodel.encoder.orthogonalize()
+            mmodel.encoder.diagonalize()
             #optimizer.reset()
 
         params.batch_idx_train += 1
