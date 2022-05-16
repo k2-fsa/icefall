@@ -413,6 +413,6 @@ class Aidatatang_200zhAsrDataModule:
         return load_manifest(self.args.manifest_dir / "cuts_dev.json.gz")
 
     @lru_cache()
-    def test_net_cuts(self) -> List[CutSet]:
+    def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
         return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")

@@ -59,10 +59,10 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import WenetSpeechAsrDataModule
+from asr_datamodule import Aidatatang_200zhAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -255,7 +255,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -273,6 +273,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -280,6 +281,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for i in range(encoder_out.size(0)):
@@ -359,12 +361,12 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 100
     else:
-        log_interval = 2
+        log_interval = 50
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list(str(text)) for text in texts]
+        texts = [list(str(text).replace(" ", "")) for text in texts]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -440,7 +442,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    WenetSpeechAsrDataModule.add_arguments(parser)
+    Aidatatang_200zhAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -506,6 +508,13 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
+        average = average_checkpoints(filenames, device=device)
+        checkpoint = {"model": average}
+        torch.save(
+            checkpoint,
+            "pruned_transducer_stateless2/pretrained_average_11_to_29.pt",
+        )
+
     model.to(device)
     model.eval()
     model.device = device
@@ -526,33 +535,26 @@ def main():
     from lhotse import CutSet
     from lhotse.dataset.webdataset import export_to_webdataset
 
-    wenetspeech = WenetSpeechAsrDataModule(args)
+    aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
 
     dev = "dev"
-    test_net = "test_net"
-    test_meet = "test_meet"
+    test = "test"
 
     if not os.path.exists(f"{dev}/shared-0.tar"):
-        dev_cuts = wenetspeech.valid_cuts()
+        os.makedirs(dev)
+        dev_cuts = aidatatang_200zh.valid_cuts()
         export_to_webdataset(
             dev_cuts,
             output_path=f"{dev}/shared-%d.tar",
             shard_size=300,
         )
 
-    if not os.path.exists(f"{test_net}/shared-0.tar"):
-        test_net_cuts = wenetspeech.test_net_cuts()
+    if not os.path.exists(f"{test}/shared-0.tar"):
+        os.makedirs(test)
+        test_cuts = aidatatang_200zh.test_cuts()
         export_to_webdataset(
-            test_net_cuts,
-            output_path=f"{test_net}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    if not os.path.exists(f"{test_meet}/shared-0.tar"):
-        test_meeting_cuts = wenetspeech.test_meeting_cuts()
-        export_to_webdataset(
-            test_meeting_cuts,
-            output_path=f"{test_meet}/shared-%d.tar",
+            test_cuts,
+            output_path=f"{test}/shared-%d.tar",
             shard_size=300,
         )
 
@@ -567,34 +569,22 @@ def main():
         shuffle_shards=True,
     )
 
-    test_net_shards = [
+    test_shards = [
         str(path)
-        for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+        for path in sorted(glob.glob(os.path.join(test, "shared-*.tar")))
     ]
-    cuts_test_net_webdataset = CutSet.from_webdataset(
-        test_net_shards,
+    cuts_test_webdataset = CutSet.from_webdataset(
+        test_shards,
         split_by_worker=True,
         split_by_node=True,
         shuffle_shards=True,
     )
 
-    test_meet_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test_meet, "shared-*.tar")))
-    ]
-    cuts_test_meet_webdataset = CutSet.from_webdataset(
-        test_meet_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    dev_dl = aidatatang_200zh.valid_dataloaders(cuts_dev_webdataset)
+    test_dl = aidatatang_200zh.test_dataloaders(cuts_test_webdataset)
 
-    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
-    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
-    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meet_webdataset)
-
-    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

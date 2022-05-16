@@ -103,7 +103,7 @@ def get_parser():
     parser.add_argument(
         "--master-port",
         type=int,
-        default=12354,
+        default=12359,
         help="Master port to use for DDP training.",
     )
 
