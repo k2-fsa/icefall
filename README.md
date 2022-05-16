@@ -12,13 +12,14 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide four recipes at present:
+We provide 6 recipes at present:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [Aishell][aishell]
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
+  - [GigaSpeech][gigaspeech]
 
 ### yesno
 
@@ -34,6 +35,9 @@ We do provide a Colab notebook for this recipe.
 
 
 ### LibriSpeech
+
+Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
+for the **latest** results.
 
 We provide 4 models for this recipe:
 
@@ -91,6 +95,20 @@ Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
 
 We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
+
+
+#### k2 pruned RNN-T
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.57       | 5.95       |
+
+#### k2 pruned RNN-T + GigaSpeech
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 2.00       | 4.63       |
+
 
 ### Aishell
 
@@ -180,6 +198,26 @@ The best WER using modified beam search with beam size 4 is:
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
 
+### GigaSpeech
+
+We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
+and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+
+#### Conformer CTC
+
+|     |  Dev  | Test  |
+|-----|-------|-------|
+| WER | 10.47 | 10.58 |
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
+
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -203,9 +241,12 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
+[GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
+[GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [tedlium3]: egs/tedlium3/ASR
+[gigaspeech]: egs/gigaspeech/ASR
 [k2]: https://github.com/k2-fsa/k2

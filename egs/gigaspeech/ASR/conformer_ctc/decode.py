@@ -177,8 +177,8 @@ def post_processing(
 ) -> List[Tuple[List[str], List[str]]]:
     new_results = []
     for ref, hyp in results:
-        new_ref = asr_text_post_processing(" ".join(ref))
-        new_hyp = asr_text_post_processing(" ".join(hyp))
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
         new_results.append((new_ref, new_hyp))
     return new_results
 
