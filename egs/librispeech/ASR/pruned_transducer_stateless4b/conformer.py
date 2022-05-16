@@ -31,6 +31,9 @@ from scaling import (
     ScaledLinear,
 )
 from torch import Tensor, nn
+from diagonalize import get_diag_covar_in, get_diag_covar_out, get_diag_covar_inout, \
+      apply_transformation_in, apply_transformation_out, apply_transformation_inout
+
 
 from icefall.utils import make_pad_mask
 
@@ -128,10 +131,23 @@ class Conformer(EncoderInterface):
         return x, lengths
 
     def diagonalize(self) -> None:
-        # currently only diagonalize the self-attention modules, but could in principle
-        # do more layers.
+        # This oly diagonalize the self-attention modules, to diagonalize the embedding
+        # space call diagonalize() from class Transformer in model.py.
         for m in self.encoder.layers:
             m.self_attn.diagonalize()
+
+    @torch.no_grad()
+    def get_diag_covar_out(self) -> Tensor:
+        return (self.encoder_embed.get_diag_covar_out() +
+                sum([l.get_diag_covar_inout() for l in self.encoder.layers]))
+
+    @torch.no_grad()
+    def apply_transformation_out(self, t: Tensor) -> None:
+        self.encoder_embed.apply_transformation_out(t)
+        for l in self.encoder.layers:
+            l.apply_transformation_inout(t)
+
+
 
 class ConformerEncoderLayer(nn.Module):
     """
@@ -264,6 +280,20 @@ class ConformerEncoderLayer(nn.Module):
             src = alpha * src + (1 - alpha) * src_orig
 
         return src
+
+    @torch.no_grad()
+    def get_diag_covar_inout(self) -> Tensor:
+        return (get_diag_covar_inout(self.feed_forward) +
+                get_diag_covar_inout(self.feed_forward_macaron) +
+                self.self_attn.get_diag_covar_inout() +
+                self.conv_module.get_diag_covar_inout())
+
+    @torch.no_grad()
+    def apply_transformation_inout(self, t: Tensor) -> None:
+        apply_transformation_inout(self.feed_forward, t)
+        apply_transformation_inout(self.feed_forward_macaron, t)
+        self.self_attn.apply_transformation_inout(t)
+        self.conv_module.apply_transformation_inout(t)
 
 
 class ConformerEncoder(nn.Module):
@@ -862,17 +892,17 @@ class RelPositionMultiheadAttention(nn.Module):
             return covar * (x.shape[0] / covar.trace())
 
 
-        def get_proj(*args) -> Tensor:
+        def get_transformation(*args) -> Tensor:
             """
-            Returns a covariance-diagonalizing projection that diagonalizes
-            the summed covariance from these two projections.  If mat1,mat2
+            Returns a covariance-diagonalizing transformation that diagonalizes
+            the summed covariance from these two transformations.  If mat1,mat2
             are of shape (dim0, dim1), it's the (dim0, dim0) covariance,
             that we diagonalize.
 
             Args:  mat1, mat2, etc., which should all be matrices of the same
                shape (dim0, dim1)
 
-            Returns: a projection indexed (new_dim0, old_dim0), i.e. of
+            Returns: a transformation indexed (new_dim0, old_dim0), i.e. of
             shape dim0 by dim0 but 1st index is the newly created indexes.
             """
             cov = get_normalized_covar(args[0])
@@ -889,23 +919,30 @@ class RelPositionMultiheadAttention(nn.Module):
         logging.info("Diagonalizing query/key space")
         for i in range(num_heads):
             q,k,l,pos_u,pos_v = query_proj[i], key_proj[i], linear_pos_proj[i], self.pos_bias_u[i], self.pos_bias_v[i]
-            qk_proj = get_proj(q, k, l)
-            q[:] = torch.matmul(qk_proj, q)
-            k[:] = torch.matmul(qk_proj, k)
-            l[:] = torch.matmul(qk_proj, l)
-            pos_u[:] = torch.mv(qk_proj, pos_u)
-            pos_v[:] = torch.mv(qk_proj, pos_v)
+            qk_trans = get_transformation(q, k, l)
+            q[:] = torch.matmul(qk_trans, q)
+            k[:] = torch.matmul(qk_trans, k)
+            l[:] = torch.matmul(qk_trans, l)
+            pos_u[:] = torch.mv(qk_trans, pos_u)
+            pos_v[:] = torch.mv(qk_trans, pos_v)
 
         # Now do the value space
         logging.info("Diagonalizing value space")
         for i in range(num_heads):
             v, o = value_proj[i], out_proj[i]
-            v_proj = get_proj(v, o)
-            v[:] = torch.matmul(v_proj, v)
-            o[:] = torch.matmul(v_proj, o)
+            v_trans = get_transformation(v, o)
+            v[:] = torch.matmul(v_trans, v)
+            o[:] = torch.matmul(v_trans, o)
 
+    @torch.no_grad()
+    def get_diag_covar_inout(self) -> Tensor:
+        return (get_diag_covar_in(self.in_proj) +
+                get_diag_covar_out(self.out_proj))
 
-
+    @torch.no_grad()
+    def apply_transformation_inout(self, t: Tensor) -> None:
+        apply_transformation_in(self.in_proj, t)
+        apply_transformation_out(self.out_proj, t)
 
 
 
@@ -1009,6 +1046,17 @@ class ConvolutionModule(nn.Module):
 
         return x.permute(2, 0, 1)
 
+    @torch.no_grad()
+    def get_diag_covar_inout(self) -> Tensor:
+        return (get_diag_covar_in(self.pointwise_conv1) +
+                get_diag_covar_out(self.pointwise_conv2))
+
+    @torch.no_grad()
+    def apply_transformation_inout(self, t: Tensor) -> None:
+        apply_transformation_in(self.pointwise_conv1, t)
+        apply_transformation_out(self.pointwise_conv2, t)
+
+
 
 class Conv2dSubsampling(nn.Module):
     """Convolutional 2D subsampling (to 1/4 length).
@@ -1102,6 +1150,15 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_norm(x)
         x = self.out_balancer(x)
         return x
+
+    @torch.no_grad()
+    def get_diag_covar_out(self) -> Tensor:
+        return get_diag_covar_out(self.out)
+
+    @torch.no_grad()
+    def apply_transformation_out(self, t: Tensor) -> None:
+        apply_transformation_out(self.out, t)
+
 
 
 if __name__ == "__main__":

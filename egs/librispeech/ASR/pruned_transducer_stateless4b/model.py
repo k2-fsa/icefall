@@ -21,7 +21,7 @@ from torch import Tensor
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
-from diagonalize import get_diag_covar_in
+from diagonalize import get_diag_covar_in, apply_transformation_in, get_transformation, apply_transformation_in, apply_transformation_out
 
 from icefall.utils import add_sos
 
@@ -195,7 +195,73 @@ class Transducer(nn.Module):
         return (simple_loss, pruned_loss)
 
 
-    def get_diag_covar_in(self) -> Tensor:
-        return (get_diag_covar_in(self.simple_am_proj) +
-                get_diag_covar_in(joiner.encoder_proj) +
-                self.encoder.get_diag_covar_out())
+
+    def diagonalize(self) -> None:
+        self.encoder.diagonalize() # diagonalizes self_attn layers.
+
+        diag_covar = (get_diag_covar_in(self.simple_am_proj) +
+                      get_diag_covar_in(self.joiner.encoder_proj) +
+                      self.encoder.get_diag_covar_out())
+        t = get_transformation(diag_covar)
+        self.encoder.apply_transformation_out(t)
+        apply_transformation_in(self.simple_am_proj, t)
+        apply_transformation_in(self.joiner.encoder_proj, t)
+
+
+
+def _test_model():
+    import logging
+    logging.getLogger().setLevel(logging.INFO)
+    from conformer import Conformer
+    from joiner import Joiner
+    from decoder import Decoder
+    feature_dim = 40
+    attention_dim = 256
+    encoder_dim = 512
+    decoder_dim = 513
+    joiner_dim = 514
+    vocab_size = 1000
+    encoder = Conformer(num_features=40,
+                        subsampling_factor=4,
+                        d_model=encoder_dim,
+                        nhead=4,
+                        dim_feedforward=512,
+                        num_encoder_layers=4)
+    decoder = Decoder(
+        vocab_size=600,
+        decoder_dim=decoder_dim,
+        blank_id=0,
+        context_size=2)
+    joiner = Joiner(
+        encoder_dim=encoder_dim,
+        decoder_dim=decoder_dim,
+        joiner_dim=joiner_dim,
+        vocab_size=vocab_size)
+    model = Transducer(encoder=encoder,
+                       decoder=decoder,
+                       joiner=joiner,
+                       encoder_dim=encoder_dim,
+                       decoder_dim=decoder_dim,
+                       joiner_dim=joiner_dim,
+                       vocab_size=vocab_size)
+
+    batch_size = 5
+    seq_len = 50
+
+    feats = torch.randn(batch_size, seq_len, feature_dim)
+    x_lens = torch.full((batch_size,), seq_len, dtype=torch.int64)
+    y = k2.ragged.create_ragged_tensor(torch.arange(5, dtype=torch.int32).reshape(1,5).expand(batch_size,5))
+    model.eval()  # eval mode so it's not random.
+    (simple_loss1, pruned_loss1) = model(feats, x_lens, y)
+    model.diagonalize()
+    (simple_loss2, pruned_loss2) = model(feats, x_lens, y)
+    model.diagonalize()
+
+    print(f"simple_loss1 = {simple_loss1.mean().item()}, simple_loss2 = {simple_loss2.mean().item()}")
+    print(f"pruned_loss1 = {pruned_loss1.mean().item()}, pruned_loss2 = {pruned_loss2.mean().item()}")
+
+
+
+
+if __name__ == '__main__':
+    _test_model()

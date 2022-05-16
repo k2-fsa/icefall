@@ -59,7 +59,7 @@ def get_diag_covar_in(m: nn.Module) -> Tensor:
         w = w.reshape(in_channels, -1)
         return _get_normalized_covar(w) # (in_channels, in_channels)
     elif isinstance(m, nn.Sequential):
-        return get_diag_covar_in(m[0])
+        return get_diag_covar_in(m[0], t)
     else:
         # some modules have this function; if not, at this point, it is an error.
         return m.get_diag_covar_in()
@@ -135,7 +135,7 @@ def apply_transformation_in(m: nn.Module, t: Tensor) -> None:
         w = w.reshape(m.weight.shape)  # (out_channels, in_channels, [1 or 2 kernel dims])
         m.weight[:] = w
     elif isinstance(m, nn.Sequential):
-        apply_transformation_in(m[0])
+        apply_transformation_in(m[0], t)
     else:
         # some modules have this function; if not, at this point, it is an error.
         m.apply_transformation_in(t)
@@ -167,7 +167,7 @@ def apply_transformation_out(m: nn.Module, t: Tensor) -> None:
         if m.bias is not None:
             m.bias[:] = torch.matmul(t, m.bias)
     elif isinstance(m, nn.Sequential):
-        apply_transformation_out(m[-1])
+        apply_transformation_out(m[-1], t)
     else:
         # some modules have this function; if not, at this point, it is an error.
         m.apply_transformation_out(t)
@@ -193,12 +193,9 @@ def get_transformation(cov: Tensor) -> Tensor:
     Returns: a transformation indexed (new_dim0, old_dim0), i.e. of
     shape dim0 by dim0 but 1st index is the newly created indexes.
     """
-    cov = get_normalized_covar(args[0])
-    for a in args[1:]:
-        cov += get_normalized_covar(a)
     old_diag_stddev = cov.diag().var().sqrt().item()
     l, U = cov.symeig(eigenvectors=True)
     new_diag_stddev = l.var().sqrt().item()
     logging.info(f"Variance of diag of param-var changed from {old_diag_stddev:.3e} "
-                 f"to {new_diag_stddev:.3e}")
+                 f"to {new_diag_stddev:.3e}, max diag elem changed from {cov.diag().max().item():.2e} to  {l[-1].item():.2e}")
     return U.t()  # U.t() is indexed (new_dim, old_dim)
