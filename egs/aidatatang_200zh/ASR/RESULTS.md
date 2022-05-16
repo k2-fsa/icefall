@@ -17,7 +17,7 @@ The WERs are
 The training command for reproducing is given below:
 
 ```
-export CUDA_VISIBLE_DEVICES="0, 1"
+export CUDA_VISIBLE_DEVICES="0,1"
 
 ./pruned_transducer_stateless2/train.py \
   --world-size 2 \
@@ -31,7 +31,7 @@ export CUDA_VISIBLE_DEVICES="0, 1"
 ```
 
 The tensorboard training log can be found at
-https://tensorboard.dev/experiment/VpA8b7SZQ7CEjZs9WZ5HNA/#scalars
+https://tensorboard.dev/experiment/xS7kgYf2RwyDpQAOdS8rAA/#scalars
 
 The decoding command is:
 ```
