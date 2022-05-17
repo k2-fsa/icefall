@@ -346,7 +346,7 @@ def remove_checkpoints(
     for c in to_remove:
         os.remove(c)
 
-
+@torch.no_grad()
 def update_averaged_model(
     params: Dict[str, Tensor],
     model_cur: Union[nn.Module, DDP],
@@ -442,7 +442,7 @@ def average_checkpoints_with_averaged_model(
 
     return avg
 
-
+@torch.no_grad()
 def average_state_dict(
     state_dict_1: Dict[str, Tensor],
     state_dict_2: Dict[str, Tensor],

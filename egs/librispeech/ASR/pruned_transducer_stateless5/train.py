@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang,
-#                                                  Mingshuang Luo,)
+# Copyright    2021-2022  Xiaomi Corp.   (authors: Fangjun Kuang
+#                                                  Wei Kang
+#                                                  Mingshuang Luo
 #                                                  Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -22,22 +22,26 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless4/train.py \
+cd egs/librispeech/ASR/
+./prepare.sh
+./prepare_giga_speech.sh
+
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless5/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --start-epoch 0 \
+  --use_fp16 1 \
+  --exp-dir pruned_transducer_stateless5/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -47,6 +51,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
+import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -58,13 +63,16 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AsrDataModule
 from conformer import Conformer
 from decoder import Decoder
+from gigaspeech import GigaSpeech
 from joiner import Joiner
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from librispeech import LibriSpeech
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -115,6 +123,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--full-libri",
+        type=str2bool,
+        default=True,
+        help="When enabled, use 960h LibriSpeech. "
+        "Otherwise, use 100h subset.",
+    )
+
+    parser.add_argument(
         "--num-epochs",
         type=int,
         default=30,
@@ -125,8 +141,8 @@ def get_parser():
         "--start-epoch",
         type=int,
         default=1,
-        help="""Resume training from this epoch. It should be positive.
-        If larger than 1, it will load checkpoint from
+        help="""Resume training from from this epoch.
+        If it is positive, it will load checkpoint from
         exp-dir/epoch-{start_epoch-1}.pt
         """,
     )
@@ -143,7 +159,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless5/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -161,8 +177,8 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="""The initial learning rate. This value should not need to be
-        changed.""",
+        help="The initial learning rate.  This value should not need "
+        "to be changed.",
     )
 
     parser.add_argument(
@@ -176,7 +192,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=4,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -264,7 +280,7 @@ def get_parser():
     parser.add_argument(
         "--average-period",
         type=int,
-        default=100,
+        default=1000,
         help="""Update the averaged model, namely `model_avg`, after processing
         this number of batches. `model_avg` is a separate version of model,
         in which each floating-point parameter is the average of all the
@@ -279,6 +295,13 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--giga-prob",
+        type=float,
+        default=0.5,
+        help="The probability to select a batch from the GigaSpeech dataset",
     )
 
     return parser
@@ -341,10 +364,11 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
+            "encoder_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
+            "num_encoder_layers": 18,
+            "knowledge_D": 512,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
@@ -367,6 +391,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        knowledge_D=params.knowledge_D,
     )
     return encoder
 
@@ -396,10 +421,15 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
+    decoder_giga = get_decoder_model(params)
+    joiner_giga = get_joiner_model(params)
+
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        decoder_giga=decoder_giga,
+        joiner_giga=joiner_giga,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
@@ -471,15 +501,12 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
 def save_checkpoint(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -527,9 +554,20 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def is_libri(c: Cut) -> bool:
+    """Return True if this cut is from the LibriSpeech dataset.
+
+    Note:
+      During data preparation, we set the custom field in
+      the supervision segment of GigaSpeech to dict(origin='giga')
+      See ../local/preprocess_gigaspeech.py.
+    """
+    return c.supervisions[0].custom is None
+
+
 def compute_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
@@ -553,11 +591,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -565,6 +599,8 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
+
+    libri = is_libri(supervisions["cut"][0])
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
@@ -575,6 +611,7 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            libri=libri,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
@@ -613,7 +650,7 @@ def compute_loss(
 
 def compute_validation_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -647,12 +684,14 @@ def compute_validation_loss(
 
 def train_one_epoch(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
+    giga_train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    rng: random.Random,
     scaler: GradScaler,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
@@ -676,8 +715,12 @@ def train_one_epoch(
         The learning rate scheduler, we call step() every step.
       train_dl:
         Dataloader for the training dataset.
+      giga_train_dl:
+        Dataloader for the GigaSpeech training dataset.
       valid_dl:
         Dataloader for the validation dataset.
+      rng:
+        For selecting which dataset to use.
       scaler:
         The scaler used for mix precision training.
       model_avg:
@@ -692,17 +735,37 @@ def train_one_epoch(
     """
     model.train()
 
+    libri_tot_loss = MetricsTracker()
+    giga_tot_loss = MetricsTracker()
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
+    # index 0: for LibriSpeech
+    # index 1: for GigaSpeech
+    # This sets the probabilities for choosing which datasets
+    dl_weights = [1 - params.giga_prob, params.giga_prob]
 
-    for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
+    iter_libri = iter(train_dl)
+    iter_giga = iter(giga_train_dl)
+
+    batch_idx = 0
+
+    while True:
+        idx = rng.choices((0, 1), weights=dl_weights, k=1)[0]
+        dl = iter_libri if idx == 0 else iter_giga
+
+        try:
+            batch = next(dl)
+        except StopIteration:
+            name = "libri" if idx == 0 else "giga"
+            logging.info(f"{name} reaches end of dataloader")
+            break
+
+        batch_idx += 1
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
+        libri = is_libri(batch["supervisions"]["cut"][0])
 
         with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
@@ -715,6 +778,17 @@ def train_one_epoch(
             )
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+
+        if libri:
+            libri_tot_loss = (
+                libri_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "libri"  # for logging only
+        else:
+            giga_tot_loss = (
+                giga_tot_loss * (1 - 1 / params.reset_interval)
+            ) + loss_info
+            prefix = "giga"
 
         # NOTE: We use reduction==sum and loss is computed over utterances
         # in the batch and there is no normalization to it so far.
@@ -742,7 +816,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -755,7 +828,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -766,8 +838,11 @@ def train_one_epoch(
             cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"batch {batch_idx}, {prefix}_loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], "
+                f"libri_tot_loss[{libri_tot_loss}], "
+                f"giga_tot_loss[{giga_tot_loss}], "
+                f"batch size: {batch_size}"
                 f"lr: {cur_lr:.2e}"
             )
 
@@ -777,10 +852,18 @@ def train_one_epoch(
                 )
 
                 loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
+                    tb_writer,
+                    f"train/current_{prefix}_",
+                    params.batch_idx_train,
                 )
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
+                )
+                libri_tot_loss.write_summary(
+                    tb_writer, "train/libri_tot_", params.batch_idx_train
+                )
+                giga_tot_loss.write_summary(
+                    tb_writer, "train/giga_tot_", params.batch_idx_train
                 )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
@@ -806,6 +889,23 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def filter_short_and_long_utterances(cuts: CutSet) -> CutSet:
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 20.0
+
+    cuts = cuts.filter(remove_short_and_long_utt)
+
+    return cuts
+
+
 def run(rank, world_size, args):
     """
     Args:
@@ -824,6 +924,7 @@ def run(rank, world_size, args):
         params.valid_interval = 1600
 
     fix_random_seed(params.seed)
+    rng = random.Random(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -861,7 +962,6 @@ def run(rank, world_size, args):
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model)
 
-    assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
         params=params, model=model, model_avg=model_avg
     )
@@ -869,7 +969,12 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    model.device = device
+
+    if rank == 0:
+        model_avg.to(device)
+        model_avg.device = device
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
@@ -893,45 +998,65 @@ def run(rank, world_size, args):
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
 
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
-        return 1.0 <= c.duration <= 20.0
+    train_cuts = filter_short_and_long_utterances(train_cuts)
 
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
-        # We only load the sampler's state dict when it loads a checkpoint
-        # saved in the middle of an epoch
-        sampler_state_dict = checkpoints["sampler"]
+    gigaspeech = GigaSpeech(manifest_dir=args.manifest_dir)
+    # XL 10k hours
+    # L  2.5k hours
+    # M  1k hours
+    # S  250 hours
+    # XS 10 hours
+    # DEV 12 hours
+    # Test 40 hours
+    if params.full_libri:
+        logging.info("Using the XL subset of GigaSpeech (10k hours)")
+        train_giga_cuts = gigaspeech.train_XL_cuts()
     else:
-        sampler_state_dict = None
+        logging.info("Using the S subset of GigaSpeech (250 hours)")
+        train_giga_cuts = gigaspeech.train_S_cuts()
 
-    train_dl = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+    train_giga_cuts = filter_short_and_long_utterances(train_giga_cuts)
+
+    if args.enable_musan:
+        cuts_musan = load_manifest(
+            Path(args.manifest_dir) / "cuts_musan.json.gz"
+        )
+    else:
+        cuts_musan = None
+
+    asr_datamodule = AsrDataModule(args)
+
+    train_dl = asr_datamodule.train_dataloaders(
+        train_cuts,
+        dynamic_bucketing=False,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
+    )
+
+    giga_train_dl = asr_datamodule.train_dataloaders(
+        train_giga_cuts,
+        dynamic_bucketing=True,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
     )
 
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    # It's time consuming to include `giga_train_dl` here
+    #  for dl in [train_dl, giga_train_dl]:
+    for dl in [train_dl]:
         scan_pessimistic_batches_for_oom(
             model=model,
-            train_dl=train_dl,
+            train_dl=dl,
             optimizer=optimizer,
             sp=sp,
             params=params,
@@ -960,7 +1085,9 @@ def run(rank, world_size, args):
             scheduler=scheduler,
             sp=sp,
             train_dl=train_dl,
+            giga_train_dl=giga_train_dl,
             valid_dl=valid_dl,
+            rng=rng,
             scaler=scaler,
             tb_writer=tb_writer,
             world_size=world_size,
@@ -990,7 +1117,7 @@ def run(rank, world_size, args):
 
 
 def scan_pessimistic_batches_for_oom(
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
@@ -1034,9 +1161,11 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+
+    assert 0 <= args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size
     assert world_size >= 1

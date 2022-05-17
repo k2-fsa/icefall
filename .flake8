@@ -21,4 +21,6 @@ exclude =
   .git,
   **/data/**,
   icefall/shared/make_kn_lm.py,
+  egs/librispeech/ASR/pruned_transducer_stateless5/conformer.py,
+  egs/librispeech/ASR/pruned_transducer_stateless5/sampling.py,
   icefall/__init__.py
