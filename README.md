@@ -228,8 +228,8 @@ _pruned_transducer_stateless2].
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
 |    greedy search     | 5.53  | 6.59  |
-|   fast beam search   | 5.29  | 6.33  |
-| modified beam search | 5.28  | 6.32  |
+|   fast beam search   | 5.30  | 6.34  |
+| modified beam search | 5.27  | 6.33  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)(https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
 
