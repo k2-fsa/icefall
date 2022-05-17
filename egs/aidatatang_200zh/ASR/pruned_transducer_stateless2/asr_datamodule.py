@@ -34,6 +34,7 @@ from lhotse.dataset import (
     BucketingSampler,
     CutConcatenate,
     CutMix,
+    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -350,7 +351,7 @@ class Aidatatang_200zhAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             rank=0,
@@ -382,7 +383,7 @@ class Aidatatang_200zhAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
+        sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
             rank=0,

@@ -508,13 +508,6 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
-        average = average_checkpoints(filenames, device=device)
-        checkpoint = {"model": average}
-        torch.save(
-            checkpoint,
-            "pruned_transducer_stateless2/pretrained_average_11_to_29.pt",
-        )
-
     model.to(device)
     model.eval()
     model.device = device
