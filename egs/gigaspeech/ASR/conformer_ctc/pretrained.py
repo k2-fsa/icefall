@@ -210,8 +210,7 @@ def get_parser():
         default="output",
         help="""
         Output directory name, we store output hypothesis 
-        """
-
+        """,
     )
 
     parser.add_argument(
@@ -220,7 +219,7 @@ def get_parser():
         default=10,
         help="""
         Number of input files in one batch, defaulted to 10
-        """
+        """,
     )
     parser.add_argument(
         "sound_files",
@@ -302,7 +301,7 @@ def decode_one_batch(
     feature: torch.Tensor,
     bpe_model: Optional[spm.SentencePieceProcessor] = None,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[List[str]]]:
+) -> List[List[str]]:
 
     device = decoding_graph.device
     assert feature.ndim == 3
@@ -404,11 +403,14 @@ def main():
     params.update(vars(args))
 
     su = ShortUUID(alphabet=string.ascii_lowercase + string.digits)
-    output_dir = Path(args.output_dir)/(su.random(length=5) + '-' + datetime.datetime.now().strftime(
-        "%Y-%m-%d_%H-%M"))
+    output_dir = Path(args.output_dir) / (
+        su.random(length=5)
+        + "-"
+        + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+    )
     output_dir.mkdir(exist_ok=True, parents=True)
 
-    with (output_dir/"command").open("w") as f_cmd:
+    with (output_dir / "command").open("w") as f_cmd:
         f_cmd.write(f"{args}\n")
         f_cmd.write(f"{params}\n")
     logging.info(f"{params}")
@@ -502,23 +504,29 @@ def main():
     else:
         raise ValueError(f"Unsupported decoding method: {params.method}")
 
-    testdata = TestDataset(features)
-    tl = DataLoader(testdata, batch_size=args.batch_size)
+    inputdata = TestDataset(features)
+    tl = DataLoader(inputdata, batch_size=args.batch_size)
     hyps = []
     num_batches = len(tl)
 
     for batch_idx, batch in enumerate(tl):
-        hyps.extend(decode_one_batch(
-            params, model, decoding_graph, batch[0], bpe_model, G))
+        hyps.extend(
+            decode_one_batch(
+                params, model, decoding_graph, batch[0], bpe_model, G
+            )
+        )
         logging.info(
-            f"batch {batch_idx + 1}/{num_batches}, cuts processed until now is {len(hyps)}")
+            f"batch {batch_idx + 1}/{num_batches}, cuts processed until now is {len(hyps)}"
+        )
 
     logging.info(f"Writing hypothesis to output dir {output_dir}")
     s = "\n"
     for filename, hyp in zip(wave_names, hyps):
         words = " ".join(hyp)
         s += f"{filename}:\n{words}\n\n"
-        with (output_dir/os.path.basename(filename.replace(".wav", ".txt"))).open("w") as f_hyp:
+        with (
+            output_dir / os.path.basename(filename.replace(".wav", ".txt"))
+        ).open("w") as f_hyp:
             f_hyp.write(words)
     logging.info(s)
     logging.info("Decoding Done")

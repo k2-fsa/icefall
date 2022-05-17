@@ -47,11 +47,7 @@ def preprocess_giga_speech():
     output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
 
-    dataset_parts = (
-        "DEV",
-        "TEST",
-        "XL",
-    )
+    dataset_parts = "S"
 
     logging.info("Loading manifest (may take 4 minutes)")
     manifests = read_manifests_if_cached(
@@ -86,16 +82,16 @@ def preprocess_giga_speech():
         )
         # Run data augmentation that needs to be done in the
         # time domain.
-        if partition not in ["DEV", "TEST"]:
-            logging.info(
-                f"Speed perturb for {partition} with factors 0.9 and 1.1 "
-                "(Perturbing may take 8 minutes and saving may take 20 minutes)"
-            )
-            cut_set = (
-                cut_set
-                + cut_set.perturb_speed(0.9)
-                + cut_set.perturb_speed(1.1)
-            )
+        # if partition not in ["DEV", "TEST"]:
+        #     logging.info(
+        #         f"Speed perturb for {partition} with factors 0.9 and 1.1 "
+        #         "(Perturbing may take 8 minutes and saving may take 20 minutes)"
+        #     )
+        #     cut_set = (
+        #         cut_set
+        #         + cut_set.perturb_speed(0.9)
+        #         + cut_set.perturb_speed(1.1)
+        #     )
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 

@@ -503,34 +503,37 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-    else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+    load_checkpoint(f"{params.exp_dir}/pretrained-iter-3488000-avg-20.pt", model)
+
+    # we don't average on models
+    # if params.iter > 0:
+    #     filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+    #         : params.avg
+    #     ]
+    #     if len(filenames) == 0:
+    #         raise ValueError(
+    #             f"No checkpoints found for"
+    #             f" --iter {params.iter}, --avg {params.avg}"
+    #         )
+    #     elif len(filenames) < params.avg:
+    #         raise ValueError(
+    #             f"Not enough checkpoints ({len(filenames)}) found for"
+    #             f" --iter {params.iter}, --avg {params.avg}"
+    #         )
+    #     logging.info(f"averaging {filenames}")
+    #     model.to(device)
+    #     model.load_state_dict(average_checkpoints(filenames, device=device))
+    # elif params.avg == 1:
+    #     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    # else:
+    #     start = params.epoch - params.avg + 1
+    #     filenames = []
+    #     for i in range(start, params.epoch + 1):
+    #         if start >= 0:
+    #             filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+    #     logging.info(f"averaging {filenames}")
+    #     model.to(device)
+    #     model.load_state_dict(average_checkpoints(filenames, device=device))
 
     model.to(device)
     model.eval()
