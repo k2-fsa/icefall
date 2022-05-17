@@ -259,5 +259,5 @@ class OrthogonalTransformation(nn.Module):
     @torch.no_grad()
     def get_transformation_out(self) -> Tensor:
         # see also get_transformation() above for notes on this.
-        cov = self.feats_cov
+        cov = 0.5 * (self.feats_cov + self.feats_cov.t())  # make sure symmetric
         return get_transformation(cov)
