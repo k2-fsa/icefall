@@ -197,15 +197,18 @@ class Transducer(nn.Module):
 
 
     def diagonalize(self) -> None:
-        self.encoder.diagonalize() # diagonalizes self_attn layers.
+        cur_transform = None
+        for l in self.encoder.encoder.layers:
+            if cur_transform is not None:
+                l.apply_transformation_in(cur_transform)
+            cur_transform = l.get_transformation_out()
+            l.apply_transformation_out(cur_transform)
 
-        diag_covar = (get_diag_covar_in(self.simple_am_proj) +
-                      get_diag_covar_in(self.joiner.encoder_proj) +
-                      self.encoder.get_diag_covar_out())
-        t = get_transformation(diag_covar)
-        self.encoder.apply_transformation_out(t)
-        apply_transformation_in(self.simple_am_proj, t)
-        apply_transformation_in(self.joiner.encoder_proj, t)
+        self.encoder.diagonalize() # diagonalizes self_attn layers, this is
+                                   # purely internal to the self_attn layers.
+
+        apply_transformation_in(self.simple_am_proj, cur_transform)
+        apply_transformation_in(self.joiner.encoder_proj, cur_transform)
 
 
 
@@ -255,10 +258,10 @@ def _test_model():
     (simple_loss1, pruned_loss1) = model(feats, x_lens, y)
     model.diagonalize()
     (simple_loss2, pruned_loss2) = model(feats, x_lens, y)
-    model.diagonalize()
-
     print(f"simple_loss1 = {simple_loss1.mean().item()}, simple_loss2 = {simple_loss2.mean().item()}")
     print(f"pruned_loss1 = {pruned_loss1.mean().item()}, pruned_loss2 = {pruned_loss2.mean().item()}")
+
+    model.diagonalize()
 
 
 

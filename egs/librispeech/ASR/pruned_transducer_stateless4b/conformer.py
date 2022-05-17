@@ -32,7 +32,8 @@ from scaling import (
 )
 from torch import Tensor, nn
 from diagonalize import get_diag_covar_in, get_diag_covar_out, get_diag_covar_inout, \
-      apply_transformation_in, apply_transformation_out, apply_transformation_inout
+      apply_transformation_in, apply_transformation_out, apply_transformation_inout, \
+       OrthogonalTransformation
 
 
 from icefall.utils import make_pad_mask
@@ -179,6 +180,8 @@ class ConformerEncoderLayer(nn.Module):
     ) -> None:
         super(ConformerEncoderLayer, self).__init__()
 
+        self.orth = OrthogonalTransformation(d_model) # not trainable; used in re-diagonalizing features.
+
         self.layer_dropout = layer_dropout
 
         self.d_model = d_model
@@ -240,6 +243,7 @@ class ConformerEncoderLayer(nn.Module):
             src_key_padding_mask: (N, S).
             S is the source sequence length, N is the batch size, E is the feature number
         """
+        src = self.orth(src)
         src_orig = src
 
         warmup_scale = min(0.1 + warmup, 1.0)
@@ -288,12 +292,27 @@ class ConformerEncoderLayer(nn.Module):
                 self.self_attn.get_diag_covar_inout() +
                 self.conv_module.get_diag_covar_inout())
 
+
     @torch.no_grad()
-    def apply_transformation_inout(self, t: Tensor) -> None:
+    def apply_transformation_in(self, t: Tensor) -> None:
+        """
+        Rotate only the input feature space with an orthogonal matrix.
+        t is indexed (new_channel_dim, old_channel_dim)
+        """
+        self.orth.apply_transformation_in(t)
+
+    @torch.no_grad()
+    def apply_transformation_out(self, t: Tensor) -> None:
+        self.orth.apply_transformation_out(t)
         apply_transformation_inout(self.feed_forward, t)
         apply_transformation_inout(self.feed_forward_macaron, t)
         self.self_attn.apply_transformation_inout(t)
         self.conv_module.apply_transformation_inout(t)
+
+
+    @torch.no_grad()
+    def get_transformation_out(self) -> Tensor:
+        return self.orth.get_transformation_out()
 
 
 class ConformerEncoder(nn.Module):

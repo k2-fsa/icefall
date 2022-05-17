@@ -199,3 +199,64 @@ def get_transformation(cov: Tensor) -> Tensor:
     logging.info(f"Variance of diag of param-var changed from {old_diag_stddev:.3e} "
                  f"to {new_diag_stddev:.3e}, max diag elem changed from {cov.diag().max().item():.2e} to  {l[-1].item():.2e}")
     return U.t()  # U.t() is indexed (new_dim, old_dim)
+
+class OrthogonalTransformation(nn.Module):
+
+    def __init__(self, num_channels: int):
+        super(OrthogonalTransformation, self).__init__()
+        # `weight` is indexed (channel_out, channel_in)
+        self.register_buffer('weight', torch.eye(num_channels)) # not a parameter
+
+        self.register_buffer('feats_cov', torch.eye(num_channels)) # not a parameter
+
+        self.step = 0 # just to co-ordinate updating feats_cov every 10 batches; not saved to disk.
+        self.beta = 0.9 # affects how long we remember the stats.  not super critical.
+
+    def forward(self, x: Tensor):
+        """
+        Args:
+            x: Tensor of shape (*, num_channel)
+        Returns:
+            Tensor of shape (*, num_channels), x multiplied by orthogonal matrix.
+        """
+        x = torch.matmul(x, self.weight.t())
+        if self.step % 10 == 0 and self.train():
+            # store covariance after input transform.
+            # Update covariance stats every 10 batches (in training mode)
+            f = x.reshape(-1, x.shape[-1])
+            cov = torch.matmul(f.t(), f)  # channel_dim by channel_dim
+            self.feats_cov.mul_(self.beta).add_(cov, alpha=(1-self.beta))
+        self.step += 1
+        return x
+
+    @torch.no_grad()
+    def apply_transformation_in(self, t: Tensor) -> None:
+        """
+        Rotate only the input feature space with an orthogonal matrix.
+        t is indexed (new_channel_dim, old_channel_dim)
+        """
+        # note, self.weight is indexed (channel_out, channel_in), interpreted
+        # initially as (channel_out, old_channel_in), which we multiply
+        # by t.t() which is (old_channel_in, new_channel_in)
+        self.weight[:] = torch.matmul(self.weight, t.t())
+
+    @torch.no_grad()
+    def apply_transformation_out(self, t: Tensor) -> None:
+        """
+        Rotate only the output feature space with an orthogonal matrix.
+        t is indexed (new_channel_dim, old_channel_dim)
+
+        We don't bother updating the covariance stats; they will decay.
+        """
+        # note, self.weight is indexed (channel_out, channel_in), interpreted
+        # initially as (old_channel_out, old_channe), which we pre-multiply
+        # by t which is (new_channel_out, old_channel_out)
+        self.weight[:] = torch.matmul(t, self.weight)
+        self.feats_cov[:] = torch.matmul(t, torch.matmul(self.feats_cov, t.t()))
+
+
+    @torch.no_grad()
+    def get_transformation_out(self) -> Tensor:
+        # see also get_transformation() above for notes on this.
+        cov = self.feats_cov
+        return get_transformation(cov)
