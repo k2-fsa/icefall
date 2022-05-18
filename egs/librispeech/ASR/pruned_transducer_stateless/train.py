@@ -222,6 +222,29 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="chunk length of dynamic training",
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="chunk length of dynamic training",
+    )
+
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True
+        """,
+    )
+
     return parser
 
 
@@ -310,6 +333,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=True if params.dynamic_chunk_training else False,
     )
     return encoder
 

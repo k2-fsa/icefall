@@ -249,6 +249,25 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
+    parser.add_argument(
+        "--streaming-mode",
+        type=str2bool,
+        default=False,
+        help="""
+        """,
+    )
+    parser.add_argument(
+        "--right-chunk-size",
+        type=int,
+        default=16,
+        help="right context to attend during decoding",
+    )
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context to attend during decoding",
+    )
 
     return parser
 
@@ -301,9 +320,18 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
-    )
+    if params.streaming_mode:
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+            x=feature,
+            x_lens=feature_lens,
+            chunk_size=params.right_chunk_size,
+            left_context=params.left_context,
+            streaming_data=False
+        )
+    else:
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -526,6 +554,10 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
+    if params.streaming_mode:
+        params.suffix += f"-streaming-chunk-size-{params.right_chunk_size}"
+        params.suffix += f"-left-context-{params.left_context}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-use-LG-{params.use_LG}"
         params.suffix += f"-beam-{params.beam}"
@@ -561,6 +593,10 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
+    # TODO(wei kang): make following config more elegant
+    params.dynamic_chunk_training=params.streaming_mode
+    params.short_chunk_size=25
+    params.num_left_chunks=params.left_context // params.right_chunk_size
     model = get_transducer_model(params)
 
     if params.iter > 0:

@@ -61,5 +61,6 @@ from .utils import (
     setup_logger,
     store_transcripts,
     str2bool,
+    subsequent_chunk_mask,
     write_error_stats,
 )
