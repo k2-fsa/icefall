@@ -628,7 +628,7 @@ class Eve(Optimizer):
             rev_dims_order.append(ndim-1)
             for i in range(dim+1, ndim):
                 dims_order.append(i)
-                rev_dims_order.append(i)
+                rev_dims_order.append(i-1)
             dims_order.append(dim)
             # e.g. ndim=4, dim=1, dims_order=(0,2,3,1), rev_dims_order=(0,3,1,2)
             new_grad = grad.permute(*dims_order)
