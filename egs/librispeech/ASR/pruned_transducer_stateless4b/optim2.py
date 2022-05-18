@@ -551,21 +551,23 @@ class Eve(Optimizer):
 
                 beta1, beta2 = group["betas"]
 
-                state["step"] += 1
-                #bias_correction1 = 1 - beta1 ** state["step"]
-                bias_correction2 = 1 - beta2 ** state["step"]
+                # forget bias_correction1.  We use normal momentum.  exp_avg really
+                # just stores the moving-average gradient step.
+                bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(state["step"])
+
+                grad = self._change_coordinates(grad, state, forward=True)
 
                 # Decay the second moment running average coefficient
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                denom = (exp_avg_sq.sqrt()).add_(
-                    group["eps"]
-                )
+                denom = (exp_avg_sq.sqrt()).add_(group["eps"])
+
 
                 step_size = group["lr"]  # forget bias_correction1
                 target_rms = group["target_rms"]
                 weight_decay = group["weight_decay"]
 
                 this_delta = grad / denom
+                this_delta = self._change_coordinates(this_delta, state, forward=False)
 
                 # treat/repurpose exp_avg as moving-average of `this_delta`
                 exp_avg.mul_(beta1).add_(this_delta, alpha=-step_size*(1-beta1)*(bias_correction2 ** 0.5))
@@ -579,17 +581,153 @@ class Eve(Optimizer):
                     p.mul_(1 - (weight_decay * is_above_target_rms))
 
                 p.add_(exp_avg)
-
+                state["step"] += 1
 
         return loss
 
-    def _change_coordinates(grad: Tensor,
+    def _change_coordinates(self,
+                            grad: Tensor,
                             state: dict,
                             forward: bool):
         """
         Possibly performs some magnitude-preserving changes of co-ordinates on `grad`
         """
-        pass
+        ndim = grad.ndim
+        numel = grad.numel()
+        for dim in range(grad.ndim):
+            # see for each dim in turn whether we want to perform any changes in co-ordinates,
+            # or store any stats.
+            size = grad.shape[dim]
+            if size <= 3 or size > 1024 or size == numel:
+                # we don't do any such co-ordinate changes in dims that are too small (no point)
+                # or large (too slow)
+                continue
+            if dim == 0:
+                # FOR NOW: don't do such co-ordinate changes on output
+                # dims, which will generally be dimension zero.  We can revisit this later.
+                continue
+            grad = self._change_coordinates_for_dim(grad, state, dim, forward)
+        return grad
+
+
+    def _change_coordinates_for_dim(self,
+                                    grad: Tensor,
+                                    state: dict,
+                                    dim: int,
+                                    forward: bool,
+                                    orig_dim: int = -1):
+        assert grad.ndim > 1
+        if not (grad.ndim == 2 and dim == 1):
+            # normalize the format and recurse.
+            dims_order = []
+            rev_dims_order = []
+            ndim = grad.ndim
+            for i in range(dim):
+                dims_order.append(i)
+                rev_dims_order.append(i)
+            rev_dims_order.append(ndim-1)
+            for i in range(dim+1, ndim):
+                dims_order.append(i)
+                rev_dims_order.append(i)
+            dims_order.append(dim)
+            # e.g. ndim=4, dim=1, dims_order=(0,2,3,1), rev_dims_order=(0,3,1,2)
+            new_grad = grad.permute(*dims_order)
+            assert new_grad.shape[-1] == grad.shape[dim]
+            new_shape = new_grad.shape
+            new_grad = new_grad.reshape(-1, new_grad.shape[-1])
+            new_grad = self._change_coordinates_for_dim(new_grad, state, 1, forward,
+                                                        orig_dim=dim)
+            return new_grad.reshape(new_shape).permute(*rev_dims_order)
+
+        # OK: grad.ndim == 2 and dim == 1
+        size = grad.shape[1]
+        if orig_dim == -1:
+            orig_dim = dim
+        step = state["step"]
+        must_store_stats, must_zero_stats = self._must_store_stats(step)
+        if must_store_stats:
+            # store stats for 20 iters preceding when we estimate the
+            # transform.
+            stats_name = f"cov_{orig_dim}"
+            if not stats_name in state:
+                state[stats_name] = torch.zeros(size, size, dtype=grad.dtype,
+                                                device=grad.device)
+            cov = state[stats_name]
+            if must_zero_stats:
+                #print("zero")
+                cov.zero_()
+            cov += torch.matmul(grad.t(), grad) * (1/grad.shape[0])
+
+        transform_name = f"t_{orig_dim}"
+        if transform_name not in state:
+            # make sure they're all allocated at the start, may be better for
+            # fragmention and debugging reasons (although may not).
+            state[transform_name] = torch.eye(size, device=grad.device,
+                                              dtype=grad.dtype)
+
+        must_estimate_transform = self._must_estimate_transform(step)
+        if must_estimate_transform:
+            stats_name = f"cov_{orig_dim}"
+            cov = state[stats_name]
+            l, U = cov.symeig(eigenvectors=True)
+            #print("estimate, l = ", l[::20])
+            t = U.t() # t is indexed (new_dim, old_dim) a.k.a. (transformed_dim, real_dim)
+            state[transform_name][:] = t
+            state["exp_avg_sq"].zero_()  # zero exp-avg-sq stats, we'll restart these from scratch.
+
+        t = state[transform_name]
+        if forward:
+            return torch.matmul(grad, t.t())
+        else:
+            return torch.matmul(grad, t)
+
+    def _must_store_stats(self, step: int) -> Tuple[bool, bool]:
+        """
+        Returns (must_store_stats, must_zero_stats), where
+          must_store_stats: bool, is True for the 20 steps preceding
+             a step on which we will estimate the transform.
+          must_zero_stats: bool, is True for only the 1st of the 20
+             steps mentioned above.
+        """
+        if step < 4000:
+            if step < 2000:
+                return (step % 500 >= 480, step % 500 == 480)
+            else:
+                return (step % 1000 >= 980, step % 1000 == 980)
+        else:
+            return (step % 2000 >= 1980, step % 2000 == 1980)
+
+    def _must_estimate_transform(self, step: int) -> bool:
+        """
+        Returns True if we will re-estimate the transform on this step
+        """
+        if step < 4000:
+            if step < 2000:
+                return step % 500 == 0 and step > 0
+            else:
+                return step % 1000 == 0 and step > 0
+        else:
+            return step % 2000 == 0
+
+    def _step_for_bias_correction(self, step: int) -> bool:
+        """
+        Return a modified step for bias-correction (actually just to give us the
+        right denominator for the exp-avg-sq stats).. this needs to take into
+        account how long it has been since we re-estimated the transforms, because
+        we zero the exp-avg-sq stats at those times.
+
+        The + 1 is for the "current step".  We post-increment the step so it
+        starts from 0.
+        """
+        if step < 4000:
+            if step < 2000:
+                return step % 500 + 1
+            else:
+                return step % 1000 + 1
+        else:
+            return step % 2000 + 1
+
+
 
 class LRScheduler(object):
     """
@@ -768,7 +906,7 @@ def _test_abel():
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [0,1]:
+    for iter in [1,0]:
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         m = torch.nn.Sequential(Linear(E, 200),
                                 torch.nn.ReLU(),
