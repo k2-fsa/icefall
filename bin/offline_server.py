@@ -17,7 +17,7 @@
 
 """
 A server for offline ASR recognition. Offline means you send all the content
-of the audio for recognition. It supports multiple client sending at
+of the audio for recognition. It supports multiple clients sending at
 the same time.
 
 TODO(fangjun): Run CPU-bound tasks such as neural network computation and
@@ -93,12 +93,14 @@ class OfflineServer:
         bpe_model_filename: str,
         num_device: int,
         feature_extractor_pool_size: int = 3,
-        nn_pool_size: int = -1,
+        nn_pool_size: int = 3,
     ):
         """
         Args:
           nn_model_filename:
             Path to the torch script model.
+          bpe_model_filename:
+            Path to the BPE model.
           num_device:
             If 0, use CPU for neural network computation and decoding.
             If positive, it means the number of GPUs to use for NN computation
@@ -177,11 +179,15 @@ class OfflineServer:
 
     async def loop(self, port: int):
         logging.info("started")
-        asyncio.create_task(self.feature_consumer_task())
+        task = asyncio.create_task(self.feature_consumer_task())
+
+        # We can create multiple consumer tasks if needed
         #  asyncio.create_task(self.feature_consumer_task())
         #  asyncio.create_task(self.feature_consumer_task())
+
         async with websockets.serve(self.handle_connection, "", port):
             await asyncio.Future()  # run forever
+        await task
 
     async def recv_audio_samples(
         self,
@@ -223,6 +229,10 @@ class OfflineServer:
             return torch.frombuffer(received, dtype=torch.float32)
 
     async def feature_consumer_task(self):
+        """This function extracts features from the feature_queue,
+        batches them up, sends them to the RNN-T model for computation
+        and decoding.
+        """
         sleep_time = 20 / 1000.0  # wait for 20ms
         batch_size = 5
         while True:
