@@ -28,16 +28,12 @@ class TensorDiagnosticOptions(object):
     """Options object for tensor diagnostics:
 
     Args:
-      memory_limit:
-        The maximum number of bytes per tensor
-        (limits how many copies of the tensor we cache).
       max_eig_dim:
         The maximum dimension for which we print out eigenvalues
         (limited for speed reasons).
     """
 
-    def __init__(self, memory_limit: int = (2 ** 20), max_eig_dim: int = 512):
-        self.memory_limit = memory_limit
+    def __init__(self, max_eig_dim: int = 512):
         self.max_eig_dim = max_eig_dim
 
     def dim_is_summarized(self, size: int):
