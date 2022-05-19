@@ -17,7 +17,7 @@
 
 
 """
-This file computes fbank features of the aishell dataset.
+This file computes fbank features of the aidatatang_200zh dataset.
 It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
@@ -42,7 +42,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aishell(num_mel_bins: int = 80):
+def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
     src_dir = Path("data/manifests/aidatatang_200zh")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -106,4 +106,4 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    compute_fbank_aishell(num_mel_bins=args.num_mel_bins)
+    compute_fbank_aidatatang_200zh(num_mel_bins=args.num_mel_bins)

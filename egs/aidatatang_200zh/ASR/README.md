@@ -1,5 +1,4 @@
-Note: This recipe is trained with the codes from this PR https://github.com/k2-fsa/icefall/pull/355
-And the SpecAugment codes from this PR https://github.com/lhotse-speech/lhotse/pull/604.
+Note: This recipe is trained with the codes from this PR https://github.com/k2-fsa/icefall/pull/375
 # Pre-trained Transducer-Stateless2 models for the Aidatatang_200zh dataset with icefall.
 The model was trained on full [Aidatatang_200zh](https://www.openslr.org/62) with the scripts in [icefall](https://github.com/k2-fsa/icefall) based on the latest version k2.
 ## Training procedure
@@ -35,5 +34,5 @@ The WERs are
 |                                    |     dev    |    test    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
 |          greedy search             | 5.53       | 6.59       | --epoch 29, --avg 19, --max-duration 100 |
-| modified beam search (beam size 4) | 5.28       | 6.32       | --epoch 29, --avg 19, --max-duration 100 |
-| fast beam search (set as default)  | 5.29       | 6.33       | --epoch 29, --avg 19, --max-duration 1500|
+| modified beam search (beam size 4) | 5.27       | 6.33       | --epoch 29, --avg 19, --max-duration 100 |
+| fast beam search (set as default)  | 5.30       | 6.34       | --epoch 29, --avg 19, --max-duration 1500|

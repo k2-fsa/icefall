@@ -354,8 +354,6 @@ class Aidatatang_200zhAsrDataModule:
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
@@ -386,8 +384,6 @@ class Aidatatang_200zhAsrDataModule:
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         from lhotse.dataset.iterable_dataset import IterableDatasetWrapper

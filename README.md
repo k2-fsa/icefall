@@ -220,8 +220,7 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 
 ### Aidatatang_200zh
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh
-_pruned_transducer_stateless2].
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
 
 #### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 

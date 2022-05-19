@@ -4,7 +4,7 @@
 
 #### 2022-05-16
 
-Using the codes from this PR https://github.com/k2-fsa/icefall/pull/355.
+Using the codes from this PR https://github.com/k2-fsa/icefall/pull/375.
 
 The WERs are
 
