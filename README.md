@@ -230,7 +230,7 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 |   fast beam search   | 5.30  | 6.34  |
 | modified beam search | 5.27  | 6.33  |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)(https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
 
 ## Deployment with C++
 
