@@ -21,8 +21,8 @@ Usage:
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
   --lang-dir data/lang_char \
-  --epoch 20 \
-  --avg 10
+  --epoch 10 \
+  --avg 2
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -35,8 +35,8 @@ you can do:
     cd /path/to/egs/wenetspeech/ASR
     ./pruned_transducer_stateless2/decode.py \
         --exp-dir ./pruned_transducer_stateless2/exp \
-        --epoch 9999 \
-        --avg 1 \
+        --epoch 10 \
+        --avg 2 \
         --max-duration 100 \
         --lang-dir data/lang_char
 """

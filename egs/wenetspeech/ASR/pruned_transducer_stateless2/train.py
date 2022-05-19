@@ -27,7 +27,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --lang-dir data/lang_char \
   --exp-dir pruned_transducer_stateless2/exp \
   --world-size 8 \
-  --num-epochs 10 \
+  --num-epochs 15 \
   --start-epoch 0 \
   --max-duration 180 \
   --valid-interval 3000 \

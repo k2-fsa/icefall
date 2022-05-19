@@ -2,17 +2,17 @@
 
 ### WenetSpeech char-based training results (Pruned Transducer 2)
 
-#### 2022-05-06
+#### 2022-05-19
 
-Using the codes from this PR https://github.com/k2-fsa/icefall/pull/349 and the Lhotse v1.1.
+Using the codes from this PR https://github.com/k2-fsa/icefall/pull/349.
 
 When training with the L subset, the WERs are
 
-|                                    |  dev  | test-net | test-meeting | comment                                 |
-|------------------------------------|-------|----------|--------------|-----------------------------------------|
-|          greedy search             | 8.06  | 9.16     | 14.07        | --epoch 6, --avg 3, --max-duration 100  |
-| modified beam search (beam size 4) | 7.97  | 9.18     | 13.91        | --epoch 6, --avg 3, --max-duration 100  |
-| fast beam search (set as default)  | 8.13  | 9.12     | 14.33        | --epoch 6, --avg 3, --max-duration 1500 |
+|                                    |  dev  | test-net | test-meeting | comment                                  |
+|------------------------------------|-------|----------|--------------|------------------------------------------|
+|          greedy search             | 7.80  | 8.75     | 13.49        | --epoch 10, --avg 2, --max-duration 100  |
+| modified beam search (beam size 4) | 7.76  | 8.71     | 13.41        | --epoch 10, --avg 2, --max-duration 100  |
+| fast beam search (set as default)  | 7.94  | 8.74     | 13.80        | --epoch 10, --avg 2, --max-duration 1500 |
 
 The training command for reproducing is given below:
 
@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --lang-dir data/lang_char \
   --exp-dir pruned_transducer_stateless2/exp \
   --world-size 8 \
-  --num-epochs 10 \
+  --num-epochs 15 \
   --start-epoch 0 \
   --max-duration 180 \
   --valid-interval 3000 \
@@ -33,17 +33,17 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 ```
 
 The tensorboard training log can be found at
-https://tensorboard.dev/experiment/VpA8b7SZQ7CEjZs9WZ5HNA/#scalars
+https://tensorboard.dev/experiment/wM4ZUNtASRavJx79EOYYcg/#scalars
 
 The decoding command is:
 ```
-epoch=6
-avg=3
+epoch=10
+avg=2
 
 ## greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch $epoch \
+        --avg $avg \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -51,8 +51,8 @@ avg=3
 
 ## modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch $epoch \
+        --avg $avg \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -61,8 +61,8 @@ avg=3
 
 ## fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch $epoch \
+        --avg $avg \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 1500 \

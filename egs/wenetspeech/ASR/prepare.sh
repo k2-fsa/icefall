@@ -190,22 +190,20 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
   mkdir -p $lang_char_dir
 
   # Prepare text.
+  # Note: in Linux, you can install jq with the following command:
+  # wget -O jq https://github.com/stedolan/jq/release/download/jq-1.6/jq-linux64
   if [ ! -f $lang_char_dir/text ]; then
     gunzip -c data/manifests/supervisions_L.jsonl.gz \
       | jq 'text' | sed 's/"//g' \
       | ./local/text2token.py -t "char" > $lang_char_dir/text
-    # if use the whole text to generate the text, you can use
-    # the following command:
-    # grep "\"text\":" $dl_dir/WenetSpeech/WenetSpeech.json |
-    #   sed -e 's/["text:\t ]*//g' > $lang_char_dir/text
   fi
 
   # The implementation of chinese word segmentation for text,
   # and it will take about 15 minutes.
   if [ ! -f $lang_char_dir/text_words_segmentation ]; then
     python ./local/text2segments.py \
-      --input $lang_char_dir/text \
-      --output $lang_char_dir/text_words_segmentation
+      --input-file $lang_char_dir/text \
+      --output-file $lang_char_dir/text_words_segmentation
   fi
 
   cat $lang_char_dir/text_words_segmentation | sed 's/ /\n/g' \

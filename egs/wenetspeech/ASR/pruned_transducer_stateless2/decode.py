@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2022 Xiaomi Corporation (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,8 +20,8 @@
 When training with the L subset, usage:
 (1) greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 10 \
+        --avg 2 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -28,8 +29,8 @@ When training with the L subset, usage:
 
 (2) modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 10 \
+        --avg 2 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -38,8 +39,8 @@ When training with the L subset, usage:
 
 (3) fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 10 \
+        --avg 2 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 1500 \
@@ -530,9 +531,10 @@ def main():
 
     dev = "dev"
     test_net = "test_net"
-    test_meet = "test_meet"
+    test_meeting = "test_meeting"
 
     if not os.path.exists(f"{dev}/shared-0.tar"):
+        os.makedirs(dev)
         dev_cuts = wenetspeech.valid_cuts()
         export_to_webdataset(
             dev_cuts,
@@ -541,6 +543,7 @@ def main():
         )
 
     if not os.path.exists(f"{test_net}/shared-0.tar"):
+        os.makedirs(test_net)
         test_net_cuts = wenetspeech.test_net_cuts()
         export_to_webdataset(
             test_net_cuts,
@@ -548,11 +551,12 @@ def main():
             shard_size=300,
         )
 
-    if not os.path.exists(f"{test_meet}/shared-0.tar"):
+    if not os.path.exists(f"{test_meeting}/shared-0.tar"):
+        os.makedirs(test_meeting)
         test_meeting_cuts = wenetspeech.test_meeting_cuts()
         export_to_webdataset(
             test_meeting_cuts,
-            output_path=f"{test_meet}/shared-%d.tar",
+            output_path=f"{test_meeting}/shared-%d.tar",
             shard_size=300,
         )
 
@@ -578,12 +582,14 @@ def main():
         shuffle_shards=True,
     )
 
-    test_meet_shards = [
+    test_meeting_shards = [
         str(path)
-        for path in sorted(glob.glob(os.path.join(test_meet, "shared-*.tar")))
+        for path in sorted(
+            glob.glob(os.path.join(test_meeting, "shared-*.tar"))
+        )
     ]
-    cuts_test_meet_webdataset = CutSet.from_webdataset(
-        test_meet_shards,
+    cuts_test_meeting_webdataset = CutSet.from_webdataset(
+        test_meeting_shards,
         split_by_worker=True,
         split_by_node=True,
         shuffle_shards=True,
@@ -591,7 +597,7 @@ def main():
 
     dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
     test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
-    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meet_webdataset)
+    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
     test_dl = [dev_dl, test_net_dl, test_meeting_dl]

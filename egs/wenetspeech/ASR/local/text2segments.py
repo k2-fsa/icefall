@@ -42,13 +42,13 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--input",
+        "--input-file",
         default="data/lang_char/text",
         type=str,
         help="the input text file for WenetSpeech",
     )
     parser.add_argument(
-        "--output",
+        "--output-file",
         default="data/lang_char/text_words_segmentation",
         type=str,
         help="the text implemented with words segmenting for WenetSpeech",
