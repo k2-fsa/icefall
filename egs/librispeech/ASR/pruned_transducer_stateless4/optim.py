@@ -221,7 +221,7 @@ class Abel(Optimizer):
         params,
         lr=1e-3,
         betas=(0.9, 0.98),
-        eps=1e-04,
+        eps=1e-08,
         target_rms=0.1,
     ):
 
@@ -691,9 +691,9 @@ class Cain(Optimizer):
     def _must_store_stats(self, step: int) -> Tuple[bool, bool]:
         """
         Returns (must_store_stats, must_zero_stats), where
-          must_store_stats: bool, is True for the 20 steps preceding
+          must_store_stats: bool, is True for the 100 or 200 steps preceding
              a step on which we will estimate the transform.
-          must_zero_stats: bool, is True for only the 1st of the 20
+          must_zero_stats: bool, is True for only the 1st of the 100 or 200
              steps mentioned above.
         """
         if step < 4000:
