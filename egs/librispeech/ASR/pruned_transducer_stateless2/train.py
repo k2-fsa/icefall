@@ -695,7 +695,7 @@ def train_one_epoch(
             display_and_save_batch(batch, params=params, sp=sp)
             raise
 
-        if params.print_diagnostics and batch_idx == 5:
+        if params.print_diagnostics and batch_idx == 30:
             return
 
         if (
@@ -839,10 +839,7 @@ def run(rank, world_size, args):
         scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
-        )  # allow 4 megabytes per sub-module
-        diagnostic = diagnostics.attach_diagnostics(model, opts)
+        diagnostic = diagnostics.attach_diagnostics(model)
 
     librispeech = LibriSpeechAsrDataModule(args)
 
@@ -1001,7 +998,7 @@ def scan_pessimistic_batches_for_oom(
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-        except RuntimeError as e:
+        except Exception as e:
             if "CUDA out of memory" in str(e):
                 logging.error(
                     "Your GPU ran out of memory with the current "
@@ -1010,7 +1007,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-                display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
 
 

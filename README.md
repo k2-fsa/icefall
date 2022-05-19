@@ -20,8 +20,11 @@ We provide 6 recipes at present:
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
   - [GigaSpeech][gigaspeech]
+<<<<<<< HEAD
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
+=======
+>>>>>>> master
 
 ### yesno
 
@@ -219,6 +222,7 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 |   fast beam search   | 10.50 | 10.69 |
 | modified beam search | 10.40 | 10.51 |
 
+<<<<<<< HEAD
 ### Aidatatang_200zh
 
 We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
@@ -246,6 +250,8 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 | modified beam search | 7.76  |  8.71    |  13.41       |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+=======
+>>>>>>> master
 
 ## Deployment with C++
 
@@ -280,6 +286,9 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [timit]: egs/timit/ASR
 [tedlium3]: egs/tedlium3/ASR
 [gigaspeech]: egs/gigaspeech/ASR
+<<<<<<< HEAD
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
 [wenetspeech]: egs/wenetspeech/ASR
+=======
+>>>>>>> master
 [k2]: https://github.com/k2-fsa/k2

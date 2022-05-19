@@ -212,7 +212,10 @@ class ScaledLinear(nn.Linear):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        if self.bias is None or self.bias_scale is None:
+            return None
+
+        return self.bias * self.bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         return torch.nn.functional.linear(
@@ -255,7 +258,11 @@ class ScaledConv1d(nn.Conv1d):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        return bias * bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         F = torch.nn.functional
@@ -269,7 +276,7 @@ class ScaledConv1d(nn.Conv1d):
                 self.get_weight(),
                 self.get_bias(),
                 self.stride,
-                _single(0),
+                (0,),
                 self.dilation,
                 self.groups,
             )
@@ -319,7 +326,12 @@ class ScaledConv2d(nn.Conv2d):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        # see https://github.com/pytorch/pytorch/issues/24135
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        return bias * bias_scale.exp()
 
     def _conv_forward(self, input, weight):
         F = torch.nn.functional
@@ -333,7 +345,7 @@ class ScaledConv2d(nn.Conv2d):
                 weight,
                 self.get_bias(),
                 self.stride,
-                _pair(0),
+                (0, 0),
                 self.dilation,
                 self.groups,
             )
@@ -398,6 +410,9 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
+        if torch.jit.is_scripting():
+            return x
+
         return ActivationBalancerFunction.apply(
             x,
             self.channel_dim,
@@ -444,6 +459,8 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
+        if torch.jit.is_scripting():
+            return x * torch.sigmoid(x - 1.0)
         return DoubleSwishFunction.apply(x)
 
 
