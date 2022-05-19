@@ -103,11 +103,26 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
+          cd ../pruned_transducer_stateless
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless2
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless3
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless4
+          pytest -v -s
+
+          cd ../transducer_stateless
+          pytest -v -s
+
           if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
             cd ../transducer
             pytest -v -s
 
-            cd ../transducer_stateless
+            cd ../transducer_stateless2
             pytest -v -s
 
             cd ../transducer_lstm
@@ -128,11 +143,26 @@ jobs:
           cd egs/librispeech/ASR/conformer_ctc
           pytest -v -s
 
+          cd ../pruned_transducer_stateless
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless2
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless3
+          pytest -v -s
+
+          cd ../pruned_transducer_stateless4
+          pytest -v -s
+
+          cd ../transducer_stateless
+          pytest -v -s
+
           if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
             cd ../transducer
             pytest -v -s
 
-            cd ../transducer_stateless
+            cd ../transducer_stateless2
             pytest -v -s
 
             cd ../transducer_lstm

@@ -511,7 +511,7 @@ def train_one_epoch(
         loss.backward()
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
-        if params.print_diagnostics and batch_idx == 5:
+        if params.print_diagnostics and batch_idx == 30:
             return
 
         if batch_idx % params.log_interval == 0:
@@ -623,10 +623,7 @@ def run(rank, world_size, args):
     librispeech = LibriSpeechAsrDataModule(args)
 
     if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
-        )  # allow 4 megabytes per sub-module
-        diagnostic = diagnostics.attach_diagnostics(model, opts)
+        diagnostic = diagnostics.attach_diagnostics(model)
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:

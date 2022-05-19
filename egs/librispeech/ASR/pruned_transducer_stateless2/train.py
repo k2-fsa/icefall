@@ -695,7 +695,7 @@ def train_one_epoch(
             display_and_save_batch(batch, params=params, sp=sp)
             raise
 
-        if params.print_diagnostics and batch_idx == 5:
+        if params.print_diagnostics and batch_idx == 30:
             return
 
         if (
@@ -839,10 +839,7 @@ def run(rank, world_size, args):
         scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
-        )  # allow 4 megabytes per sub-module
-        diagnostic = diagnostics.attach_diagnostics(model, opts)
+        diagnostic = diagnostics.attach_diagnostics(model)
 
     librispeech = LibriSpeechAsrDataModule(args)
 
