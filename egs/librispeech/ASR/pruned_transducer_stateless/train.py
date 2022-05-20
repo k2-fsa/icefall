@@ -28,6 +28,19 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 300
+
+# train a streaming model
+./pruned_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 25 \
+  --num-left-chunks 4 \
+  --max-duration 300
 """
 
 
@@ -223,27 +236,39 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
         "--short-chunk-size",
         type=int,
         default=25,
-        help="chunk length of dynamic training",
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
     )
 
     parser.add_argument(
         "--num-left-chunks",
         type=int,
         default=4,
-        help="chunk length of dynamic training",
+        help="How many left context can be seen in chunks when calculating attention.",
     )
 
-    parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True
-        """,
-    )
 
     return parser
 
@@ -336,7 +361,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dynamic_chunk_training=params.dynamic_chunk_training,
         short_chunk_size=params.short_chunk_size,
         num_left_chunks=params.num_left_chunks,
-        causal=True if params.dynamic_chunk_training else False,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -788,6 +813,11 @@ def run(rank, world_size, args):
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.dynamic_chunk_training:
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
 
     logging.info(params)
 
