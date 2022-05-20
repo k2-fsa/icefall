@@ -38,7 +38,9 @@ def compute_fbank_yesno():
         "test",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix="yesno",
     )
     assert manifests is not None
 
