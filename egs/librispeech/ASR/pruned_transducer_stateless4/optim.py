@@ -205,9 +205,16 @@ class Abel(Optimizer):
         eps (float, optional): term added to the denominator to improve
             numerical stability (default: 1e-08).
         target_rms (float, optional): target root-mean-square value of
-           x_norm in factorization (conceptually).  Actually this now just becomes
-           a factor in the learning rate, we may remove it at some point.
-
+           parameters, when we normalize them (only conceptually!)..
+           actually this now just becomes
+           a factor in the learning rate for non-scalar parameters.
+         rms_eps (float, optional): epsilon value such that when parameter
+           rms value goes below this, we stop learning slower for that parameter,
+           i.e. we treat the rms as if it were rms_eps.
+         rms_max (float, optional): maximum root-mean-square value for
+           non-scalar parameters, such that we don't let the parameter
+           values exceed this; we'll shrink any parameter matrices that become
+           larger than this.
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -438,6 +445,9 @@ class Cain(Optimizer):
     co-ordinates every so often, just in the optimizer, to separate big/small
     directions.
 
+    This version of Cain absorbs the learned scales of the parameter matrices into
+    the optimizer.
+
     Eve is a modified version of AdamW with a special
     way of setting the weight-decay / shrinkage-factor, which is designed to make the
     rms of the parameters approach a particular target_rms (default: 0.1).  This is
@@ -456,12 +466,17 @@ class Cain(Optimizer):
             running averages of gradient and its square (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
             numerical stability (default: 1e-8)
-        weight_decay (float, optional): weight decay coefficient (default: 3e-4;
-            this value means that the weight would decay significantly after
-            about 3k minibatches.  Is not multiplied by learning rate, but
-            is conditional on RMS-value of parameter being > target_rms.
         target_rms (float, optional): target root-mean-square value of
            parameters, if they fall below this we will stop applying weight decay.
+        rms_eps (float, optional): epsilon value such that when parameter
+          rms value goes below this, we stop learning slower for that parameter,
+          i.e. we treat the rms as if it were rms_eps.
+        rms_max (float, optional): maximum root-mean-square value for
+          non-scalar parameters, such that we don't let the parameter
+          values exceed this; we'll shrink any parameter matrices that become
+          larger than this.
+
+
 
 
     .. _Adam\: A Method for Stochastic Optimization:
@@ -478,8 +493,9 @@ class Cain(Optimizer):
         lr=1e-3,
         betas=(0.9, 0.98),
         eps=1e-8,
-        weight_decay=1e-3,
         target_rms=0.1,
+        rms_eps=1.0e-05,
+        rms_max=10.0,
     ):
 
         if not 0.0 <= lr:
@@ -494,18 +510,20 @@ class Cain(Optimizer):
             raise ValueError(
                 "Invalid beta parameter at index 1: {}".format(betas[1])
             )
-        if not 0 <= weight_decay <= 0.1:
-            raise ValueError(
-                "Invalid weight_decay value: {}".format(weight_decay)
-            )
         if not 0 < target_rms <= 10.0:
             raise ValueError("Invalid target_rms value: {}".format(target_rms))
+        if not 0.1 < rms_max <= 1000.0:
+            raise ValueError("Invalid rms_max value: {}".format(rms_max))
+        if not 0.0 < rms_eps < 0.1:
+            raise ValueError("Invalid rms_eps value: {}".format(rms_eps))
+
         defaults = dict(
             lr=lr,
             betas=betas,
             eps=eps,
-            weight_decay=weight_decay,
             target_rms=target_rms,
+            rms_eps=rms_eps,
+            rms_max=rms_max,
         )
         super(Cain, self).__init__(params, defaults)
 
@@ -526,6 +544,12 @@ class Cain(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
+            beta1, beta2 = group["betas"]
+            lr = group["lr"]
+            target_rms = group["target_rms"]
+            rms_eps = group["rms_eps"]
+            rms_max = group["rms_max"]
+
             for p in group["params"]:
                 if p.grad is None:
                     continue
@@ -550,14 +574,61 @@ class Cain(Optimizer):
                     state["exp_avg_sq"] = torch.zeros_like(
                         p, memory_format=torch.preserve_format
                     )
+                    if p.numel() > 1:
+                        # we keep track of the RMS value of the parameters to
+                        # help set the learning rate... this emulates Eve.
+                        state["param_rms"] = (p**2).mean().sqrt()
+                        # we learn the scale on the parameters in a way
+                        # that also emulates Eve.
+                        state["scale_exp_avg_sq"] = torch.zeros((), device=p.device,
+                                                                dtype=p.dtype)
+                        state["scale_exp_avg"] = torch.zeros((), device=p.device,
+                                                             dtype=p.dtype)
+
+
+                step = state["step"]
+
+                if p.numel() > 1:
+                    # This part learns the scale on the parameters.
+                    # scale_deriv is the derivative w.r.t. a log-space scale on the parameters, i.e.
+                    # if we imagine: p = underlying_param * scale.exp(), this is the derivative
+                    # w.r.t. scale (it does not actually matter what value `scale` currently has).
+                    scale_deriv = (p * grad).sum()
+                    scale_exp_avg_sq = state["scale_exp_avg_sq"]
+                    scale_exp_avg = state["scale_exp_avg"]
+                    scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
+                                                          value=1 - beta2)
+
+                    scale_exp_avg.mul_(beta1).add_(scale_deriv, alpha=(1-beta1))
+                    scale_bias_correction2 = 1 - beta2 ** step
+
+                    scale_denom = (scale_exp_avg_sq.sqrt()).add_(group["eps"])
+
+                    scale_alpha = -lr*(scale_bias_correction2 ** 0.5)
+
+                    # scale_delta is going to be the change in log-scale, i.e. if
+                    # p = underlying_param * scale.exp(),
+                    # delta is the change in `scale`.
+                    scale_delta = scale_alpha * (scale_exp_avg / scale_denom)
+
+                    # the following is equivalent to:
+                    # if torch.all(state["param_rms"] > rms_max):
+                    #    delta = -1.0e-03
+                    # which means: if the parameter root-mean-square value goes above the
+                    # specified limit, start to decay the parameters (and ignore the computed
+                    # delta).
+                    scale_delta = torch.where(state["param_rms"] > rms_max,
+                                              torch.tensor(-1.0e-03, device=scale_delta.device,
+                                                           dtype=scale_delta.dtype),
+                                              scale_delta)
+
+                    p.mul_(1 + scale_delta)
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
 
-                beta1, beta2 = group["betas"]
-
                 # forget bias_correction1.  We use normal momentum.  exp_avg really
                 # just stores the moving-average gradient step.
-                bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(state["step"])
+                bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(step)
 
                 grad = self._change_coordinates(grad, state, forward=True)
 
@@ -566,23 +637,22 @@ class Cain(Optimizer):
                 denom = (exp_avg_sq.sqrt()).add_(group["eps"])
 
 
-                step_size = group["lr"]  # forget bias_correction1
-                target_rms = group["target_rms"]
-                weight_decay = group["weight_decay"]
-
                 this_delta = grad / denom
                 this_delta = self._change_coordinates(this_delta, state, forward=False)
 
-                # treat/repurpose exp_avg as moving-average of `this_delta`
-                exp_avg.mul_(beta1).add_(this_delta, alpha=-step_size*(1-beta1)*(bias_correction2 ** 0.5))
 
+                alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                 if p.numel() > 1:
-                    # avoid applying this weight-decay on "scaling factors"
-                    # (which are scalar).
-                    is_above_target_rms = p.norm() > (
-                        target_rms * (p.numel() ** 0.5)
-                    )
-                    p.mul_(1 - (weight_decay * is_above_target_rms))
+                    if step % 10 == 0:
+                        state["param_rms"].fill_((p**2).mean().sqrt())
+                    # imagine param was normalized to rms=target_rms and we stored the
+                    # scale as a separate scalar.  This is how fast we'd be learning.
+                    alpha = (alpha / target_rms) * state["param_rms"].clamp(min=rms_eps)
+
+                # treat/repurpose exp_avg as moving-average of `this_delta`
+                # don't use alpha=alpha as I don't think
+                exp_avg.mul_(beta1).add_(this_delta, alpha=alpha)
+
 
                 p.add_(exp_avg)
                 state["step"] += 1
@@ -1059,7 +1129,7 @@ def _test_eve_cain():
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [0,1]:
+    for iter in [1,0]:
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         m = torch.nn.Sequential(Linear(E, 200),
@@ -1071,7 +1141,7 @@ def _test_eve_cain():
 
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         else: optim = Cain(m.parameters(), lr=0.003)
-        scheduler = Eden(optim, lr_batches=300, lr_epochs=20, verbose=False)
+        scheduler = Eden(optim, lr_batches=200, lr_epochs=10, verbose=False)
 
         start = timeit.default_timer()
         for epoch in range(150):
@@ -1121,5 +1191,7 @@ def _test_eve_cain():
 
 
 if __name__ == "__main__":
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     _test_eve_cain()
     #_test_eden()
