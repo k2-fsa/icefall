@@ -179,7 +179,7 @@ class ScaledLinear(nn.Linear):
         with torch.no_grad():
             self.weight[:] *= initial_scale
             if self.bias is not None:
-                self.bias[:] *= initial_scale
+                self.bias[:] *= initial_scale * 4.0
 
     def get_weight(self): # not needed any more but kept for back compatibility
         return self.weight

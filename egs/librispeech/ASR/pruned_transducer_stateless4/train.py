@@ -871,11 +871,7 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
 
-
-    params_to_pass = [ {'params': [ p for (name,p) in model.named_parameters() if 'bias' not in name] },
-                       {'params': [ p for (name,p) in model.named_parameters() if 'bias' in name ], 'lr': params.initial_lr*2.0 } ]
-
-    optimizer = Cain(params_to_pass, lr=params.initial_lr)
+    optimizer = Cain(model.parameters(), lr=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
