@@ -18,77 +18,13 @@
 import copy
 import math
 import warnings
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
 from transformer import Transformer
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
-
-
-class DecodeStates(object):
-    def __init__(self,
-                 layers: int,
-                 left_context: int,
-                 dim: int,
-                 init: bool = True,
-                 dtype: torch.dtype = torch.float32,
-                 device: torch.device = torch.device('cpu')):
-        self.layers = layers
-        self.left_context = left_context
-        self.dim = dim
-        self.dtype = dtype
-        self.device = device
-        if init:
-            # shape (layer, T, dim)
-            self.attn_cache = torch.zeros((layers, left_context, dim),
-                                          dtype=dtype,
-                                          device=device)
-            self.conv_cache = torch.zeros((layers, left_context, dim),
-                                          dtype=dtype,
-                                          device=device)
-            self.offset = torch.tensor([0], dtype=dtype, device=device)
-
-    @staticmethod
-    def stack(states: List['DecodeStates']) -> 'DecodeStates':
-        assert len(states) >= 1
-        obj = DecodeStates(layers=states[0].layers,
-                           left_context=states[0].left_context,
-                           dim=states[0].dim,
-                           init=False,
-                           dtype=states[0].dtype,
-                           device=states[0].device)
-        attn_cache = []
-        conv_cache = []
-        offset = []
-        for i in range(len(states)):
-            attn_cache.append(states[i].attn_cache)
-            conv_cache.append(states[i].conv_cache)
-            offset.append(states[i].offset)
-        obj.attn_cache = torch.stack(attn_cache, dim=2)
-        obj.conv_cache = torch.stack(conv_cache, dim=2)
-        obj.offset = torch.stack(offset, dim=0)
-        return obj
-
-    @staticmethod
-    def unstack(states: 'DecodeStates') -> List['DecodeStates']:
-        results = []
-        attn_cache = torch.unbind(states.attn_cache, dim=2)
-        conv_cache = torch.unbind(states.conv_cache, dim=2)
-        offset = torch.unbind(states.offset, dim=0)
-        for i in range(states.attn_cache.size(2)):
-            obj = DecodeStates(layers=states.layers,
-                               left_context=states.left_context,
-                               dim=states.dim,
-                               init=False,
-                               dtype=states.dtype,
-                               device=states.device)
-            obj.attn_cache = attn_cache[i]
-            obj.conv_cache = conv_cache[i]
-            obj.offset = offset[i]
-            results.append(obj)
-        return results
 
 
 class Conformer(Transformer):
@@ -119,7 +55,7 @@ class Conformer(Transformer):
             size equals to or less than ``max_len * short_chunk_threshold``, the
             chunk size will be sampled uniformly from 1 to short_chunk_size.
             This also will be used only when dynamic_chunk_training is True.
-        num_left_chunks (int): the left context attention can see in chunks, the
+        num_left_chunks (int): the left context (in chunks) attention can see, the
             chunk size is decided by short_chunk_threshold and short_chunk_size.
             A minus value means seeing full left context.
             This also will be used only when dynamic_chunk_training is True.
@@ -159,6 +95,8 @@ class Conformer(Transformer):
             vgg_frontend=vgg_frontend,
         )
 
+        self.encoder_layers = num_encoder_layers
+        self.d_model = d_model
         self.dynamic_chunk_training = dynamic_chunk_training
         self.short_chunk_threshold = short_chunk_threshold
         self.short_chunk_size = short_chunk_size
@@ -231,7 +169,7 @@ class Conformer(Transformer):
                 num_left_chunks=self.num_left_chunks, device=x.device
             )
 
-        x = self.encoder(
+        x, _ = self.encoder(
             x, pos_emb, mask=mask, src_key_padding_mask=src_key_padding_mask
         )  # (T, N, C)
 
@@ -248,11 +186,11 @@ class Conformer(Transformer):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        decode_states: Optional[DecodeStates] = None,
+        states: Optional[torch.Tensor] = None,
         chunk_size: int = 16,
         left_context: int = 64,
         simulate_streaming: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, DecodeStates]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -260,9 +198,10 @@ class Conformer(Transformer):
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
-          decode_states:
-            The decode states for previous frames which contains the cached data
-            and the offset of current chunk in the whole sequence.
+          states:
+            The decode states for previous frames which contains the cached data.
+            It has a shape of (2, encoder_layers, left_context, batch, attention_dim),
+            states[0,...] is the attn_cache, states[1,...] is the conv_cache.
           chunk_size:
             The chunk size for decoding, this will be used to simulate streaming
             decoding using masking.
@@ -289,13 +228,15 @@ class Conformer(Transformer):
 
         if not simulate_streaming:
             assert (
-                decode_states is not None
+                states is not None
             ), "Require cache when sending data in streaming mode"
+
             assert (
-                left_context == decode_states.left_context
-            ), f"""The given left_context must equal to the left_context in
-            `decode_states`, need {decode_states.left_context} given
-            {left_context}."""
+                states.shape == (2, self.encoder_layers, left_context, x.size(0), self.d_model)
+            ), f"""The shape of states MUST be equal to
+             (2, encoder_layers, left_context, batch, d_model) which is
+             {(2, self.encoder_layers, left_context, x.size(0), self.d_model)}
+             given {states.shape}."""
 
             src_key_padding_mask = make_pad_mask(lengths + left_context)
 
@@ -303,18 +244,16 @@ class Conformer(Transformer):
             embed, pos_enc = self.encoder_pos(embed, left_context)
             embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
 
-            x = self.encoder(
+            x, states = self.encoder(
                 embed,
                 pos_enc,
                 src_key_padding_mask=src_key_padding_mask,
-                attn_cache=decode_states.attn_cache,
-                conv_cache=decode_states.conv_cache,
-                left_context=decode_states.left_context,
+                states=states,
+                left_context=left_context,
             )  # (T, B, F)
 
-            decode_states.offset += embed.size(0)
         else:
-            assert decode_states is None
+            assert states is None
 
             src_key_padding_mask = make_pad_mask(lengths)
             x = self.encoder_embed(x)
@@ -322,8 +261,11 @@ class Conformer(Transformer):
             x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
             assert x.size(0) == lengths.max().item()
-            assert left_context % chunk_size == 0
-            num_left_chunks = left_context // chunk_size
+
+            num_left_chunks = -1
+            if left_context >= 0:
+                assert left_context % chunk_size == 0
+                num_left_chunks = left_context // chunk_size
 
             mask = ~subsequent_chunk_mask(
                 size=x.size(0),
@@ -331,7 +273,7 @@ class Conformer(Transformer):
                 num_left_chunks=num_left_chunks,
                 device=x.device
             )
-            x = self.encoder(
+            x, _ = self.encoder(
                 x,
                 pos_emb,
                 mask=mask,
@@ -344,7 +286,7 @@ class Conformer(Transformer):
         logits = self.encoder_output_layer(x)
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        return logits, lengths, decode_states
+        return logits, lengths, states
 
 
 class ConformerEncoderLayer(nn.Module):
@@ -425,10 +367,9 @@ class ConformerEncoderLayer(nn.Module):
         pos_emb: Tensor,
         src_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-        attn_cache: Optional[Tensor] = None,
-        conv_cache: Optional[Tensor] = None,
+        states: Optional[Tensor] = None,
         left_context: int = 0,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
         """
         Pass the input through the encoder layer.
 
@@ -437,9 +378,10 @@ class ConformerEncoderLayer(nn.Module):
             pos_emb: Positional embedding tensor (required).
             src_mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
-            attn_cache: attention cache for previous frames.
-            conv_cache: convolution cache for previous frames.
-            left_context: left context in frames used during streaming decoding.
+            states: The decode states for previous frames which contains the cached data.
+                It has a shape of (2, left_context, batch, attention_dim),
+                states[0,...] is the attn_cache, states[1,...] is the conv_cache.
+            left_context: left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
         Shape:
@@ -467,11 +409,11 @@ class ConformerEncoderLayer(nn.Module):
 
         key = src
         val = src
-        if not self.training and attn_cache is not None:
+        if not self.training and states is not None:
             # src: [chunk_size, N, F] e.g. [8, 41, 512]
-            key = torch.cat([attn_cache, src], dim=0)
+            key = torch.cat([states[0, ...], src], dim=0)
             val = key
-            attn_cache = key
+            states[0, ...] = key[-left_context:, ...]
         else:
             assert left_context == 0
 
@@ -493,9 +435,9 @@ class ConformerEncoderLayer(nn.Module):
         if self.normalize_before:
             src = self.norm_conv(src)
 
-        if not self.training and conv_cache is not None:
-            src = torch.cat([conv_cache, src], dim=0)
-            conv_cache = src
+        if not self.training and states is not None:
+            src = torch.cat([states[1, ...], src], dim=0)
+            states[1, ...] = src[-left_context:, ...]
 
         src = self.conv_module(src)
         src = src[-residual.size(0) :, :, :]  # noqa: E203
@@ -515,7 +457,7 @@ class ConformerEncoderLayer(nn.Module):
         if self.normalize_before:
             src = self.norm_final(src)
 
-        return src, attn_cache, conv_cache
+        return src, states
 
 
 class ConformerEncoder(nn.Module):
@@ -546,10 +488,9 @@ class ConformerEncoder(nn.Module):
         pos_emb: Tensor,
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-        attn_cache: Optional[Tensor] = None,
-        conv_cache: Optional[Tensor] = None,
+        states: Optional[Tensor] = None,
         left_context: int = 0,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -557,9 +498,10 @@ class ConformerEncoder(nn.Module):
             pos_emb: Positional embedding tensor (required).
             mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
-            attn_cache: attention cache for previous frames.
-            conv_cache: convolution cache for previous frames.
-            left_context: left context in frames used during streaming decoding.
+            states: The decode states for previous frames which contains the cached data.
+                It has a shape of (2, encoder_layers, left_context, batch, attention_dim),
+                states[0,...] is the attn_cache, states[1,...] is the conv_cache.
+            left_context: left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
         Shape:
@@ -576,26 +518,23 @@ class ConformerEncoder(nn.Module):
 
         if self.training:
             assert left_context == 0
-            assert attn_cache is None
-            assert conv_cache is None
+            assert states is None
         else:
             assert left_context >= 0
 
         for layer_index, mod in enumerate(self.layers):
-            output, a_cache, c_cache = mod(
+            output, cache = mod(
                 output,
                 pos_emb,
                 src_mask=mask,
                 src_key_padding_mask=src_key_padding_mask,
-                attn_cache=None if attn_cache is None else attn_cache[layer_index],
-                conv_cache=None if conv_cache is None else conv_cache[layer_index],
+                states=None if states is None else states[:,layer_index, ...],
                 left_context=left_context,
             )
-            if attn_cache is not None and conv_cache is not None:
-                attn_cache[layer_index, ...] = a_cache[-left_context:, ...]
-                conv_cache[layer_index, ...] = c_cache[-left_context:, ...]
+            if states is not None:
+                states[:, layer_index, ...] = cache
 
-        return output
+        return output, states
 
 
 class RelPositionalEncoding(torch.nn.Module):
@@ -667,7 +606,7 @@ class RelPositionalEncoding(torch.nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor (batch, time, `*`).
-            context (int): left context in frames used during streaming decoding.
+            context (int): left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
         Returns:
@@ -762,7 +701,7 @@ class RelPositionMultiheadAttention(nn.Module):
             need_weights: output attn_output_weights.
             attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
                 the batches while a 3D mask allows to specify a different mask for the entries of each batch.
-            left_context (int): left context in frames used during streaming decoding.
+            left_context (int): left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
 
@@ -819,7 +758,7 @@ class RelPositionMultiheadAttention(nn.Module):
         Args:
             x: Input tensor (batch, head, time1, 2*time1-1).
                 time1 means the length of query vector.
-            left_context (int): left context in frames used during streaming decoding.
+            left_context (int): left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
 
@@ -879,7 +818,7 @@ class RelPositionMultiheadAttention(nn.Module):
             need_weights: output attn_output_weights.
             attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
                 the batches while a 3D mask allows to specify a different mask for the entries of each batch.
-            left_context (int): left context in frames used during streaming decoding.
+            left_context (int): left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
 
