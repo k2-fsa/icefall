@@ -449,15 +449,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         self.pos_bias_u = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
         self.pos_bias_v = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
-        self.pos_bias_u_scale = nn.Parameter(torch.zeros(()).detach())
-        self.pos_bias_v_scale = nn.Parameter(torch.zeros(()).detach())
         self._reset_parameters()
-
-    def _pos_bias_u(self):
-        return self.pos_bias_u * self.pos_bias_u_scale.exp()
-
-    def _pos_bias_v(self):
-        return self.pos_bias_v * self.pos_bias_v_scale.exp()
 
     def _reset_parameters(self) -> None:
         nn.init.uniform_(self.pos_bias_u, -0.05, 0.05)
@@ -756,11 +748,11 @@ class RelPositionMultiheadAttention(nn.Module):
         p = self.linear_pos(pos_emb).view(pos_emb_bsz, -1, num_heads, head_dim)
         p = p.transpose(1, 2)  # (batch, head, 2*time1-1, d_k)
 
-        q_with_bias_u = (q + self._pos_bias_u()).transpose(
+        q_with_bias_u = (q + self.pos_bias_u).transpose(
             1, 2
         )  # (batch, head, time1, d_k)
 
-        q_with_bias_v = (q + self._pos_bias_v()).transpose(
+        q_with_bias_v = (q + self.pos_bias_v).transpose(
             1, 2
         )  # (batch, head, time1, d_k)
 

@@ -599,7 +599,9 @@ class Cain(Optimizer):
                     scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
                                                           value=1 - beta2)
 
-                    scale_bias_correction2 = 1 - beta2 ** step
+                    # should actually be step + 1, so on 1st minibatch we are not learning
+                    # anything here.  May fix this at some point.
+                    scale_bias_correction2 = 1 - beta2 ** (step + 1)
 
                     scale_denom = (scale_exp_avg_sq.sqrt()).add_(group["eps"])
 
@@ -621,7 +623,6 @@ class Cain(Optimizer):
                                                            device=scale_delta.device,
                                                            dtype=scale_delta.dtype),
                                               scale_delta)
-
                     exp_avg.add_(p, alpha=scale_delta)
 
 
