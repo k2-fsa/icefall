@@ -175,7 +175,7 @@ class ConformerEncoderLayer(nn.Module):
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
-                         initial_scale=0.05),
+                         initial_scale=0.1),
         )
 
         self.feed_forward_macaron = nn.Sequential(
@@ -184,7 +184,7 @@ class ConformerEncoderLayer(nn.Module):
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
-                         initial_scale=0.05),
+                         initial_scale=0.1),
         )
 
         self.conv_module = ConvolutionModule(d_model,
@@ -440,7 +440,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
         self.out_proj = ScaledLinear(
-            embed_dim, embed_dim, bias=True, initial_scale=0.2
+            embed_dim, embed_dim, bias=True, initial_scale=0.5
         )
 
         # linear transformation for positional encoding.
@@ -904,7 +904,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.2,
+            initial_scale=0.5,
         )
 
     def forward(self, x: Tensor) -> Tensor:
