@@ -19,7 +19,6 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
@@ -63,10 +62,10 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = ScaledLinear(
+        self.simple_am_proj = nn.Linear(
             encoder_dim, vocab_size,
         )
-        self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+        self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
     def forward(
         self,

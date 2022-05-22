@@ -170,22 +170,25 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.feed_forward = nn.Sequential(
-            ScaledLinear(d_model, dim_feedforward),
+            nn.Linear(d_model, dim_feedforward),
             ActivationBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
+            ScaledLinear(dim_feedforward, d_model,
+                         initial_scale=0.05),
         )
 
         self.feed_forward_macaron = nn.Sequential(
-            ScaledLinear(d_model, dim_feedforward),
+            nn.Linear(d_model, dim_feedforward),
             ActivationBalancer(channel_dim=-1),
             DoubleSwish(),
             nn.Dropout(dropout),
-            ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
+            ScaledLinear(dim_feedforward, d_model,
+                         initial_scale=0.05),
         )
 
-        self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module = ConvolutionModule(d_model,
+                                             cnn_module_kernel)
 
         self.norm_final = BasicNorm(d_model)
 
@@ -435,13 +438,13 @@ class RelPositionMultiheadAttention(nn.Module):
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
 
-        self.in_proj = ScaledLinear(embed_dim, 3 * embed_dim, bias=True)
+        self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
         self.out_proj = ScaledLinear(
-            embed_dim, embed_dim, bias=True, initial_scale=0.25
+            embed_dim, embed_dim, bias=True, initial_scale=0.05
         )
 
         # linear transformation for positional encoding.
-        self.linear_pos = ScaledLinear(embed_dim, embed_dim, bias=False)
+        self.linear_pos = nn.Linear(embed_dim, embed_dim, bias=False)
         # these two learnable bias are used in matrix c and matrix d
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         self.pos_bias_u = nn.Parameter(torch.Tensor(num_heads, self.head_dim))
@@ -457,8 +460,8 @@ class RelPositionMultiheadAttention(nn.Module):
         return self.pos_bias_v * self.pos_bias_v_scale.exp()
 
     def _reset_parameters(self) -> None:
-        nn.init.uniform_(self.pos_bias_u, -0.2, 0.2)
-        nn.init.uniform_(self.pos_bias_v, -0.2, 0.2)
+        nn.init.uniform_(self.pos_bias_u, -0.05, 0.05)
+        nn.init.uniform_(self.pos_bias_v, -0.05, 0.05)
 
     def forward(
         self,
@@ -518,11 +521,11 @@ class RelPositionMultiheadAttention(nn.Module):
             pos_emb,
             self.embed_dim,
             self.num_heads,
-            self.in_proj.get_weight(),
-            self.in_proj.get_bias(),
+            self.in_proj.weight,
+            self.in_proj.bias,
             self.dropout,
-            self.out_proj.get_weight(),
-            self.out_proj.get_bias(),
+            self.out_proj.weight,
+            self.out_proj.bias,
             training=self.training,
             key_padding_mask=key_padding_mask,
             need_weights=need_weights,
@@ -852,7 +855,7 @@ class ConvolutionModule(nn.Module):
         # kernerl_size should be a odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0
 
-        self.pointwise_conv1 = ScaledConv1d(
+        self.pointwise_conv1 = nn.Conv1d(
             channels,
             2 * channels,
             kernel_size=1,
@@ -878,7 +881,7 @@ class ConvolutionModule(nn.Module):
             channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
         )
 
-        self.depthwise_conv = ScaledConv1d(
+        self.depthwise_conv = nn.Conv1d(
             channels,
             channels,
             kernel_size,
@@ -901,7 +904,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.25,
+            initial_scale=0.05,
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -969,7 +972,7 @@ class Conv2dSubsampling(nn.Module):
         super().__init__()
 
         self.conv = nn.Sequential(
-            ScaledConv2d(
+            nn.Conv2d(
                 in_channels=1,
                 out_channels=layer1_channels,
                 kernel_size=3,
@@ -977,7 +980,7 @@ class Conv2dSubsampling(nn.Module):
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
-            ScaledConv2d(
+            nn.Conv2d(
                 in_channels=layer1_channels,
                 out_channels=layer2_channels,
                 kernel_size=3,
@@ -985,7 +988,7 @@ class Conv2dSubsampling(nn.Module):
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
-            ScaledConv2d(
+            nn.Conv2d(
                 in_channels=layer2_channels,
                 out_channels=layer3_channels,
                 kernel_size=3,
@@ -994,7 +997,7 @@ class Conv2dSubsampling(nn.Module):
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
         )
-        self.out = ScaledLinear(
+        self.out = nn.Linear(
             layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
         )
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
