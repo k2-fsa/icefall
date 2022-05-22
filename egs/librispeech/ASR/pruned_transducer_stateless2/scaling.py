@@ -22,7 +22,6 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.nn import Embedding as ScaledEmbedding
 
 
 def _ntuple(n):
@@ -155,8 +154,10 @@ class BasicNorm(torch.nn.Module):
 
 class ScaledLinear(nn.Linear):
     """
-    A modified version of nn.Linear that gives an easy way to set the
-    default initial parameter scale.
+    A modified version of nn.Linear where the parameters are scaled before
+    use, via:
+         weight = self.weight * self.weight_scale.exp()
+         bias = self.bias * self.bias_scale.exp()
 
     Args:
         Accepts the standard args and kwargs that nn.Linear accepts
@@ -167,26 +168,59 @@ class ScaledLinear(nn.Linear):
            (affects the initialization of weight_scale and bias_scale).
            Another option, if you want to do something like this, is
            to re-initialize the parameters.
+        initial_speed: this affects how fast the parameter will
+           learn near the start of training; you can set it to a
+           value less than one if you suspect that a module
+           is contributing to instability near the start of training.
+           Nnote: regardless of the use of this option, it's best to
+           use schedulers like Noam that have a warm-up period.
+           Alternatively you can set it to more than 1 if you want it to
+           initially train faster.   Must be greater than 0.
     """
 
     def __init__(
         self,
         *args,
         initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
         **kwargs
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
-        with torch.no_grad():
-            self.weight[:] *= initial_scale
-            if self.bias is not None:
-                self.bias[:] *= 2.0 * initial_scale
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
 
-    def get_weight(self): # not needed any more but kept for back compatibility
-        return self.weight
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in nn.Linear
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += torch.tensor(scale / std).log()
+
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return self.bias
+        if self.bias is None or self.bias_scale is None:
+            return None
 
+        return self.bias * self.bias_scale.exp()
+
+    def forward(self, input: Tensor) -> Tensor:
+        return torch.nn.functional.linear(
+            input, self.get_weight(), self.get_bias()
+        )
 
 
 class ScaledConv1d(nn.Conv1d):
@@ -195,20 +229,66 @@ class ScaledConv1d(nn.Conv1d):
         self,
         *args,
         initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
         **kwargs
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
-            self.weight[:] *= initial_scale
-            if self.bias is not None:
-                self.bias[:] *= initial_scale
+            self.weight_scale += torch.tensor(scale / std).log()
 
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
 
-    def get_weight(self):  # TODO: delete
-        return self.weight
+    def get_bias(self):
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        return bias * bias_scale.exp()
 
-    def get_bias(self):  # TODO: delete
-        return self.bias
+    def forward(self, input: Tensor) -> Tensor:
+        F = torch.nn.functional
+        if self.padding_mode != "zeros":
+            return F.conv1d(
+                F.pad(
+                    input,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                self.get_weight(),
+                self.get_bias(),
+                self.stride,
+                (0,),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv1d(
+            input,
+            self.get_weight(),
+            self.get_bias(),
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
 
 
 class ScaledConv2d(nn.Conv2d):
@@ -217,20 +297,70 @@ class ScaledConv2d(nn.Conv2d):
         self,
         *args,
         initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
         **kwargs
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
-            self.weight[:] *= initial_scale
-            if self.bias is not None:
-                self.bias[:] *= initial_scale
+            self.weight_scale += torch.tensor(scale / std).log()
 
     def get_weight(self):
-        return self.weight
+        return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return  self.bias
+        # see https://github.com/pytorch/pytorch/issues/24135
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        return bias * bias_scale.exp()
 
+    def _conv_forward(self, input, weight):
+        F = torch.nn.functional
+        if self.padding_mode != "zeros":
+            return F.conv2d(
+                F.pad(
+                    input,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                weight,
+                self.get_bias(),
+                self.stride,
+                (0, 0),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv2d(
+            input,
+            weight,
+            self.get_bias(),
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self._conv_forward(input, self.get_weight())
 
 
 class ActivationBalancer(torch.nn.Module):
@@ -334,6 +464,179 @@ class DoubleSwish(torch.nn.Module):
         return DoubleSwishFunction.apply(x)
 
 
+class ScaledEmbedding(nn.Module):
+    r"""This is a modified version of nn.Embedding that introduces a learnable scale
+    on the parameters.  Note: due to how we initialize it, it's best used with
+    schedulers like Noam that have a warmup period.
+
+    It is a simple lookup table that stores embeddings of a fixed dictionary and size.
+
+    This module is often used to store word embeddings and retrieve them using indices.
+    The input to the module is a list of indices, and the output is the corresponding
+    word embeddings.
+
+    Args:
+        num_embeddings (int): size of the dictionary of embeddings
+        embedding_dim (int): the size of each embedding vector
+        padding_idx (int, optional): If given, pads the output with the embedding vector at :attr:`padding_idx`
+                                         (initialized to zeros) whenever it encounters the index.
+        max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
+                                    is renormalized to have norm :attr:`max_norm`.
+        norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
+        scale_grad_by_freq (boolean, optional): If given, this will scale gradients by the inverse of frequency of
+                                                the words in the mini-batch. Default ``False``.
+        sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` matrix will be a sparse tensor.
+                                 See Notes for more details regarding sparse gradients.
+
+        initial_speed (float, optional):  This affects how fast the parameter will
+           learn near the start of training; you can set it to a value less than
+           one if you suspect that a module is contributing to instability near
+           the start of training.  Nnote: regardless of the use of this option,
+           it's best to use schedulers like Noam that have a warm-up period.
+           Alternatively you can set it to more than 1 if you want it to
+           initially train faster.  Must be greater than 0.
+
+
+    Attributes:
+        weight (Tensor): the learnable weights of the module of shape (num_embeddings, embedding_dim)
+                         initialized from :math:`\mathcal{N}(0, 1)`
+
+    Shape:
+        - Input: :math:`(*)`, LongTensor of arbitrary shape containing the indices to extract
+        - Output: :math:`(*, H)`, where `*` is the input shape and :math:`H=\text{embedding\_dim}`
+
+    .. note::
+        Keep in mind that only a limited number of optimizers support
+        sparse gradients: currently it's :class:`optim.SGD` (`CUDA` and `CPU`),
+        :class:`optim.SparseAdam` (`CUDA` and `CPU`) and :class:`optim.Adagrad` (`CPU`)
+
+    .. note::
+        With :attr:`padding_idx` set, the embedding vector at
+        :attr:`padding_idx` is initialized to all zeros. However, note that this
+        vector can be modified afterwards, e.g., using a customized
+        initialization method, and thus changing the vector used to pad the
+        output. The gradient for this vector from :class:`~torch.nn.Embedding`
+        is always zero.
+
+    Examples::
+
+        >>> # an Embedding module containing 10 tensors of size 3
+        >>> embedding = nn.Embedding(10, 3)
+        >>> # a batch of 2 samples of 4 indices each
+        >>> input = torch.LongTensor([[1,2,4,5],[4,3,2,9]])
+        >>> embedding(input)
+        tensor([[[-0.0251, -1.6902,  0.7172],
+                 [-0.6431,  0.0748,  0.6969],
+                 [ 1.4970,  1.3448, -0.9685],
+                 [-0.3677, -2.7265, -0.1685]],
+
+                [[ 1.4970,  1.3448, -0.9685],
+                 [ 0.4362, -0.4004,  0.9400],
+                 [-0.6431,  0.0748,  0.6969],
+                 [ 0.9124, -2.3616,  1.1151]]])
+
+
+        >>> # example with padding_idx
+        >>> embedding = nn.Embedding(10, 3, padding_idx=0)
+        >>> input = torch.LongTensor([[0,2,0,5]])
+        >>> embedding(input)
+        tensor([[[ 0.0000,  0.0000,  0.0000],
+                 [ 0.1535, -2.0309,  0.9315],
+                 [ 0.0000,  0.0000,  0.0000],
+                 [-0.1655,  0.9897,  0.0635]]])
+
+    """
+    __constants__ = [
+        "num_embeddings",
+        "embedding_dim",
+        "padding_idx",
+        "scale_grad_by_freq",
+        "sparse",
+    ]
+
+    num_embeddings: int
+    embedding_dim: int
+    padding_idx: int
+    scale_grad_by_freq: bool
+    weight: Tensor
+    sparse: bool
+
+    def __init__(
+        self,
+        num_embeddings: int,
+        embedding_dim: int,
+        padding_idx: Optional[int] = None,
+        scale_grad_by_freq: bool = False,
+        sparse: bool = False,
+        initial_speed: float = 1.0,
+    ) -> None:
+        super(ScaledEmbedding, self).__init__()
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        if padding_idx is not None:
+            if padding_idx > 0:
+                assert (
+                    padding_idx < self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
+            elif padding_idx < 0:
+                assert (
+                    padding_idx >= -self.num_embeddings
+                ), "Padding_idx must be within num_embeddings"
+                padding_idx = self.num_embeddings + padding_idx
+        self.padding_idx = padding_idx
+        self.scale_grad_by_freq = scale_grad_by_freq
+
+        self.scale = nn.Parameter(torch.zeros(()))  # see reset_parameters()
+        self.sparse = sparse
+
+        self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
+        self.reset_parameters(initial_speed)
+
+    def reset_parameters(self, initial_speed: float = 1.0) -> None:
+        std = 0.1 / initial_speed
+        nn.init.normal_(self.weight, std=std)
+        nn.init.constant_(self.scale, torch.tensor(1.0 / std).log())
+
+        if self.padding_idx is not None:
+            with torch.no_grad():
+                self.weight[self.padding_idx].fill_(0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        F = torch.nn.functional
+        scale = self.scale.exp()
+        if input.numel() < self.num_embeddings:
+            return (
+                F.embedding(
+                    input,
+                    self.weight,
+                    self.padding_idx,
+                    None,
+                    2.0,  # None, 2.0 relate to normalization
+                    self.scale_grad_by_freq,
+                    self.sparse,
+                )
+                * scale
+            )
+        else:
+            return F.embedding(
+                input,
+                self.weight * scale,
+                self.padding_idx,
+                None,
+                2.0,  # None, 2.0 relates to normalization
+                self.scale_grad_by_freq,
+                self.sparse,
+            )
+
+    def extra_repr(self) -> str:
+        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        if self.padding_idx is not None:
+            s += ", padding_idx={padding_idx}"
+        if self.scale_grad_by_freq is not False:
+            s += ", scale_grad_by_freq={scale_grad_by_freq}"
+        if self.sparse is not False:
+            s += ", sparse=True"
+        return s.format(**self.__dict__)
 
 
 def _test_activation_balancer_sign():
