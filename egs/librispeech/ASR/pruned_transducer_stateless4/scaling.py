@@ -179,7 +179,7 @@ class ScaledLinear(nn.Linear):
         with torch.no_grad():
             self.weight[:] *= initial_scale
             if self.bias is not None:
-                torch.nn.init.uniform_(self.bias, -0.1, 0.1)
+                torch.nn.init.uniform_(self.bias, -0.2, 0.2)
 
     def get_weight(self): # not needed any more but kept for back compatibility
         return self.weight
@@ -201,7 +201,7 @@ class ScaledConv1d(nn.Conv1d):
         with torch.no_grad():
             self.weight[:] *= initial_scale
             if self.bias is not None:
-                torch.nn.init.uniform_(self.bias, -0.1, 0.1)
+                torch.nn.init.uniform_(self.bias, -0.2, 0.2)
 
     def get_weight(self):  # TODO: delete
         return self.weight
@@ -222,7 +222,7 @@ class ScaledConv2d(nn.Conv2d):
         with torch.no_grad():
             self.weight[:] *= initial_scale
             if self.bias is not None:
-                torch.nn.init.uniform_(self.bias, -0.1, 0.1)
+                torch.nn.init.uniform_(self.bias, -0.2, 0.2)
 
     def get_weight(self):
         return self.weight

@@ -457,8 +457,8 @@ class RelPositionMultiheadAttention(nn.Module):
         return self.pos_bias_v * self.pos_bias_v_scale.exp()
 
     def _reset_parameters(self) -> None:
-        nn.init.uniform_(self.pos_bias_u, -0.1, 0.1)
-        nn.init.uniform_(self.pos_bias_v, -0.1, 0.1)
+        nn.init.uniform_(self.pos_bias_u, -0.2, 0.2)
+        nn.init.uniform_(self.pos_bias_v, -0.2, 0.2)
 
     def forward(
         self,
