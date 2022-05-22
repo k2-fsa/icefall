@@ -440,7 +440,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
         self.out_proj = ScaledLinear(
-            embed_dim, embed_dim, bias=True, initial_scale=0.05
+            embed_dim, embed_dim, bias=True, initial_scale=0.2
         )
 
         # linear transformation for positional encoding.
@@ -904,7 +904,7 @@ class ConvolutionModule(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.05,
+            initial_scale=0.2,
         )
 
     def forward(self, x: Tensor) -> Tensor:
