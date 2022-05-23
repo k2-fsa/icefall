@@ -135,7 +135,7 @@ results at:
 
 #### Baseline-2
 
-It has 88.98 M parameters. Compared to the model in pruned_transducer_stateless2, its more
+It has 88.98 M parameters. Compared to the model in pruned_transducer_stateless2, its has more
 layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder dim vs 2048 feed forward dim and 512 encoder dim).
 
 |                                     | test-clean | test-other | comment                                 |
