@@ -62,6 +62,7 @@ def preprocess_wenet_speech():
         dataset_parts=dataset_parts,
         output_dir=src_dir,
         suffix="jsonl.gz",
+        prefix="wenetspeech",
     )
     assert manifests is not None
 
