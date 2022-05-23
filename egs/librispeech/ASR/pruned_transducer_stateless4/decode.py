@@ -571,9 +571,9 @@ def main():
                 )
             )
         else:
-            assert params.avg > 0
+            assert params.avg > 0, params.avg
             start = params.epoch - params.avg
-            assert start >= 1
+            assert start >= 1, start
             filename_start = f"{params.exp_dir}/epoch-{start}.pt"
             filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
             logging.info(
