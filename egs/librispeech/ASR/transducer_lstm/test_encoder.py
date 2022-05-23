@@ -20,10 +20,8 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer_lstm/test_model.py
+    python ./transducer_lstm/test_encoder.py
 """
-
-import warnings
 
 import torch
 from train import get_encoder_model, get_params
@@ -47,9 +45,7 @@ def test_encoder_model():
 
     y, y_lens = encoder(x, x_lens)
     print(y.shape)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        expected_y_lens = ((x_lens - 1) // 2 - 1) // 2
+    expected_y_lens = (((x_lens - 1) >> 1) - 1) >> 1
 
     assert torch.all(torch.eq(y_lens, expected_y_lens)), (
         y_lens,
