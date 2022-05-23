@@ -65,6 +65,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, Eve
+from teacher_model import get_teacher_model
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -223,6 +224,16 @@ def get_parser():
         "--simple-loss-scale",
         type=float,
         default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
+    )
+
+    parser.add_argument(
+        "--ts-loss-scale",
+        type=float,
+        default=0.1,
         help="To get pruning ranges, we will calculate a simple version"
         "loss(joiner is just addition), this simple loss also uses for"
         "training (as a regularization item). We will scale the simple loss"
@@ -548,6 +559,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
+    teacher_model: Optional[torch.jit.ScriptModule] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -564,6 +576,8 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
+      teacher_model:
+        The teacher model.
     """
     device = params.device
     feature = batch["inputs"]
@@ -579,16 +593,18 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, ts_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            teacher_model=teacher_model,
         )
 
         loss = params.simple_loss_scale * simple_loss + pruned_loss
+        loss = loss + params.ts_loss_scale * ts_loss
 
     assert loss.requires_grad == is_training
 
@@ -603,6 +619,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["ts_loss"] = ts_loss.detach().cpu().item()
 
     return loss, info
 
@@ -623,6 +640,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
+            teacher_model=None,
             sp=sp,
             batch=batch,
             is_training=False,
@@ -644,6 +662,7 @@ def compute_validation_loss(
 def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
+    teacher_model: Optional[torch.jit.ScriptModule],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
@@ -666,6 +685,8 @@ def train_one_epoch(
         It is returned by :func:`get_params`.
       model:
         The model for training.
+      teacher_model:
+        The teacher model.
       optimizer:
         The optimizer we are using.
       scheduler:
@@ -729,6 +750,7 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
+                    teacher_model=teacher_model,
                     sp=sp,
                     batch=batch,
                     is_training=True,
@@ -901,9 +923,13 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
     model = get_transducer_model(params)
+    teacher_model = get_teacher_model()
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+
+    num_teacher_param = sum([p.numel() for p in teacher_model.parameters()])
+    logging.info(f"Number of teacher model parameters: {num_teacher_param}")
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
@@ -919,6 +945,7 @@ def run(rank, world_size, args):
     )
 
     model.to(device)
+    teacher_model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
@@ -983,6 +1010,7 @@ def run(rank, world_size, args):
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
+            teacher_model=teacher_model,
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
@@ -1007,6 +1035,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            teacher_model=teacher_model,
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
@@ -1075,6 +1104,7 @@ def display_and_save_batch(
 
 def scan_pessimistic_batches_for_oom(
     model: nn.Module,
+    teacher_model: torch.jit.ScriptModule,
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
@@ -1093,6 +1123,7 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
+                    teacher_model=teacher_model,
                     sp=sp,
                     batch=batch,
                     is_training=True,
@@ -1129,6 +1160,10 @@ def main():
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
+
+torch._C._jit_set_profiling_executor(False)
+torch._C._jit_set_profiling_mode(False)
+torch._C._set_graph_executor_optimize(False)
 
 if __name__ == "__main__":
     main()

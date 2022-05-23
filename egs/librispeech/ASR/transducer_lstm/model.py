@@ -15,13 +15,39 @@
 # limitations under the License.
 
 
+from typing import Optional
+
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
 
-from icefall.utils import add_sos
+from icefall.utils import add_sos, make_pad_mask
+
+
+def compute_teacher_student_loss(
+    encoder_out: torch.Tensor,
+    teacher_encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Args:
+      encoder_out:
+        Encoder output of the student. Its shape is (N, T, C)
+      teacher_encoder_out:
+        Encoder output of the teacher. Its shape is also (N, T, C)
+      encoder_out_lens:
+        A 1-D tensor containing the number of valid frames in encoder_out before
+        padding.
+    Returns:
+      Return the l1 loss between encoder_out and teacher_encoder_out.
+    """
+    loss = (encoder_out - teacher_encoder_out).abs().sum(dim=-1)
+    mask = make_pad_mask(encoder_out_lens)
+    loss.masked_fill_(mask, 0)
+
+    return loss.sum() / encoder_out.size(-1)
 
 
 class Transducer(nn.Module):
@@ -51,9 +77,10 @@ class Transducer(nn.Module):
             is (N, U) and its output shape is (N, U, decoder_dim).
             It should contain one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim).
-            Its output shape is (N, T, U, vocab_size). Note that its output contains
-            unnormalized probs, i.e., not processed by log-softmax.
+            It has two inputs with shapes: (N, T, encoder_dim) and
+            (N, U, decoder_dim).
+            Its output shape is (N, T, U, vocab_size). Note that its output
+            contains unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -76,6 +103,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        teacher_model: Optional[torch.jit.ScriptModule] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -96,6 +124,8 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          teacher_model:
+            The teacher model.
         Returns:
           Return the transducer loss.
 
@@ -111,8 +141,20 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
-        assert torch.all(x_lens > 0)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens)
+        assert torch.all(encoder_out_lens > 0)
+
+        if self.training is True:
+            with torch.no_grad():
+                teacher_encoder_out, _ = teacher_model.encoder(x, x_lens)
+
+            ts_loss = compute_teacher_student_loss(
+                encoder_out,
+                teacher_encoder_out,
+                encoder_out_lens,
+            )
+        else:
+            ts_loss = torch.tensor([0.0])
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
@@ -136,7 +178,7 @@ class Transducer(nn.Module):
             (x.size(0), 4), dtype=torch.int64, device=x.device
         )
         boundary[:, 2] = y_lens
-        boundary[:, 3] = x_lens
+        boundary[:, 3] = encoder_out_lens
 
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
@@ -186,4 +228,4 @@ class Transducer(nn.Module):
                 reduction="sum",
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, ts_loss)
