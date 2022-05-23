@@ -35,7 +35,7 @@ on:
 
 jobs:
   run_librispeech_2022_03_12:
-    if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -107,11 +107,11 @@ jobs:
         run: |
           .github/scripts/compute-fbank-librispeech-test-clean-and-test-other.sh
 
-
       - name: Inference with pre-trained model
         shell: bash
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
           mkdir -p egs/librispeech/ASR/data
           ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
@@ -124,8 +124,8 @@ jobs:
 
           .github/scripts/run-librispeech-pruned-transducer-stateless-2022-03-12.sh
 
-      - name: Display decoding results
-        if: github.event_name == 'schedule'
+      - name: Display decoding results for pruned_transducer_stateless
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         shell: bash
         run: |
           cd egs/librispeech/ASR/
@@ -141,9 +141,13 @@ jobs:
           find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
+          echo "===modified beam search==="
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
       - name: Upload decoding results for pruned_transducer_stateless
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-pruned_transducer_stateless-2022-03-12
           path: egs/librispeech/ASR/pruned_transducer_stateless/exp/

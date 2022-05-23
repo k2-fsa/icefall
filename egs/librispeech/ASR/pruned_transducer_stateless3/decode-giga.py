@@ -22,15 +22,15 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method greedy_search
 
-(2) beam search
+(2) beam search (not recommended)
 ./pruned_transducer_stateless3/decode-giga.py \
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method beam_search \
         --beam-size 4
 
@@ -39,7 +39,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
@@ -48,7 +48,7 @@ Usage:
         --epoch 28 \
         --avg 15 \
         --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 1500 \
+        --max-duration 600 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
@@ -224,8 +224,8 @@ def get_parser():
 
 
 def post_processing(
-    results: List[Tuple[List[List[str]], List[List[str]]]],
-) -> List[Tuple[List[List[str]], List[List[str]]]]:
+    results: List[Tuple[List[str], List[str]]],
+) -> List[Tuple[List[str], List[str]]]:
     new_results = []
     for ref, hyp in results:
         new_ref = asr_text_post_processing(" ".join(ref)).split()
@@ -415,9 +415,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):

@@ -1,9 +1,202 @@
 ## Results
 
-### LibriSpeech BPE training results (Pruned Transducer 3)
+### LibriSpeech BPE training results (Pruned Stateless Transducer 5)
+
+[pruned_transducer_stateless5](./pruned_transducer_stateless5)
+
+Same as `Pruned Stateless Transducer 2` but with more layers.
+
+See <https://github.com/k2-fsa/icefall/pull/330>
+
+Note that models in `pruned_transducer_stateless` and `pruned_transducer_stateless2`
+have about 80 M parameters.
+
+The notations `large` and `medium` below are from the [Conformer](https://arxiv.org/pdf/2005.08100.pdf)
+paper, where the large model has about 118 M parameters and the medium model
+has 30.8 M parameters.
+
+#### Large
+
+Number of model parameters 118129516 (i.e, 118.13 M).
+
+|                                     | test-clean | test-other | comment                                |
+|-------------------------------------|------------|------------|----------------------------------------|
+| greedy search (max sym per frame 1) | 2.39       | 5.57       | --epoch 39 --avg 7  --max-duration 600 |
+| modified beam search                | 2.35       | 5.50       | --epoch 39 --avg 7  --max-duration 600 |
+| fast beam search                    | 2.38       | 5.50       | --epoch 39 --avg 7 --max-duration 600  |
+
+The training commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless5/train.py \
+  --world-size 8 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless5/exp-L \
+  --max-duration 300 \
+  --use-fp16 0 \
+  --num-encoder-layers 18 \
+  --dim-feedforward 2048 \
+  --nhead 8 \
+  --encoder-dim 512 \
+  --decoder-dim 512 \
+  --joiner-dim 512
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/Zq0h3KpnQ2igWbeR4U82Pw/>
+
+The decoding commands are:
+
+```bash
+for method in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless5/decode.py \
+    --epoch 39 \
+    --avg 7 \
+    --exp-dir ./pruned_transducer_stateless5/exp-L \
+    --max-duration 600 \
+    --decoding-method $method \
+    --max-sym-per-frame 1 \
+    --num-encoder-layers 18 \
+    --dim-feedforward 2048 \
+    --nhead 8 \
+    --encoder-dim 512 \
+    --decoder-dim 512 \
+    --joiner-dim 512
+done
+```
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-2022-05-13>
+
+
+#### Medium
+
+Number of model parameters 30896748 (i.e, 30.9 M).
+
+|                                     | test-clean | test-other | comment                                 |
+|-------------------------------------|------------|------------|-----------------------------------------|
+| greedy search (max sym per frame 1) | 2.88       | 6.69       | --epoch 39 --avg 17  --max-duration 600 |
+| modified beam search                | 2.83       | 6.59       | --epoch 39 --avg 17  --max-duration 600 |
+| fast beam search                    | 2.83       | 6.61       | --epoch 39 --avg 17 --max-duration 600  |
+
+The training commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless5/train.py \
+  --world-size 8 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless5/exp-M \
+  --max-duration 300 \
+  --use-fp16 0 \
+  --num-encoder-layers 18 \
+  --dim-feedforward 1024 \
+  --nhead 4 \
+  --encoder-dim 256 \
+  --decoder-dim 512 \
+  --joiner-dim 512
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/bOQvULPsQ1iL7xpdI0VbXw/>
+
+The decoding commands are:
+
+```bash
+for method in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless5/decode.py \
+    --epoch 39 \
+    --avg 17 \
+    --exp-dir ./pruned_transducer_stateless5/exp-M \
+    --max-duration 600 \
+    --decoding-method $method \
+    --max-sym-per-frame 1 \
+    --num-encoder-layers 18 \
+    --dim-feedforward 1024 \
+    --nhead 4 \
+    --encoder-dim 256 \
+    --decoder-dim 512 \
+    --joiner-dim 512
+done
+```
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-M-2022-05-13>
+
+
+#### Baseline-2
+
+It has 88.98 M parameters. Compared to the model in pruned_transducer_stateless2, its has more
+layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder dim vs 2048 feed forward dim and 512 encoder dim).
+
+|                                     | test-clean | test-other | comment                                 |
+|-------------------------------------|------------|------------|-----------------------------------------|
+| greedy search (max sym per frame 1) | 2.41       | 5.70       | --epoch 31 --avg 17  --max-duration 600 |
+| modified beam search                | 2.41       | 5.69       | --epoch 31 --avg 17  --max-duration 600 |
+| fast beam search                    | 2.41       | 5.69       | --epoch 31 --avg 17 --max-duration 600  |
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless5/train.py \
+  --world-size 8 \
+  --num-epochs 40 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless5/exp \
+  --max-duration 300 \
+  --use-fp16 0 \
+  --num-encoder-layers 24 \
+  --dim-feedforward 1536 \
+  --nhead 8 \
+  --encoder-dim 384 \
+  --decoder-dim 512 \
+  --joiner-dim 512
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/73oY9U1mQiq0tbbcovZplw/>
+
+**Caution**: The training script is updated so that epochs are counted from 1
+after the training.
+
+The decoding commands are:
+
+```bash
+for method in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless5/decode.py \
+    --epoch 31 \
+    --avg 17 \
+    --exp-dir ./pruned_transducer_stateless5/exp-M \
+    --max-duration 600 \
+    --decoding-method $method \
+    --max-sym-per-frame 1 \
+    --num-encoder-layers 24 \
+    --dim-feedforward 1536 \
+    --nhead 8 \
+    --encoder-dim 384 \
+    --decoder-dim 512 \
+    --joiner-dim 512
+done
+```
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-narrower-2022-05-13>
+
+### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
 [pruned_transducer_stateless3](./pruned_transducer_stateless3)
-Same as `Pruned Transducer 2` but using the XL subset from
+Same as `Pruned Stateless Transducer 2` but using the XL subset from
 [GigaSpeech](https://github.com/SpeechColab/GigaSpeech) as extra training data.
 
 During training, it selects either a batch from GigaSpeech with prob `giga_prob`
@@ -104,6 +297,7 @@ done
 The following table shows the
 [Nbest oracle WER](http://kaldi-asr.org/doc/lattices.html#lattices_operations_oracle)
 for fast beam search.
+
 | epoch | avg | num_paths | nbest_scale | test-clean | test-other |
 |-------|-----|-----------|-------------|------------|------------|
 |  27   | 10  |   50      | 0.5         |  0.91      |  2.74      |
@@ -151,6 +345,67 @@ for epoch in 27; do
   done
 done
 ```
+
+### LibriSpeech BPE training results (Pruned Transducer 3, 2022-05-13)
+
+Same setup as [pruned_transducer_stateless3](./pruned_transducer_stateless3) (2022-04-29)
+but change `--giga-prob` from 0.8 to 0.9. Also use `repeat` on gigaspeech XL
+subset so that the gigaspeech dataloader never exhausts.
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|---------------------------------------------|
+| greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
+| fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
+
+The training commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./prepare.sh
+./prepare_giga_speech.sh
+
+./pruned_transducer_stateless3/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless3/exp-0.9 \
+  --max-duration 300 \
+  --use-fp16 1 \
+  --lr-epochs 4 \
+  --num-workers 2 \
+  --giga-prob 0.9
+```
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/HpocR7dKS9KCQkJeYxfXug/>
+
+Decoding commands:
+
+```bash
+for iter in 1224000; do
+  for avg in 14; do
+    for method in greedy_search modified_beam_search fast_beam_search ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32
+    done
+  done
+done
+```
+
+The pretrained models, training logs, decoding logs, and decoding results
+can be found at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13>
+
 
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 

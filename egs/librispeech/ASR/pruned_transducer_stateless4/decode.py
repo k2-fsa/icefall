@@ -20,40 +20,40 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless4/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) beam search
+(2) beam search (not recommended)
 ./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless4/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless4/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
 (4) fast beam search
 ./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless4/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
 
 
@@ -70,7 +70,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -266,7 +266,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -284,6 +284,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -291,6 +292,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -370,9 +372,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 10
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -500,7 +502,7 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -569,9 +571,9 @@ def main():
                 )
             )
         else:
-            assert params.avg > 0
+            assert params.avg > 0, params.avg
             start = params.epoch - params.avg
-            assert start >= 1
+            assert start >= 1, start
             filename_start = f"{params.exp_dir}/epoch-{start}.pt"
             filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
             logging.info(

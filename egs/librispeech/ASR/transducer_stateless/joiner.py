@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import torch
 import torch.nn as nn
 
@@ -55,8 +57,8 @@ class Joiner(nn.Module):
 
         N = encoder_out.size(0)
 
-        encoder_out_len = encoder_out_len.tolist()
-        decoder_out_len = decoder_out_len.tolist()
+        encoder_out_len: List[int] = encoder_out_len.tolist()
+        decoder_out_len: List[int] = decoder_out_len.tolist()
 
         encoder_out_list = [
             encoder_out[i, : encoder_out_len[i], :] for i in range(N)

@@ -87,18 +87,14 @@ class LstmEncoder(EncoderInterface):
             lengths.max(),
         )
 
-        if True:
-            # This branch is more efficient than the else branch
-            packed_x = pack_padded_sequence(
-                input=x,
-                lengths=lengths.cpu(),
-                batch_first=True,
-                enforce_sorted=False,
-            )
+        packed_x = pack_padded_sequence(
+            input=x,
+            lengths=lengths.cpu(),
+            batch_first=True,
+            enforce_sorted=False,
+        )
 
-            packed_rnn_out, _ = self.rnn(packed_x)
-            rnn_out, _ = pad_packed_sequence(packed_rnn_out, batch_first=True)
-        else:
-            rnn_out, _ = self.rnn(x)
+        packed_rnn_out, _ = self.rnn(packed_x)
+        rnn_out, _ = pad_packed_sequence(packed_rnn_out, batch_first=True)
 
         return rnn_out, lengths

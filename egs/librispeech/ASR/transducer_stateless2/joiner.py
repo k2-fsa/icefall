@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -30,7 +32,8 @@ class Joiner(nn.Module):
         self,
         encoder_out: torch.Tensor,
         decoder_out: torch.Tensor,
-        *unused,
+        unused_encoder_out_len: Optional[torch.Tensor] = None,
+        unused_decoder_out_len: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -38,10 +41,12 @@ class Joiner(nn.Module):
             Output from the encoder. Its shape is (N, T, self.input_dim).
           decoder_out:
             Output from the decoder. Its shape is (N, U, self.input_dim).
-          unused:
+          unused_encoder_out_len:
             This is a placeholder so that we can reuse
             transducer_stateless/beam_search.py in this folder as that
             script assumes the joiner networks accepts 4 inputs.
+          unused_decoder_out_len:
+            Just a placeholder.
         Returns:
           Return a tensor of shape (N, T, U, self.output_dim).
         """
