@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2022 Xiaomi Corporation (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,43 +17,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
+When training with the L subset, usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 100 \
+        --decoding-method greedy_search
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
+(2) modified beam search
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
 
-(3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 4 \
-    --max-contexts 4 \
-    --max-states 8
+(3) fast beam search
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 1500 \
+        --decoding-method fast_beam_search \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 """
 
 
@@ -64,13 +58,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import WenetSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search_one_best,
+    fast_beam_search,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -79,15 +72,14 @@ from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
-    average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
-    str2bool,
     write_error_stats,
 )
 
@@ -100,20 +92,17 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 1.
-        You can specify --avg to use more checkpoints for model averaging.""",
+        default=28,
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
 
     parser.add_argument(
-        "--iter",
+        "--batch",
         type=int,
-        default=0,
-        help="""If positive, --epoch is ignored and it
-        will use the checkpoint exp_dir/checkpoint-iter.pt.
-        You can specify --avg to use more checkpoints for model averaging.
-        """,
+        default=None,
+        help="It specifies the batch checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
 
     parser.add_argument(
@@ -122,32 +111,35 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        "'--epoch'. ",
     )
 
     parser.add_argument(
-        "--use-averaged-model",
-        type=str2bool,
-        default=False,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
+        "--avg-last-n",
+        type=int,
+        default=0,
+        help="""If positive, --epoch and --avg are ignored and it
+        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
+        where xxx is the number of processed batches while
+        saving that checkpoint.
+        """,
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless2/exp",
         help="The experiment dir",
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -166,7 +158,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An integer indicating how many candidates we will keep for each
+        help="""An interger indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -218,7 +210,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    lexicon: Lexicon,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
@@ -237,8 +229,6 @@ def decode_one_batch(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -250,7 +240,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = next(model.parameters()).device
+    device = model.device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
@@ -266,7 +256,7 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search_one_best(
+        hyp_tokens = fast_beam_search(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -275,8 +265,8 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -284,25 +274,23 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
         batch_size = encoder_out.size(0)
 
         for i in range(batch_size):
             # fmt: off
-            encoder_out_i = encoder_out[i:i + 1, :encoder_out_lens[i]]
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
             # fmt: on
             if params.decoding_method == "greedy_search":
                 hyp = greedy_search(
@@ -320,7 +308,7 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append([lexicon.token_table[idx] for idx in hyp])
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -340,7 +328,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -352,8 +340,6 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -372,18 +358,19 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 50
+        log_interval = 100
     else:
-        log_interval = 10
+        log_interval = 2
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        texts = [list(str(text)) for text in texts]
 
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            sp=sp,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
             batch=batch,
         )
@@ -392,8 +379,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
-                ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -455,7 +441,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    WenetSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -470,25 +456,16 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
-    else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-
+    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-beam-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
-
-    if params.use_averaged_model:
-        params.suffix += "-use-averaged-model"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -499,98 +476,40 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> and <unk> are defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if not params.use_averaged_model:
-        if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
-        elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        else:
-            start = params.epoch - params.avg + 1
-            filenames = []
-            for i in range(start, params.epoch + 1):
-                if i >= 1:
-                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+    if params.avg_last_n > 0:
+        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
+    elif params.avg == 1:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    elif params.batch is not None:
+        filenames = f"{params.exp_dir}/checkpoint-{params.batch}.pt"
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints([filenames], device=device))
     else:
-        if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg + 1:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            filename_start = filenames[-1]
-            filename_end = filenames[0]
-            logging.info(
-                "Calculating the averaged model over iteration checkpoints"
-                f" from {filename_start} (excluded) to {filename_end}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
-        else:
-            assert params.avg > 0, params.avg
-            start = params.epoch - params.avg
-            assert start >= 1, start
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"Calculating the averaged model over epoch range from "
-                f"{start} (excluded) to {params.epoch}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
+        start = params.epoch - params.avg + 1
+        filenames = []
+        for i in range(start, params.epoch + 1):
+            if start >= 0:
+                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
 
     model.to(device)
     model.eval()
+    model.device = device
 
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
@@ -600,26 +519,97 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    # Note: Please use "pip install webdataset==0.1.103"
+    # for installing the webdataset.
+    import glob
+    import os
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    from lhotse import CutSet
+    from lhotse.dataset.webdataset import export_to_webdataset
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    wenetspeech = WenetSpeechAsrDataModule(args)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    dev = "dev"
+    test_net = "test_net"
+    test_meeting = "test_meeting"
+
+    if not os.path.exists(f"{dev}/shared-0.tar"):
+        os.makedirs(dev)
+        dev_cuts = wenetspeech.valid_cuts()
+        export_to_webdataset(
+            dev_cuts,
+            output_path=f"{dev}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    if not os.path.exists(f"{test_net}/shared-0.tar"):
+        os.makedirs(test_net)
+        test_net_cuts = wenetspeech.test_net_cuts()
+        export_to_webdataset(
+            test_net_cuts,
+            output_path=f"{test_net}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    if not os.path.exists(f"{test_meeting}/shared-0.tar"):
+        os.makedirs(test_meeting)
+        test_meeting_cuts = wenetspeech.test_meeting_cuts()
+        export_to_webdataset(
+            test_meeting_cuts,
+            output_path=f"{test_meeting}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    dev_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+    ]
+    cuts_dev_webdataset = CutSet.from_webdataset(
+        dev_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_net_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+    ]
+    cuts_test_net_webdataset = CutSet.from_webdataset(
+        test_net_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_meeting_shards = [
+        str(path)
+        for path in sorted(
+            glob.glob(os.path.join(test_meeting, "shared-*.tar"))
+        )
+    ]
+    cuts_test_meeting_webdataset = CutSet.from_webdataset(
+        test_meeting_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
+    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
+    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
+
+    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
+    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
-            sp=sp,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
         )
-
         save_results(
             params=params,
             test_set_name=test_set,

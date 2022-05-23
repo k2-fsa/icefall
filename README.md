@@ -21,6 +21,7 @@ We provide 6 recipes at present:
   - [TED-LIUM3][tedlium3]
   - [GigaSpeech][gigaspeech]
   - [Aidatatang_200zh][aidatatang_200zh]
+  - [WenetSpeech][wenetspeech]
 
 ### yesno
 
@@ -232,6 +233,20 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
 
+### WenetSpeech
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+
+|                      |  Dev  | Test-Net | Test-Meeting |
+|----------------------|-------|----------|--------------|
+|    greedy search     | 7.80  |  8.75    |  13.49       |
+|   fast beam search   | 7.94  |  8.74    |  13.80       |
+| modified beam search | 7.76  |  8.71    |  13.41       |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -258,6 +273,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
+[WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -265,4 +281,5 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [tedlium3]: egs/tedlium3/ASR
 [gigaspeech]: egs/gigaspeech/ASR
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
+[wenetspeech]: egs/wenetspeech/ASR
 [k2]: https://github.com/k2-fsa/k2

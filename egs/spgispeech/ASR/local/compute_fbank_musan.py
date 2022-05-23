@@ -27,16 +27,14 @@ import logging
 from pathlib import Path
 
 import torch
-from lhotse import LilcomChunkyWriter, CutSet, combine
+from lhotse import CutSet, LilcomChunkyWriter, combine
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    KaldifeatMelOptions,
     KaldifeatFrameOptions,
+    KaldifeatMelOptions,
 )
 from lhotse.recipes.utils import read_manifests_if_cached
-
-from icefall.utils import get_executor
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -82,23 +80,28 @@ def compute_fbank_musan():
     # create chunks of Musan with duration 5 - 10 seconds
     musan_cuts = (
         CutSet.from_manifests(
-            recordings=combine(part["recordings"] for part in manifests.values())
+            recordings=combine(
+                part["recordings"] for part in manifests.values()
+            )
         )
         .cut_into_windows(10.0)
         .filter(lambda c: c.duration > 5)
         .compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=output_dir / f"feats_musan",
-            manifest_path=src_dir / f"cuts_musan.jsonl.gz",
+            storage_path=output_dir / "feats_musan",
             batch_duration=500,
             num_workers=4,
             storage_type=LilcomChunkyWriter,
         )
     )
 
+    logging.info(f"Saving to {musan_cuts_path}")
+    musan_cuts.to_file(musan_cuts_path)
+
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
     logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan()

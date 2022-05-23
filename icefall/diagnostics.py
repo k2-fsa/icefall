@@ -18,8 +18,9 @@
 
 
 import random
-from typing import List, Optional, Tuple
 from dataclasses import dataclass
+from typing import Optional, Tuple
+
 import torch
 from torch import Tensor, nn
 
@@ -90,8 +91,6 @@ def get_tensor_stats(
     return x, count
 
 
-
-
 @dataclass
 class TensorAndCount:
     tensor: Tensor
@@ -108,12 +107,12 @@ class TensorDiagnostic(object):
       name:
         The tensor name.
     """
+
     def __init__(self, opts: TensorDiagnosticOptions, name: str):
         self.name = name
         self.opts = opts
 
-
-        self.stats = None # we'll later assign a list to this data member.  It's a list of dict.
+        self.stats = None  # we'll later assign a list to this data member.  It's a list of dict.
 
         # the keys into self.stats[dim] are strings, whose values can be
         # "abs", "value", "positive", "rms", "value".
@@ -124,7 +123,6 @@ class TensorDiagnostic(object):
         # ... we actually accumulate the Tensors / counts any time we have the same-dim tensor,
         # only adding a new element to the list if there was a different dim.
         # if the string in the key is "eigs", if we detect a length mismatch we put None as the value.
-
 
     def accumulate(self, x):
         """Accumulate tensors."""
@@ -137,7 +135,7 @@ class TensorDiagnostic(object):
             x = x.unsqueeze(0)
         ndim = x.ndim
         if self.stats is None:
-            self.stats = [ dict() for _ in range(ndim) ]
+            self.stats = [dict() for _ in range(ndim)]
 
         for dim in range(ndim):
             this_dim_stats = self.stats[dim]
@@ -147,10 +145,10 @@ class TensorDiagnostic(object):
                     stats_types.append("eigs")
             else:
                 stats_types = ["value", "abs"]
-            this_dict = self.stats[dim]
+
             for stats_type in stats_types:
                 stats, count = get_tensor_stats(x, dim, stats_type)
-                if not stats_type in this_dim_stats:
+                if stats_type not in this_dim_stats:
                     this_dim_stats[stats_type] = []  # list of TensorAndCount
 
                 done = False
@@ -166,13 +164,17 @@ class TensorDiagnostic(object):
                         done = True
                         break
                 if not done:
-                    if this_dim_stats[stats_type] != [] and stats_type == "eigs":
+                    if (
+                        this_dim_stats[stats_type] != []
+                        and stats_type == "eigs"
+                    ):
                         # >1 size encountered on this dim, e.g. it's a batch or time dimension,
                         # don't accumulat "eigs" stats type, it uses too much memory
                         this_dim_stats[stats_type] = None
                     else:
-                        this_dim_stats[stats_type].append(TensorAndCount(stats, count))
-
+                        this_dim_stats[stats_type].append(
+                            TensorAndCount(stats, count)
+                        )
 
     def print_diagnostics(self):
         """Print diagnostics for each dimension of the tensor."""
@@ -191,14 +193,18 @@ class TensorDiagnostic(object):
                         eigs, _ = torch.symeig(stats)
                         stats = eigs.abs().sqrt()
                     except:  # noqa
-                        print("Error getting eigenvalues, trying another method.")
+                        print(
+                            "Error getting eigenvalues, trying another method."
+                        )
                         eigs = torch.linalg.eigvals(stats)
                         stats = eigs.abs().sqrt()
                         # sqrt so it reflects data magnitude, like stddev- not variance
                 elif len(stats_list) == 1:
                     stats = stats_list[0].tensor / stats_list[0].count
                 else:
-                    stats = torch.cat([x.tensor / x.count for x in stats_list], dim=0)
+                    stats = torch.cat(
+                        [x.tensor / x.count for x in stats_list], dim=0
+                    )
 
                 if stats_type == "rms":
                     # we stored the square; after aggregation we need to take sqrt.
@@ -206,7 +212,9 @@ class TensorDiagnostic(object):
 
                 # if `summarize` we print percentiles of the stats; else,
                 # we print out individual elements.
-                summarize = (len(stats_list) > 1) or self.opts.dim_is_summarized(stats.numel())
+                summarize = (
+                    len(stats_list) > 1
+                ) or self.opts.dim_is_summarized(stats.numel())
                 if summarize:  # usually `summarize` will be true
                     # print out percentiles.
                     stats = stats.sort()[0]
@@ -238,9 +246,14 @@ class TensorDiagnostic(object):
                 # ans = "percentiles: [0.43 0.46 0.48 0.49 0.49 0.5 0.51 0.52 0.53 0.54 0.59], mean=0.5, rms=0.5"
 
                 sizes = [x.tensor.shape[0] for x in stats_list]
-                size_str = f"{sizes[0]}" if len(sizes) == 1 else f"{min(sizes)}..{max(sizes)}"
-                print(f"module={self.name}, dim={dim}, size={size_str}, {stats_type} {ans}")
-
+                size_str = (
+                    f"{sizes[0]}"
+                    if len(sizes) == 1
+                    else f"{min(sizes)}..{max(sizes)}"
+                )
+                print(
+                    f"module={self.name}, dim={dim}, size={size_str}, {stats_type} {ans}"
+                )
 
 
 class ModelDiagnostic(object):
@@ -272,7 +285,7 @@ class ModelDiagnostic(object):
 
 
 def attach_diagnostics(
-    model: nn.Module, opts: TensorDiagnosticOptions
+    model: nn.Module, opts: Optional[TensorDiagnosticOptions] = None
 ) -> ModelDiagnostic:
     """Attach a ModelDiagnostic object to the model by
     1) registering forward hook and backward hook on each module, to accumulate
@@ -335,7 +348,7 @@ def attach_diagnostics(
 
 
 def _test_tensor_diagnostic():
-    opts = TensorDiagnosticOptions(2 ** 20, 512)
+    opts = TensorDiagnosticOptions(512)
 
     diagnostic = TensorDiagnostic(opts, "foo")
 

@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 4 \
@@ -75,7 +75,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -139,7 +139,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless5/exp",
         help="The experiment dir",
     )
 
@@ -211,6 +211,8 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -302,7 +304,7 @@ def decode_one_batch(
 
         for i in range(batch_size):
             # fmt: off
-            encoder_out_i = encoder_out[i:i + 1, :encoder_out_lens[i]]
+            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
             # fmt: on
             if params.decoding_method == "greedy_search":
                 hyp = greedy_search(
@@ -374,7 +376,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 10
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
