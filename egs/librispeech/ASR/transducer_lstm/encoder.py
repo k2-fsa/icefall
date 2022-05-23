@@ -94,7 +94,7 @@ class LstmEncoder(EncoderInterface):
         )
 
         if False:
-            # It is commented out as DPP complains that not all parameters are
+            # It is commented out as DDP complains that not all parameters are
             # used. Need more checks later for the reason.
             #
             # Caution: We assume the dataloader returns utterances with
@@ -107,7 +107,7 @@ class LstmEncoder(EncoderInterface):
             )
 
             packed_rnn_out, _ = self.rnn(packed_x)
-            rnn_out, _ = pad_packed_sequence(packed_x, batch_first=True)
+            rnn_out, _ = pad_packed_sequence(packed_rnn_out, batch_first=True)
         else:
             rnn_out, _ = self.rnn(x)
 

@@ -23,6 +23,7 @@ To run this file, do:
     python ./pruned_transducer_stateless2/test_model.py
 """
 
+import torch
 from train import get_params, get_transducer_model
 
 
@@ -31,9 +32,14 @@ def test_model():
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
+    params.unk_id = 2
+
     model = get_transducer_model(params)
+
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
+    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+    torch.jit.script(model)
 
 
 def main():

@@ -133,7 +133,7 @@ results at:
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-M-2022-05-13>
 
 
-### LibriSpeech BPE training results (Pruned Stateless Transducer 3)
+### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
 [pruned_transducer_stateless3](./pruned_transducer_stateless3)
 Same as `Pruned Stateless Transducer 2` but using the XL subset from
@@ -285,6 +285,67 @@ for epoch in 27; do
   done
 done
 ```
+
+### LibriSpeech BPE training results (Pruned Transducer 3, 2022-05-13)
+
+Same setup as [pruned_transducer_stateless3](./pruned_transducer_stateless3) (2022-04-29)
+but change `--giga-prob` from 0.8 to 0.9. Also use `repeat` on gigaspeech XL
+subset so that the gigaspeech dataloader never exhausts.
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|---------------------------------------------|
+| greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
+| fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
+
+The training commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./prepare.sh
+./prepare_giga_speech.sh
+
+./pruned_transducer_stateless3/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless3/exp-0.9 \
+  --max-duration 300 \
+  --use-fp16 1 \
+  --lr-epochs 4 \
+  --num-workers 2 \
+  --giga-prob 0.9
+```
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/HpocR7dKS9KCQkJeYxfXug/>
+
+Decoding commands:
+
+```bash
+for iter in 1224000; do
+  for avg in 14; do
+    for method in greedy_search modified_beam_search fast_beam_search ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32
+    done
+  done
+done
+```
+
+The pretrained models, training logs, decoding logs, and decoding results
+can be found at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13>
+
 
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
