@@ -19,40 +19,40 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
-        --decoding-method greedy_search
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
 (2) beam search (not recommended)
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
 (4) fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 600 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
 
 
@@ -485,7 +485,7 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
