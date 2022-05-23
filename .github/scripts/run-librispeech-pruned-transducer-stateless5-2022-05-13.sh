@@ -47,7 +47,13 @@ for method in modified_beam_search beam_search fast_beam_search; do
     --bpe-model $repo/data/lang_bpe_500/bpe.model \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
-    $repo/test_wavs/1221-135766-0002.wav
+    $repo/test_wavs/1221-135766-0002.wav \
+    --num-encoder-layers 18 \
+    --dim-feedforward 2048 \
+    --nhead 8 \
+    --encoder-dim 512 \
+    --decoder-dim 512 \
+    --joiner-dim 512
 done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
@@ -73,7 +79,13 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --epoch 999 \
       --avg 1 \
       --max-duration $max_duration \
-      --exp-dir pruned_transducer_stateless5/exp
+      --exp-dir pruned_transducer_stateless5/exp \
+      --num-encoder-layers 18 \
+      --dim-feedforward 2048 \
+      --nhead 8 \
+      --encoder-dim 512 \
+      --decoder-dim 512 \
+      --joiner-dim 512
   done
 
   rm pruned_transducer_stateless5/exp/*.pt
