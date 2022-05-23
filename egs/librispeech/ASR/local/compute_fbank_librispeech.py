@@ -57,7 +57,7 @@ def compute_fbank_librispeech():
         "train-other-500",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        prefix="librispeech", dataset_parts=dataset_parts, output_dir=src_dir
     )
     assert manifests is not None
 

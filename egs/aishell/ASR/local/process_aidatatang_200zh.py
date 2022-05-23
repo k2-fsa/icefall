@@ -37,6 +37,7 @@ def preprocess_aidatatang_200zh():
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
+        prefix="aidatatang"
     )
     assert len(manifests) > 0
 
