@@ -24,7 +24,11 @@ Usage:
   --exp-dir ./transducer_emformer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
-  --avg 10
+  --avg 10 \
+  --num-encoder-layers 18 \
+  --left-context-length 128 \
+  --segment-length 8 \
+  --right-context-length 4
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -39,7 +43,7 @@ you can do:
         --exp-dir ./transducer_emformer/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 1000 \
+        --max-duration 100 \
         --bpe-model data/lang_bpe_500/bpe.model
 """
 
@@ -51,7 +55,11 @@ import sentencepiece as spm
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.utils import str2bool
 
 
@@ -64,8 +72,19 @@ def get_parser():
         "--epoch",
         type=int,
         default=28,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help="""It specifies the checkpoint to use for averaging.
+        Note: Epoch counts from 0.
+        You can specify --avg to use more checkpoints for model averaging.""",
+    )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
     )
 
     parser.add_argument(
@@ -74,13 +93,13 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless/exp",
+        default="transducer_emformer/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -118,8 +137,6 @@ def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    assert args.jit is False, "Support torchscript will be added later"
-
     params = get_params()
     params.update(vars(args))
 
@@ -143,7 +160,24 @@ def main():
 
     model.to(device)
 
-    if params.avg == 1:
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
+    elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1
