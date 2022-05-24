@@ -19,15 +19,23 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 ./transducer_emformer/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 0 \
-  --exp-dir transducer_emformer/exp \
+  --world-size 8 \
+  --num-epochs 65 \
+  --start-epoch 60 \
+  --exp-dir transducer_emformer/exp-full \
   --full-libri 1 \
-  --max-duration 300
+  --max-duration 200 \
+  --prune-range 5 \
+  --lr-factor 5 \
+  --lm-scale 0.25 \
+  --master-port 12358 \
+  --num-encoder-layers 18 \
+  --left-context-length 128 \
+  --segment-length 8 \
+  --right-context-length 4
 """
 
 

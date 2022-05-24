@@ -58,6 +58,7 @@ Usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -69,7 +70,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search,
+    fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -87,6 +88,8 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -247,13 +250,20 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    feature_lens += params.left_context_length
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.left_context_length),
+        value=LOG_EPS,
+    )
+
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search(
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -271,6 +281,7 @@ def decode_one_batch(
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -278,6 +289,7 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -357,9 +369,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -478,8 +490,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
