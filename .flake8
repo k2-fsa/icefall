@@ -24,6 +24,7 @@ exclude =
   .git,
   **/data/**,
   icefall/shared/make_kn_lm.py,
+  egs/librispeech/ASR/transducer_emformer/train.py,
   icefall/__init__.py
 
 ignore =
