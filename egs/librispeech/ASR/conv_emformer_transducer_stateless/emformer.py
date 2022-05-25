@@ -730,7 +730,9 @@ class EmformerAttention(nn.Module):
         matrix_bd_utterance = self._rel_shift(matrix_bd_utterance)
         # (B, nhead, U, U + right_context_length) for training and validation mode; # noqa
         # (B, nhead, U, tot_left_length + U + right_context_length) for inference mode. # noqa
-        matrix_bd_utterance = matrix_bd_utterance.view(B * self.nhead, U, -1)
+        matrix_bd_utterance = matrix_bd_utterance.contiguous().view(
+            B * self.nhead, U, -1
+        )
         matrix_bd = torch.zeros_like(matrix_ac)
         if left_context_key is not None and left_context_val is not None:
             # inference mode
