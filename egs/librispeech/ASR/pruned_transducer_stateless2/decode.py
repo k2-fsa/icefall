@@ -70,6 +70,7 @@ Usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -101,6 +102,7 @@ from icefall.utils import (
     write_error_stats,
 )
 
+LOG_EPS = math.log(1e-10)
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -323,6 +325,13 @@ def decode_one_batch(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
+
+    feature_lens += params.left_context
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.left_context),
+        value=LOG_EPS,
+    )
 
     if params.simulate_streaming:
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(

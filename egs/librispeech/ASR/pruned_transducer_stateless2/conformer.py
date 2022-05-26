@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import copy
 import math
 import warnings
@@ -234,7 +235,7 @@ class Conformer(EncoderInterface):
 
         if not simulate_streaming:
             assert (
-                decode_states is not None
+                states is not None
             ), "Require cache when sending data in streaming mode"
 
             assert (
@@ -423,7 +424,7 @@ class ConformerEncoderLayer(nn.Module):
             # src: [chunk_size, N, F] e.g. [8, 41, 512]
             key = torch.cat([states[0, ...], src], dim=0)
             val = key
-            states[0, ...] = key[-left_context, ...]
+            states[0, ...] = key[-left_context:, ...]
         else:
             assert left_context == 0
 
@@ -441,14 +442,15 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
+        residual = src
         if not self.training and states is not None:
             src = torch.cat([states[1, ...], src], dim=0)
-            states[1, ...] = src[-left_context, ...]
+            states[1, ...] = src[-left_context:, ...]
 
         conv = self.conv_module(src)
-        conv = conv[-src.size(0) :, :, :]  # noqa: E203
+        conv = conv[-residual.size(0) :, :, :]  # noqa: E203
 
-        src = src + self.dropout(conv)
+        src = residual + self.dropout(conv)
 
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
