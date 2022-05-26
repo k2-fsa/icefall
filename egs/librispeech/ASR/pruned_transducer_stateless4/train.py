@@ -275,6 +275,19 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--average-decay",
+        type=int,
+        default=100,
+        help="""Update the averaged model, namely `model_avg`, after processing
+        this number of batches. `model_avg` is a separate version of model,
+        in which each floating-point parameter is the average of all the
+        parameters from the start of training. Each time we take the average,
+        we do: `model_avg = model * (average_period / batch_idx_train) +
+            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
+        """,
+    )
+
+    parser.add_argument(
         "--use-fp16",
         type=str2bool,
         default=False,
@@ -736,6 +749,7 @@ def train_one_epoch(
                 params=params,
                 model_cur=model,
                 model_avg=model_avg,
+
             )
 
         if (
@@ -859,7 +873,7 @@ def run(rank, world_size, args):
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model)
+        model_avg = copy.deepcopy(model).to(torch.float64)
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
