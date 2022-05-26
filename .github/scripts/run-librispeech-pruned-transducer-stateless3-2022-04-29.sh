@@ -49,3 +49,32 @@ for method in modified_beam_search beam_search fast_beam_search; do
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav
 done
+
+echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
+echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+  mkdir -p pruned_transducer_stateless3/exp
+  ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless3/exp/epoch-999.pt
+  ln -s $PWD/$repo/data/lang_bpe_500 data/
+
+  ls -lh data
+  ls -lh pruned_transducer_stateless3/exp
+
+  log "Decoding test-clean and test-other"
+
+  # use a small value for decoding with CPU
+  max_duration=100
+
+  for method in greedy_search fast_beam_search modified_beam_search; do
+    log "Decoding with $method"
+
+    ./pruned_transducer_stateless3/decode.py \
+      --decoding-method $method \
+      --epoch 999 \
+      --avg 1 \
+      --max-duration $max_duration \
+      --exp-dir pruned_transducer_stateless3/exp
+  done
+
+  rm pruned_transducer_stateless3/exp/*.pt
+fi
