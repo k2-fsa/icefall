@@ -20,6 +20,8 @@ We provide 6 recipes at present:
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
   - [GigaSpeech][gigaspeech]
+  - [Aidatatang_200zh][aidatatang_200zh]
+  - [WenetSpeech][wenetspeech]
 
 ### yesno
 
@@ -217,6 +219,33 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 |   fast beam search   | 10.50 | 10.69 |
 | modified beam search | 10.40 | 10.51 |
 
+### Aidatatang_200zh
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 5.53  | 6.59  |
+|   fast beam search   | 5.30  | 6.34  |
+| modified beam search | 5.27  | 6.33  |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+
+### WenetSpeech
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+
+|                      |  Dev  | Test-Net | Test-Meeting |
+|----------------------|-------|----------|--------------|
+|    greedy search     | 7.80  |  8.75    |  13.49       |
+|   fast beam search   | 7.94  |  8.74    |  13.80       |
+| modified beam search | 7.76  |  8.71    |  13.41       |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
 ## Deployment with C++
 
@@ -243,10 +272,14 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
+[Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
+[WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
 [timit]: egs/timit/ASR
 [tedlium3]: egs/tedlium3/ASR
 [gigaspeech]: egs/gigaspeech/ASR
+[aidatatang_200zh]: egs/aidatatang_200zh/ASR
+[wenetspeech]: egs/wenetspeech/ASR
 [k2]: https://github.com/k2-fsa/k2

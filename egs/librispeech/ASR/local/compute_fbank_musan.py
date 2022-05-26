@@ -53,7 +53,7 @@ def compute_fbank_musan():
         "noise",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        prefix="musan", dataset_parts=dataset_parts, output_dir=src_dir
     )
     assert manifests is not None
 
