@@ -275,19 +275,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--average-decay",
-        type=int,
-        default=100,
-        help="""Update the averaged model, namely `model_avg`, after processing
-        this number of batches. `model_avg` is a separate version of model,
-        in which each floating-point parameter is the average of all the
-        parameters from the start of training. Each time we take the average,
-        we do: `model_avg = model * (average_period / batch_idx_train) +
-            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
-        """,
-    )
-
-    parser.add_argument(
         "--use-fp16",
         type=str2bool,
         default=False,
