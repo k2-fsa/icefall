@@ -18,7 +18,7 @@
 import copy
 import math
 import warnings
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 from encoder_interface import EncoderInterface
@@ -61,6 +61,7 @@ class Conformer(EncoderInterface):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         cnn_module_kernel: int = 31,
+        middle_output_layer: int = None,  # 0-based layer index
     ) -> None:
         super(Conformer, self).__init__()
 
@@ -86,11 +87,25 @@ class Conformer(EncoderInterface):
             layer_dropout,
             cnn_module_kernel,
         )
-        self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
+
+        output_layers = []
+        if middle_output_layer is not None:
+            assert (
+                middle_output_layer >= 0
+                and middle_output_layer < num_encoder_layers
+            )
+            output_layers.append(middle_output_layer)
+
+        # The last layer is always needed.
+        output_layers.append(num_encoder_layers - 1)
+
+        self.encoder = ConformerEncoder(
+            encoder_layer, num_encoder_layers, output_layers=output_layers
+        )
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
         """
         Args:
           x:
@@ -122,13 +137,11 @@ class Conformer(EncoderInterface):
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
-        x = self.encoder(
+        layer_results = self.encoder(
             x, pos_emb, src_key_padding_mask=mask, warmup=warmup
         )  # (T, N, C)
 
-        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-
-        return x, lengths
+        return layer_results, lengths
 
 
 class ConformerEncoderLayer(nn.Module):
@@ -279,12 +292,18 @@ class ConformerEncoder(nn.Module):
         >>> out = conformer_encoder(src, pos_emb)
     """
 
-    def __init__(self, encoder_layer: nn.Module, num_layers: int) -> None:
+    def __init__(
+        self,
+        encoder_layer: nn.Module,
+        num_layers: int,
+        output_layers: List[int],
+    ) -> None:
         super().__init__()
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
+        self.output_layers = output_layers
 
     def forward(
         self,
@@ -293,7 +312,7 @@ class ConformerEncoder(nn.Module):
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
-    ) -> Tensor:
+    ) -> List[Tensor]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -312,6 +331,7 @@ class ConformerEncoder(nn.Module):
         """
         output = src
 
+        layer_results = []
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -320,8 +340,11 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
+            if i in self.output_layers:
+                # (T, N, C) --> (N, T, C)
+                layer_results.append(output.permute(1, 0, 2))
 
-        return output
+        return layer_results
 
 
 class RelPositionalEncoding(torch.nn.Module):

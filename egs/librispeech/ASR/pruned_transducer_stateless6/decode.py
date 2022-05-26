@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless6/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless6/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless6/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless6/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 4 \
@@ -139,7 +139,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless6/exp",
         help="The experiment dir",
     )
 
@@ -260,9 +260,10 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
+    layer_results, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
+    encoder_out = layer_results[-1]
     hyps = []
 
     if params.decoding_method == "fast_beam_search":

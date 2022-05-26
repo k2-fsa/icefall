@@ -23,6 +23,8 @@ from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
+from quantization.prediction import JointCodebookLoss
+
 
 class Transducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
@@ -38,6 +40,7 @@ class Transducer(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
+        num_codebooks: int = 0,
     ):
         """
         Args:
@@ -55,6 +58,8 @@ class Transducer(nn.Module):
             (N, U, decoder_dim).
             Its output shape is (N, T, U, vocab_size). Note that its output
             contains unnormalized probs, i.e., not processed by log-softmax.
+          num_codebooks:
+            Used by distillation loss.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -68,6 +73,10 @@ class Transducer(nn.Module):
             encoder_dim, vocab_size, initial_speed=0.5
         )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+        if num_codebooks > 0:
+            self.codebook_loss_net = JointCodebookLoss(
+                predictor_channels=encoder_dim, num_codebooks=num_codebooks
+            )
 
     def forward(
         self,
@@ -78,6 +87,7 @@ class Transducer(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         warmup: float = 1.0,
+        codebook_indexes: torch.Tensor = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -101,6 +111,8 @@ class Transducer(nn.Module):
           warmup:
             A value warmup >= 0 that determines which modules are active, values
             warmup > 1 "are fully warmed up" and all modules will be active.
+          codebook_indexes:
+            codebook_indexes extracted from a teacher model.
         Returns:
           Return the transducer loss.
 
@@ -116,7 +128,22 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        layer_results, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out = layer_results[-1]
+        middle_layer_output = layer_results[0]
+        if self.training and codebook_indexes is not None:
+            assert hasattr(self, "codebook_loss_net")
+            if codebook_indexes.shape[1] != middle_layer_output.shape[1]:
+                codebook_indexes = self.concat_sucessive_codebook_indexes(
+                    middle_layer_output, codebook_indexes
+                )
+            codebook_loss = self.codebook_loss_net(
+                middle_layer_output, codebook_indexes
+            )
+        else:
+            # when codebook index is not available.
+            codebook_loss = None
+
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -191,4 +218,32 @@ class Transducer(nn.Module):
                 reduction="sum",
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, codebook_loss)
+
+    @staticmethod
+    def concat_sucessive_codebook_indexes(
+        middle_layer_output, codebook_indexes
+    ):
+        # Output rate of hubert is 50 frames per second,
+        # while that of current encoder is 25.
+        # Following code handling two issues:
+        # 1.
+        #   Roughly speaking, to generate another frame output,
+        #   hubert needes extra two frames,
+        #   while current encoder needs extra four frames.
+        #   Suppose there are only extra three frames provided,
+        #   hubert will generate another frame while current encoder does nothing.
+        # 2.
+        #   codebook loss is a frame-wise loss, to enalbe 25 frames studnet output
+        #   learns from 50 frames teacher output, two successive frames of teacher model
+        #   output is concatenated together.
+        t_expected = middle_layer_output.shape[1]
+        N, T, C = codebook_indexes.shape
+
+        # Handling issue 1.
+        if T >= t_expected * 2:
+            codebook_indexes = codebook_indexes[:, : t_expected * 2, :]
+        # Handling issue 2.
+        codebook_indexes = codebook_indexes.reshape(N, t_expected, C * 2)
+        assert middle_layer_output.shape[1] == codebook_indexes.shape[1]
+        return codebook_indexes
