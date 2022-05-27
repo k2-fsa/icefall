@@ -125,7 +125,7 @@ class HubertXlargeFineTuned:
             default="hubert_xtralarge_ll60k_finetune_ls960",
             help="""could be one of:
             [
-                "hubert_xtralarge_ll60k_finetune_ls960",  # fintuned model.
+                "hubert_xtralarge_ll60k_finetune_ls960",  # fine-tuned model.
                 "hubert_xtralarge_ll60k.pt",  # pretrained model without fintuing.
             ]""",
         )
