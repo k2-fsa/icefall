@@ -77,7 +77,7 @@ class HubertXlargeFineTuned:
     """
     A wrapper of hubert extra large fine-tuned model.
 
-    A teacher model responsible for:
+    A teacher model is responsible for:
         1. load teacher model
         2. extracting embeddings to train quantizer.
         3. extract codebook indices
@@ -196,9 +196,7 @@ class HubertXlargeFineTuned:
         N = encoder_embedding.shape[0]
         assert len(cut_list) == N
         # 320 is from: 16,000 / 50 = sample_rate / hbuert output frame rate
-        num_frames = [
-            supervisions["num_samples"][i].item() // 320 for i in range(N)
-        ]
+        num_frames = (supervisions["num_samples"] // 320).tolist()
         return encoder_embedding, num_frames
 
     def ctc_greedy_search(self, batch):
