@@ -194,10 +194,12 @@ results at:
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-narrower-2022-05-13>
 
 
-### LibriSpeech BPE training results (Pruned Transducer 4)
+### LibriSpeech BPE training results (Pruned Stateless Transducer 4)
 
 [pruned_transducer_stateless4](./pruned_transducer_stateless4)
+
 This version saves averaged model during training, and decodes with averaged model.
+
 See <https://github.com/k2-fsa/icefall/issues/337> for details about the idea of model averaging.
 
 #### Training on full librispeech
@@ -225,6 +227,7 @@ The WERs are:
 
 The training command is:
 
+```bash
 ./pruned_transducer_stateless4/train.py \
   --world-size 6 \
   --num-epochs 30 \
@@ -235,6 +238,7 @@ The training command is:
   --save-every-n 8000 \
   --keep-last-k 20 \
   --average-period 100
+```
 
 #### Training on train-clean-100
 
@@ -261,6 +265,7 @@ The WERs are:
 
 The training command is:
 
+```bash
 ./pruned_transducer_stateless4/train.py \
   --world-size 3 \
   --num-epochs 30 \
@@ -271,7 +276,7 @@ The training command is:
   --save-every-n 8000 \
   --keep-last-k 20 \
   --average-period 100
-
+```
 
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
