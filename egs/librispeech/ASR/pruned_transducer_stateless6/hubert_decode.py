@@ -64,9 +64,9 @@ def decode_dataset(
         The neural model.
 
     Returns:
-      Return a dict, whose key may be "no-rescore" if no LM rescoring
-      is used, or it may be "lm_scale_0.7" if LM rescoring is used.
-      Its value is a list of tuples. Each tuple contains two elements:
+      Return a dict, whose key is decoding method "ctc_greedy_search".
+      Its value is a list of tuples.
+      Each tuple contains two elements:
       The first is the reference transcript, and the second is the
       predicted result.
     """
