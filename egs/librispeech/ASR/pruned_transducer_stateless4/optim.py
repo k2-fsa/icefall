@@ -548,6 +548,7 @@ class Cain(Optimizer):
             lr = group["lr"]
             target_rms = group["target_rms"]
             rms_eps = group["rms_eps"]
+            eps = group["eps"]
             rms_max = group["rms_max"]
 
             for p in group["params"]:
@@ -603,7 +604,7 @@ class Cain(Optimizer):
                     # anything here.  May fix this at some point.
                     scale_bias_correction2 = 1 - beta2 ** (step + 1)
 
-                    scale_denom = (scale_exp_avg_sq.sqrt()).add_(group["eps"])
+                    scale_denom = (scale_exp_avg_sq.sqrt()).add_(eps)
 
                     scale_alpha = -lr * (scale_bias_correction2 ** 0.5) * (1-beta1)
 
@@ -634,13 +635,18 @@ class Cain(Optimizer):
 
                 # Decay the second moment running average coefficient
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                denom = (exp_avg_sq.sqrt()).add_(group["eps"])
+                denom = (exp_avg_sq.sqrt()).add_(eps)
 
 
-                this_delta = grad / denom
+                this_delta_ref = grad / denom
+                this_delta = grad / (denom ** 1.5)
+
+                renorm_scale = ((this_delta_ref**2).mean() /  ((this_delta**2).mean() + eps)) ** 0.5
+
+
                 this_delta = self._change_coordinates(this_delta, state, forward=False)
 
-                alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
+                alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5) * renorm_scale
                 if p.numel() > 1:
                     if step % 10 == 0:
                         state["param_rms"].fill_((p**2).mean().sqrt())
