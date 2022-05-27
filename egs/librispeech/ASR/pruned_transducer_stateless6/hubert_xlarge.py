@@ -81,7 +81,7 @@ class HubertXlargeFineTuned:
         1. load teacher model
         2. extracting embeddings to train quantizer.
         3. extract codebook indices
-        4. verify it's performance with ctc_greedy_search method.
+        4. verify its performance with ctc_greedy_search method.
     """
 
     def __init__(self, params: AttributeDict):
