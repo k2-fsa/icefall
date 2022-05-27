@@ -875,12 +875,15 @@ def run(rank, world_size, args):
     optimizer = Cain(model.parameters(), lr=params.initial_lr,
                      max_eff_lr=params.initial_lr)
 
-
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
+
+        for p in optimizer.param_groups:
+            p['max_eff_lr'] = params.initial_lr  # TEMP!!
+
 
     if (
         checkpoints
