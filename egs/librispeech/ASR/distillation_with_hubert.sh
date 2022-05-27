@@ -26,11 +26,22 @@ if [ $stage -eq 0 ]; then
   # https://github.com/pytorch/fairseq
   # when testing this code:
   # commit 806855bf660ea748ed7ffb42fe8dcc881ca3aca0 is used.
-  #
+  has_fairseq=$(python3 -c "import importlib; print(importlib.util.find_spec('fairseq') is not None)")
+  if [ $has_fairseq == 'False' ]; then
+    echo "Please install fairseq before running following stages"
+    exit 1
+  fi
+
   # Install quantization toolkit:
   # pip install git+https://github.com/danpovey/quantization.git@master
   # when testing this code:
   # commit c17ffe67aa2e6ca6b6855c50fde812f2eed7870b is used.
+
+  has_quantization=$(python3 -c "import importlib; print(importlib.util.find_spec('quantization') is not None)")
+  if [ $has_quantization == 'False' ]; then
+    echo "Please install quantization before running following stages"
+    exit 1
+  fi
 
   echo "Download hubert model."
   # Parameters about model.

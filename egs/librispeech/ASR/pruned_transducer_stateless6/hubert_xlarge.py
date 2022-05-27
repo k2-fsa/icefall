@@ -34,6 +34,15 @@ from icefall.utils import AttributeDict
 
 
 def _load_hubert_model(params: AttributeDict):
+    """
+    Load the hubert model.
+
+    The model loaded is specified by params.hubert_model_dir
+    and params.teacher_model_id.
+
+    Returned model carries hubert,
+    while processor is responsible to map model's output to human readable transcripts.
+    """
     cfg_task = OmegaConf.create(
         {
             "_name": "hubert_pretraining",
@@ -130,7 +139,7 @@ class HubertXlargeFineTuned:
     def extract_layers_result(
         self,
         batch: Dict,
-    ) -> Dict[str, torch.Tensor]:
+    ) -> List[torch.Tensor]:
         """
         Extract activations from all layers.
         """
@@ -154,10 +163,9 @@ class HubertXlargeFineTuned:
         features = features.transpose(1, 2)
         features = self.w2v_model.layer_norm(features)
 
-        if padding_mask is not None:
-            padding_mask = self.w2v_model.forward_padding_mask(
-                features, padding_mask
-            )
+        padding_mask = self.w2v_model.forward_padding_mask(
+            features, padding_mask
+        )
 
         if self.w2v_model.post_extract_proj is not None:
             features = self.w2v_model.post_extract_proj(features)
@@ -169,6 +177,16 @@ class HubertXlargeFineTuned:
         return layer_results
 
     def extract_embedding(self, batch) -> Tuple[torch.tensor, List[int]]:
+        """
+        Eextract embeddings specified by self.params.embedding_layer.
+
+        These embeddings could be used to train quantizer
+        or to extract codebook indexes.
+
+        The returned List[int] is valid length of each embedding.
+        We only want to store codebook indexes related to
+        these valid embeddings.
+        """
         supervisions = batch["supervisions"]
         cut_list = supervisions["cut"]
         assert all(c.start == 0 for c in cut_list)
