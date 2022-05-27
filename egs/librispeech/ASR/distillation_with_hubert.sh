@@ -1,3 +1,20 @@
+# A short introduction about distillation framework.
+#
+# A typical traditional distillation method is
+# Loss(teacher embedding, student embedding).
+#
+# Comparing to these, the proposed distillation framework contains two mainly steps:
+# codebook indexes = quantizer.encode(teacher embedding)
+# Loss(codebook indexes, student embedding)
+#
+# Things worth to meantion:
+# 1. The float type teacher embedding is quantized into a sequence of
+#    8-bit integer codebook indexes.
+# 2. a middle layer 36(1-based) out of total 48 layers is used to extract
+#    teacher embeddings.
+# 3. a middle layer 6(1-based) out of total 6 layers is used to extract
+#    student embeddings.
+
 # This is an example to do distillation with librispeech clean-100 subset.
 # run with command:
 # bash distillation_with_hubert.sh [0|1|2|3|4]
