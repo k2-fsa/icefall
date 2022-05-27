@@ -193,6 +193,86 @@ You can find a pretrained model, training logs, decoding logs, and decoding
 results at:
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-narrower-2022-05-13>
 
+
+### LibriSpeech BPE training results (Pruned Transducer 4)
+
+[pruned_transducer_stateless4](./pruned_transducer_stateless4)
+This version saves averaged model during training, and decodes with averaged model.
+See <https://github.com/k2-fsa/icefall/issues/337> for details about the idea of model averaging.
+
+#### Training on full librispeech
+
+See <https://github.com/k2-fsa/icefall/pull/344>
+
+Using commit `ec0b0e92297cc03fdb09f48cd235e84d2c04156b`.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 2.77       | 6.78       | --epoch 30 --avg 5  --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 2.72       | 6.67       | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| greedy search (max sym per frame 1) | 2.78       | 6.68       | --epoch 30 --avg 10 --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 2.74       | 6.67       | --epoch 30 --avg 10 --use_averaged_model True                                 |
+| fast beam search                    | 2.73       | 6.65       | --epoch 30 --avg 5  --use_averaged_model False                                |
+| fast beam search                    | 2.69       | 6.61       | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| fast beam search                    | 2.68       | 6.61       | --epoch 30 --avg 10 --use_averaged_model False                                |
+| fast beam search                    | 2.7        | 6.57       | --epoch 30 --avg 10 --use_averaged_model True                                 |
+| modified beam search                | 2.71       | 6.69       | --epoch 30 --avg 5  --use_averaged_model False                                |
+| modified beam search                | 2.65       | 6.6        | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| modified beam search                | 2.69       | 6.61       | --epoch 30 --avg 10 --use_averaged_model False                                |
+| modified beam search                | 2.68       | 6.56       | --epoch 30 --avg 10 --use_averaged_model True                                 |
+
+The training command is:
+
+./pruned_transducer_stateless4/train.py \
+  --world-size 6 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --save-every-n 8000 \
+  --keep-last-k 20 \
+  --average-period 100
+
+#### Training on train-clean-100
+
+See <https://github.com/k2-fsa/icefall/pull/344>
+
+Using commit `ec0b0e92297cc03fdb09f48cd235e84d2c04156b`.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                                                                       |
+|-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
+| greedy search (max sym per frame 1) | 7.13       | 19.31      | --epoch 30 --avg 5  --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 7.03       | 18.84      | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| greedy search (max sym per frame 1) | 7.0        | 18.95      | --epoch 30 --avg 10 --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 6.92       | 18.65      | --epoch 30 --avg 10 --use_averaged_model True                                 |
+| fast beam search                    | 6.96       | 18.78      | --epoch 30 --avg 5  --use_averaged_model False                                |
+| fast beam search                    | 6.88       | 18.43      | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| fast beam search                    | 6.82       | 18.47      | --epoch 30 --avg 10 --use_averaged_model False                                |
+| fast beam search                    | 6.74       | 18.2       | --epoch 30 --avg 10 --use_averaged_model True                                 |
+| modified beam search                | 6.86       | 18.76      | --epoch 30 --avg 5  --use_averaged_model False                                |
+| modified beam search                | 6.83       | 18.31      | --epoch 30 --avg 5  --use_averaged_model True                                 |
+| modified beam search                | 6.74       | 18.39      | --epoch 30 --avg 10 --use_averaged_model False                                |
+| modified beam search                | 6.74       | 18.12      | --epoch 30 --avg 10 --use_averaged_model True                                 |
+
+The training command is:
+
+./pruned_transducer_stateless4/train.py \
+  --world-size 3 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --full-libri 0 \
+  --max-duration 300 \
+  --save-every-n 8000 \
+  --keep-last-k 20 \
+  --average-period 100
+
+
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
 [pruned_transducer_stateless3](./pruned_transducer_stateless3)
