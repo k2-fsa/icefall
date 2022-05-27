@@ -3,6 +3,15 @@
 This page shows the WERs for test-clean/test-other using only
 train-clean-100 subset as training data.
 
+## Distillation with hubert
+### 2022-05-27
+
+Decoding method is modified beam search. Epoch is 0-based when doing these experiments.
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| baseline no vq distillation         | 7.08       | 18.66      | --epoch 19, --avg 10, --max-duration 200 |
+| distillation with hubert            | 5.68       | 15.80      | --epoch 19, --avg 10, --max-duration 200 |
+
 ## Conformer encoder + embedding decoder
 
 ### 2022-02-21
