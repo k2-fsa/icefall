@@ -873,7 +873,8 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank])
 
     optimizer = Cain(model.parameters(), lr=params.initial_lr,
-                     max_eff_lr=2.0*params.initial_lr)
+                     max_eff_lr=params.initial_lr)
+
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
