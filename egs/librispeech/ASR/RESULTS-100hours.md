@@ -9,8 +9,11 @@ Related models/log/tensorboard is uploaded to:
 https://huggingface.co/GuoLiyong/stateless6_baseline_vs_disstillation
 
 Following results are otained by ./istillation_with_hubert.sh
+
 The only differences is in pruned_transducer_stateless6/train.py.
+
 For baseline: set enable_distillation=False
+
 For distillation: set enable_distillation=True (the default)
 
 Decoding method is modified beam search.
