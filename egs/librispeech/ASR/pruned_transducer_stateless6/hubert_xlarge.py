@@ -66,7 +66,7 @@ def _load_hubert_model(params: AttributeDict):
 
 class HubertXlargeFineTuned:
     """
-    A wrapper of hubert extra larger finedtuned model.
+    A wrapper of hubert extra large fine-tuned model.
 
     A teacher model responsible for:
         1. load teacher model
