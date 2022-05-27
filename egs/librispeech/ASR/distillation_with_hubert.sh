@@ -9,7 +9,13 @@ stage=$1
 
 # Set the GPUs available.
 # This script requires at least one GPU.
-# Example:
+# You MUST set environment variable "CUDA_VISIBLE_DEVICES",
+# even you only have ONE GPU. It needed by CodebookIndexExtractor to determine numbert of jobs to extract codebook indexes parallelly.
+
+# Suppose only one GPU exists:
+# export CUDA_VISIBLE_DEVICES="0"
+#
+# Suppose GPU 2,3,4,5 are available.
 export CUDA_VISIBLE_DEVICES="2,3,4,5"
 
 
