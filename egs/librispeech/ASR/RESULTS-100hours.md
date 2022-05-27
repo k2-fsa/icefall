@@ -5,10 +5,10 @@ train-clean-100 subset as training data.
 
 ## Distillation with hubert
 ### 2022-05-27
-Related models/log/tensorboard is uploaded to:
+Related models/log/tensorboard:
 https://huggingface.co/GuoLiyong/stateless6_baseline_vs_disstillation
 
-Following results are otained by ./istillation_with_hubert.sh
+Following results are obtained by ./distillation_with_hubert.sh
 
 The only differences is in pruned_transducer_stateless6/train.py.
 
