@@ -650,9 +650,11 @@ class Cain(Optimizer):
 
                 # Decay the second moment running average coefficient
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                #denom = (exp_avg_sq.sqrt()).add_(eps)
-                denom = self._get_denom(state, step, exp_avg_sq, bias_correction2,
-                                        eps, lr/max_eff_lr)
+                if p.numel() > 1:
+                    denom = self._get_denom(state, step, exp_avg_sq, bias_correction2,
+                                            eps, lr/max_eff_lr)
+                else:
+                    denom = (exp_avg_sq.sqrt()).add_(eps)
 
                 this_delta = grad / denom
 
