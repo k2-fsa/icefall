@@ -639,7 +639,7 @@ class Cain(Optimizer):
 
 
                 this_delta_ref = grad / denom
-                this_delta = grad / (denom ** 1.5)
+                this_delta = grad / (exp_avg_sq + eps)
 
                 renorm_scale = ((this_delta_ref**2).mean() /  ((this_delta**2).mean() + eps)) ** 0.5
 
