@@ -75,8 +75,10 @@ class CodebookIndexExtractor:
         self.manifest_dir = self.vq_dir / f"splits{self.params.world_size}"
         self.manifest_dir.mkdir(parents=True, exist_ok=True)
 
-        self.ori_manifest_dir = "./data/fbank/"
-        self.dst_manifest_dir = "./data/vq_fbank/"
+        # It's doesn't matter whether ori_manifest_dir is str or Path.
+        # Set it to Path to be consistent.
+        self.ori_manifest_dir = Path("./data/fbank/")
+        self.dst_manifest_dir = Path("./data/vq_fbank/")
 
         self.dst_manifest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -251,6 +253,8 @@ class CodebookIndexExtractor:
                     return True
             return False
 
+        # Type of self.ori_nanifest_dir is Path
+        # and result type of glob.glob is str.
         reusable_manifests = [
             manifest
             for manifest in glob.glob(f"{self.ori_manifest_dir}/*.gz")
@@ -258,9 +262,11 @@ class CodebookIndexExtractor:
         ]
         for manifest_path in reusable_manifests:
             ori_manifest_path = Path(manifest_path).resolve()
+            # Path cannot used as a parameter of str.replace.
+            # Cast them to str.
             dst_manifest_path = Path(
                 manifest_path.replace(
-                    self.ori_manifest_dir, self.dst_manifest_dir
+                    str(self.ori_manifest_dir), str(self.dst_manifest_dir)
                 )
             ).resolve()
             if not dst_manifest_path.exists():
