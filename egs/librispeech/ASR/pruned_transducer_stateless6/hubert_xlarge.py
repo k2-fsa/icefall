@@ -68,7 +68,7 @@ class HubertXlargeFineTuned:
     """
     A wrapper of hubert extra large fine-tuned model.
 
-    A teacher model responsible for:
+    A teacher model is responsible for:
         1. load teacher model
         2. extracting embeddings to train quantizer.
         3. extract codebook indices
