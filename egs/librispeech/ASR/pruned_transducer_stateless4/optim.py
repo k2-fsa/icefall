@@ -23,436 +23,58 @@ from torch.optim import Optimizer
 
 
 
-def _product(*args):
-    ans = args[0]
-    for x in args[1:]:
-        ans = ans * x
-    return ans
-
-def _sum(*args):
-    ans = args[0]
-    for x in args[1:]:
-        ans = ans + x
-    return ans
-
-
-def _mean_like(x: Tensor, size) -> Tensor:
-    """
-    Returns a mean of x with the shape `size`, summing
-    over all dimensions in which x.shape[dim] != 1 and size[dim] == 1.
-    Args:
-      x: Tensor to compute mean over some dims.
-      size: a sequence of integers or torch.Size, with
-         len(size) == len(x.size), that
-         broadcasts with x and elementwise <= x.size.
-    """
-    ndim = x.ndim
-    dims_to_sum = [i for i in range(ndim) if x.shape[i] != size[i]]
-    return x.mean(dims_to_sum, keepdim=True)
-
-def _sum_like(x: Tensor, size) -> Tensor:
-    """
-    Returns a sum of values of x with the shape `size`, summing
-    over all dimensions in which x.shape[dim] != 1 and size[dim] == 1.
-    Args:
-      x: Tensor to compute mean over some dims.
-      size: a sequence of integers or torch.Size, with
-         len(size) == len(x.size), that
-         broadcasts with x and elementwise <= x.size.
-    """
-    ndim = x.ndim
-    dims_to_sum = [i for i in range(ndim) if x.shape[i] != size[i]]
-    return x.sum(dims_to_sum, keepdim=True)
-
-
-
-
-
-def _get_factor_shapes(x_shape: List) -> List[List]:
-    """
-    Returns a list of the shapes of factors of a tensor with shape
-    x_shape, e.g.:
-        _get_factor_shapes([3,4]) = [[3,1], [1,4]]
-        _get_factor_shapes([5]) = [[1]]
-    """
-    base_shape = [1] * len(x_shape)
-    shapes = []
-    numel = 1
-    for n in x_shape:
-        numel *= n
-    for dim,size in enumerate(x_shape):
-        if size != 0 and size != numel:
-            shape = list(base_shape)
-            shape[dim] = size
-            shapes.append(shape)
-    if len(shapes) == 0:
-        shapes.append(base_shape)
-    return shapes
-
-def _update_factorization(x: Tensor, x_factorized: Tensor,
-                          speed: float, eps: float) -> None:
-    """
-    This function is like _update_factors but instead of operating
-    on the factors directly it operates on their product.
-
-    Args:
-        x: the Tensor to be normalized; for purposes of understanding
-           what this function does, assume that x is drawn from some fixed
-           distribution.  Require x.ndim >= 2 and that at least 2 dims
-           have size != 1.
-        x_factorized: a Tensor with the same shape as x, but it is
-           a product of factors, one factor for each axis i that has
-           x.shape[i] != 1 and x.shape[i] != x.numel(); if no axes
-           remain, we have a single scalar factor.  This function
-           modifies x_factorized to be closer to a model of the stddevs
-           of elements of x.
-        speed: update speed, e.g 0.02 (consider this as 1-beta_2
-           where beta_2 is the 2nd beta from Adam).  Must satisfy
-           speed > 0 and speed * x.ndim < 1.
-        eps: small value intended to prevent zero values in
-          x_factorized; you can think of it as a floor on elements
-          of x_factorized.
-    """
-    x_norm_var = (x / x_factorized) ** 2 + eps*eps
-    shapes = _get_factor_shapes(list(x.shape))
-    factors = []
-    for shape in shapes:
-        # elements of this_mean will be >1.0 if the squares of elements in x are
-        # larger than predicted by x_factorized; and <1.0 otherwise.
-        this_mean = _mean_like(x_norm_var, shape)
-        f  = ((1.0 - speed) + speed * this_mean)
-        factors.append(f)
-    x_factorized *= _product(*factors)
-
-def _get_factor_grads(x: Tensor, x_grad: Tensor) -> List[Tensor]:
-    """
-    Get gradients w.r.t. the factors in a factorized representation of x.
-    Consider the example where
-    x_norm.shape == (3, 4), x_factor1.shape == (3, 1), x_factor2.shape == (1, 4),
-    and:
-      x = x_norm * x_factor1.exp() * x_factor2.exp()
-    Given x and x_grad, this function will return the (x_factor1_grad, x_factor2_grad),
-    i.e. the loss-function derivatives w.r.t. x_factor1 and x_factor2.
-
-    The specific values of the factors are not needed here; their
-    product is enough.
-    """
-    shapes = _get_factor_shapes(list(x.shape))
-    prod = x * x_grad
-    return [ _sum_like(prod, shape) for shape in shapes ]
-
-
-
-
-def _init_factors(x: Tensor, eps: float = 1.0e-04) -> Tuple[Tensor]:
-    """
-    Initialize some factors which we will use to normalize the variance of x.
-    For example: for a Tensor of shape (3, 4) we will return factors of shapes
-    (3, 1) and (1, 4) having the property that x / (factor1 * factor2) has quite
-    close to unit variance when indexed on either dimension, i.e. that
-    (x[i,:]**2).mean() is close to 1 and (x[:,j]**2).mean() is close to 1.
-    """
-    assert x.numel() > 1
-    factors = []
-    x2 = x**2 + eps*eps
-    for d in range(x.ndim):
-        if x.shape[d] != x.numel() and x.shape[d] != 1:
-            shape = [1] * x.ndim
-            shape[d] = x.shape[d]
-            factor = _mean_like(x2, shape)
-            x2 = x2 / factor
-            factors.append(factor ** 0.5)
-    # We need at least one factor, to capture the scalar magnitude.
-    if len(factors) == 0:
-        factors.append(x2.mean(dim=tuple(range(x.ndim)),
-                               keepdims=True) ** 0.5)
-    return factors
-
-
-def _init_factorization(x: Tensor, eps: float = 1.0e-04) -> Tensor:
-    return _product(*_init_factors(x, eps))
-
-class Abel(Optimizer):
-    """
-    Implements the Abel algorithm.  You can think of this as a modified version
-    of the Adam algorithm in which the parameters have an implicit factorization
-    that is maintained in a special way.  (Actually this can also be considered
-    as a refinement of the "Eve" algorithm, see below).
-    Suppose we have a parameter `x` of
-    shape (40, 50).  Imagine that we factorize x as follows:
-
-           x = x_norm * x_factor1.exp() * x_factor2.exp()
-
-    where (x_norm, x_factor1, x_factor2) are of shapes: (40, 50), (40, 1), (1, 50),
-    and all 3 of x_norm, x_factor1 and x_factor2 are learned by Adam.  Also imagine
-    that we frequently reconstruct x and then refactorize it in such a way that
-    the standard deviation of elements of x, when restricted to any specific rows or column,
-    equals `target_rms == 0.1`.  So it's a bit like we constrain the elements of x_norm
-    to have a specific standard deviation on any row or column, and instead learn the
-    magnitudes of the rows and columns in log-space as x_factor1 and x_factor2.
-    But this is all done inside the optimizer.  To simplify things a bit when updating
-    the factorization, we assume in the explanation below and in most of the code that
-    target_rms equals 1.0; it then simply becomes a factor of `target_rms` in the
-    learning rate when we update x (but not the part of the step that comes from
-    the udpate of x_factor1 and x_factor2).
-
-    Arguments:
-        params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups
-        lr (float, optional): learning rate (default: 1e-3)
-        betas (Tuple[float, float], optional): coefficients used for computing
-            running averages of gradient and its square (default: (0.9, 0.999))
-        eps (float, optional): term added to the denominator to improve
-            numerical stability (default: 1e-08).
-        target_rms (float, optional): target root-mean-square value of
-           parameters, when we normalize them (only conceptually!)..
-           actually this now just becomes
-           a factor in the learning rate for non-scalar parameters.
-         rms_eps (float, optional): epsilon value such that when parameter
-           rms value goes below this, we stop learning slower for that parameter,
-           i.e. we treat the rms as if it were rms_eps.
-         rms_max (float, optional): maximum root-mean-square value for
-           non-scalar parameters, such that we don't let the parameter
-           values exceed this; we'll shrink any parameter matrices that become
-           larger than this.
-
-    .. _Adam\: A Method for Stochastic Optimization:
-        https://arxiv.org/abs/1412.6980
-    .. _On the Convergence of Adam and Beyond:
-        https://openreview.net/forum?id=ryQu7f-RZ
-
-    """
-
-    def __init__(
-        self,
-        params,
-        lr=1e-3,
-        betas=(0.9, 0.98),
-        eps=1e-08,
-        target_rms=0.1,
-    ):
-
-        if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= betas[0] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 0: {}".format(betas[0])
-            )
-        if not 0.0 <= betas[1] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 1: {}".format(betas[1])
-            )
-        if not 0 < target_rms <= 1.0:
-            raise ValueError("Invalid target_rms value: {}".format(target_rms))
-        defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            target_rms=target_rms,
-        )
-        super(Abel, self).__init__(params, defaults)
-
-    def __setstate__(self, state):
-        super(Abel, self).__setstate__(state)
-
-    @torch.no_grad()
-    def step(self, closure=None):
-        """Performs a single optimization step.
-
-        Arguments:
-            closure (callable, optional): A closure that reevaluates the model
-                and returns the loss.
-        """
-        loss = None
-        if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
-
-        for group in self.param_groups:
-            for p in group["params"]:
-                if p.grad is None:
-                    continue
-
-                # Perform optimization step
-                grad = p.grad
-                if grad.is_sparse:
-                    raise RuntimeError(
-                        "AdamW does not support sparse gradients"
-                    )
-
-                state = self.state[p]
-                eps = group["eps"]
-
-                # State initialization
-                if len(state) == 0:
-                    state["step"] = 0
-
-                    # The change in parameter p from one step to the next; this
-                    # is the moving average of the steps before taking momentum
-                    # (beta) into account.  We implement momentum this way,
-                    # instead of the "exp_avg" method as in Adam, to save a
-                    # little memory and complexity because this way the momentum for the
-                    # various fctors doesn't have to be kept track of
-                    # separately.
-                    state["delta"] = torch.zeros_like(
-                        p, memory_format=torch.preserve_format
-                    )
-
-                    # Exponential moving average of squared gradient values,
-                    # w.r.t. x.
-                    state["exp_avg_sq"] = torch.zeros_like(
-                            p, memory_format=torch.preserve_format
-                        )
-
-                    if p.numel() > 1:
-                        # exponential moving average of gradients w.r.t
-                        # the factors x_factor1, x_factor2 etc.
-                        state["factors_exp_avg_sq"] = [
-                            torch.zeros(*shape, dtype=p.dtype, device=p.device)
-                            for shape in _get_factor_shapes(list(p.shape))
-                        ]
-                        # we call _init_factorization inside step().
-                        state["factorization"] = torch.zeros_like(p)
-
-                exp_avg_sq = state["exp_avg_sq"]
-                delta, exp_avg_sq = state["delta"], state["exp_avg_sq"]
-
-                lr = group["lr"]
-                target_rms = group["target_rms"]
-                eps = group["eps"]
-
-                beta1, beta2 = group["betas"]
-                state["step"] += 1
-                step = state["step"]
-                # we don't bother with bias_correction1, this only affects the first few
-                # steps and anyway the slower-than-it-should be update probably helps stability.
-                bias_correction2 = 1 - beta2 ** step
-
-                # keep this_exp_avg_sq updated as an average variance of gradients.
-                def update_exp_avg_sq(this_grad, this_exp_avg_sq):
-                    this_exp_avg_sq.mul_(beta2).addcmul_(this_grad, this_grad,
-                                                         value=1 - beta2)
-
-                update_exp_avg_sq(grad, exp_avg_sq)
-                if p.numel() == 1:
-                    # simpler way of setting this_delta; this is going to be equivalent
-                    # to standard Adam.
-                    denom = (exp_avg_sq/bias_correction2 + eps*eps).sqrt()
-                    this_delta = grad / denom
-
-                    # eventually will remove this special case, this is to deal
-                    # with our model that has scaling factors.
-                    lr_eff = lr * (bias_correction2 ** 0.5)
-                else:
-                    # update that includes factorization-related stuff..
-                    factors_exp_avg_sq, factorization = state["factors_exp_avg_sq"], state["factorization"]
-
-                    # factor_grads: List[Tensor], len == num-factors; the gradients
-                    # w.r.t. the factors of x (x_factor1, x_factor2..)
-                    factor_grads = _get_factor_grads(p, grad)
-
-                    if step < 10 or step % 10 == 1:
-                        # note, the first step number we'll see is 1.
-                        # update the factorization this only every 10 steps, to save time.
-                        if step % 1000 == 1:
-                            # Periodically refresh the factorization; this is
-                            # out of concern that after a large number of
-                            # multiplications, roundoff could cause it to drift
-                            # significantly away from being a product of
-                            # independent factors, one per dimension.
-                            factorization[:] = _init_factorization(p, eps)
-                        _update_factorization(p, factorization,
-                                              speed=0.1,
-                                              eps=eps)
-
-
-                    factors_sum = None
-                    numel = p.numel()
-                    for g, e in zip(factor_grads, factors_exp_avg_sq):
-                        this_numel = numel / g.numel()
-                        update_exp_avg_sq(g, e)
-                        # this_numel**0.5 will turn into this_numel**-0.25 when we sqrt() and
-                        # divide by denom.  This becomes a factor in the learning rate.
-                        # The technique naturally makes us learn faster by (this_numel**0.5)
-                        # in any of the parameter directions corresponding to rows or columns,
-                        # and because we don't want to be to aggressive and risk instability or
-                        # excess param noise, we reduce this to (this_numel**0.25) by dividing
-                        # the effective LR by this_numel**0.25.
-                        this_denom = (e*(this_numel**0.5)/bias_correction2 + eps*eps).sqrt()
-                        assert g.shape == this_denom.shape
-                        factor_delta = g / this_denom
-                        factors_sum = (factor_delta if factors_sum is None
-                                       else factors_sum + factor_delta)
-
-                    # at this point, factors_sum either has the same shape as p, or,
-                    # if p has only one non-trivial dimension, it has a shape equal
-                    # to (1,) * p.ndim.  After multiplying by the learning rate
-                    # and p, it will represent the change in parameter that arises
-                    # from updating the factors (before considering momentum!)
-
-
-                    denom = (exp_avg_sq/bias_correction2 +
-                             eps*eps).sqrt()
-
-                    # `grad * factorization / denom` represents the change in parameters x, only considering
-                    # the change from `x_norm` in the factorization, and
-                    # before multiplying by the learning rate or taking into account
-                    # momentum.  We compute this in the original space of `x`,
-                    # simply because this is more convenient, but due to invariants
-                    # of the Adam update this would be exactly the same if computed
-                    # on `x_norm`, except for some small differences relating to
-                    # `eps`.
-                    # `p * factors_sum` is the contribution from changes in x_factor1
-                    # and x_factor2: again, before taking into account the learning
-                    # rate or momentum.
-                    this_delta = ((grad * factorization / denom) + p * factors_sum)
-                    lr_eff = lr * (bias_correction2 ** 0.5) / target_rms
-
-                delta.mul_(beta1).add_(this_delta, alpha=-lr_eff*(1-beta1))
-
-                p.add_(delta)
-
-
-        return loss
-
-    @torch.no_grad()
-    def reset(self):
-        """
-        Resets parts of the state of the optimizer.  This is to be called after
-        refactorization/orthogonalization of parameters.  At these points we
-        discard any momentum because it is no longer accurate/relevant;
-        we reconstruct the factorization of x (i.e. x_factor1 and x_factor2
-        in the intro to this class); and we modify exp_avg_sq to
-        0.5 (exp_avg_sq + exp_avg_sq.mean()); this ensures that none of the
-        exp_avg_sq values will be substantially too small and prevents any
-        too-fast updates.
-        """
-        for s in self.state.values():
-            s["delta"].zero_()  # zero out momentum
-            s["step"] = 0  # will cause state["factorization"] to be reinitialized
-            s["exp_avg_sq"].zero_()
-            if "factors_exp_avg_sq" in s:
-                for e in s["factors_exp_avg_sq"]:
-                    e.zero_()
 
 
 
 class Cain(Optimizer):
-    """
-    Implements Cain algorithm, which is a modified version of Eve where we change
-    co-ordinates every so often, just in the optimizer, to separate big/small
-    directions.
+    """Implements Cain algorithm, which is a substantially modified form of the
+    Adam optimizer.
+    The modifications can be summarized as follows:
 
-    This version of Cain absorbs the learned scales of the parameter matrices into
-    the optimizer.
-
-    Eve is a modified version of AdamW with a special
-    way of setting the weight-decay / shrinkage-factor, which is designed to make the
-    rms of the parameters approach a particular target_rms (default: 0.1).  This is
-    for use with networks with 'scaled' versions of modules (see scaling.py), which
-    will be close to invariant to the absolute scale on the parameter matrix.
+        (i) change Adam to what we called "Eve", which adds an extra configuration
+             value, "target_rms" (default value: 0.1); and for non-scalar parameters,
+            if their root-mean-square value exceeds "target_rms", we apply weight
+            decay (aggressive enough weight decay that the rms stays at target_rms).
+            This weight decay is applied in the same way as in AdamW, i.e. by
+            parameter shrinkage rather than by modifying the gradients.
+       (ii) By limiting the rms to 0.1, we reduce our modeling power; we restore
+            it by replacing all weights and biases-- in fact, all model parameters--
+            with expressions like
+                weight * weight_scale.exp() or bias * bias_scale.exp().
+            This has the benefit of making the learnable offsets and scales of
+            BatchNorm/LayerNorm unnecessary.
+    Below we describe the changes from Eve to Cain:
+      (iii) We removed all the weight_scale and bias_scale parameters from
+            the model and "moved them into the optimizer".   Now we allow
+            parameters to have any rms value (that's <= 10), but we:
+              (a) make the update speed for a parameter proportional to
+                  its rms value, using target_rms (0.1) as the reference point
+                  where we just use the standard Adam-type formula.
+              (b) simulate the effect of learning the weight_scale or bias_scale
+                  in log space using standard Adam.  (see scale_exp_avg_sq in the
+                  code below).
+      (iv) Periodically (every 2000 batches) perform a "change of basis" on
+           all non-convolutional axes of each parameter tensor, and reset the
+           Adam statistics.  This means an orthogonal change of co-ordinates
+           in the space corresponding to each dimension of a tensor, e.g. in
+           a 256 x 512 parameter tensor we'll have a 256x256 orthogonal matrix
+           and a 512x512 one.  This does a better job of separating "important"
+           from "unimportant" directions in activation space, and empirically
+           improved convergence, final loss function and WERs.
+      (v)  Change the Adam-type update, where the rms update value in each parameter
+           is the same, to a (diagonal) natural-gradient-type update, where if a
+           parameter has larger then average gradients, we give it a smaller
+           update.  Because, in principle, this could lead to unbounded update
+           magnitudes, we limit these by introducing the "max_eff_lr" parameter,
+           which defines the maximum learning rate "if we had an Adam-type
+           update".  So what we really implement is a cross between Adam and
+           natural gradient, where larger "max_eff_lr" means more natural-gradient-like
+           (i.e. more aggressive in directions with small gradients).
+           We recommend to set max_eff_lr to the initial learning rate ("lr")
+           in the learning rate schedule so that the update starts out
+           equivalent to Adam.  Empirically this change to natural-gradient-type
+           update, epecially when combined with a faster-decaying learning rate
+           schedule, gives faster convergence.
 
     The original Adam algorithm was proposed in `Adam: A Method for Stochastic Optimization`_.
     The AdamW variant was proposed in `Decoupled Weight Decay Regularization`_.
@@ -466,7 +88,9 @@ class Cain(Optimizer):
             natural-gradient update; this limits how aggressively we accelerate
             directions with small gradients.  The idea is that you might want to
             leave this constant as the regular learning rate decreasess; but
-            we can investigate alternatives here.
+            we can investigate alternatives here.  If you set this to <= 0,
+            it disables the natural-gradient aspect, giving a more ADAM-like
+            update (in changed co-ordinates)
         betas (Tuple[float, float], optional): coefficients used for computing
             running averages of gradient and its square (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
@@ -475,10 +99,11 @@ class Cain(Optimizer):
            parameters, if they fall below this we will stop applying weight decay.
         rms_eps (float, optional): epsilon value such that when parameter
           rms value goes below this, we stop learning slower for that parameter,
-          i.e. we treat the rms as if it were rms_eps.
+          i.e. we treat the rms as if it were rms_eps.  In practice, rms values
+          will not go much below this.
         rms_max (float, optional): maximum root-mean-square value for
           non-scalar parameters, such that we don't let the parameter
-          values exceed this; we'll shrink any parameter matrices that become
+          values exceed this; we'll shrink any parameter matrices that becomes
           larger than this.
 
 
@@ -490,6 +115,7 @@ class Cain(Optimizer):
         https://arxiv.org/abs/1711.05101
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
+
     """
 
     def __init__(
@@ -650,7 +276,7 @@ class Cain(Optimizer):
 
                 # Decay the second moment running average coefficient
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                if p.numel() > 1:
+                if p.numel() > 1 and max_eff_lr > 0.0:
                     denom = self._get_denom(state, step, exp_avg_sq, bias_correction2,
                                             eps, lr/max_eff_lr)
                 else:
@@ -1240,10 +866,6 @@ def _test_eve_cain():
         start = timeit.default_timer()
         for epoch in range(150):
             scheduler.step_epoch()
-            if isinstance(optim, Abel) and epoch % 5 == 0: # this is every 100 minibatches.
-                optim.reset()  # just test that calling reset() doesn't
-                               # break things, you wouldn't call it every
-                               # epoch like this.
             for n, (x,y) in enumerate(train_pairs):
                 y_out = m(x)
                 loss = ((y_out - y)**2).mean() * 100.0
