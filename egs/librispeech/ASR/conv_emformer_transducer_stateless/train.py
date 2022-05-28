@@ -71,8 +71,8 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from emformer import Emformer
 from decoder import Decoder
+from emformer import Emformer
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
@@ -141,7 +141,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=32,
         help="""Number of frames before subsampling for left context
-        in the Emformer."""
+        in the Emformer.""",
     )
 
     parser.add_argument(
@@ -149,7 +149,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=32,
         help="""Number of frames before subsampling for each chunk
-        in the Emformer."""
+        in the Emformer.""",
     )
 
     parser.add_argument(
@@ -157,7 +157,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=8,
         help="""Number of frames before subsampling for right context
-        in the Emformer."""
+        in the Emformer.""",
     )
 
     parser.add_argument(
