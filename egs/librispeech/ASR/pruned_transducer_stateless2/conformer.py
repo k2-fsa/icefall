@@ -19,7 +19,7 @@ import logging
 import copy
 import math
 import warnings
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import torch
 from encoder_interface import EncoderInterface
@@ -104,11 +104,12 @@ class Conformer(EncoderInterface):
 
         self.encoder_layers = num_encoder_layers
         self.d_model = d_model
+        self.cnn_module_kernel = cnn_module_kernel
+        self.causal = causal
         self.dynamic_chunk_training = dynamic_chunk_training
         self.short_chunk_threshold = short_chunk_threshold
         self.short_chunk_size = short_chunk_size
         self.num_left_chunks = num_left_chunks
-        self.causal = causal
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
@@ -192,11 +193,11 @@ class Conformer(EncoderInterface):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         warmup: float = 1.0,
-        states: Optional[Tensor] = None,
+        states: Optional[List[Tensor]] = None,
         chunk_size: int = 16,
         left_context: int = 64,
         simulate_streaming: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -210,8 +211,11 @@ class Conformer(EncoderInterface):
             to turn modules on sequentially.
           states:
             The decode states for previous frames which contains the cached data.
-            It has a shape of (2, encoder_layers, left_context, batch, attention_dim),
-            states[0,...] is the attn_cache, states[1,...] is the conv_cache.
+            It has two elements, the first element is the attn_cache which has
+            a shape of (encoder_layers, left_context, batch, attention_dim),
+            the second element is the conv_cache which has a shape of
+            (encoder_layers, cnn_module_kernel-1, batch, conv_dim).
+            Note: If not None, states will be modified in this function.
           chunk_size:
             The chunk size for decoding, this will be used to simulate streaming
             decoding using masking.
@@ -234,7 +238,11 @@ class Conformer(EncoderInterface):
 
         # x: [N, T, C]
         # Caution: We assume the subsampling factor is 4!
-        lengths = ((x_lens - 1) // 2 - 1) // 2
+
+        #  lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
+        #
+        # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
 
         if not simulate_streaming:
             assert (
@@ -242,11 +250,14 @@ class Conformer(EncoderInterface):
             ), "Require cache when sending data in streaming mode"
 
             assert (
-                states.shape == (2, self.encoder_layers, left_context, x.size(0), self.d_model)
-            ), f"""The shape of states MUST be equal to
-             (2, encoder_layers, left_context, batch, d_model) which is
-             {(2, self.encoder_layers, left_context, x.size(0), self.d_model)}
-             given {states.shape}."""
+                len(states) == 2 and
+                states[0].shape == (self.encoder_layers, left_context, x.size(0), self.d_model) and
+                states[1].shape == (self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)
+            ), f"""The length of states MUST be equal to 2, and the shape of
+             first element should be {(self.encoder_layers, left_context, x.size(0), self.d_model)},
+             given {states[0].shape}. the shape of second element should be
+             {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
+             given {states[1].shape}."""
 
             src_key_padding_mask = make_pad_mask(lengths + left_context)
 
@@ -254,7 +265,7 @@ class Conformer(EncoderInterface):
             embed, pos_enc = self.encoder_pos(embed, left_context)
             embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
 
-            x, states = self.encoder(
+            x = self.encoder(
                 embed,
                 pos_enc,
                 src_key_padding_mask=src_key_padding_mask,
@@ -284,7 +295,7 @@ class Conformer(EncoderInterface):
                 num_left_chunks=num_left_chunks,
                 device=x.device
             )
-            x, _ = self.encoder(
+            x = self.encoder(
                 x,
                 pos_emb,
                 mask=mask,
@@ -294,7 +305,7 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        return x, lengths, states
+        return x, lengths
 
 
 class ConformerEncoderLayer(nn.Module):
@@ -376,9 +387,9 @@ class ConformerEncoderLayer(nn.Module):
         src_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
-        states: Optional[Tensor] = None,
+        states: Optional[List[Tensor]] = None,
         left_context: int = 0,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor]:
         """
         Pass the input through the encoder layer.
 
@@ -391,8 +402,11 @@ class ConformerEncoderLayer(nn.Module):
               bypass layers more frequently.
             states:
               The decode states for previous frames which contains the cached data.
-              It has a shape of (2, encoder_layers, left_context, batch, attention_dim),
-              states[0,...] is the attn_cache, states[1,...] is the conv_cache.
+              It has two elements, the first element is the attn_cache which has
+              a shape of (left_context, batch, attention_dim),
+              the second element is the conv_cache which has a shape of
+              (cnn_module_kernel-1, batch, conv_dim).
+              Note: If not None, states will be modified in this function.
             left_context: left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
@@ -425,9 +439,9 @@ class ConformerEncoderLayer(nn.Module):
         val = src
         if not self.training and states is not None:
             # src: [chunk_size, N, F] e.g. [8, 41, 512]
-            key = torch.cat([states[0, ...], src], dim=0)
+            key = torch.cat([states[0], src], dim=0)
             val = key
-            states[0, ...] = key[-left_context:, ...]
+            states[0] = key[-left_context:, ...]
         else:
             assert left_context == 0
 
@@ -445,15 +459,12 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
-        residual = src
         if not self.training and states is not None:
-            src = torch.cat([states[1, ...], src], dim=0)
-            states[1, ...] = src[-left_context:, ...]
-
-        conv = self.conv_module(src)
-        conv = conv[-residual.size(0) :, :, :]  # noqa: E203
-
-        src = residual + self.dropout(conv)
+            conv, conv_cache = self.conv_module(src, states[1])
+            states[1] = conv_cache
+        else:
+            conv = self.conv_module(src)
+        src = src + self.dropout(conv)
 
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
@@ -463,7 +474,7 @@ class ConformerEncoderLayer(nn.Module):
         if alpha != 1.0:
             src = alpha * src + (1 - alpha) * src_orig
 
-        return src, states
+        return src
 
 
 class ConformerEncoder(nn.Module):
@@ -495,9 +506,9 @@ class ConformerEncoder(nn.Module):
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
-        states: Optional[Tensor] = None,
+        states: Optional[List[Tensor]] = None,
         left_context: int = 0,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -509,8 +520,11 @@ class ConformerEncoder(nn.Module):
               bypass layers more frequently.
             states:
               The decode states for previous frames which contains the cached data.
-              It has a shape of (2, encoder_layers, left_context, batch, attention_dim),
-              states[0,...] is the attn_cache, states[1,...] is the conv_cache.
+              It has two elements, the first element is the attn_cache which has
+              a shape of (encoder_layers, left_context, batch, attention_dim),
+              the second element is the conv_cache which has a shape of
+              (encoder_layers, cnn_module_kernel-1, batch, conv_dim).
+              Note: If not None, states will be modified in this function.
             left_context: left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
                 it MUST be 0.
@@ -532,19 +546,21 @@ class ConformerEncoder(nn.Module):
             assert left_context >= 0
 
         for layer_index, mod in enumerate(self.layers):
-            output, cache = mod(
+            cache = None if states is None else [states[0][layer_index], states[1][layer_index]]
+            output = mod(
                 output,
                 pos_emb,
                 src_mask=mask,
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
-                states=None if states is None else states[:, layer_index, ...],
+                states=cache,
                 left_context=left_context,
             )
             if states is not None:
-                states[:, layer_index, ...] = cache
+                states[0][layer_index] = cache[0]
+                states[1][layer_index] = cache[1]
 
-        return output, states
+        return output
 
 
 class RelPositionalEncoding(torch.nn.Module):
@@ -1180,14 +1196,23 @@ class ConvolutionModule(nn.Module):
             initial_scale=0.25,
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+            self,
+            x: Tensor,
+            cache: Optional[Tensor] = None
+        ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
         """Compute convolution module.
 
         Args:
             x: Input tensor (#time, batch, channels).
+            cache: The cache of depthwise_conv, only used in real streaming
+                decoding.
 
         Returns:
-            Tensor: Output tensor (#time, batch, channels).
+            If cache is None return the output tensor (#time, batch, channels).
+            If cache is not None, return a tuple of Tensor, the first one is
+            the output tensor (#time, batch, channels), the second one is the
+            new cache for next chunk (#kernel_size - 1, batch, channels).
 
         """
         # exchange the temporal dimension and the feature dimension
@@ -1201,9 +1226,15 @@ class ConvolutionModule(nn.Module):
 
         # 1D Depthwise Conv
         if self.causal and self.lorder > 0:
-            # Make depthwise_conv causal by
-            # manualy padding self.lorder zeros to the left
-            x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
+            if cache is None:
+                # Make depthwise_conv causal by
+                # manualy padding self.lorder zeros to the left
+                x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
+            else:
+                assert not self.training, "Cache should be None in training time"
+                assert cache.size(0) == self.lorder
+                x = torch.cat([cache.permute(1, 2, 0), x], dim=2)
+                cache = x.permute(2, 0, 1)[-self.lorder:,...]
         x = self.depthwise_conv(x)
 
         x = self.deriv_balancer2(x)
@@ -1211,7 +1242,7 @@ class ConvolutionModule(nn.Module):
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
 
-        return x.permute(2, 0, 1)
+        return x.permute(2, 0, 1) if cache is None else (x.permute(2, 0, 1), cache)
 
 
 class Conv2dSubsampling(nn.Module):

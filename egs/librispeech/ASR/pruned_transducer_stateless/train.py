@@ -330,7 +330,7 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - attention_dim: Hidden dim for multi-head attention model.
+        - encoder_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
@@ -350,10 +350,11 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
+            "encoder_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
+            "cnn_module_kernel": 31,
             "vgg_frontend": False,
             # parameters for decoder
             "embedding_dim": 512,
@@ -372,10 +373,11 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_features=params.feature_dim,
         output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
+        d_model=params.encoder_dim,
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        cnn_module_kernel=params.cnn_module_kernel,
         vgg_frontend=params.vgg_frontend,
         dynamic_chunk_training=params.dynamic_chunk_training,
         short_chunk_size=params.short_chunk_size,
@@ -862,7 +864,7 @@ def run(rank, world_size, args):
 
     optimizer = Noam(
         model.parameters(),
-        model_size=params.attention_dim,
+        model_size=params.encoder_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
     )
