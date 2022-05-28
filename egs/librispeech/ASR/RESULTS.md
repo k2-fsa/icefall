@@ -212,12 +212,12 @@ The WERs are:
 
 |                                     | test-clean | test-other | comment                                                                       |
 |-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
-| greedy search (max sym per frame 1) | 2.75       | 6.74       | --epoch 29 --avg 6  --use_averaged_model False                                |
-| greedy search (max sym per frame 1) | 2.69       | 6.64       | --epoch 29 --avg 6  --use_averaged_model True                                 |
-| fast beam search                    | 2.72       | 6.67       | --epoch 29 --avg 6  --use_averaged_model False                                |
-| fast beam search                    | 2.66       | 6.6        | --epoch 29 --avg 6  --use_averaged_model True                                 |
-| modified beam search                | 2.67       | 6.68       | --epoch 29 --avg 6  --use_averaged_model False                                |
-| modified beam search                | 2.62       | 6.57       | --epoch 29 --avg 6  --use_averaged_model True                                 |
+| greedy search (max sym per frame 1) | 2.75       | 6.74       | --epoch 30 --avg 6  --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 2.69       | 6.64       | --epoch 30 --avg 6  --use_averaged_model True                                 |
+| fast beam search                    | 2.72       | 6.67       | --epoch 30 --avg 6  --use_averaged_model False                                |
+| fast beam search                    | 2.66       | 6.6        | --epoch 30 --avg 6  --use_averaged_model True                                 |
+| modified beam search                | 2.67       | 6.68       | --epoch 30 --avg 6  --use_averaged_model False                                |
+| modified beam search                | 2.62       | 6.57       | --epoch 30 --avg 6  --use_averaged_model True                                 |
 
 The training command is:
 
@@ -237,7 +237,7 @@ The training command is:
 The decoding command using greedy search is:
 ```bash
 ./pruned_transducer_stateless4/decode.py \
-  --epoch 29 \
+  --epoch 30 \
   --avg 6 \
   --exp-dir pruned_transducer_stateless4/exp \
   --max-duration 300 \
@@ -248,7 +248,7 @@ The decoding command using greedy search is:
 The decoding command using fast beam search is:
 ```bash
 ./pruned_transducer_stateless4/decode.py \
-  --epoch 29 \
+  --epoch 30 \
   --avg 6 \
   --exp-dir pruned_transducer_stateless4/exp \
   --max-duration 300 \
@@ -262,7 +262,7 @@ The decoding command using fast beam search is:
 The decoding command using modified beam search is:
 ```bash
 ./pruned_transducer_stateless4/decode.py \
-  --epoch 29 \
+  --epoch 30 \
   --avg 6 \
   --exp-dir pruned_transducer_stateless4/exp \
   --max-duration 300 \
