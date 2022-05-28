@@ -772,13 +772,11 @@ class Cain(Optimizer):
             # see for each dim in turn whether we want to perform any changes in co-ordinates,
             # or store any stats.
             size = grad.shape[dim]
-            if size <= 3 or size % 2 == 1 or size == 500 or size >= 2048 or size == numel:
-                # 500: exclude embedding dim, will later find a better way to do this.
-
+            if size <= 3 or (size % 2 == 1 and size < 128) or size >= 2048 or size == numel:
                 # we don't do any such co-ordinate changes in dims with sizes
                 # that are too small (no point) or large (too slow), or that are
-                # assumed convolutional (because they are odd).  We can revisit
-                # this later.
+                # assumed convolutional (because they are odd and not too huge).
+                # We can revisit this later.
                 continue
             grad = self._change_coordinates_for_dim(grad, state, dim, forward)
         return grad
