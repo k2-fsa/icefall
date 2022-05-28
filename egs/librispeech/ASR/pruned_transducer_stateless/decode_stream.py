@@ -106,7 +106,7 @@ class DecodeStream(object):
             self.features.size(0) - self.num_processed_frames, chunk_size + 3
         )
         ret_features = self.features[
-            self.num_processed_frames : self.num_processed_frames
+            self.num_processed_frames : self.num_processed_frames  # noqa
             + ret_chunk_size,
             :,
         ]

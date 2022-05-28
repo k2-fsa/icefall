@@ -651,7 +651,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
-    
+
     if params.return_sym_delay:
         info["sym_delay"] = sym_delay.detach().cpu().item()
 

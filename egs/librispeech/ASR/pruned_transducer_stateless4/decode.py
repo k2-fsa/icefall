@@ -71,6 +71,7 @@ Usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -104,6 +105,7 @@ from icefall.utils import (
 )
 
 LOG_EPS = math.log(1e-10)
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -350,7 +352,7 @@ def decode_one_batch(
             x_lens=feature_lens,
             chunk_size=params.right_chunk_size,
             left_context=params.left_context,
-            simulate_streaming=True
+            simulate_streaming=True,
         )
     else:
         encoder_out, encoder_out_lens = model.encoder(

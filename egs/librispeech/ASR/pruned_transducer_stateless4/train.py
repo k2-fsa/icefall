@@ -56,7 +56,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 """
 
-
 import argparse
 import copy
 import logging

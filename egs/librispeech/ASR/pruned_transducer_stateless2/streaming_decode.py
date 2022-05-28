@@ -28,35 +28,35 @@ Usage:
 import argparse
 import logging
 import math
-from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import k2
+import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decode_stream import DecodeStream
+from kaldifeat import Fbank, FbankOptions
+from lhotse import CutSet
+from torch.nn.utils.rnn import pad_sequence
+from train import get_params, get_transducer_model
+
 from icefall.checkpoint import (
     average_checkpoints,
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.decode import one_best_decoding
 from icefall.utils import (
     AttributeDict,
+    get_texts,
     setup_logger,
     store_transcripts,
     str2bool,
     write_error_stats,
 )
-from icefall.decode import Nbest, one_best_decoding
-from icefall.utils import get_texts
-from kaldifeat import FbankOptions, Fbank
-from lhotse import CutSet
-from train import get_params, get_transducer_model
-from torch.nn.utils.rnn import pad_sequence
 
 LOG_EPS = math.log(1e-10)
 
@@ -241,7 +241,7 @@ def greedy_search(
 
     for t in range(T):
         # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
-        current_encoder_out = encoder_out[:, t : t + 1, :]
+        current_encoder_out = encoder_out[:, t : t + 1, :]  # noqa
 
         logits = model.joiner(
             current_encoder_out.unsqueeze(2),
@@ -501,7 +501,7 @@ def decode_dataset(
             for i in sorted(finished_streams, reverse=True):
                 hyp = decode_streams[i].hyp
                 if params.decoding_method == "greedy_search":
-                    hyp = hyp[params.context_size :]
+                    hyp = hyp[params.context_size :]  # noqa
                 decode_results.append(
                     (
                         decode_streams[i].ground_truth.split(),
@@ -519,7 +519,7 @@ def decode_dataset(
         for i in sorted(finished_streams, reverse=True):
             hyp = decode_streams[i].hyp
             if params.decoding_method == "greedy_search":
-                hyp = hyp[params.context_size :]
+                hyp = hyp[params.context_size :]  # noqa
             decode_results.append(
                 (
                     decode_streams[i].ground_truth.split(),
