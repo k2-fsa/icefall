@@ -168,7 +168,7 @@ def get_parser():
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=5000,
+        default=3000,
         help="""Number of steps that affects how rapidly the learning rate decreases.
         We suggest not to change this.""",
     )
@@ -176,7 +176,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=4,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -880,10 +880,6 @@ def run(rank, world_size, args):
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
-
-        for p in optimizer.param_groups:
-            p['max_eff_lr'] = params.initial_lr  # TEMP!!
-
 
     if (
         checkpoints
