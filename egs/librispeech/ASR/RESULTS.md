@@ -212,18 +212,12 @@ The WERs are:
 
 |                                     | test-clean | test-other | comment                                                                       |
 |-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
-| greedy search (max sym per frame 1) | 2.77       | 6.78       | --epoch 30 --avg 5  --use_averaged_model False                                |
-| greedy search (max sym per frame 1) | 2.72       | 6.67       | --epoch 30 --avg 5  --use_averaged_model True                                 |
-| greedy search (max sym per frame 1) | 2.78       | 6.68       | --epoch 30 --avg 10 --use_averaged_model False                                |
-| greedy search (max sym per frame 1) | 2.74       | 6.67       | --epoch 30 --avg 10 --use_averaged_model True                                 |
-| fast beam search                    | 2.73       | 6.65       | --epoch 30 --avg 5  --use_averaged_model False                                |
-| fast beam search                    | 2.69       | 6.61       | --epoch 30 --avg 5  --use_averaged_model True                                 |
-| fast beam search                    | 2.68       | 6.61       | --epoch 30 --avg 10 --use_averaged_model False                                |
-| fast beam search                    | 2.7        | 6.57       | --epoch 30 --avg 10 --use_averaged_model True                                 |
-| modified beam search                | 2.71       | 6.69       | --epoch 30 --avg 5  --use_averaged_model False                                |
-| modified beam search                | 2.65       | 6.6        | --epoch 30 --avg 5  --use_averaged_model True                                 |
-| modified beam search                | 2.69       | 6.61       | --epoch 30 --avg 10 --use_averaged_model False                                |
-| modified beam search                | 2.68       | 6.56       | --epoch 30 --avg 10 --use_averaged_model True                                 |
+| greedy search (max sym per frame 1) | 2.75       | 6.74       | --epoch 29 --avg 6  --use_averaged_model False                                |
+| greedy search (max sym per frame 1) | 2.69       | 6.64       | --epoch 29 --avg 6  --use_averaged_model True                                 |
+| fast beam search                    | 2.72       | 6.67       | --epoch 29 --avg 6  --use_averaged_model False                                |
+| fast beam search                    | 2.66       | 6.6        | --epoch 29 --avg 6  --use_averaged_model True                                 |
+| modified beam search                | 2.67       | 6.68       | --epoch 29 --avg 6  --use_averaged_model False                                |
+| modified beam search                | 2.62       | 6.57       | --epoch 29 --avg 6  --use_averaged_model True                                 |
 
 The training command is:
 
@@ -240,6 +234,43 @@ The training command is:
   --average-period 100
 ```
 
+The decoding command using greedy search is:
+```bash
+./pruned_transducer_stateless4/decode.py \
+  --epoch 29 \
+  --avg 6 \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --max-duration 300 \
+  --decoding-method greedy_search \
+  --use-averaged-model True
+```
+
+The decoding command using fast beam search is:
+```bash
+./pruned_transducer_stateless4/decode.py \
+  --epoch 29 \
+  --avg 6 \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --max-duration 300 \
+  --decoding-method fast_beam_search \
+  --use-averaged-model True \
+  --beam 4 \
+  --max-contexts 4 \
+  --max-states 8
+```
+
+The decoding command using modified beam search is:
+```bash
+./pruned_transducer_stateless4/decode.py \
+  --epoch 29 \
+  --avg 6 \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --max-duration 300 \
+  --decoding-method modified_beam_search \
+  --use-averaged-model True \
+  --beam-size 4
+```
+
 #### Training on train-clean-100
 
 See <https://github.com/k2-fsa/icefall/pull/344>
@@ -250,16 +281,10 @@ The WERs are:
 
 |                                     | test-clean | test-other | comment                                                                       |
 |-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
-| greedy search (max sym per frame 1) | 7.13       | 19.31      | --epoch 30 --avg 5  --use_averaged_model False                                |
-| greedy search (max sym per frame 1) | 7.03       | 18.84      | --epoch 30 --avg 5  --use_averaged_model True                                 |
 | greedy search (max sym per frame 1) | 7.0        | 18.95      | --epoch 30 --avg 10 --use_averaged_model False                                |
 | greedy search (max sym per frame 1) | 6.92       | 18.65      | --epoch 30 --avg 10 --use_averaged_model True                                 |
-| fast beam search                    | 6.96       | 18.78      | --epoch 30 --avg 5  --use_averaged_model False                                |
-| fast beam search                    | 6.88       | 18.43      | --epoch 30 --avg 5  --use_averaged_model True                                 |
 | fast beam search                    | 6.82       | 18.47      | --epoch 30 --avg 10 --use_averaged_model False                                |
 | fast beam search                    | 6.74       | 18.2       | --epoch 30 --avg 10 --use_averaged_model True                                 |
-| modified beam search                | 6.86       | 18.76      | --epoch 30 --avg 5  --use_averaged_model False                                |
-| modified beam search                | 6.83       | 18.31      | --epoch 30 --avg 5  --use_averaged_model True                                 |
 | modified beam search                | 6.74       | 18.39      | --epoch 30 --avg 10 --use_averaged_model False                                |
 | modified beam search                | 6.74       | 18.12      | --epoch 30 --avg 10 --use_averaged_model True                                 |
 
