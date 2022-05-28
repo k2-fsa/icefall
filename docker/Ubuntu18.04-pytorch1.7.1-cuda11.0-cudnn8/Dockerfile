@@ -2,6 +2,16 @@ FROM pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel
 
 # install normal source
 
+# ENV http_proxy XXX
+# ENV https_proxy XXX
+
+RUN cat /etc/apt/sources.list.d/cuda.list && \
+	cat /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN rm /etc/apt/sources.list.d/cuda.list
+RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+RUN apt-key del 7fa2af80
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         g++ \
@@ -22,8 +32,16 @@ RUN apt-get update && \
         ffmpeg \
         valgrind \
 	libssl-dev \
-	    vim && \
-        rm -rf /var/lib/apt/lists/*
+	    vim \
+		curl
+
+RUN curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+RUN curl -fsSL https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
+
+RUN echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64 /" > /etc/apt/sources.list.d/cuda.list && \
+	echo "deb https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list && \
+	apt-get purge --autoremove -y curl && \
+	rm -rf /var/lib/apt/lists/*
 
 
 RUN mv /opt/conda/lib/libcufft.so.10 /opt/libcufft.so.10.bak && \
