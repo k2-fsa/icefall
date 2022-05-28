@@ -15,7 +15,6 @@
 # limitations under the License.
 
 
-import logging
 import k2
 import torch
 import torch.nn as nn
@@ -177,9 +176,9 @@ class Transducer(nn.Module):
             else:
                 offset = (boundary[:, 3] - 1) / 2
                 total_syms = torch.sum(boundary[:, 2])
-            offset = torch.arange(
-                T0, device=px_grad.device
-            ).reshape(1, 1, T0) - offset.reshape(B, 1, 1)
+            offset = torch.arange(T0, device=px_grad.device).reshape(
+                1, 1, T0
+            ) - offset.reshape(B, 1, 1)
             sym_delay = px_grad * offset
             sym_delay = torch.sum(sym_delay) / total_syms
 
