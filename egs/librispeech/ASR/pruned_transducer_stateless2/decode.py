@@ -335,9 +335,10 @@ def decode_one_batch(
     )
 
     if params.simulate_streaming:
-        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+        encoder_out, encoder_out_lens = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
+            states=[],
             chunk_size=params.right_chunk_size,
             left_context=params.left_context,
             simulate_streaming=True,
