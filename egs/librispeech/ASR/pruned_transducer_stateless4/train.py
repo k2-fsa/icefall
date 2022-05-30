@@ -872,8 +872,7 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Cain(model.parameters(), lr=params.initial_lr,
-                     max_eff_lr=params.initial_lr)
+    optimizer = Cain(model.parameters(), lr=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
