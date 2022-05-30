@@ -818,7 +818,7 @@ class EmformerEncoderLayer(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Unpack cached states including:
         1) output memory from previous chunks in the lower layer;
-        2) attention key and value of left context from proceeding chunk's
+        2) attention key and value of left context from preceding chunk's
         computation.
         """
         past_length = state[3][0][0].item()
@@ -934,7 +934,7 @@ class EmformerEncoderLayer(nn.Module):
         """Apply attention module in inference mode.
         1) Unpack cached states including:
            - memory from previous chunks in the lower layer;
-           - attention key and value of left context from proceeding
+           - attention key and value of left context from preceding
              chunk's compuation;
         2) Apply attention computation;
         3) Pack updated states including:
@@ -1468,7 +1468,7 @@ class EmformerEncoder(nn.Module):
             utterance frames for i-th batch element in x, which contains the
             right_context at the end.
           states (List[List[torch.Tensor]], optional):
-            Cached states from proceeding chunk's computation, where each
+            Cached states from preceding chunk's computation, where each
             element (List[torch.Tensor]) corresponds to each emformer layer.
             (default: None)
           conv_caches (List[torch.Tensor], optional):
@@ -1650,7 +1650,7 @@ class Emformer(EncoderInterface):
             utterance frames for i-th batch element in x, containing the
             right_context at the end.
           states (List[List[torch.Tensor]], optional):
-            Cached states from proceeding chunk's computation, where each
+            Cached states from preceding chunk's computation, where each
             element (List[torch.Tensor]) corresponds to each emformer layer.
             (default: None)
           conv_caches (List[torch.Tensor], optional):
