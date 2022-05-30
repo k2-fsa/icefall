@@ -602,7 +602,7 @@ def compute_loss(
         if isinstance(model, DDP)
         else next(model.parameters()).device
     )
-    feature = batch["inputs"]
+    feature, time_masked_area = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -631,6 +631,7 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
             codebook_indexes=codebook_indexes,
+            time_masked_area=time_masked_area,
         )
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid

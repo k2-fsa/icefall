@@ -75,7 +75,9 @@ class Transducer(nn.Module):
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
         if num_codebooks > 0:
             self.codebook_loss_net = JointCodebookLoss(
-                predictor_channels=encoder_dim, num_codebooks=num_codebooks
+                predictor_channels=encoder_dim,
+                num_codebooks=num_codebooks,
+                reduction="none",
             )
 
     def forward(
@@ -88,6 +90,8 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         codebook_indexes: torch.Tensor = None,
+        time_masked_area: torch.Tensor = None,
+        masked_scale: float = 1.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -113,6 +117,11 @@ class Transducer(nn.Module):
             warmup > 1 "are fully warmed up" and all modules will be active.
           codebook_indexes:
             codebook_indexes extracted from a teacher model.
+          time_masked_area:
+            masked area by SpecAugment, 1 represents masked.
+          masked_scale:
+            scale of codebook loss of masked area.
+            the unmasked_scale = 1 - masked_scale
         Returns:
           Return the transducer loss.
 
@@ -139,6 +148,21 @@ class Transducer(nn.Module):
                 )
             codebook_loss = self.codebook_loss_net(
                 middle_layer_output, codebook_indexes
+            )
+            codebook_loss = codebook_loss.reshape(codebook_indexes.shape)
+            target_t = codebook_loss.shape[1]
+            time_masked_area = time_masked_area.bool()
+            time_masked_area = time_masked_area[
+                :, : target_t * 4 : 4, 0  # noqa E203
+            ]
+            assert time_masked_area.shape == codebook_loss.shape[:-1]
+            time_masked_area = time_masked_area.unsqueeze(2).to(
+                codebook_loss.device
+            )
+            masked_loss = (time_masked_area * codebook_loss).sum()
+            unmasked_loss = (~time_masked_area * codebook_loss).sum()
+            codebook_loss = (
+                masked_scale * masked_loss + (1 - masked_scale) * unmasked_loss
             )
         else:
             # when codebook index is not available.
