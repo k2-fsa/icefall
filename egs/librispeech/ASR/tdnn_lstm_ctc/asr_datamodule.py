@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
-from lhotse.dataset import (
+from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     BucketingSampler,
     CutConcatenate,
     CutMix,
@@ -34,7 +34,10 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
+    AudioSamples,
+    OnTheFlyFeatures,
+)
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
@@ -151,6 +154,12 @@ class LibriSpeechAsrDataModule:
             "shuffled for each epoch.",
         )
         group.add_argument(
+            "--drop-last",
+            type=str2bool,
+            default=True,
+            help="Whether to drop last batch. Used by sampler.",
+        )
+        group.add_argument(
             "--return-cuts",
             type=str2bool,
             default=True,
@@ -190,6 +199,13 @@ class LibriSpeechAsrDataModule:
             default=True,
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset. ",
+        )
+
+        group.add_argument(
+            "--input-strategy",
+            type=str,
+            default="PrecomputedFeatures",
+            help="AudioSamples or PrecomputedFeatures",
         )
 
     def train_dataloaders(
@@ -263,6 +279,7 @@ class LibriSpeechAsrDataModule:
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
+            input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -296,7 +313,7 @@ class LibriSpeechAsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 bucket_method="equal_duration",
-                drop_last=True,
+                drop_last=self.args.drop_last,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -371,7 +388,7 @@ class LibriSpeechAsrDataModule:
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
         sampler = BucketingSampler(
