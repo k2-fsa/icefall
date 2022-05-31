@@ -781,6 +781,7 @@ def train_one_epoch(
                 params=params,
                 model_cur=model,
                 model_avg=model_avg,
+                decompose=True
             )
 
         if (
