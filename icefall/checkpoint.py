@@ -86,7 +86,7 @@ def save_checkpoint(
     }
 
     if model_avg is not None:
-        checkpoint["model_avg"] = model_avg.to(torch.float32).state_dict()
+        checkpoint["model_avg"] = model_avg.state_dict()
 
     if params:
         for k, v in params.items():

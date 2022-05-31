@@ -311,7 +311,7 @@ def get_parser():
     parser.add_argument(
         "--average-period",
         type=int,
-        default=100,
+        default=200,
         help="""Update the averaged model, namely `model_avg`, after processing
         this number of batches. `model_avg` is a separate version of model,
         in which each floating-point parameter is the average of all the
@@ -905,7 +905,7 @@ def run(rank, world_size, args):
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
+        model_avg = copy.deepcopy(model)
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
