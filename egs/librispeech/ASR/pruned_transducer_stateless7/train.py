@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang,
-#                                                  Mingshuang Luo,)
-#                                                  Zengwei Yao)
+# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                       Wei Kang,
+#                                                       Mingshuang Luo,)
+#                                                       Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,22 +22,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless7/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless7/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless7/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless7/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -86,6 +86,53 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
+
+
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=int,
+        default=24,
+        help="Number of conformer encoder layers..",
+    )
+
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=1536,
+        help="Feedforward dimension of the conformer encoder layer.",
+    )
+
+    parser.add_argument(
+        "--nhead",
+        type=int,
+        default=8,
+        help="Number of attention heads in the conformer encoder layer.",
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=384,
+        help="Attention dimension in the conformer encoder layer.",
+    )
+
+    parser.add_argument(
+        "--decoder-dim",
+        type=int,
+        default=512,
+        help="Embedding dimension in the decoder model.",
+    )
+
+    parser.add_argument(
+        "--joiner-dim",
+        type=int,
+        default=512,
+        help="""Dimension used in the joiner model.
+        Outputs from the encoder and decoder model are projected
+        to this dimension before adding.
+        """,
+    )
 
 
 def get_parser():
@@ -143,7 +190,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless7/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -161,16 +208,16 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="""The initial learning rate. This value should not need to be
-        changed.""",
+        help="The initial learning rate.  This value should not need "
+        "to be changed.",
     )
 
     parser.add_argument(
         "--lr-batches",
         type=float,
         default=5000,
-        help="""Number of steps that affects how rapidly the learning rate decreases.
-        We suggest not to change this.""",
+        help="""Number of steps that affects how rapidly the learning rate
+        decreases. We suggest not to change this.""",
     )
 
     parser.add_argument(
@@ -240,7 +287,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=4000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -253,7 +300,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=20,
+        default=30,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -280,6 +327,8 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -341,14 +390,6 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            # parameters for decoder
-            "decoder_dim": 512,
-            # parameters for joiner
-            "joiner_dim": 512,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
@@ -704,27 +745,31 @@ def train_one_epoch(
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
-            loss, loss_info = compute_loss(
-                params=params,
-                model=model,
-                sp=sp,
-                batch=batch,
-                is_training=True,
-                warmup=(params.batch_idx_train / params.model_warm_step),
-            )
-        # summary stats
-        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+        try:
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                loss, loss_info = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=True,
+                    warmup=(params.batch_idx_train / params.model_warm_step),
+                )
+            # summary stats
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
-        # NOTE: We use reduction==sum and loss is computed over utterances
-        # in the batch and there is no normalization to it so far.
-        scaler.scale(loss).backward()
-        scheduler.step_batch(params.batch_idx_train)
-        scaler.step(optimizer)
-        scaler.update()
-        optimizer.zero_grad()
+            # NOTE: We use reduction==sum and loss is computed over utterances
+            # in the batch and there is no normalization to it so far.
+            scaler.scale(loss).backward()
+            scheduler.step_batch(params.batch_idx_train)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+        except:  # noqa
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise
 
-        if params.print_diagnostics and batch_idx == 30:
+        if params.print_diagnostics and batch_idx == 5:
             return
 
         if (
@@ -888,7 +933,10 @@ def run(rank, world_size, args):
         scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
-        diagnostic = diagnostics.attach_diagnostics(model)
+        opts = diagnostics.TensorDiagnosticOptions(
+            2 ** 22
+        )  # allow 4 megabytes per sub-module
+        diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     librispeech = LibriSpeechAsrDataModule(args)
 
@@ -986,6 +1034,38 @@ def run(rank, world_size, args):
         cleanup_dist()
 
 
+def display_and_save_batch(
+    batch: dict,
+    params: AttributeDict,
+    sp: spm.SentencePieceProcessor,
+) -> None:
+    """Display the batch statistics and save the batch into disk.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      params:
+        Parameters for training. See :func:`get_params`.
+      sp:
+        The BPE model.
+    """
+    from lhotse.utils import uuid4
+
+    filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
+    logging.info(f"Saving batch to {filename}")
+    torch.save(batch, filename)
+
+    supervisions = batch["supervisions"]
+    features = batch["inputs"]
+
+    logging.info(f"features shape: {features.shape}")
+
+    y = sp.encode(supervisions["text"], out_type=int)
+    num_tokens = sum(len(i) for i in y)
+    logging.info(f"num tokens: {num_tokens}")
+
+
 def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
@@ -1017,7 +1097,7 @@ def scan_pessimistic_batches_for_oom(
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-        except RuntimeError as e:
+        except Exception as e:
             if "CUDA out of memory" in str(e):
                 logging.error(
                     "Your GPU ran out of memory with the current "
@@ -1026,6 +1106,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
 
 
