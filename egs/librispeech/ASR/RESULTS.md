@@ -4,6 +4,8 @@
 
 [pruned_stateless_emformer_rnnt2](./pruned_stateless_emformer_rnnt2)
 
+Use <https://github.com/k2-fsa/icefall/pull/390>.
+
 Use [Emformer](https://arxiv.org/abs/2010.10759) from [torchaudio](https://github.com/pytorch/audio)
 for streaming ASR. The Emformer model is imported from torchaudio without modifications.
 
