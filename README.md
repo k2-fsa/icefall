@@ -12,7 +12,7 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide some recipes:
+We provide the following recipes:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
