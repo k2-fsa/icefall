@@ -22,7 +22,7 @@ Usage:
   --exp-dir ./pruned_transducer_stateless2/exp \
   --lang-dir data/lang_char \
   --epoch 29 \
-  --avg 19
+  --avg 18
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -32,7 +32,7 @@ you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/aidatatang_200zh/ASR
+    cd /path/to/egs/alimeeting/ASR
     ./pruned_transducer_stateless2/decode.py \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --epoch 9999 \

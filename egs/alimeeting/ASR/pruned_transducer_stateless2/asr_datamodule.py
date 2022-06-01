@@ -31,7 +31,6 @@ from lhotse import (
     set_caching_enabled,
 )
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -290,13 +289,13 @@ class AlimeetingAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
+                buffer_size=30000,
                 drop_last=True,
             )
         else:

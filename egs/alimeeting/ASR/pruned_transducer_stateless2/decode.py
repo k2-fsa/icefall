@@ -16,11 +16,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-When training with the L subset, usage:
+When training with the far data, usage:
 (1) greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 29 \
+        --avg 18 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -28,8 +28,8 @@ When training with the L subset, usage:
 
 (2) modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 29 \
+        --avg 18 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 100 \
@@ -38,8 +38,8 @@ When training with the L subset, usage:
 
 (3) fast beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
+        --epoch 29 \
+        --avg 18 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --lang-dir data/lang_char \
         --max-duration 1500 \
@@ -59,7 +59,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import Aidatatang_200zhAsrDataModule
+from asr_datamodule import AlimeetingAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -67,6 +67,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from lhotse.cut import Cut
 from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -248,7 +249,6 @@ def decode_one_batch(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
-
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
@@ -442,7 +442,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    Aidatatang_200zhAsrDataModule.add_arguments(parser)
+    AlimeetingAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -508,6 +508,13 @@ def main():
         model.to(device)
         model.load_state_dict(average_checkpoints(filenames, device=device))
 
+        average = average_checkpoints(filenames, device=device)
+        checkpoint = {"model": average}
+        torch.save(
+            checkpoint,
+            "pruned_transducer_stateless2/exp/pretrained_epoch_29_avg_18.pt",
+        )
+
     model.to(device)
     model.eval()
     model.device = device
@@ -528,14 +535,14 @@ def main():
     from lhotse import CutSet
     from lhotse.dataset.webdataset import export_to_webdataset
 
-    aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
+    alimeeting = AlimeetingAsrDataModule(args)
 
-    dev = "dev"
+    dev = "eval"
     test = "test"
 
     if not os.path.exists(f"{dev}/shared-0.tar"):
         os.makedirs(dev)
-        dev_cuts = aidatatang_200zh.valid_cuts()
+        dev_cuts = alimeeting.valid_cuts()
         export_to_webdataset(
             dev_cuts,
             output_path=f"{dev}/shared-%d.tar",
@@ -544,7 +551,7 @@ def main():
 
     if not os.path.exists(f"{test}/shared-0.tar"):
         os.makedirs(test)
-        test_cuts = aidatatang_200zh.test_cuts()
+        test_cuts = alimeeting.test_cuts()
         export_to_webdataset(
             test_cuts,
             output_path=f"{test}/shared-%d.tar",
@@ -573,8 +580,16 @@ def main():
         shuffle_shards=True,
     )
 
-    dev_dl = aidatatang_200zh.valid_dataloaders(cuts_dev_webdataset)
-    test_dl = aidatatang_200zh.test_dataloaders(cuts_test_webdataset)
+    def remove_short_and_long_utt(c: Cut):
+        return 1.0 <= c.duration
+
+    cuts_dev_webdataset = cuts_dev_webdataset.filter(remove_short_and_long_utt)
+    cuts_test_webdataset = cuts_test_webdataset.filter(
+        remove_short_and_long_utt
+    )
+
+    dev_dl = alimeeting.valid_dataloaders(cuts_dev_webdataset)
+    test_dl = alimeeting.test_dataloaders(cuts_test_webdataset)
 
     test_sets = ["dev", "test"]
     test_dl = [dev_dl, test_dl]
