@@ -76,10 +76,11 @@ jobs:
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
-          pip install -r requirements.txt
-
+          # pip install -r requirements.txt
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf
+
+          pip install -r requirements.txt
 
       - name: Install graphviz
         if: startsWith(matrix.os, 'ubuntu')
