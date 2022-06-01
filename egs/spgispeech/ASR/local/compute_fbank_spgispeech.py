@@ -25,17 +25,15 @@ The generated fbank features are saved in data/fbank.
 import argparse
 import logging
 from pathlib import Path
-from tqdm import tqdm
 
 import torch
-from lhotse import load_manifest_lazy, LilcomChunkyWriter
+from lhotse import LilcomChunkyWriter, load_manifest_lazy
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    KaldifeatMelOptions,
     KaldifeatFrameOptions,
+    KaldifeatMelOptions,
 )
-from lhotse.manipulation import combine
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -97,27 +95,32 @@ def compute_fbank_spgispeech(args):
     )
 
     if args.train:
-        logging.info(f"Processing train")
-        cut_set = load_manifest_lazy(src_dir / f"cuts_train_raw.jsonl.gz")
+        logging.info("Processing train")
+        cut_set = load_manifest_lazy(src_dir / "cuts_train_raw.jsonl.gz")
         chunk_size = len(cut_set) // args.num_splits
         cut_sets = cut_set.split_lazy(
             output_dir=src_dir / f"cuts_train_raw_split{args.num_splits}",
             chunk_size=chunk_size,
         )
         start = args.start
-        stop = min(args.stop, args.num_splits) if args.stop > 0 else args.num_splits
+        stop = (
+            min(args.stop, args.num_splits)
+            if args.stop > 0
+            else args.num_splits
+        )
         num_digits = len(str(args.num_splits))
         for i in range(start, stop):
             idx = f"{i + 1}".zfill(num_digits)
+            cuts_train_idx_path = src_dir / f"cuts_train_{idx}.jsonl.gz"
             logging.info(f"Processing train split {i}")
             cs = cut_sets[i].compute_and_store_features_batch(
                 extractor=extractor,
                 storage_path=output_dir / f"feats_train_{idx}",
-                manifest_path=src_dir / f"cuts_train_{idx}.jsonl.gz",
                 batch_duration=500,
                 num_workers=4,
                 storage_type=LilcomChunkyWriter,
             )
+            cs.to_file(cuts_train_idx_path)
 
     if args.test:
         for partition in ["dev", "val"]:
@@ -125,7 +128,9 @@ def compute_fbank_spgispeech(args):
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
-            cut_set = load_manifest_lazy(src_dir / f"cuts_{partition}_raw.jsonl.gz")
+            cut_set = load_manifest_lazy(
+                src_dir / f"cuts_{partition}_raw.jsonl.gz"
+            )
             cut_set = cut_set.compute_and_store_features_batch(
                 extractor=extractor,
                 storage_path=output_dir / f"feats_{partition}",
@@ -137,8 +142,9 @@ def compute_fbank_spgispeech(args):
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
