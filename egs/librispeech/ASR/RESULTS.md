@@ -1,5 +1,71 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Stateless Emformer RNN-T)
+
+[pruned_stateless_emformer_rnnt2](./pruned_stateless_emformer_rnnt2)
+
+Use <https://github.com/k2-fsa/icefall/pull/390>.
+
+Use [Emformer](https://arxiv.org/abs/2010.10759) from [torchaudio](https://github.com/pytorch/audio)
+for streaming ASR. The Emformer model is imported from torchaudio without modifications.
+
+|                                     | test-clean | test-other | comment                                |
+|-------------------------------------|------------|------------|----------------------------------------|
+| greedy search (max sym per frame 1) | 4.28       | 11.42       | --epoch 39 --avg 6  --max-duration 600 |
+| modified beam search                | 4.22       | 11.16       | --epoch 39 --avg 6  --max-duration 600 |
+| fast beam search                    | 4.29       | 11.26       | --epoch 39 --avg 6 --max-duration 600  |
+
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_stateless_emformer_rnnt2/train.py \
+  --world-size 8 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --exp-dir pruned_stateless_emformer_rnnt2/exp-full \
+  --full-libri 1 \
+  --use-fp16 0 \
+  --max-duration 200 \
+  --prune-range 5 \
+  --lm-scale 0.25 \
+  --master-port 12358 \
+  --num-encoder-layers 18 \
+  --left-context-length 128 \
+  --segment-length 8 \
+  --right-context-length 4
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/ZyiqhAhmRjmr49xml4ofLw/>
+
+The decoding commands are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for epoch in 39; do
+    for avg in 6; do
+      ./pruned_stateless_emformer_rnnt2/decode.py \
+        --epoch $epoch \
+        --avg $avg \
+        --use-averaged-model 1 \
+        --exp-dir pruned_stateless_emformer_rnnt2/exp-full \
+        --max-duration 50 \
+        --decoding-method $m \
+        --num-encoder-layers 18 \
+        --left-context-length 128 \
+        --segment-length 8 \
+        --right-context-length 4
+    done
+  done
+done
+```
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-stateless-emformer-rnnt2-2022-06-01>
+
+
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 5)
 
 [pruned_transducer_stateless5](./pruned_transducer_stateless5)

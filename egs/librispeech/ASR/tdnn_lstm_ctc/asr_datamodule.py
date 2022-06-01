@@ -26,9 +26,9 @@ from typing import Any, Dict, Optional
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
-    BucketingSampler,
     CutConcatenate,
     CutMix,
+    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -113,7 +113,7 @@ class LibriSpeechAsrDataModule:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the BucketingSampler"
+            help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -306,13 +306,12 @@ class LibriSpeechAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
                 drop_last=self.args.drop_last,
             )
         else:
@@ -367,7 +366,7 @@ class LibriSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -391,8 +390,10 @@ class LibriSpeechAsrDataModule:
             else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
