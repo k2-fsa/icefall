@@ -48,7 +48,8 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          grep -v '^#' pip uninstall -y protobuf | pip install --no-binary protobuf protobuf |
+            ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
 
       - name: Cache kaldifeat
         id: my-cache
