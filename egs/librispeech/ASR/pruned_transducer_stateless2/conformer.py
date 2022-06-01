@@ -203,7 +203,9 @@ class Conformer(EncoderInterface):
         warmup: float = 1.0,
         chunk_size: int = 16,
         left_context: int = 64,
+        right_context: int = 4,
         simulate_streaming: bool = False,
+        processed_lens: Optional[Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -269,7 +271,20 @@ class Conformer(EncoderInterface):
              {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
              given {states[1].shape}."""
 
-            src_key_padding_mask = make_pad_mask(lengths + left_context)
+            # src_key_padding_mask = make_pad_mask(lengths + left_context)
+            src_key_padding_mask = make_pad_mask(lengths)
+
+            assert processed_lens is not None
+
+            processed_mask = torch.arange(left_context, device=x.device).expand(
+                x.size(0), left_context
+            )
+            processed_lens = processed_lens.view(x.size(0), 1)
+            processed_mask = (processed_lens <= processed_mask).flip(1)
+
+            src_key_padding_mask = torch.cat(
+                [processed_mask, src_key_padding_mask], dim=1
+            )
 
             embed = self.encoder_embed(x)
             embed, pos_enc = self.encoder_pos(embed, left_context)
@@ -282,8 +297,11 @@ class Conformer(EncoderInterface):
                 warmup=warmup,
                 states=states,
                 left_context=left_context,
+                right_context=right_context,
             )  # (T, B, F)
-
+            if right_context > 0:
+                x = x[0:-right_context, ...]
+                lengths -= right_context
         else:
 
             src_key_padding_mask = make_pad_mask(lengths)
@@ -465,6 +483,7 @@ class ConformerEncoderLayer(nn.Module):
         src_key_padding_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
         left_context: int = 0,
+        right_context: int = 0,
     ) -> Tensor:
         """
         Pass the input through the encoder layer.
@@ -504,7 +523,12 @@ class ConformerEncoderLayer(nn.Module):
 
         key = torch.cat([states[0], src], dim=0)
         val = key
-        states[0] = key[-left_context:, ...]
+        if right_context > 0:
+            states[0] = key[
+                -(left_context + right_context) : -right_context, ...  # noqa
+            ]
+        else:
+            states[0] = key[-left_context:, ...]
 
         # multi-headed self-attention module
         src_att = self.self_attn(
@@ -520,7 +544,7 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
-        conv, conv_cache = self.conv_module(src, states[1])
+        conv, conv_cache = self.conv_module(src, states[1], right_context)
         states[1] = conv_cache
 
         src = src + self.dropout(conv)
@@ -604,6 +628,7 @@ class ConformerEncoder(nn.Module):
         src_key_padding_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
         left_context: int = 0,
+        right_context: int = 0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -655,6 +680,7 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
                 left_context=left_context,
+                right_context=right_context,
             )
             states[0][layer_index] = cache[0]
             states[1][layer_index] = cache[1]
@@ -1306,6 +1332,7 @@ class ConvolutionModule(nn.Module):
         self,
         x: Tensor,
         cache: Optional[Tensor] = None,
+        right_context=0,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
@@ -1342,7 +1369,15 @@ class ConvolutionModule(nn.Module):
                 ), "Cache should be None in training time"
                 assert cache.size(0) == self.lorder
                 x = torch.cat([cache.permute(1, 2, 0), x], dim=2)
-                cache = x.permute(2, 0, 1)[-self.lorder :, ...]  # noqa
+                if right_context > 0:
+                    cache = x.permute(2, 0, 1)[
+                        -(self.lorder + right_context) : (  # noqa
+                            -right_context
+                        ),
+                        ...,
+                    ]
+                else:
+                    cache = x.permute(2, 0, 1)[-self.lorder :, ...]  # noqa
         x = self.depthwise_conv(x)
 
         x = self.deriv_balancer2(x)

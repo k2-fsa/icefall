@@ -206,6 +206,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--right-context",
+        type=int,
+        default=4,
+        help="right context can be seen during decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
         "--num-decode-streams",
         type=int,
         default=2000,
@@ -355,8 +362,8 @@ def decode_one_chunk(
         features.append(feat)
         feature_lens.append(feat_len)
         states.append(stream.states)
+        processed_feature_lens.append(stream.feature_len)
         if params.decoding_method == "fast_beam_search":
-            processed_feature_lens.append(stream.feature_len)
             rnnt_stream_list.append(stream.rnnt_decoding_stream)
 
     feature_lens = torch.tensor(feature_lens, device=device)
@@ -364,15 +371,18 @@ def decode_one_chunk(
 
     # if T is less than 7 there will be an error in time reduction layer,
     # because we subsample features with ((x_len - 1) // 2 - 1) // 2
-    if features.size(1) < 7:
-        feature_lens += 7 - features.size(1)
+    tail_length = 7 + params.right_context * params.subsampling_factor
+    if features.size(1) < tail_length:
+        feature_lens += tail_length - features.size(1)
         features = torch.cat(
             [
                 features,
                 torch.tensor(
                     LOG_EPS, dtype=features.dtype, device=device
                 ).expand(
-                    features.size(0), 7 - features.size(1), features.size(2)
+                    features.size(0),
+                    tail_length - features.size(1),
+                    features.size(2),
                 ),
             ],
             dim=1,
@@ -382,6 +392,7 @@ def decode_one_chunk(
         torch.stack([x[0] for x in states], dim=2),
         torch.stack([x[1] for x in states], dim=2),
     ]
+    processed_feature_lens = torch.tensor(processed_feature_lens, device=device)
 
     # Note: states will be modified in streaming_forward.
     encoder_out, encoder_out_lens = model.encoder.streaming_forward(
@@ -389,7 +400,10 @@ def decode_one_chunk(
         x_lens=feature_lens,
         states=states,
         left_context=params.left_context,
+        right_context=params.right_context,
+        processed_lens=processed_feature_lens,
     )
+
     encoder_out = model.joiner.encoder_proj(encoder_out)
 
     if params.decoding_method == "greedy_search":
@@ -401,9 +415,6 @@ def decode_one_chunk(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
-        )
-        processed_feature_lens = torch.tensor(
-            processed_feature_lens, device=device
         )
         decoding_streams = k2.RnntDecodingStreams(rnnt_stream_list, config)
         processed_lens = processed_feature_lens + encoder_out_lens
@@ -418,8 +429,8 @@ def decode_one_chunk(
     finished_streams = []
     for i in range(len(decode_streams)):
         decode_streams[i].states = [states[0][i], states[1][i]]
+        decode_streams[i].feature_len += encoder_out_lens[i]
         if params.decoding_method == "fast_beam_search":
-            decode_streams[i].feature_len += encoder_out_lens[i]
             decode_streams[i].hyp = hyp_tokens[i]
         if decode_streams[i].done:
             finished_streams.append(i)
@@ -489,7 +500,8 @@ def decode_dataset(
         samples = torch.from_numpy(audio).squeeze(0)
 
         fbank = Fbank(opts)
-        decode_stream.set_features(fbank(samples.to(device)))
+        feature = fbank(samples.to(device))
+        decode_stream.set_features(feature)
         decode_stream.ground_truth = cut.supervisions[0].text
 
         decode_streams.append(decode_stream)
@@ -541,14 +553,14 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts(filename=recog_path, texts=sorted(results))
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -602,6 +614,7 @@ def main():
     # for streaming
     params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
     params.suffix += f"-left-context-{params.left_context}"
+    params.suffix += f"-right-context-{params.right_context}"
 
     # for fast_beam_search
     if params.decoding_method == "fast_beam_search":

@@ -39,6 +39,8 @@ class DecodeStream(object):
         if decoding_graph is not None:
             assert device == decoding_graph.device
 
+        self.params = params
+
         # It contains a 2-D tensors representing the feature frames.
         self.features: torch.Tensor = None
         # how many frames are processed. (before subsampling).
@@ -49,11 +51,12 @@ class DecodeStream(object):
         # The decoding result (partial or final) of current utterance.
         self.hyp: List = []
 
+        self.feature_len: int = 0
+
         if params.decoding_method == "greedy_search":
             self.hyp = [params.blank_id] * params.context_size
         elif params.decoding_method == "fast_beam_search":
             # feature_len is needed to get partial results.
-            self.feature_len: int = 0
             # The rnnt_decoding_stream for fast_beam_search.
             self.rnnt_decoding_stream: k2.RnntDecodingStream = (
                 k2.RnntDecodingStream(decoding_graph)
@@ -110,7 +113,10 @@ class DecodeStream(object):
             + ret_chunk_size,
             :,
         ]
-        self.num_processed_frames += chunk_size
+        self.num_processed_frames += (
+            chunk_size
+            - self.params.right_context * self.params.subsampling_factor
+        )
 
         if self.num_processed_frames >= self.features.size(0):
             self._done = True
