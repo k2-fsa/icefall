@@ -78,6 +78,9 @@ jobs:
           # icefall requirements
           pip install -r requirements.txt
 
+          pip uninstall protobuf
+          pip install --no-binary protobuf protobuf
+
       - name: Install graphviz
         if: startsWith(matrix.os, 'ubuntu')
         shell: bash
