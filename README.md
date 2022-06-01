@@ -289,10 +289,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
-<<<<<<< HEAD
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
-=======
->>>>>>> master
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -301,9 +298,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [gigaspeech]: egs/gigaspeech/ASR
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
 [wenetspeech]: egs/wenetspeech/ASR
-<<<<<<< HEAD
 [alimeeting]: egs/alimeeting/ASR
-=======
->>>>>>> master
 [k2]: https://github.com/k2-fsa/k2
 )
