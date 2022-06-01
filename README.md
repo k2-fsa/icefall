@@ -247,7 +247,6 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 | modified beam search | 7.76  |  8.71    |  13.41       |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
-<<<<<<< HEAD
 
 ### Alimeeting
 
@@ -262,8 +261,6 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 | modified beam search | 30.38  |  34.25   |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
-=======
->>>>>>> master
 
 ## Deployment with C++
 
