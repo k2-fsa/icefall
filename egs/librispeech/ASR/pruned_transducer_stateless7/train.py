@@ -781,7 +781,6 @@ def train_one_epoch(
                 params=params,
                 model_cur=model,
                 model_avg=model_avg,
-                decompose=True
             )
 
         if (
@@ -905,7 +904,7 @@ def run(rank, world_size, args):
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model)
+        model_avg = copy.deepcopy(model).to(torch.float64)
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
