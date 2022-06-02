@@ -357,7 +357,7 @@ def decode_one_chunk(
 
     for stream in decode_streams:
         feat, feat_len = stream.get_feature_frames(
-            params.decode_chunk_size * params.subsampling_factor
+            (params.decode_chunk_size + 2) * params.subsampling_factor
         )
         features.append(feat)
         feature_lens.append(feat_len)
@@ -371,7 +371,7 @@ def decode_one_chunk(
 
     # if T is less than 7 there will be an error in time reduction layer,
     # because we subsample features with ((x_len - 1) // 2 - 1) // 2
-    tail_length = 7 + params.right_context * params.subsampling_factor
+    tail_length = 15 + params.right_context * params.subsampling_factor
     if features.size(1) < tail_length:
         feature_lens += tail_length - features.size(1)
         features = torch.cat(

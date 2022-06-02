@@ -115,6 +115,7 @@ class DecodeStream(object):
         ]
         self.num_processed_frames += (
             chunk_size
+            - 2 * self.params.subsampling_factor
             - self.params.right_context * self.params.subsampling_factor
         )
 

@@ -272,6 +272,9 @@ class Conformer(EncoderInterface):
              given {states[1].shape}."""
 
             # src_key_padding_mask = make_pad_mask(lengths + left_context)
+
+            lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
+
             src_key_padding_mask = make_pad_mask(lengths)
 
             assert processed_lens is not None
@@ -287,6 +290,9 @@ class Conformer(EncoderInterface):
             )
 
             embed = self.encoder_embed(x)
+
+            embed = embed[:, 1:-1, :]
+
             embed, pos_enc = self.encoder_pos(embed, left_context)
             embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
 
