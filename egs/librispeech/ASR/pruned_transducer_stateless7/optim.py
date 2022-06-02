@@ -61,6 +61,20 @@ class Cain(Optimizer):
            and a 512x512 one.  This does a better job of separating "important"
            from "unimportant" directions in activation space, and empirically
            improved convergence, final loss function and WERs.
+      (v)  Change the Adam-type update, where the rms update value in each parameter
+           is the same, to a (diagonal) natural-gradient-type update, where if a
+           parameter has larger then average gradients, we give it a smaller
+           update.  Because, in principle, this could lead to unbounded update
+           magnitudes, we limit these by introducing the "max_eff_lr" parameter,
+           which defines the maximum learning rate "if we had an Adam-type
+           update".  So what we really implement is a cross between Adam and
+           natural gradient, where larger "max_eff_lr" means more natural-gradient-like
+           (i.e. more aggressive in directions with small gradients).
+           We recommend to set max_eff_lr to the initial learning rate ("lr")
+           in the learning rate schedule so that the update starts out
+           equivalent to Adam.  Empirically this change to natural-gradient-type
+           update, epecially when combined with a faster-decaying learning rate
+           schedule, gives faster convergence.
 
     The original Adam algorithm was proposed in `Adam: A Method for Stochastic Optimization`_.
     The AdamW variant was proposed in `Decoupled Weight Decay Regularization`_.
@@ -70,6 +84,15 @@ class Cain(Optimizer):
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         lr (float, optional): learning rate (default: 1e-3)
+        max_eff_lr (float, optional): maximum effective learning rate for
+            natural-gradient update; this limits how aggressively we accelerate
+            directions with small gradients.  The idea is that you might want to
+            leave this constant as the regular learning rate decreasess; but
+            we can investigate alternatives here.  If you set this to <= 0,
+            it disables the natural-gradient aspect, giving a more ADAM-like
+            update (in changed co-ordinates)
+        ng_scale (float, optional): scale on natural-gradient-like update,
+            interpolating it with an Adam-type update.
         betas (Tuple[float, float], optional): coefficients used for computing
             running averages of gradient and its square (default: (0.9, 0.999))
         eps (float, optional): term added to the denominator to improve
@@ -98,18 +121,25 @@ class Cain(Optimizer):
     """
 
     def __init__(
-        self,
-        params,
-        lr=1e-3,
-        betas=(0.9, 0.98),
-        eps=1e-8,
-        target_rms=0.1,
-        rms_eps=1.0e-05,
-        rms_max=10.0,
+            self,
+            params,
+            lr=1e-3,
+            max_eff_lr=3e-3,
+            ng_pow=-0.5,
+            ng_eps=0.05,
+            betas=(0.9, 0.98),
+            eps=1e-8,
+            target_rms=0.1,
+            rms_eps=1.0e-05,
+            rms_max=10.0,
     ):
 
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
+        if not 0.0 <= ng_eps < 1.0:
+            raise ValueError("Invalid natural gradient epsilon: {}".format(ng_eps))
+        if not -1.0 <= ng_pow < 1.0:  # -1.0 would be actual natural gradient
+            raise ValueError("Invalid natural gradient power: {}".format(ng_pow))
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= betas[0] < 1.0:
@@ -129,6 +159,9 @@ class Cain(Optimizer):
 
         defaults = dict(
             lr=lr,
+            max_eff_lr=max_eff_lr,
+            ng_eps=ng_eps,
+            ng_pow=ng_pow,
             betas=betas,
             eps=eps,
             target_rms=target_rms,
@@ -156,10 +189,15 @@ class Cain(Optimizer):
         for group in self.param_groups:
             beta1, beta2 = group["betas"]
             lr = group["lr"]
+            max_eff_lr = group["max_eff_lr"]
+            ng_eps = group["ng_eps"]
+            ng_pow = group["ng_pow"]
             target_rms = group["target_rms"]
             rms_eps = group["rms_eps"]
             eps = group["eps"]
             rms_max = group["rms_max"]
+
+            assert lr <= max_eff_lr
 
             for p in group["params"]:
                 if p.grad is None:
@@ -194,7 +232,7 @@ class Cain(Optimizer):
                         state["scale_exp_avg_sq"] = torch.zeros((), device=p.device,
                                                                 dtype=p.dtype)
                         # alpha is a scale related to the natural-gradient update,
-                        # see self._get_denom()
+                        # see self._get_grad_scale()
                         state["alpha"] = torch.ones((), device=p.device,
                                                      dtype=p.dtype)
 
@@ -206,94 +244,211 @@ class Cain(Optimizer):
                 delta.mul_(beta1)
 
                 if p.numel() > 1:
-                    # This part learns the scale on the parameters.
-                    # scale_deriv is the derivative w.r.t. a log-space scale on the parameters, i.e.
-                    # if we imagine: p = underlying_param * scale.exp(), this is the derivative
-                    # w.r.t. scale (it does not actually matter what value `scale` currently has).
-                    scale_deriv = (p * grad).sum()
-                    scale_exp_avg_sq = state["scale_exp_avg_sq"]
-                    scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
-                                                          value=1 - beta2)
 
-                    # should actually be step + 1, so on 1st minibatch we are not learning
-                    # anything here.  May fix this at some point.
-                    scale_bias_correction2 = 1 - beta2 ** (step + 1)
-
-                    scale_denom = (scale_exp_avg_sq.sqrt()).add_(eps)
-
-                    scale_alpha = -lr * (scale_bias_correction2 ** 0.5) * (1-beta1)
-
-                    # scale_delta is going to be the change in log-scale (before momentum), i.e. if
-                    # p = underlying_param * scale.exp(),
-                    # delta is the change in `scale`.
-                    scale_delta = scale_alpha * (scale_deriv / scale_denom)
-
-                    # the following is equivalent to:
-                    # if torch.all(state["param_rms"] > rms_max):
-                    #    delta = -1.0e-03
-                    # which means: if the parameter root-mean-square value goes above the
-                    # specified limit, start to decay the parameters (and ignore the computed
-                    # delta).
-                    scale_delta = torch.where(state["param_rms"] > rms_max,
-                                              torch.tensor(-1.0e-03 * (1-beta1),
-                                                           device=scale_delta.device,
-                                                           dtype=scale_delta.dtype),
-                                              scale_delta)
-                    delta.add_(p, alpha=scale_delta)
-
-
-                # forget bias_correction1.  We use normal momentum.  delta really
-                # just stores the moving-average gradient step.
-                bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(step)
-
-                grad = self._change_coordinates(grad, state, forward=True)
-
-                # Decay the second moment running average coefficient
-                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-
-                denom = (exp_avg_sq.sqrt()).add_(eps)
-
-                this_delta = grad / denom
-
-                this_delta = self._change_coordinates(this_delta, state, forward=False)
-
-                alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
-                if p.numel() > 1:
                     if step % 10 == 0:
                         state["param_rms"].fill_((p**2).mean().sqrt())
-                    # imagine param was normalized to rms=target_rms and we stored the
-                    # scale as a separate scalar.  This is how fast we'd be learning.
-                    alpha = (alpha / target_rms) * state["param_rms"].clamp(min=rms_eps)
+
+                    if True:
+                        # This block learns the scale on the parameters.
+                        # scale_deriv is the derivative w.r.t. a log-space scale
+                        # on the parameters, i.e.  if we imagine: p =
+                        # underlying_param * scale.exp(), scale_deriv is the
+                        # derivative w.r.t. scale (it does not matter
+                        # what value `scale` currently has).
+                        scale_deriv = (p * grad).sum()
+                        scale_exp_avg_sq = state["scale_exp_avg_sq"]
+                        scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
+                                                              value=1 - beta2)
+
+                        # should actually be step + 1, so on 1st minibatch we are not learning
+                        # anything here.  May fix this at some point.
+                        scale_bias_correction2 = 1 - beta2 ** (step + 1)
+
+                        scale_denom = (scale_exp_avg_sq.sqrt()).add_(eps)
+
+                        scale_alpha = -lr * (scale_bias_correction2 ** 0.5) * (1-beta1)
+
+                        # scale_delta is going to be the change in log-scale (before momentum), i.e. if
+                        # p = underlying_param * scale.exp(),
+                        # delta is the change in `scale`.
+                        scale_delta = scale_alpha * (scale_deriv / scale_denom)
+
+                        # the following is equivalent to:
+                        # if torch.all(state["param_rms"] > rms_max):
+                        #    delta = -1.0e-03
+                        # which means: if the parameter root-mean-square value goes above the
+                        # specified limit, start to decay the parameters (and ignore the computed
+                        # delta).
+                        scale_delta = torch.where(state["param_rms"] > rms_max,
+                                                  torch.tensor(-1.0e-03 * (1-beta1),
+                                                               device=scale_delta.device,
+                                                               dtype=scale_delta.dtype),
+                                                  scale_delta)
+                        delta.add_(p, alpha=scale_delta)
+
+
+                    grad = self._change_coordinates(grad, state, forward=True)
+                    p_transformed = self._change_coordinates(p, state, forward=True, is_grad=False)
+
+                    # Decay the second moment running average coefficient
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+
+                    bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(step)
+
+                    grad_rms = (exp_avg_sq.sqrt()).add_(eps).mul_(1.0 / bias_correction2)
+                    this_delta = grad / grad_rms
+
+                    smoothed_grad_rms = ng_eps * grad_rms.mean() +  grad_rms
+                    lr_factor = (smoothed_grad_rms ** ng_pow)
+                    lr_factor_mean = lr_factor.mean()
+                    # this `lr` contains all the terms in learning rate except param_rms.  Imagine
+                    # that param_rms is 1.0 for purposes of computing the shrinkage coefficient; actually
+                    # it does not matter.
+                    this_lr = (lr / (target_rms * lr_factor_mean)) * lr_factor
+                    # change sign so it's an actual parameter change,
+                    # incorporate param_rms at this point.
+                    this_delta *= -this_lr * state["param_rms"].clamp(min=rms_eps)
+
+                    # The shrinkage coefficint necessary to bring data with variance=1.0 + lr**2
+                    # back down to data with variance=1.0, is:  (1 + lr**2) ** -0.5, which means
+                    # multiplying by about (1 - 0.5 * lr**2).
+                    # we then take the -0.5 * lr**2 * (existing_param) as the "delta" (change in param)
+                    # that comes from this update.
+                    shrinkage_delta = p_transformed * (-0.5 * (this_lr**2))
+                    this_delta += shrinkage_delta
+
+                    this_delta = self._change_coordinates(this_delta, state, forward=False)
+                    alpha = (1-beta1)
+
+                    # below, will do: delta.add_(this_delta, alpha=alpha)
+                else:
+                    # p.numel() == 1
+
+                    # Decay the second moment running average coefficient
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                    bias_correction2 = 1 - beta2 ** step
+                    denom = (exp_avg_sq.sqrt()).add_(eps)
+                    this_delta = grad / denom
+                    alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
 
                 delta.add_(this_delta, alpha=alpha)
-
                 p.add_(delta)
                 state["step"] += 1
 
         return loss
 
 
+    def _get_grad_scale(self,
+                        state: dict,
+                        step: int,
+                        exp_avg_sq: Tensor,
+                        bias_correction2: float,
+                        eps: float,
+                        beta: float,
+                        ng_scale: float):
+        """
+        This function returns a "gradient-scale" value that we'll multiply the gradients by
+        before multiplying by -lr and applying momentum.
+
+        Args:
+           state: state-dict for this parameter, needed for its "alpha" member
+           step: the current step index
+           exp_avg_sq:  Moving-average of gradient-squared for each element of the current
+                 parameter matrix (possibly after a co-ordinate change).
+           bias_correction2: A value that will be normally 1.0, but will be less than 1.0
+                near the start of training or just after we re-estimated the co-ordinate
+                changes; we can divide exp_avg_sq by this to get an expected gradient-squared.
+           eps: Epsilon value that prevents division by zero; dimensionally, this is
+                a gradient magnitude (not squared-gradient magnitude).
+           beta: A value <= 1.0, e.g. 0.1; it equals lr / max_eff_lr, and represents
+               the inverse of the "maximum acceleration" we allow the natural gradient to
+               give, versus regular ADAM.  Think of 1/beta as the maximum normalized
+               gradient root-mean-square value we allow.
+
+        We'll explain what this function does by comparing (i) basic ADAM-like updat,e
+        (ii) basic natural-gradient update, (iii) our update which combines properties
+        of both.
+
+        The basic ADAM-like version of this would be:
+             denom = (exp_avg_sq.sqrt()).add_(eps),
+        and ans=1/denom; so after we divide the gradients by this, they will have unit expected
+        squared value.
+
+        The natural-gradient version of this would be:
+             denom = (exp_avg_sq).add_(eps * eps)
+             base_denom = (exp_avg_sq.sqrt()).add_(eps),
+             denom = denom * (base_denom / denom).mean()
+        what this does is: compute 'denom' with no sqrt(), and then scale it in such
+        a way that ([root-mean-square gradient magnitude] / denom).mean() == 1.0, so
+        the overall learning speed is about the same as the baseline.
+
+        We will be returning:
+
+             denom = alpha * (exp_avg_sq)  + beta * exp_avg_sq.sqrt() + eps
+
+        and are aiming for alpha to satisfy the following condition:
+
+             ((exp_avg_sq.sqrt() + eps) / denom).mean() == 1.0           (eqn:1)
+
+        ... (eqn:1) means that the overall learning rate / "rate of progress"
+        is about the same as if denom was just (exp_avg_sq.sqrt() + eps).    Also,
+        the beta term in "denom" ensures that:
+                       (1/denom) <= 1/beta * (1/adam_denom)
+        which ensures that the speed of update for any given element will never
+        be greater than the normal ADAM-type update by more than 1/beta.
+
+        The way we update alpha is as follows.  We always have the previous iteration's
+        alpha, call this alpha_prev.  We compute:
+               denom_prev = (alpha_prev * exp_avg_sq)  + beta * exp_avg_sq.sqrt() + eps
+        and:
+               mean_prev = (exp_avg_sq.sqrt() + eps) / denom).mean()
+         .. now, mean_prev varies *at most* like 1/alpha, meaning its maximum sensitivity
+        to alpha is an inverse relationship.  So we we update alpha as:
+               alpha_cur = alpha_prev * mean_prev
+        (the idea is that this will eventually converge; and meanwhile, we'll just have
+        a slightly inaccurate alpha).  If `step` is large, we'll assume alpha has converged
+        and always return the denominator with the old alpha.
+
+        In the end, we interpolate the natural gradient update with the regular ADAM-like
+        one, as in: grad_scale = ng_scale/denom + (1-ng_scale)/adam_denom
+        """
+
+        num_steps = 10 if step < 3 else 2 if step < 100 else 1
+
+        for _ in range(num_steps):
+            # our update for alpha is iterative since there isn't a closed-form solution.
+            alpha = state["alpha"]
+            adam_denom = exp_avg_sq.sqrt()
+            adam_denom_eps = adam_denom + eps
+            denom = alpha * exp_avg_sq + beta * adam_denom + eps
+            mean_speed = ((adam_denom_eps) / denom).mean()
+            alpha.fill_(alpha * mean_speed)
+        return ng_scale / denom + (1-ng_scale) / adam_denom_eps
+
+
     def _change_coordinates(self,
                             grad: Tensor,
                             state: dict,
-                            forward: bool):
+                            forward: bool,
+                            is_grad: bool = True):
         """
-        Possibly performs some magnitude-preserving changes of co-ordinates on `grad`
+        Possibly performs some magnitude-preserving changes of co-ordinates on `grad`.
+        If is_grad == False we skip any possible update or stats-accumulation steps.
         """
         ndim = grad.ndim
         numel = grad.numel()
-        step = state["step"]
         for dim in range(grad.ndim):
             # see for each dim in turn whether we want to perform any changes in co-ordinates,
             # or store any stats.
             size = grad.shape[dim]
-            if size <= 3 or (size % 2 == 1 and size < 128) or size >= 1024 or size == numel:
+            if size <= 3 or (size % 2 == 1 and size < 128) or size >= 2048 or size == numel:
                 # we don't do any such co-ordinate changes in dims with sizes
                 # that are too small (no point) or large (too slow), or that are
                 # assumed convolutional (because they are odd and not too huge).
                 # We can revisit this later.
                 continue
-            grad = self._change_coordinates_for_dim(grad, state, dim, forward)
+            grad = self._change_coordinates_for_dim(grad, state, dim, forward, is_grad)
         return grad
 
 
@@ -302,6 +457,7 @@ class Cain(Optimizer):
                                     state: dict,
                                     dim: int,
                                     forward: bool,
+                                    is_grad: bool,
                                     orig_dim: int = -1):
         assert grad.ndim > 1
         if not (grad.ndim == 2 and dim == 1):
@@ -322,7 +478,8 @@ class Cain(Optimizer):
             assert new_grad.shape[-1] == grad.shape[dim]
             new_shape = new_grad.shape
             new_grad = new_grad.reshape(-1, new_grad.shape[-1])
-            new_grad = self._change_coordinates_for_dim(new_grad, state, 1, forward,
+            new_grad = self._change_coordinates_for_dim(new_grad, state, 1,
+                                                        forward, is_grad,
                                                         orig_dim=dim)
             return new_grad.reshape(new_shape).permute(*rev_dims_order)
 
@@ -332,7 +489,7 @@ class Cain(Optimizer):
             orig_dim = dim
         step = state["step"]
         must_store_stats, must_zero_stats = self._must_store_stats(step)
-        if must_store_stats and forward:
+        if must_store_stats and forward and is_grad:
             # store stats for 200 iters preceding when we estimate the
             # transform.
             stats_name = f"cov_{orig_dim}"
@@ -352,7 +509,7 @@ class Cain(Optimizer):
                                               dtype=grad.dtype)
 
         must_estimate_transform = self._must_estimate_transform(step)
-        if must_estimate_transform and forward:
+        if must_estimate_transform and forward and is_grad:
             stats_name = f"cov_{orig_dim}"
             cov = state[stats_name]
             l, U = cov.symeig(eigenvectors=True)
@@ -738,7 +895,7 @@ def _test_eve_cain():
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [1,0]:
+    for iter in [2,1,0]:
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         m = torch.nn.Sequential(Linear(E, 200),
@@ -749,7 +906,8 @@ def _test_eve_cain():
                          torch.randn(B, T, E, device=device, dtype=dtype) * output_magnitudes) for _ in range(20) ]
 
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
-        else: optim = Cain(m.parameters(), lr=0.003)
+        elif iter == 1: optim = Cain(m.parameters(), lr=0.003)
+        elif iter == 2: optim = Cain(m.parameters(), lr=0.003, ng_pow=-0.5)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=10, verbose=False)
 
         start = timeit.default_timer()
