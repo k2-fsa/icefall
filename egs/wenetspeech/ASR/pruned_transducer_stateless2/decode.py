@@ -283,6 +283,7 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             beam=params.beam_size,
+            encoder_out_lens=encoder_out_lens,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
