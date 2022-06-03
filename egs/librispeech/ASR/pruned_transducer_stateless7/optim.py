@@ -270,26 +270,32 @@ class Cain(Optimizer):
                                                   scale_delta)
                         delta.add_(p, alpha=scale_delta)
 
-
                     grad = self._change_coordinates(grad, state, forward=True)
                     p_transformed = self._change_coordinates(p, state, forward=True, is_grad=False)
 
                     # Decay the second moment running average coefficient
                     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
 
-
                     bias_correction2 = 1 - beta2 ** self._step_for_bias_correction(step)
 
                     grad_rms = (exp_avg_sq.sqrt()).add_(eps).mul_(1.0 / bias_correction2)
                     this_delta = grad / grad_rms
 
-                    smoothed_grad_rms = ng_eps * grad_rms.mean() +  grad_rms
-                    lr_factor = (smoothed_grad_rms ** ng_pow)
-                    lr_factor_mean = lr_factor.mean()
-                    # this `lr` contains all the terms in learning rate except param_rms.  Imagine
-                    # that param_rms is 1.0 for purposes of computing the shrinkage coefficient; actually
-                    # it does not matter.
-                    this_lr = (lr / (target_rms * lr_factor_mean)) * lr_factor
+
+                    if p.ndim() > 1:
+                        smoothed_grad_rms = ng_eps * grad_rms.mean() +  grad_rms
+                        lr_factor = (smoothed_grad_rms ** ng_pow)
+                        lr_factor_mean = lr_factor.mean()
+                        # this `lr` contains all the terms in learning rate except param_rms.  Imagine
+                        # that param_rms is 1.0 for purposes of computing the shrinkage coefficient; actually
+                        # it does not matter.
+                        this_lr = (lr / (target_rms * lr_factor_mean)) * lr_factor
+                    else:
+                        # turn off this natural gradient for biases, it seems to have
+                        # a bad effect, possibly because we don't decorrelate in this case, or
+                        # because their gradients are not dominated by noise.
+                        this_lr = lr / target_rms
+
                     # change sign so it's an actual parameter change,
                     # incorporate param_rms at this point.
                     this_delta *= -this_lr * state["param_rms"].clamp(min=rms_eps)
@@ -321,8 +327,6 @@ class Cain(Optimizer):
                 state["step"] += 1
 
         return loss
-
-
 
 
     def _change_coordinates(self,
