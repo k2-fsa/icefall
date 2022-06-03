@@ -570,7 +570,6 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    decompose=True
                 )
             )
         else:
@@ -589,7 +588,6 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    decompose=True
                 )
             )
 
