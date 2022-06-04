@@ -32,7 +32,6 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
-    SpecAugment,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
@@ -41,6 +40,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
+from aug import SpecAugment
 from icefall.utils import str2bool
 
 
@@ -184,6 +184,12 @@ class LibriSpeechAsrDataModule:
         )
 
         group.add_argument(
+            "--spec-aug-max-frames-mask-fraction",
+            type=float,
+            default=0.15,
+        )
+
+        group.add_argument(
             "--spec-aug-time-warp-factor",
             type=int,
             default=80,
@@ -272,6 +278,7 @@ class LibriSpeechAsrDataModule:
                     features_mask_size=27,
                     num_feature_masks=2,
                     frames_mask_size=100,
+                    max_frames_mask_fraction=self.args.spec_aug_max_frames_mask_fraction,
                 )
             )
         else:
