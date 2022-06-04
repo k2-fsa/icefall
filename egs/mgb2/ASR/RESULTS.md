@@ -1,20 +1,33 @@
 # Results
 
-### MGB2 BPE training results (Conformer-CTC)
+### MGB2 BPE training results (Conformer-CTC) (after 3 epochs)
 
 #### 2022-06-04
 
 The best WER, as of 2022-06-04, for the MGB2 test dataset is below
-(using HLG decoding + n-gram LM rescoring + attention decoder rescoring):
 
-|     | dev | test |
+Using whole lattice HLG decoding + n-gram LM rescoring + attention decoder rescoring
+
+|     | dev        | test       |
 |-----|------------|------------|
-| WER | -       | -      |
+| WER | 25.32      |  23.53     |
 
 Scale values used in n-gram LM rescoring and attention rescoring for the best WERs are:
 | ngram_lm_scale | attention_scale |
 |----------------|-----------------|
-| -           | -            |
+| 0.1            | -            |
+
+
+Using n-best (n=0.5) HLG decoding + n-gram LM rescoring + attention decoder rescoring:
+
+|     | dev        | test       |
+|-----|------------|------------|
+| WER |    27.87   |  26.12     |
+
+Scale values used in n-gram LM rescoring and attention rescoring for the best WERs are:
+| ngram_lm_scale | attention_scale |
+|----------------|-----------------|
+| 0.01           | 0.3             |
 
 
 To reproduce the above result, use the following commands for training:
@@ -40,7 +53,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   
 ```
 
-and the following command for decoding
+and the following command for nbest decoding
 
 ```
 ./conformer_ctc/decode.py \
@@ -53,6 +66,20 @@ and the following command for decoding
   --avg 2 \
   --method attention-decoder \
   --nbest-scale 0.5
+```
+
+and the following command for whole-lattice decoding
+
+```
+./conformer_ctc/decode.py \
+  --lang-dir data/lang_bpe_5000 \
+  --max-duration 30 \
+  --concatenate-cuts 0 \
+  --bucketing-sampler 1 \
+  --num-paths 1000 \
+  --epoch 2 \
+  --avg 2 \
+  --method  whole-lattice-rescoring
 ```
 
 You can find the pre-trained model by visiting

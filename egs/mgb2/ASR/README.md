@@ -1,30 +1,35 @@
-# Introduction
+# MGB2
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html> for how to run models in this recipe.
+The Multi-Dialect Broadcast News Arabic Speech Recognition (MGB-2):
+The second edition of the Multi-Genre Broadcast (MGB-2) Challenge is
+an evaluation of speech recognition and lightly supervised alignment
+using TV recordings in Arabic. The speech data is broad and multi-genre,
+spanning the whole range of TV output, and represents a challenging task for
+speech technology. In 2016, the challenge featured two new Arabic tracks based
+on TV data from Aljazeera. It was an official challenge at the 2016 IEEE
+Workshop on Spoken Language Technology. The 1,200 hours MGB-2: from Aljazeera
+TV programs have been manually captioned with no timing information.
+QCRI Arabic ASR system has been used to recognize all programs. The ASR output
+was used to align the manual captioning and produce speech segments for
+training speech recognition. More than 20 hours from 2015 programs have been
+transcribed verbatim and manually segmented. This data is split into a
+development set of 10 hours, and a similar evaluation set of 10 hours.
+Both the development and evaluation data have been released in the 2016 MGB
+challenge
 
-[./RESULTS.md](./RESULTS.md) contains the latest results.
+Official reference:
 
-# Transducers
+Ali, Ahmed, et al. "The MGB-2 challenge: Arabic multi-dialect broadcast media recognition." 
+2016 IEEE Spoken Language Technology Workshop (SLT). IEEE, 2016.
 
-There are various folders containing the name `transducer` in this folder.
-The following table lists the differences among them.
+IEEE link: https://ieeexplore.ieee.org/abstract/document/7846277
 
-|                                       | Encoder             | Decoder            | Comment                                           |
-|---------------------------------------|---------------------|--------------------|---------------------------------------------------|
-| `transducer`                          | Conformer           | LSTM               |                                                   |
-| `transducer_stateless`                | Conformer           | Embedding + Conv1d | Using optimized_transducer from computing RNN-T loss  |
-| `transducer_stateless2`               | Conformer           | Embedding + Conv1d | Using torchaudio for computing RNN-T loss             |
-| `transducer_lstm`                     | LSTM                | LSTM               |                                                   |
-| `transducer_stateless_multi_datasets` | Conformer           | Embedding + Conv1d | Using data from GigaSpeech as extra training data |
-| `pruned_transducer_stateless`         | Conformer           | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
-| `pruned_transducer_stateless2`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
-| `pruned_transducer_stateless3`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss + using GigaSpeech as extra training data |
-| `pruned_transducer_stateless4`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless2 + save averaged models periodically during training                        |
-| `pruned_transducer_stateless5`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + more layers + random combiner|
-| `pruned_transducer_stateless6`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + distillation with hubert|
-| `pruned_stateless_emformer_rnnt2`     | Emformer(from torchaudio) | Embedding + Conv1d | Using Emformer from torchaudio for streaming ASR|
+## Performance Record (after 3 epochs)
+
+| Decoding method           | dev WER    | test WER |
+|---------------------------|------------|---------|
+| attention-decoder         | 27.87      |  26.12   |
+| whole-lattice-rescoring   | 25.32      |  23.53   |
 
 
-The decoder in `transducer_stateless` is modified from the paper
-[Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
-We place an additional Conv1d layer right after the input embedding layer.
+See [RESULTS](/egs/mgb2/ASR/RESULTS.md) for details.
