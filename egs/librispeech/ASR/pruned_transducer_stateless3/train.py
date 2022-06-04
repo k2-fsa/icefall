@@ -799,7 +799,7 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], "
                 f"libri_tot_loss[{libri_tot_loss}], "
                 f"giga_tot_loss[{giga_tot_loss}], "
-                f"batch size: {batch_size}"
+                f"batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}"
             )
 

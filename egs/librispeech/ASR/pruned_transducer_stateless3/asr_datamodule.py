@@ -277,10 +277,12 @@ class AsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
+            num_buckets=self.args.num_buckets,
+            drop_last=False,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -301,8 +303,12 @@ class AsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
+            num_buckets=self.args.num_buckets,
+            drop_last=True,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
