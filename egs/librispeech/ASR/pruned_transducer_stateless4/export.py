@@ -28,7 +28,7 @@ Usage:
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless2/decode.py`,
+To use the generated file with `pruned_transducer_stateless4/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
