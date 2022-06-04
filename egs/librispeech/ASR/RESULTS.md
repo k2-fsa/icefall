@@ -234,6 +234,9 @@ The training command is:
   --average-period 100
 ```
 
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/QOGSPBgsR8KzcRMmie9JGw/>
+
 The decoding command using greedy search is:
 ```bash
 ./pruned_transducer_stateless4/decode.py \
@@ -270,6 +273,10 @@ The decoding command using modified beam search is:
   --use-averaged-model True \
   --beam-size 4
 ```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless4-2022-06-03>
 
 #### Training on train-clean-100
 
