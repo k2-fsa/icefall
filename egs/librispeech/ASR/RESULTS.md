@@ -310,6 +310,9 @@ The training command is:
   --average-period 100
 ```
 
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/YVYHq1irQS69s9bW1vQ06Q/>
+
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
 [pruned_transducer_stateless3](./pruned_transducer_stateless3)
