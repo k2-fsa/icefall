@@ -17,7 +17,7 @@
 
 
 """
-This file computes fbank features of the aidatatang_200zh dataset.
+This file computes fbank features of the aishell dataset.
 It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
@@ -42,18 +42,20 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
-    src_dir = Path("data/manifests/aidatatang_200zh")
+def compute_fbank_alimeeting(num_mel_bins: int = 80):
+    src_dir = Path("data/manifests/alimeeting")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
     dataset_parts = (
         "train",
-        "dev",
+        "eval",
         "test",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        suffix="jsonl.gz",
     )
     assert manifests is not None
 
@@ -75,13 +77,22 @@ def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
                     + cut_set.perturb_speed(0.9)
                     + cut_set.perturb_speed(1.1)
                 )
+            cur_num_jobs = num_jobs if ex is None else 80
+            cur_num_jobs = min(cur_num_jobs, len(cut_set))
+
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/feats_{partition}",
                 # when an executor is specified, make more partitions
-                num_jobs=num_jobs if ex is None else 80,
+                num_jobs=cur_num_jobs,
                 executor=ex,
                 storage_type=ChunkedLilcomHdf5Writer,
+            )
+
+            logging.info("About splitting cuts into smaller chunks")
+            cut_set = cut_set.trim_to_supervisions(
+                keep_overlapping=False,
+                min_duration=None,
             )
             cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
 
@@ -106,4 +117,4 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    compute_fbank_aidatatang_200zh(num_mel_bins=args.num_mel_bins)
+    compute_fbank_alimeeting(num_mel_bins=args.num_mel_bins)
