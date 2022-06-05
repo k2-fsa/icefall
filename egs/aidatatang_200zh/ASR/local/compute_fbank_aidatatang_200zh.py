@@ -53,7 +53,10 @@ def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
         "test",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        prefix="aidatatang",
+        suffix="jsonl.gz",
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
     )
     assert manifests is not None
 
