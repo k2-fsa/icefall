@@ -700,6 +700,8 @@ def run(rank, world_size, args):
         # the threshold
         return 1.0 <= c.duration <= 20.0
 
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
     train_dl = librispeech.train_dataloaders(train_cuts)
 
     valid_cuts = librispeech.dev_clean_cuts()
