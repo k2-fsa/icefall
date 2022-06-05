@@ -55,6 +55,7 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80):
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
+        prefix="alimeeting",
         suffix="jsonl.gz",
     )
     assert manifests is not None
