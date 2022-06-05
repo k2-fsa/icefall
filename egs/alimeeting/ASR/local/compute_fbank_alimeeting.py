@@ -43,7 +43,7 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_alimeeting(num_mel_bins: int = 80):
-    src_dir = Path("data/manifests/alimeeting")
+    src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
@@ -52,11 +52,14 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80):
         "eval",
         "test",
     )
+
+    prefix = "alimeeting"
+    suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
-        prefix="alimeeting",
-        suffix="jsonl.gz",
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
@@ -64,7 +67,7 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80):
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
-            if (output_dir / f"cuts_{partition}.json.gz").is_file():
+            if (output_dir / f"{prefix}_cuts_{partition}.{suffix}").is_file():
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
@@ -83,7 +86,7 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80):
 
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
-                storage_path=f"{output_dir}/feats_{partition}",
+                storage_path=f"{output_dir}/{prefix}_feats_{partition}",
                 # when an executor is specified, make more partitions
                 num_jobs=cur_num_jobs,
                 executor=ex,
@@ -95,7 +98,7 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80):
                 keep_overlapping=False,
                 min_duration=None,
             )
-            cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
+            cut_set.to_file(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
 
 
 def get_args():

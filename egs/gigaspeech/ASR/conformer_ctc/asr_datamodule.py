@@ -20,7 +20,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -189,7 +189,7 @@ class GigaSpeechAsrDataModule:
 
     def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
+        cuts_musan = load_manifest_lazy(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
@@ -362,7 +362,9 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        cuts_valid = load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
+        )
         if self.args.small_dev:
             return cuts_valid.subset(first=1000)
         else:
@@ -371,4 +373,6 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        )
