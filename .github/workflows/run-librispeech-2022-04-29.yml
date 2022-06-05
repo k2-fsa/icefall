@@ -99,7 +99,7 @@ jobs:
         with:
           path: |
             ~/tmp/fbank-libri
-          key: cache-libri-fbank-test-clean-and-test-other
+          key: cache-libri-fbank-test-clean-and-test-other-v2
 
       - name: Compute fbank for LibriSpeech test-clean and test-other
         if: steps.libri-test-clean-and-test-other-fbank.outputs.cache-hit != 'true'

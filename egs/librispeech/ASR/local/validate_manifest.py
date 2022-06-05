@@ -25,7 +25,7 @@ We will add more checks later if needed.
 Usage example:
 
     python3 ./local/validate_manifest.py \
-            ./data/fbank/cuts_train-clean-100.json.gz
+            ./data/fbank/librispeech_cuts_train-clean-100.jsonl.gz
 
 """
 
@@ -33,7 +33,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from lhotse import load_manifest, CutSet
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 
 
