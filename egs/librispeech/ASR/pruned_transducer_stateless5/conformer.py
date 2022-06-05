@@ -369,7 +369,7 @@ class RelPositionalEncoding(torch.nn.Module):
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.dropout = ProjDrop(p=dropout_rate)
+        self.dropout = ProjDrop(dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
