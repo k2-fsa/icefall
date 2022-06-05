@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, ChunkedLilcomHdf5Writer
+from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -54,7 +54,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
         "test",
     )
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, 
+        dataset_parts=dataset_parts,
         output_dir=src_dir,
         prefix="aishell4",
         suffix="jsonl.gz",

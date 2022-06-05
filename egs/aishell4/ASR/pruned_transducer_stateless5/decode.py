@@ -64,7 +64,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import Aishell4AsrDataModule
@@ -83,6 +82,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -152,7 +152,7 @@ def get_parser():
         "lexicon.txt"
         """,
     )
-    
+
     parser.add_argument(
         "--decoding-method",
         type=str,
@@ -628,7 +628,7 @@ def main():
         shuffle_shards=True,
     )
 
-    test_dl = aidatatang_200zh.test_dataloaders(cuts_test_webdataset)
+    test_dl = aishell4.test_dataloaders(cuts_test_webdataset)
 
     test_sets = ["test"]
     test_dl = [test_dl]
