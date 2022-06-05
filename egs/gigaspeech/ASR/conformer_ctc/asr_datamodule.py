@@ -22,7 +22,6 @@ from pathlib import Path
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -191,7 +190,7 @@ class GigaSpeechAsrDataModule:
     def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
+            self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
         transforms = []
@@ -315,7 +314,7 @@ class GigaSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -339,8 +338,10 @@ class GigaSpeechAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(

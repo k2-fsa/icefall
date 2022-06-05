@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 import lhotse
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, load_manifest_lazy
 
 
 class GigaSpeech:
@@ -32,13 +32,13 @@ class GigaSpeech:
           manifest_dir:
             It is expected to contain the following files::
 
-                - XL_split_2000/cuts_XL.*.jsonl.gz
-                - cuts_L_raw.jsonl.gz
-                - cuts_M_raw.jsonl.gz
-                - cuts_S_raw.jsonl.gz
-                - cuts_XS_raw.jsonl.gz
-                - cuts_DEV_raw.jsonl.gz
-                - cuts_TEST_raw.jsonl.gz
+                - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+                - gigaspeech_cuts_L_raw.jsonl.gz
+                - gigaspeech_cuts_M_raw.jsonl.gz
+                - gigaspeech_cuts_S_raw.jsonl.gz
+                - gigaspeech_cuts_XS_raw.jsonl.gz
+                - gigaspeech_cuts_DEV_raw.jsonl.gz
+                - gigaspeech_cuts_TEST_raw.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
@@ -46,10 +46,12 @@ class GigaSpeech:
         logging.info("About to get train-XL cuts")
 
         filenames = list(
-            glob.glob(f"{self.manifest_dir}/XL_split_2000/cuts_XL.*.jsonl.gz")
+            glob.glob(
+                f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"
+            )
         )
 
-        pattern = re.compile(r"cuts_XL.([0-9]+).jsonl.gz")
+        pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
         idx_filenames = [
             (int(pattern.search(f).group(1)), f) for f in filenames
         ]
@@ -64,31 +66,31 @@ class GigaSpeech:
         )
 
     def train_L_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_L_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_L_raw.jsonl.gz"
         logging.info(f"About to get train-L cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_M_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_M_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_M_raw.jsonl.gz"
         logging.info(f"About to get train-M cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_S_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_S_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_S_raw.jsonl.gz"
         logging.info(f"About to get train-S cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_XS_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_XS_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_XS_raw.jsonl.gz"
         logging.info(f"About to get train-XS cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def test_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_TEST.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
         logging.info(f"About to get TEST cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def dev_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_DEV.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
         logging.info(f"About to get DEV cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)

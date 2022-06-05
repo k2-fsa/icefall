@@ -42,18 +42,18 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare manifest"
   # We assume that you have downloaded the aidatatang_200zh corpus
   # to $dl_dir/aidatatang_200zh
-  if [ ! -f data/manifests/aidatatang_200zh/.manifests.done ]; then
-    mkdir -p data/manifests/aidatatang_200zh
-    lhotse prepare aidatatang-200zh $dl_dir data/manifests/aidatatang_200zh
-    touch data/manifests/aidatatang_200zh/.manifests.done
+  if [ ! -f data/manifests/.aidatatang_200zh_manifests.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare aidatatang-200zh $dl_dir data/manifests
+    touch data/manifests/.aidatatang_200zh_manifests.done
   fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Process aidatatang_200zh"
-  if [ ! -f data/fbank/aidatatang_200zh/.fbank.done ]; then
-    mkdir -p data/fbank/aidatatang_200zh
-    lhotse prepare aidatatang-200zh $dl_dir data/manifests/aidatatang_200zh
-    touch data/fbank/aidatatang_200zh/.fbank.done
+  if [ ! -f data/fbank/.aidatatang_200zh_fbank.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_aidatatang_200zh.py
+    touch data/fbank/.aidatatang_200zh_fbank.done
   fi
 fi
