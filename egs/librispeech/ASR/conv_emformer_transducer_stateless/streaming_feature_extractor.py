@@ -20,6 +20,8 @@ import torch
 from beam_search import HypothesisList
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
+from icefall.utils import AttributeDict
+
 
 def _create_streaming_feature_extractor() -> OnlineFeature:
     """Create a CPU streaming feature extractor.
@@ -41,7 +43,13 @@ def _create_streaming_feature_extractor() -> OnlineFeature:
 
 
 class FeatureExtractionStream(object):
-    def __init__(self, context_size: int, decoding_method: str) -> None:
+    def __init__(
+        self,
+        params: AttributeDict,
+        context_size: int,
+        decoding_method: str,
+        device: torch.device = torch.devive("cpu"),
+    ) -> None:
         """
         Args:
           context_size:
@@ -58,9 +66,25 @@ class FeatureExtractionStream(object):
         # After calling `self.input_finished()`, we set this flag to True
         self._done = False
 
-        # For the emformer model, it contains the states of each
-        # encoder layer.
-        self.states: Optional[List[List[torch.Tensor]]] = None
+        # Initailize zero states.
+        past_len: int = 0
+        attn_caches = [
+            [
+                torch.zeros(params.memory_size, params.d_model, device=device),
+                torch.zeros(
+                    params.left_context_length, params.d_model, device=device
+                ),
+                torch.zeros(
+                    params.left_context_length, params.d_model, device=device
+                ),
+            ]
+            for _ in range(params.num_encoder_layers)
+        ]
+        conv_caches = [
+            torch.zeros(params.d_model, params.cnn_module_kernel, device=device)
+            for _ in range(params.num_encoder_layers)
+        ]
+        self.states = [past_len, attn_caches, conv_caches]
 
         # It use different attributes for different decoding methods.
         self.context_size = context_size
