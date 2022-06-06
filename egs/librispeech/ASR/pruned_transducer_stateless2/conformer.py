@@ -122,6 +122,7 @@ class Conformer(EncoderInterface):
             causal,
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
+        self._init_state = torch.jit.Attribute([], List[torch.Tensor])
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -195,6 +196,55 @@ class Conformer(EncoderInterface):
         return x, lengths
 
     @torch.jit.export
+    def get_init_state(
+        self, left_context: int, device: torch.device
+    ) -> List[torch.Tensor]:
+        """Return the initial cache state of the model.
+
+        Args:
+          left_context: The left context size (in frames after subsampling).
+
+        Returns:
+          Return the initial state of the model, it is a list containing two
+          tensors, the first one is the cache for attentions which has a shape
+          of (num_encoder_layers, left_context, encoder_dim), the second one
+          is the cache of conv_modules which has a shape of
+          (num_encoder_layers, cnn_module_kernel - 1, encoder_dim).
+
+          NOTE: the returned tensors are on the given device.
+        """
+        if (
+            len(self._init_state) == 2
+            and self._init_state[0].size(1) == left_context
+        ):
+            # Note: It is OK to share the init state as it is
+            # not going to be modified by the model
+            return self._init_state
+
+        init_states: List[torch.Tensor] = [
+            torch.zeros(
+                (
+                    self.encoder_layers,
+                    left_context,
+                    self.d_model,
+                ),
+                device=device,
+            ),
+            torch.zeros(
+                (
+                    self.encoder_layers,
+                    self.cnn_module_kernel - 1,
+                    self.d_model,
+                ),
+                device=device,
+            ),
+        ]
+
+        self._init_state = init_states
+
+        return init_states
+
+    @torch.jit.export
     def streaming_forward(
         self,
         x: torch.Tensor,
@@ -206,7 +256,7 @@ class Conformer(EncoderInterface):
         right_context: int = 4,
         simulate_streaming: bool = False,
         processed_lens: Optional[Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """
         Args:
           x:
@@ -296,7 +346,7 @@ class Conformer(EncoderInterface):
             embed, pos_enc = self.encoder_pos(embed, left_context)
             embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
 
-            x = self.encoder.chunk_forward(
+            x, states = self.encoder.chunk_forward(
                 embed,
                 pos_enc,
                 src_key_padding_mask=src_key_padding_mask,
@@ -338,7 +388,7 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        return x, lengths
+        return x, lengths, states
 
 
 class ConformerEncoderLayer(nn.Module):
@@ -490,7 +540,7 @@ class ConformerEncoderLayer(nn.Module):
         warmup: float = 1.0,
         left_context: int = 0,
         right_context: int = 0,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, List[Tensor]]:
         """
         Pass the input through the encoder layer.
 
@@ -527,6 +577,12 @@ class ConformerEncoderLayer(nn.Module):
         # macaron style feed forward module
         src = src + self.dropout(self.feed_forward_macaron(src))
 
+        # We put the attention cache this level (i.e. before linear transformation)
+        # to save memory consumption, when decoding in streaming fashion, the
+        # batch size would be thousands (for 32GB machine), if we cache key & val
+        # separately, it needs extra several GB memory.
+        # TODO(WeiKang): Move cache to self_attn level (i.e. cache key & val
+        # separately) if needed.
         key = torch.cat([states[0], src], dim=0)
         val = key
         if right_context > 0:
@@ -560,7 +616,7 @@ class ConformerEncoderLayer(nn.Module):
 
         src = self.norm_final(self.balancer(src))
 
-        return src
+        return src, states
 
 
 class ConformerEncoder(nn.Module):
@@ -635,7 +691,7 @@ class ConformerEncoder(nn.Module):
         warmup: float = 1.0,
         left_context: int = 0,
         right_context: int = 0,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, List[Tensor]]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -678,7 +734,7 @@ class ConformerEncoder(nn.Module):
 
         for layer_index, mod in enumerate(self.layers):
             cache = [states[0][layer_index], states[1][layer_index]]
-            output = mod.chunk_forward(
+            output, cache = mod.chunk_forward(
                 output,
                 pos_emb,
                 states=cache,
@@ -691,7 +747,7 @@ class ConformerEncoder(nn.Module):
             states[0][layer_index] = cache[0]
             states[1][layer_index] = cache[1]
 
-        return output
+        return output, states
 
 
 class RelPositionalEncoding(torch.nn.Module):

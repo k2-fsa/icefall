@@ -378,7 +378,7 @@ def decode_one_chunk(
     ]
 
     # Note: states will be modified in streaming_forward.
-    encoder_out, encoder_out_lens = model.encoder.streaming_forward(
+    encoder_out, encoder_out_lens, states = model.encoder.streaming_forward(
         x=features,
         x_lens=feature_lens,
         states=states,
@@ -462,10 +462,12 @@ def decode_dataset(
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
+    initial_states = model.get_init_state(params.left_context, device=device)
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(
             params=params,
+            initial_states=initial_states,
             decoding_graph=decoding_graph,
             device=device,
         )

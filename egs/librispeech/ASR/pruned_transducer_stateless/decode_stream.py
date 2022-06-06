@@ -26,11 +26,15 @@ class DecodeStream(object):
     def __init__(
         self,
         params: AttributeDict,
+        initial_states: List[torch.Tensor],
         decoding_graph: Optional[k2.Fsa] = None,
         device: torch.device = torch.device("cpu"),
     ) -> None:
         """
         Args:
+          initial_states:
+            Initial decode states of the model, e.g. the return value of
+            `get_init_state` in conformer.py
           decoding_graph:
             Decoding graph used for decoding, may be a TrivialGraph or a HLG.
           device:
@@ -40,6 +44,8 @@ class DecodeStream(object):
             assert device == decoding_graph.device
 
         self.params = params
+
+        self.states = initial_states
 
         # It contains a 2-D tensors representing the feature frames.
         self.features: torch.Tensor = None
@@ -56,7 +62,6 @@ class DecodeStream(object):
         if params.decoding_method == "greedy_search":
             self.hyp = [params.blank_id] * params.context_size
         elif params.decoding_method == "fast_beam_search":
-            # feature_len is needed to get partial results.
             # The rnnt_decoding_stream for fast_beam_search.
             self.rnnt_decoding_stream: k2.RnntDecodingStream = (
                 k2.RnntDecodingStream(decoding_graph)
@@ -65,31 +70,6 @@ class DecodeStream(object):
             assert (
                 False
             ), f"Decoding method :{params.decoding_method} do not support"
-
-        # The caches for streaming conformer
-        # It is a List containing two tensors, the first one is the cache for
-        # attention which has a shape of
-        # (num_encoder_layers, left_context, encoder_dim),
-        # the second one is the cache of conv_module which has a shape of
-        # (num_encoder_layers, cnn_module_kernel - 1, encoder_dim).
-        self.states: List[torch.Tensor] = [
-            torch.zeros(
-                (
-                    params.num_encoder_layers,
-                    params.left_context,
-                    params.encoder_dim,
-                ),
-                device=device,
-            ),
-            torch.zeros(
-                (
-                    params.num_encoder_layers,
-                    params.cnn_module_kernel - 1,
-                    params.encoder_dim,
-                ),
-                device=device,
-            ),
-        ]
 
     @property
     def done(self) -> bool:
@@ -105,6 +85,8 @@ class DecodeStream(object):
 
     def get_feature_frames(self, chunk_size: int) -> Tuple[torch.Tensor, int]:
         """Consume chunk_size frames of features"""
+        # plus 3 here because we subsampling features with
+        # lengths = ((x_lens - 1) // 2 - 1) // 2
         ret_chunk_size = min(
             self.features.size(0) - self.num_processed_frames, chunk_size + 3
         )

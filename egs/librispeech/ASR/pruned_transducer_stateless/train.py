@@ -353,7 +353,6 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
-            "cnn_module_kernel": 31,
             "vgg_frontend": False,
             # parameters for decoder
             "embedding_dim": 512,
@@ -376,7 +375,6 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        cnn_module_kernel=params.cnn_module_kernel,
         vgg_frontend=params.vgg_frontend,
         dynamic_chunk_training=params.dynamic_chunk_training,
         short_chunk_size=params.short_chunk_size,
