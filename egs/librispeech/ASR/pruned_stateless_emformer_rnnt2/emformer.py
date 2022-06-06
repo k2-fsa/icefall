@@ -296,7 +296,7 @@ class Emformer(EncoderInterface):
           Return the initial state of each layer. NOTE: the returned
           tensors are on the given device. `len(ans) == num_emformer_layers`.
         """
-        if self._init_state:
+        if len(self._init_state) > 0:
             # Note(fangjun): It is OK to share the init state as it is
             # not going to be modified by the model
             return self._init_state
