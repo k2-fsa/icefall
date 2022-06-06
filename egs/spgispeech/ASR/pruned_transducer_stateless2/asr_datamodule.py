@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -176,7 +176,7 @@ class SPGISpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
+        cuts_musan = load_manifest_lazy(
             self.args.manifest_dir / "cuts_musan.jsonl.gz"
         )
 

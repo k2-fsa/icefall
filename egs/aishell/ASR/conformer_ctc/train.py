@@ -195,9 +195,9 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
+            "valid_interval": 2000,
             # parameters for k2.ctc_loss
             "beam_size": 10,
             "reduction": "sum",

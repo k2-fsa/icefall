@@ -22,11 +22,11 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
+    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -92,7 +92,7 @@ class TedLiumAsrDataModule:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the BucketingSampler"
+            help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -179,8 +179,8 @@ class TedLiumAsrDataModule:
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
-            cuts_musan = load_manifest(
-                self.args.manifest_dir / "cuts_musan.json.gz"
+            cuts_musan = load_manifest_lazy(
+                self.args.manifest_dir / "musan_cuts.jsonl.gz"
             )
             transforms.append(
                 CutMix(
@@ -261,13 +261,12 @@ class TedLiumAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -311,7 +310,7 @@ class TedLiumAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -335,8 +334,10 @@ class TedLiumAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -350,14 +351,20 @@ class TedLiumAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "tedlium_cuts_train.jsonl.gz"
+        )
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_dev.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "tedlium_cuts_dev.jsonl.gz"
+        )
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "tedlium_cuts_test.jsonl.gz"
+        )

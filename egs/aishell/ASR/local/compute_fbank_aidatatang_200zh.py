@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                  Mingshuang Luo)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,12 +17,13 @@
 
 
 """
-This file computes fbank features of the TIMIT dataset.
+This file computes fbank features of the aidatatang_200zh dataset.
 It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
@@ -42,18 +42,17 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_timit():
+def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
-    num_mel_bins = 80
 
     dataset_parts = (
-        "TRAIN",
-        "DEV",
-        "TEST",
+        "train",
+        "test",
+        "dev",
     )
-    prefix = "timit"
+    prefix = "aidatatang"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
@@ -67,16 +66,19 @@ def compute_fbank_timit():
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
-            cuts_file = output_dir / f"{prefix}_cuts_{partition}.{suffix}"
-            if cuts_file.is_file():
+            if (output_dir / f"{prefix}_cuts_{partition}.{suffix}").is_file():
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
+
+            for sup in m["supervisions"]:
+                sup.custom = {"origin": "aidatatang_200zh"}
+
             cut_set = CutSet.from_manifests(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if partition == "TRAIN":
+            if "train" in partition:
                 cut_set = (
                     cut_set
                     + cut_set.perturb_speed(0.9)
@@ -90,7 +92,20 @@ def compute_fbank_timit():
                 executor=ex,
                 storage_type=LilcomChunkyWriter,
             )
-            cut_set.to_file(cuts_file)
+
+            cut_set.to_file(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
@@ -100,4 +115,5 @@ if __name__ == "__main__":
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_timit()
+    args = get_args()
+    compute_fbank_aidatatang_200zh(num_mel_bins=args.num_mel_bins)

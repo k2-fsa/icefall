@@ -26,7 +26,7 @@ for usage.
 """
 
 
-from lhotse import load_manifest
+from lhotse import load_manifest_lazy
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
 
     for path in paths:
         print(f"Starting display the statistics for {path}")
-        cuts = load_manifest(path)
+        cuts = load_manifest_lazy(path)
         cuts.describe()
 
 

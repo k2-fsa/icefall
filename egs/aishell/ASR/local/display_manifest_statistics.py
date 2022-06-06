@@ -25,18 +25,18 @@ for usage.
 """
 
 
-from lhotse import load_manifest
+from lhotse import load_manifest_lazy
 
 
 def main():
-    #  path = "./data/fbank/cuts_train.json.gz"
-    #  path = "./data/fbank/cuts_test.json.gz"
-    #  path = "./data/fbank/cuts_dev.json.gz"
-    #  path = "./data/fbank/aidatatang_200zh/cuts_train_raw.jsonl.gz"
-    #  path = "./data/fbank/aidatatang_200zh/cuts_test_raw.jsonl.gz"
-    path = "./data/fbank/aidatatang_200zh/cuts_dev_raw.jsonl.gz"
+    #  path = "./data/fbank/aishell_cuts_train.jsonl.gz"
+    #  path = "./data/fbank/aishell_cuts_test.jsonl.gz"
+    path = "./data/fbank/aishell_cuts_dev.jsonl.gz"
+    #  path = "./data/fbank/aidatatang_cuts_train.jsonl.gz"
+    #  path = "./data/fbank/aidatatang_cuts_test.jsonl.gz"
+    #  path = "./data/fbank/aidatatang_cuts_dev.jsonl.gz"
 
-    cuts = load_manifest(path)
+    cuts = load_manifest_lazy(path)
     cuts.describe()
 
 
