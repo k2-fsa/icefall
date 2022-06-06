@@ -29,7 +29,7 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-    ProjDrop,
+    FixedProjDrop,
 )
 from torch import Tensor, nn
 
@@ -197,7 +197,7 @@ class ConformerEncoderLayer(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
-        self.dropout = ProjDrop(dropout)
+        self.dropout = FixedProjDrop(d_model, dropout)
 
     def forward(
         self,
@@ -369,7 +369,7 @@ class RelPositionalEncoding(torch.nn.Module):
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.dropout = ProjDrop(dropout_rate)
+        self.dropout = FixedProjDrop(d_model, dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
@@ -1306,7 +1306,7 @@ def _test_random_combine_main():
 
     feature_dim = 50
     c = Conformer(
-        num_features=feature_dim, output_dim=256, d_model=128, nhead=4
+        num_features=feature_dim, d_model=128, nhead=4
     )
     batch_size = 5
     seq_len = 20
