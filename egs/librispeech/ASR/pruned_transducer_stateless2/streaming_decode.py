@@ -480,7 +480,9 @@ def decode_dataset(
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    initial_states = model.get_init_state(params.left_context, device=device)
+    initial_states = model.encoder.get_init_state(
+        params.left_context, device=device
+    )
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(

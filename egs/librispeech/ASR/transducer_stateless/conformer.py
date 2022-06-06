@@ -125,7 +125,7 @@ class Conformer(Transformer):
             #       and throws an error without this change.
             self.after_norm = identity
 
-        self._init_state = torch.jit.Attribute([], List[torch.Tensor])
+        self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor

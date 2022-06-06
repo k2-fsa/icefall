@@ -122,7 +122,7 @@ class Conformer(EncoderInterface):
             causal,
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
-        self._init_state = torch.jit.Attribute([], List[torch.Tensor])
+        self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -1396,7 +1396,7 @@ class ConvolutionModule(nn.Module):
         self,
         x: Tensor,
         cache: Optional[Tensor] = None,
-        right_context=0,
+        right_context: int = 0,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 

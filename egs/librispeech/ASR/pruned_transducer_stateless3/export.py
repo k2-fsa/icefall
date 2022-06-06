@@ -125,6 +125,55 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        Note: not needed here, adding it here to construct transducer model,
+              as we reuse the code in train.py.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        Note: not needed for here, adding it here to construct transducer model,
+              as we reuse the code in train.py.
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="""How many left context can be seen in chunks when calculating attention.
+        Note: not needed here, adding it here to construct transducer model,
+              as we reuse the code in train.py.
+        """,
+    )
+
+    parser.add_argument(
+        "--streaming-model",
+        type=str2bool,
+        default=False,
+        help="""Whether to export a streaming model, if the models in exp-dir
+        are streaming model, this should be True.
+        """,
+    )
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        exporting a streaming model.
+        """,
+    )
+
     return parser
 
 
@@ -147,6 +196,9 @@ def main():
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.streaming_model:
+        assert params.causal_convolution
 
     logging.info(params)
 
