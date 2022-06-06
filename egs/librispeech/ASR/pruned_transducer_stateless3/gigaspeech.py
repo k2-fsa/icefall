@@ -47,7 +47,7 @@ class GigaSpeech:
 
         filenames = list(
             glob.glob(
-                f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"
+                f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"  # noqa
             )
         )
 
