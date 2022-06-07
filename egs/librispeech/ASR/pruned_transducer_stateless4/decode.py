@@ -60,6 +60,7 @@ Usage:
     --epoch 30 \
     --avg 15 \
     --simulate-streaming 1 \
+    --causal-convolution 1 \
     --decode-chunk-size 16 \
     --left-context 64 \
     --exp-dir ./pruned_transducer_stateless4/exp \
@@ -264,6 +265,15 @@ def get_parser():
         default=False,
         help="""Whether to simulate streaming in decoding, this is a good way to
         test a streaming model.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
         """,
     )
 
@@ -599,8 +609,9 @@ def main():
     params.vocab_size = sp.get_piece_size()
 
     if params.simulate_streaming:
-        # Decoding in streaming requires causal convolution
-        params.causal_convolution = True
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 

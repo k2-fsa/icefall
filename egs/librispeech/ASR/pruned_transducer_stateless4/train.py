@@ -49,6 +49,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless4/exp \
   --full-libri 1 \
   --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
   --short-chunk-size 25 \
   --num-left-chunks 4 \
   --max-duration 300
@@ -298,6 +299,15 @@ def get_parser():
         default=False,
         help="""Whether to use dynamic_chunk_training, if you want a streaming
         model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
         """,
     )
 
@@ -888,8 +898,9 @@ def run(rank, world_size, args):
     params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
-        # dynamic_chunk_training requires causal convolution
-        params.causal_convolution = True
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
 
     logging.info(params)
 

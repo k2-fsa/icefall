@@ -304,6 +304,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -368,7 +377,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.simulate_streaming:
-        encoder_out, encoder_out_lens = model.encoder.streaming_forward(
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
             states=[],
@@ -639,8 +648,9 @@ def main():
     params.vocab_size = sp.get_piece_size()
 
     if params.simulate_streaming:
-        # Decoding in streaming requires causal convolution"
-        params.causal_convolution = True
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 

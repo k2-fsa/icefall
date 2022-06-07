@@ -296,6 +296,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
         "--short-chunk-size",
         type=int,
         default=25,
@@ -935,8 +944,9 @@ def run(rank, world_size, args):
     params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
-        # dynamic_chunk_training requires causal convolution
-        params.causal_convolution = True
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
 
     logging.info(params)
 
