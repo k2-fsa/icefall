@@ -64,6 +64,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from local.text_normalize import text_normalize
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -388,7 +389,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 50,
+            "log_interval": 1,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for conformer
@@ -612,13 +613,11 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-
     y = graph_compiler.texts_to_ids(texts)
     if type(y) == list:
         y = k2.RaggedTensor(y).to(device)
     else:
         y = y.to(device)
-
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
@@ -642,7 +641,6 @@ def compute_loss(
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
         )
-
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -752,6 +750,7 @@ def train_one_epoch(
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+        # print(batch["supervisions"])
 
         with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
@@ -869,8 +868,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 1600
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -959,7 +956,15 @@ def run(rank, world_size, args):
         # the threshold
         return 1.0 <= c.duration <= 20.0
 
+    def text_normalize_for_cut(c: Cut):
+        # Text normalize for each sample
+        text = c.supervisions[0].text
+        text = text.strip("\n").strip("\t")
+        c.supervisions[0].text = text_normalize(text)
+        return c
+
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.map(text_normalize_for_cut)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -972,7 +977,8 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = aishell4.dev_cuts()
+    valid_cuts = aishell4.valid_cuts()
+    valid_cuts = valid_cuts.map(text_normalize_for_cut)
     valid_dl = aishell4.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:

@@ -230,7 +230,7 @@ class Aishell4AsrDataModule:
         """
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest_lazy(
-            self.args.manifest_dir / "cuts_musan.jsonl.gz"
+            self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
         transforms = []
@@ -429,7 +429,7 @@ class Aishell4AsrDataModule:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
             self.args.manifest_dir
-            / "aishell4_cuts_train_{self.args.training_subset}.jsonl.gz"
+            / f"aishell4_cuts_train_{self.args.training_subset}.jsonl.gz"
         )
 
     @lru_cache()

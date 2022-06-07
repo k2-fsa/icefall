@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
+from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -88,7 +88,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomChunkyWriter,
+                storage_type=ChunkedLilcomHdf5Writer,
             )
 
             logging.info("About splitting cuts into smaller chunks")
@@ -97,7 +97,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
                 min_duration=None,
             )
 
-            cut_set.to_json(output_dir / cuts_filename)
+            cut_set.to_file(output_dir / cuts_filename)
 
 
 def get_args():
