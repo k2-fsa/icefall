@@ -15,6 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Usage
+  export CUDA_VISIBLE_DEVICES="0,1,2,3"
+  ./tdnn_lstm_ctc/train.py \
+    --world-size 4 \
+    --num-epochs 20 \
+    --max-duration 300
+"""
 
 import argparse
 import logging

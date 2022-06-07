@@ -27,7 +27,7 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
-    load_manifest,
+    load_manifest_lazy,
     set_caching_enabled,
 )
 from lhotse.dataset import (
@@ -218,8 +218,8 @@ class WenetSpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
+        cuts_musan = load_manifest_lazy(
+            self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
         transforms = []
@@ -435,16 +435,18 @@ class WenetSpeechAsrDataModule:
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
 
     @lru_cache()
     def test_net_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_NET cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz"
+        )
 
     @lru_cache()
     def test_meeting_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_MEETING cuts")
-        return load_manifest(
+        return load_manifest_lazy(
             self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz"
         )

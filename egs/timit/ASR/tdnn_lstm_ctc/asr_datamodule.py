@@ -23,11 +23,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Union
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
+    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -92,7 +92,7 @@ class TimitAsrDataModule(DataModule):
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the BucketingSampler"
+            help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -154,7 +154,9 @@ class TimitAsrDataModule(DataModule):
         cuts_train = self.train_cuts()
 
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(self.args.feature_dir / "cuts_musan.json.gz")
+        cuts_musan = load_manifest_lazy(
+            self.args.feature_dir / "cuts_musan.jsonl.gz"
+        )
 
         logging.info("About to create train dataset")
         transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
@@ -218,13 +220,12 @@ class TimitAsrDataModule(DataModule):
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -322,20 +323,26 @@ class TimitAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(self.args.feature_dir / "cuts_TRAIN.json.gz")
+        cuts_train = load_manifest_lazy(
+            self.args.feature_dir / "timit_cuts_TRAIN.jsonl.gz"
+        )
 
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(self.args.feature_dir / "cuts_DEV.json.gz")
+        cuts_valid = load_manifest_lazy(
+            self.args.feature_dir / "timit_cuts_DEV.jsonl.gz"
+        )
 
         return cuts_valid
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.debug("About to get test cuts")
-        cuts_test = load_manifest(self.args.feature_dir / "cuts_TEST.json.gz")
+        cuts_test = load_manifest_lazy(
+            self.args.feature_dir / "timit_cuts_TEST.jsonl.gz"
+        )
 
         return cuts_test
