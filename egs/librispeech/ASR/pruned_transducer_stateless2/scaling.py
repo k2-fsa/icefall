@@ -786,7 +786,7 @@ class Decorrelate(torch.nn.Module):
         U, S, _ = norm_cov.svd()
 
         if random.random() < 0.1:
-            print("Decorrelate: max,min eig of normalized cov is: {S.max().item():.2e},{S.min().item():.2e}")
+            logging.info(f"Decorrelate: max,min eig of normalized cov is: {S.max().item():.2e},{S.min().item():.2e}")
 
         # row indexes of U correspond to channels, column indexes correspond to
         # singular values: cov = U * diag(S) * U.t() where * is matmul.
@@ -817,8 +817,8 @@ class Decorrelate(torch.nn.Module):
 
         # rand_proportion is viewed as representing a proportion of the covariance, since
         # the random and nonrandom components will not be correlated.
-        self.rand_scales = rand_proportion.sqrt()
-        self.nonrand_scales = (1.0 - rand_proportion).sqrt()
+        self.rand_scales[:] = rand_proportion.sqrt()
+        self.nonrand_scales[:] = (1.0 - rand_proportion).sqrt()
 
 
         if True:
