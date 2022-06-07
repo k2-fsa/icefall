@@ -27,7 +27,7 @@ import logging
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, LilcomChunkyWriter, combine
+from lhotse import ChunkedLilcomHdf5Writer, CutSet, combine
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
@@ -91,7 +91,7 @@ def compute_fbank_musan():
             storage_path=output_dir / "feats_musan",
             batch_duration=500,
             num_workers=4,
-            storage_type=LilcomChunkyWriter,
+            storage_type=ChunkedLilcomHdf5Writer,
         )
     )
 
