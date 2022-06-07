@@ -29,7 +29,7 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-    RandProjDrop,
+    GaussProjDrop,
 )
 from torch import Tensor, nn
 
@@ -197,7 +197,7 @@ class ConformerEncoderLayer(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
-        self.dropout = RandProjDrop(d_model, dropout)
+        self.dropout = GaussProjDrop(d_model, dropout)
 
     def forward(
         self,
@@ -369,7 +369,7 @@ class RelPositionalEncoding(torch.nn.Module):
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.dropout = RandProjDrop(d_model, dropout_rate)
+        self.dropout = GaussProjDrop(d_model, dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
