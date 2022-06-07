@@ -29,7 +29,8 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-    GaussProjDrop,
+    Decorrelate,
+
 )
 from torch import Tensor, nn
 
@@ -197,7 +198,9 @@ class ConformerEncoderLayer(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
-        self.dropout = GaussProjDrop(d_model, dropout)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.decorrelate = Decorrelate(apply_prob=0.25, dropout_rate=0.05)
+
 
     def forward(
         self,
@@ -258,6 +261,10 @@ class ConformerEncoderLayer(nn.Module):
 
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
+
+        # encourage dimensions of `src` to be un-correlated with each other, this will
+        # help Adam converge better.
+        src = self.decorrelate(src)
 
         src = self.norm_final(self.balancer(src))
 
@@ -369,7 +376,7 @@ class RelPositionalEncoding(torch.nn.Module):
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.dropout = GaussProjDrop(d_model, dropout_rate)
+        self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
