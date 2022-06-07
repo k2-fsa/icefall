@@ -42,12 +42,12 @@ def _create_streaming_feature_extractor() -> OnlineFeature:
     return OnlineFbank(opts)
 
 
-class FeatureExtractionStream(object):
+class Stream(object):
     def __init__(
         self,
         params: AttributeDict,
-        context_size: int,
-        decoding_method: str,
+        audio_sample: torch.Tensor,
+        ground_truth: str,
         device: torch.device = torch.devive("cpu"),
     ) -> None:
         """
@@ -63,6 +63,7 @@ class FeatureExtractionStream(object):
         # It contains a list of 1-D tensors representing the feature frames.
         self.feature_frames: List[torch.Tensor] = []
         self.num_fetched_frames = 0
+
         # After calling `self.input_finished()`, we set this flag to True
         self._done = False
 
@@ -87,20 +88,29 @@ class FeatureExtractionStream(object):
         self.states = [past_len, attn_caches, conv_caches]
 
         # It use different attributes for different decoding methods.
-        self.context_size = context_size
-        self.decoding_method = decoding_method
-        if decoding_method == "greedy_search":
+        self.context_size = params.context_size
+        self.decoding_method = params.decoding_method
+        if params.decoding_method == "greedy_search":
             self.hyp: Optional[List[int]] = None
             self.decoder_out: Optional[torch.Tensor] = None
-        elif decoding_method == "modified_beam_search":
+        elif params.decoding_method == "modified_beam_search":
             self.hyps = HypothesisList()
         else:
-            raise ValueError(f"Unsupported decoding method: {decoding_method}")
+            raise ValueError(
+                f"Unsupported decoding method: {params.decoding_method}"
+            )
+
+        self.sample_rate = params.sample_rate
+        self.audio_sample = audio_sample
+        # Current index of sample
+        self.cur_index = 0
+
+        self.ground_truth = ground_truth
 
     def accept_waveform(
         self,
-        sampling_rate: float,
-        waveform: torch.Tensor,
+        # sampling_rate: float,
+        # waveform: torch.Tensor,
     ) -> None:
         """Feed audio samples to the feature extractor and compute features
         if there are enough samples available.
@@ -120,11 +130,19 @@ class FeatureExtractionStream(object):
             A 1-D torch tensor of dtype torch.float32 containing audio samples.
             It should be on CPU.
         """
+        start = self.cur_index
+        end = self.cur_index + 1024
+        waveform = self.audio_sample[start:end]
+        self.cur_index = end
+
         self.feature_extractor.accept_waveform(
-            sampling_rate=sampling_rate,
+            sampling_rate=self.sampling_rate,
             waveform=waveform,
         )
         self._fetch_frames()
+
+        if waveform.numel() == 0:
+            self.input_finished()
 
     def input_finished(self) -> None:
         """Signal that no more audio samples available and the feature
