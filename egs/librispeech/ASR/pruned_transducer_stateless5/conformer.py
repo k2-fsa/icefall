@@ -199,8 +199,7 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.dropout = torch.nn.Dropout(dropout)
-        self.decorrelate = Decorrelate(apply_prob=0.25,
-                                       dropout_rate=0.01)
+        self.decorrelate = Decorrelate(apply_prob=0.25)
 
 
     def forward(
