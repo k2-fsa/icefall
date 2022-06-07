@@ -535,11 +535,8 @@ class MetricsTracker(collections.defaultdict):
         ans = []
         for k, v in self.items():
             if k != "frames":
-                if k != "sym_delay":
-                    norm_value = float(v) / num_frames
-                    ans.append((k, norm_value))
-                else:
-                    ans.append((k, float(v)))
+                norm_value = float(v) / num_frames
+                ans.append((k, norm_value))
         return ans
 
     def reduce(self, device):

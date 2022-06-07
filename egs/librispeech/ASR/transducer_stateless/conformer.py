@@ -248,7 +248,9 @@ class Conformer(Transformer):
         states: List[torch.Tensor],
         chunk_size: int = 16,
         left_context: int = 64,
+        right_context: int = 0,
         simulate_streaming: bool = False,
+        processed_lens: Optional[Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """
         Args:
@@ -268,13 +270,20 @@ class Conformer(Transformer):
             The chunk size for decoding, this will be used to simulate streaming
             decoding using masking.
           left_context:
-            How many old frames the attention can see in current chunk, it MUST
-            be equal to left_context in decode_states.
+            How many previous frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `left_context` frames
+            of left context, some have more.
+          right_context:
+            How many future frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `right_context` frames
+            of right context, some have more.
           simulate_streaming:
             If setting True, it will use a masking strategy to simulate streaming
             fashion (i.e. every chunk data only see limited left context and
             right context). The whole sequence is supposed to be send at a time
             When using simulate_streaming.
+          processed_lens:
+            How many frames (after subsampling) have been processed for each sequence.
         Returns:
           Return a tuple containing 2 tensors:
             - logits, its shape is (batch_size, output_seq_len, output_dim)
@@ -310,9 +319,27 @@ class Conformer(Transformer):
              {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
              given {states[1].shape}."""
 
-            src_key_padding_mask = make_pad_mask(lengths + left_context)
+            lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
+            src_key_padding_mask = make_pad_mask(lengths)
+
+            assert processed_lens is not None
+
+            processed_mask = torch.arange(left_context, device=x.device).expand(
+                x.size(0), left_context
+            )
+            processed_lens = processed_lens.view(x.size(0), 1)
+            processed_mask = (processed_lens <= processed_mask).flip(1)
+
+            src_key_padding_mask = torch.cat(
+                [processed_mask, src_key_padding_mask], dim=1
+            )
 
             embed = self.encoder_embed(x)
+
+            # cut off 1 frame on each size of embed as they see the padding
+            # value which causes a training and decoding mismatch.
+            embed = embed[:, 1:-1, :]
+
             embed, pos_enc = self.encoder_pos(embed, left_context)
             embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
 
@@ -322,6 +349,7 @@ class Conformer(Transformer):
                 src_key_padding_mask=src_key_padding_mask,
                 states=states,
                 left_context=left_context,
+                right_context=right_context,
             )  # (T, B, F)
         else:
             src_key_padding_mask = make_pad_mask(lengths)
@@ -512,6 +540,7 @@ class ConformerEncoderLayer(nn.Module):
         src_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         left_context: int = 0,
+        right_context: int = 0,
     ) -> Tuple[Tensor, List[Tensor]]:
         """
         Pass the input through the encoder layer.
@@ -528,9 +557,14 @@ class ConformerEncoderLayer(nn.Module):
               Note: states will be modified in this function.
             src_mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
-            left_context: left context (in frames) used during streaming decoding.
-                this is used only in real streaming decoding, in other circumstances,
-                it MUST be 0.
+            left_context:
+              How many previous frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `left_context` frames
+              of left context, some have more.
+            right_context:
+              How many future frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `right_context` frames
+              of right context, some have more.
         Shape:
             src: (S, N, E).
             pos_emb: (N, 2*(S+left_context)-1, E).
@@ -562,7 +596,12 @@ class ConformerEncoderLayer(nn.Module):
         # separately) if needed.
         key = torch.cat([states[0], src], dim=0)
         val = key
-        states[0] = key[-left_context:, ...]
+        if right_context > 0:
+            states[0] = key[
+                -(left_context + right_context) : -right_context, ...  # noqa
+            ]
+        else:
+            states[0] = key[-left_context:, ...]
 
         src_att = self.self_attn(
             src,
@@ -582,7 +621,9 @@ class ConformerEncoderLayer(nn.Module):
         if self.normalize_before:
             src = self.norm_conv(src)
 
-        src, conv_cache = self.conv_module(src, states[1])
+        src, conv_cache = self.conv_module(
+            src, states[1], right_context=right_context
+        )
         states[1] = conv_cache
         src = residual + self.dropout(src)
 
@@ -669,6 +710,7 @@ class ConformerEncoder(nn.Module):
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         left_context: int = 0,
+        right_context: int = 0,
     ) -> Tuple[Tensor, List[Tensor]]:
         r"""Pass the input through the encoder layers in turn.
 
@@ -684,9 +726,14 @@ class ConformerEncoder(nn.Module):
               Note: states will be modified in this function.
             mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
-            left_context: left context (in frames) used during streaming decoding.
-                this is used only in real streaming decoding, in other circumstances,
-                it MUST be 0.
+            left_context:
+              How many previous frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `left_context` frames
+              of left context, some have more.
+            right_context:
+              How many future frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `right_context` frames
+              of right context, some have more.
         Shape:
             src: (S, N, E).
             pos_emb: (N, 2*(S+left_context)-1, E).
@@ -707,6 +754,7 @@ class ConformerEncoder(nn.Module):
                 src_mask=mask,
                 src_key_padding_mask=src_key_padding_mask,
                 left_context=left_context,
+                right_context=right_context,
             )
             states[0][layer_index] = cache[0]
             states[1][layer_index] = cache[1]
@@ -1329,7 +1377,10 @@ class ConvolutionModule(nn.Module):
         self.activation = Swish()
 
     def forward(
-        self, x: Tensor, cache: Optional[Tensor] = None
+        self,
+        x: Tensor,
+        cache: Optional[Tensor] = None,
+        right_context: int = 0,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
@@ -1359,7 +1410,15 @@ class ConvolutionModule(nn.Module):
                 ), "Cache should be None in training time"
                 assert cache.size(0) == self.lorder
                 x = torch.cat([cache.permute(1, 2, 0), x], dim=2)
-                cache = x.permute(2, 0, 1)[-self.lorder :, ...]  # noqa
+                if right_context > 0:
+                    cache = x.permute(2, 0, 1)[
+                        -(self.lorder + right_context) : (  # noqa
+                            -right_context
+                        ),
+                        ...,
+                    ]
+                else:
+                    cache = x.permute(2, 0, 1)[-self.lorder :, ...]  # noqa
 
         x = self.depthwise_conv(x)
         # x is (batch, channels, time)

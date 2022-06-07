@@ -266,16 +266,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--right-chunk-size",
+        "--decode-chunk-size",
         type=int,
         default=16,
         help="The chunk size for decoding (in frames after subsampling)",
@@ -348,7 +339,7 @@ def decode_one_batch(
             x=feature,
             x_lens=feature_lens,
             states=[],
-            chunk_size=params.right_chunk_size,
+            chunk_size=params.decode_chunk_size,
             left_context=params.left_context,
             simulate_streaming=True,
         )
@@ -596,7 +587,7 @@ def main():
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
     if params.simulate_streaming:
-        params.suffix += f"-streaming-chunk-size-{params.right_chunk_size}"
+        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
         params.suffix += f"-left-context-{params.left_context}"
 
     if params.decoding_method == "fast_beam_search":
@@ -635,9 +626,8 @@ def main():
     params.vocab_size = sp.get_piece_size()
 
     if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
+        # Decoding in streaming requires causal convolution
+        params.causal_convolution = True
 
     logging.info(params)
 

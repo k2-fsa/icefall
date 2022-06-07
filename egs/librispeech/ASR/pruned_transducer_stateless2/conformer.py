@@ -279,19 +279,26 @@ class Conformer(EncoderInterface):
             The chunk size for decoding, this will be used to simulate streaming
             decoding using masking.
           left_context:
-            How many old frames the attention can see in current chunk, it MUST
-            be equal to left_context in decode_states.
+            How many previous frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `left_context` frames
+            of left context, some have more.
+          right_context:
+            How many future frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `right_context` frames
+            of right context, some have more.
           simulate_streaming:
             If setting True, it will use a masking strategy to simulate streaming
             fashion (i.e. every chunk data only see limited left context and
             right context). The whole sequence is supposed to be send at a time
             When using simulate_streaming.
+          processed_lens:
+            How many frames (after subsampling) have been processed for each sequence.
         Returns:
           Return a tuple containing 2 tensors:
             - logits, its shape is (batch_size, output_seq_len, output_dim)
             - logit_lens, a tensor of shape (batch_size,) containing the number
               of frames in `logits` before padding.
-            - decode_states, the updated DecodeStates including the information
+            - decode_states, the updated states including the information
               of current chunk.
         """
 
@@ -321,8 +328,6 @@ class Conformer(EncoderInterface):
              {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
              given {states[1].shape}."""
 
-            # src_key_padding_mask = make_pad_mask(lengths + left_context)
-
             lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
 
             src_key_padding_mask = make_pad_mask(lengths)
@@ -341,6 +346,8 @@ class Conformer(EncoderInterface):
 
             embed = self.encoder_embed(x)
 
+            # cut off 1 frame on each size of embed as they see the padding
+            # value which causes a training and decoding mismatch.
             embed = embed[:, 1:-1, :]
 
             embed, pos_enc = self.encoder_pos(embed, left_context)
@@ -359,7 +366,8 @@ class Conformer(EncoderInterface):
                 x = x[0:-right_context, ...]
                 lengths -= right_context
         else:
-
+            # this branch simulates streaming decoding using mask as we are
+            # using in training time.
             src_key_padding_mask = make_pad_mask(lengths)
             x = self.encoder_embed(x)
             x, pos_emb = self.encoder_pos(x)
@@ -558,9 +566,14 @@ class ConformerEncoderLayer(nn.Module):
             src_key_padding_mask: the mask for the src keys per batch (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
-            left_context: left context (in frames) used during streaming decoding.
-                this is used only in real streaming decoding, in other circumstances,
-                it MUST be 0.
+            left_context:
+              How many previous frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `left_context` frames
+              of left context, some have more.
+            right_context:
+              How many future frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `right_context` frames
+              of right context, some have more.
 
         Shape:
             src: (S, N, E).
@@ -708,10 +721,14 @@ class ConformerEncoder(nn.Module):
             src_key_padding_mask: the mask for the src keys per batch (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
-            left_context: left context (in frames) used during streaming decoding.
-                this is used only in real streaming decoding, in other circumstances,
-                it MUST be 0.
-
+            left_context:
+              How many previous frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `left_context` frames
+              of left context, some have more.
+            right_context:
+              How many future frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `right_context` frames
+              of right context, some have more.
         Shape:
             src: (S, N, E).
             pos_emb: (N, 2*(S+left_context)-1, E).
@@ -1273,9 +1290,17 @@ class RelPositionMultiheadAttention(nn.Module):
             and attn_mask.dtype == torch.bool
             and key_padding_mask is not None
         ):
-            combined_mask = attn_mask.unsqueeze(0) | key_padding_mask.unsqueeze(
-                1
-            ).unsqueeze(2)
+            if attn_mask.size(0) != 1:
+                attn_mask = attn_mask.view(bsz, num_heads, tgt_len, src_len)
+                combined_mask = attn_mask | key_padding_mask.unsqueeze(
+                    1
+                ).unsqueeze(2)
+            else:
+                # attn_mask.shape == (1, tgt_len, src_len)
+                combined_mask = attn_mask.unsqueeze(
+                    0
+                ) | key_padding_mask.unsqueeze(1).unsqueeze(2)
+
             attn_output_weights = attn_output_weights.view(
                 bsz, num_heads, tgt_len, src_len
             )
@@ -1404,6 +1429,10 @@ class ConvolutionModule(nn.Module):
             x: Input tensor (#time, batch, channels).
             cache: The cache of depthwise_conv, only used in real streaming
                 decoding.
+            right_context:
+              How many future frames the attention can see in current chunk.
+              Note: It's not that each individual frame has `right_context` frames
+              of right context, some have more.
 
         Returns:
             If cache is None return the output tensor (#time, batch, channels).

@@ -164,14 +164,6 @@ def get_parser():
         are streaming model, this should be True.
         """,
     )
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        exporting a streaming model.
-        """,
-    )
 
     return parser
 
@@ -197,7 +189,7 @@ def main():
     params.vocab_size = sp.get_piece_size()
 
     if params.streaming_model:
-        assert params.causal_convolution
+        params.causal_convolution = True
 
     logging.info(params)
 

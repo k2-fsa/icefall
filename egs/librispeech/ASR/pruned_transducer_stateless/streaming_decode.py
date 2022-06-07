@@ -20,9 +20,12 @@ Usage:
 ./pruned_transducer_stateless2/streaming_decode.py \
         --epoch 28 \
         --avg 15 \
+        --decode-chunk-size 8 \
+        --left-context 32 \
+        --right-context 2 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --decoding_method greedy_search \
-        --num-decode-streams 200
+        --num-decode-streams 1000
 """
 
 import argparse
@@ -183,15 +186,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=True,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -203,6 +197,13 @@ def get_parser():
         type=int,
         default=64,
         help="left context can be seen during decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--right-context",
+        type=int,
+        default=4,
+        help="right context can be seen during decoding (in frames after subsampling)",
     )
 
     parser.add_argument(
@@ -343,14 +344,18 @@ def decode_one_chunk(
     processed_feature_lens = []
 
     for stream in decode_streams:
+        # we plus 2 here because we will cut off one frame on each size of
+        # encoder_embed output as they see invalid paddings. so we need extra 2
+        # frames.
         feat, feat_len = stream.get_feature_frames(
-            params.decode_chunk_size * params.subsampling_factor
+            (params.decode_chunk_size + 2 + params.right_context)
+            * params.subsampling_factor
         )
         features.append(feat)
         feature_lens.append(feat_len)
         states.append(stream.states)
+        processed_feature_lens.append(stream.feature_len)
         if params.decoding_method == "fast_beam_search":
-            processed_feature_lens.append(stream.feature_len)
             rnnt_stream_list.append(stream.rnnt_decoding_stream)
 
     feature_lens = torch.tensor(feature_lens, device=device)
@@ -358,15 +363,21 @@ def decode_one_chunk(
 
     # if T is less than 7 there will be an error in time reduction layer,
     # because we subsample features with ((x_len - 1) // 2 - 1) // 2
-    if features.size(1) < 7:
-        feature_lens += 7 - features.size(1)
+    # we plus 2 here because we will cut off one frame on each size of
+    # encoder_embed output as they see invalid paddings. so we need extra 2
+    # frames.
+    tail_length = 7 + (2 + params.right_context) * params.subsampling_factor
+    if features.size(1) < tail_length:
+        feature_lens += tail_length - features.size(1)
         features = torch.cat(
             [
                 features,
                 torch.tensor(
                     LOG_EPS, dtype=features.dtype, device=device
                 ).expand(
-                    features.size(0), 7 - features.size(1), features.size(2)
+                    features.size(0),
+                    tail_length - features.size(1),
+                    features.size(2),
                 ),
             ],
             dim=1,
@@ -377,12 +388,16 @@ def decode_one_chunk(
         torch.stack([x[1] for x in states], dim=2),
     ]
 
+    processed_feature_lens = torch.tensor(processed_feature_lens, device=device)
+
     # Note: states will be modified in streaming_forward.
     encoder_out, encoder_out_lens, states = model.encoder.streaming_forward(
         x=features,
         x_lens=feature_lens,
         states=states,
         left_context=params.left_context,
+        right_context=params.right_context,
+        processed_lens=processed_feature_lens,
     )
 
     if params.decoding_method == "greedy_search":
@@ -394,9 +409,6 @@ def decode_one_chunk(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
-        )
-        processed_feature_lens = torch.tensor(
-            processed_feature_lens, device=device
         )
         decoding_streams = k2.RnntDecodingStreams(rnnt_stream_list, config)
         processed_lens = processed_feature_lens + encoder_out_lens
@@ -411,8 +423,8 @@ def decode_one_chunk(
     finished_streams = []
     for i in range(len(decode_streams)):
         decode_streams[i].states = [states[0][i], states[1][i]]
+        decode_streams[i].feature_len += encoder_out_lens[i]
         if params.decoding_method == "fast_beam_search":
-            decode_streams[i].feature_len += encoder_out_lens[i]
             decode_streams[i].hyp = hyp_tokens[i]
         if decode_streams[i].done:
             finished_streams.append(i)
@@ -457,12 +469,14 @@ def decode_dataset(
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
 
-    log_interval = 300
+    log_interval = 50
 
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    initial_states = model.get_init_state(params.left_context, device=device)
+    initial_states = model.encoder.get_init_state(
+        params.left_context, device=device
+    )
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(
@@ -536,7 +550,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -597,6 +611,7 @@ def main():
     # for streaming
     params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
     params.suffix += f"-left-context-{params.left_context}"
+    params.suffix += f"-right-context-{params.right_context}"
 
     # for fast_beam_search
     if params.decoding_method == "fast_beam_search":
@@ -620,10 +635,7 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    assert (
-        params.causal_convolution
-    ), "Decoding in streaming requires causal convolution"
+    params.causal_convolution = True
 
     logging.info(params)
 

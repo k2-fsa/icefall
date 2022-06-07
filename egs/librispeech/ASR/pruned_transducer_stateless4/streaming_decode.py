@@ -20,6 +20,9 @@ Usage:
 ./pruned_transducer_stateless2/streaming_decode.py \
         --epoch 28 \
         --avg 15 \
+        --left-context 32 \
+        --decode-chunk-size 8 \
+        --right-context 2 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --decoding_method greedy_search \
         --num-decode-streams 200
@@ -195,15 +198,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=True,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -368,6 +362,9 @@ def decode_one_chunk(
     processed_feature_lens = []
 
     for stream in decode_streams:
+        # we plus 2 here because we will cut off one frame on each size of
+        # encoder_embed output as they see invalid paddings. so we need extra 2
+        # frames.
         feat, feat_len = stream.get_feature_frames(
             (params.decode_chunk_size + 2 + params.right_context)
             * params.subsampling_factor
@@ -384,7 +381,10 @@ def decode_one_chunk(
 
     # if T is less than 7 there will be an error in time reduction layer,
     # because we subsample features with ((x_len - 1) // 2 - 1) // 2
-    tail_length = 15 + params.right_context * params.subsampling_factor
+    # we plus 2 here because we will cut off one frame on each size of
+    # encoder_embed output as they see invalid paddings. so we need extra 2
+    # frames.
+    tail_length = 7 + (2 + params.right_context) * params.subsampling_factor
     if features.size(1) < tail_length:
         feature_lens += tail_length - features.size(1)
         features = torch.cat(
@@ -492,7 +492,9 @@ def decode_dataset(
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    initial_states = model.get_init_state(params.left_context, device=device)
+    initial_states = model.encoder.get_init_state(
+        params.left_context, device=device
+    )
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(
@@ -655,10 +657,8 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    assert (
-        params.causal_convolution
-    ), "Decoding in streaming requires causal convolution"
+    # Decoding in streaming requires causal convolution
+    params.causal_convolution = True
 
     logging.info(params)
 

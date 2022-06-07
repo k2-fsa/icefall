@@ -37,7 +37,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless/exp \
   --full-libri 1 \
   --dynamic-chunk-training 1 \
-  --causal-convolution 1 \
   --short-chunk-size 25 \
   --num-left-chunks 4 \
   --max-duration 300
@@ -245,15 +244,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
         "--short-chunk-size",
         type=int,
         default=25,
@@ -267,25 +257,6 @@ def get_parser():
         type=int,
         default=4,
         help="How many left context can be seen in chunks when calculating attention.",
-    )
-
-    parser.add_argument(
-        "--delay-penalty",
-        type=float,
-        default=0.0,
-        help="""A constant value to penalize symbol delay, this may be
-         needed when training with time masking, to avoid the time masking
-         encouraging the network to delay symbols.
-         """,
-    )
-
-    parser.add_argument(
-        "--return-sym-delay",
-        type=str2bool,
-        default=False,
-        help="""Whether to return `sym_delay` during training, this is a stat
-        to measure symbols emission delay, especially for time masking training.
-        """,
     )
 
     return parser
@@ -554,17 +525,14 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
-    sym_delay = None
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, sym_delay = model(
+        simple_loss, pruned_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            delay_penalty=params.delay_penalty,
-            return_sym_delay=params.return_sym_delay,
         )
         loss = params.simple_loss_scale * simple_loss + pruned_loss
 
@@ -581,9 +549,6 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
-
-    if sym_delay is not None:
-        info["sym_delay"] = sym_delay.detatch().cpu().item()
 
     return loss, info
 
@@ -839,9 +804,8 @@ def run(rank, world_size, args):
     params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
-        assert (
-            params.causal_convolution
-        ), "dynamic_chunk_training requires causal convolution"
+        # dynamic_chunk_training requires causal convolution
+        params.causal_convolution = True
 
     logging.info(params)
 

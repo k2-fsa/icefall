@@ -37,6 +37,7 @@ class DecodeStream(object):
             `get_init_state` in conformer.py
           decoding_graph:
             Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+            Used only when decoding_method is fast_beam_search.
           device:
             The device to run this stream.
         """
@@ -49,7 +50,8 @@ class DecodeStream(object):
 
         # It contains a 2-D tensors representing the feature frames.
         self.features: torch.Tensor = None
-        # how many frames are processed. (before subsampling).
+        # how many frames have been processed. (before subsampling).
+        # we only modify this value in `func:get_feature_frames`.
         self.num_processed_frames: int = 0
         self._done: bool = False
         # The transcript of current utterance.
@@ -57,6 +59,9 @@ class DecodeStream(object):
         # The decoding result (partial or final) of current utterance.
         self.hyp: List = []
 
+        # how many frames have been processed, after subsampling (i.e. a
+        # cumulative sum of the second return value of
+        # encoder.streaming_forward
         self.feature_len: int = 0
 
         if params.decoding_method == "greedy_search":
@@ -69,7 +74,7 @@ class DecodeStream(object):
         else:
             assert (
                 False
-            ), f"Decoding method :{params.decoding_method} do not support"
+            ), f"Decoding method :{params.decoding_method} do not support."
 
     @property
     def done(self) -> bool:

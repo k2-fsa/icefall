@@ -296,15 +296,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
         "--short-chunk-size",
         type=int,
         default=25,
@@ -318,25 +309,6 @@ def get_parser():
         type=int,
         default=4,
         help="How many left context can be seen in chunks when calculating attention.",
-    )
-
-    parser.add_argument(
-        "--delay-penalty",
-        type=float,
-        default=0.0,
-        help="""A constant value to penalize symbol delay, this may be
-         needed when training with time masking, to avoid the time masking
-         encouraging the network to delay symbols.
-         """,
-    )
-
-    parser.add_argument(
-        "--return-sym-delay",
-        type=str2bool,
-        default=False,
-        help="""Whether to return `sym_delay` during training, this is a stat
-        to measure symbols emission delay, especially for time masking training.
-        """,
     )
 
     return parser
@@ -963,13 +935,8 @@ def run(rank, world_size, args):
     params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
-        assert (
-            params.causal_convolution
-        ), "dynamic_chunk_training requires causal convolution"
-    else:
-        assert (
-            params.delay_penalty == 0.0
-        ), "delay_penalty is intended for dynamic_chunk_training"
+        # dynamic_chunk_training requires causal convolution
+        params.causal_convolution = True
 
     logging.info(params)
 
