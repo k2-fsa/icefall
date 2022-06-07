@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -53,11 +53,13 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
         "train_L",
         "test",
     )
+    prefix = "aishell4"
+    suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
-        prefix="aishell4",
-        suffix="jsonl.gz",
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
@@ -65,7 +67,8 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
-            if (output_dir / f"cuts_{partition}.jsonl").is_file():
+            cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
+            if (output_dir / cuts_filename).is_file():
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
@@ -81,11 +84,11 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
-                storage_path=f"{output_dir}/feats_{partition}",
+                storage_path=f"{output_dir}/{prefix}_feats_{partition}",
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
 
             logging.info("About splitting cuts into smaller chunks")
@@ -94,7 +97,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
                 min_duration=None,
             )
 
-            cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
+            cut_set.to_json(output_dir / cuts_filename)
 
 
 def get_args():

@@ -48,7 +48,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   if [ ! -f $dl_dir/aishell4/train_L ]; then
     lhotse download aishell4  $dl_dir/aishell4
   fi
-  
+
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
   #
@@ -117,9 +117,26 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   # Prepare text.
   # Note: in Linux, you can install jq with the  following command:
   # wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-  gunzip -c data/manifests/aishell4/supervisions_train_L.jsonl.gz \
-    | jq ".text" | sed 's/"//g' | sed 's/<sil>//g' \
-    | ./local/text2token.py -t "char" > $lang_char_dir/text
+  gunzip -c data/manifests/aishell4/aishell4_supervisions_train_S.jsonl.gz \
+    | jq ".text" | sed 's/"//g' \
+    | ./local/text2token.py -t "char" > $lang_char_dir/text_S
+
+  gunzip -c data/manifests/aishell4/aishell4_supervisions_train_M.jsonl.gz \
+    | jq ".text" | sed 's/"//g' \
+    | ./local/text2token.py -t "char" > $lang_char_dir/text_M
+
+  gunzip -c data/manifests/aishell4/aishell4_supervisions_train_L.jsonl.gz \
+    | jq ".text" | sed 's/"//g' \
+    | ./local/text2token.py -t "char" > $lang_char_dir/text_L
+
+  for r in text_S text_M text_L ; do
+    cat $lang_char_dir/$r >> $lang_char_dir/text_full
+  done
+
+  # Prepare text normalize
+  python ./local/text_normalize.py \
+    --input $lang_char_dir/text_full \
+    --output $lang_char_dir/text
 
   # Prepare words segments
   python ./local/text2segments.py \

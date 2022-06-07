@@ -23,14 +23,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
-from lhotse import (
-    CutSet,
-    Fbank,
-    FbankConfig,
-    load_manifest,
-    set_caching_enabled,
-)
-from lhotse.dataset import (
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -39,14 +33,14 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import (  # noqa F401 for AudioSamples
+    AudioSamples,
+    OnTheFlyFeatures,
+)
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
-
-set_caching_enabled(False)
-torch.set_num_threads(1)
 
 
 class _SeedWorkers:
@@ -85,12 +79,14 @@ class Aishell4AsrDataModule:
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
         )
+
         group.add_argument(
             "--manifest-dir",
             type=Path,
             default=Path("data/fbank"),
             help="Path to directory with train/valid/test cuts.",
         )
+
         group.add_argument(
             "--max-duration",
             type=int,
@@ -98,6 +94,7 @@ class Aishell4AsrDataModule:
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
+
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
@@ -105,6 +102,7 @@ class Aishell4AsrDataModule:
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
+
         group.add_argument(
             "--num-buckets",
             type=int,
@@ -112,6 +110,7 @@ class Aishell4AsrDataModule:
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
+
         group.add_argument(
             "--concatenate-cuts",
             type=str2bool,
@@ -119,6 +118,7 @@ class Aishell4AsrDataModule:
             help="When enabled, utterances (cuts) will be concatenated "
             "to minimize the amount of padding.",
         )
+
         group.add_argument(
             "--duration-factor",
             type=float,
@@ -126,6 +126,7 @@ class Aishell4AsrDataModule:
             help="Determines the maximum duration of a concatenated cut "
             "relative to the duration of the longest cut in a batch.",
         )
+
         group.add_argument(
             "--gap",
             type=float,
@@ -134,6 +135,7 @@ class Aishell4AsrDataModule:
             "concatenated cuts. This padding is filled with noise when "
             "noise augmentation is used.",
         )
+
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
@@ -142,6 +144,7 @@ class Aishell4AsrDataModule:
             "extraction. Will drop existing precomputed feature manifests "
             "if available.",
         )
+
         group.add_argument(
             "--shuffle",
             type=str2bool,
@@ -149,6 +152,14 @@ class Aishell4AsrDataModule:
             help="When enabled (=default), the examples will be "
             "shuffled for each epoch.",
         )
+
+        group.add_argument(
+            "--drop-last",
+            type=str2bool,
+            default=True,
+            help="Whether to drop last batch. Used by sampler.",
+        )
+
         group.add_argument(
             "--return-cuts",
             type=str2bool,
@@ -192,10 +203,10 @@ class Aishell4AsrDataModule:
         )
 
         group.add_argument(
-            "--lazy-load",
-            type=str2bool,
-            default=True,
-            help="lazily open CutSets to avoid OOM (for L|XL subset)",
+            "--input-strategy",
+            type=str,
+            default="PrecomputedFeatures",
+            help="AudioSamples or PrecomputedFeatures",
         )
 
         group.add_argument(
@@ -218,8 +229,8 @@ class Aishell4AsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
+        cuts_musan = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_musan.jsonl.gz"
         )
 
         transforms = []
@@ -277,6 +288,7 @@ class Aishell4AsrDataModule:
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
+            input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -310,7 +322,7 @@ class Aishell4AsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 buffer_size=30000,
-                drop_last=True,
+                drop_last=self.args.drop_last,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -367,8 +379,6 @@ class Aishell4AsrDataModule:
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
@@ -393,14 +403,12 @@ class Aishell4AsrDataModule:
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
@@ -419,26 +427,22 @@ class Aishell4AsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        if self.args.lazy_load:
-            logging.info("use lazy cuts")
-            cuts_train = CutSet.from_jsonl_lazy(
-                self.args.manifest_dir
-                / f"cuts_train_{self.args.training_subset}.json.gz"
-            )
-        else:
-            cuts_train = CutSet.from_file(
-                self.args.manifest_dir
-                / f"cuts_train_{self.args.training_subset}.json.gz"
-            )
-        return cuts_train
+        return load_manifest_lazy(
+            self.args.manifest_dir
+            / "aishell4_cuts_train_{self.args.training_subset}.jsonl.gz"
+        )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         # Aishell4 doesn't have dev data, here use test to replace dev.
-        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aishell4_cuts_test.jsonl.gz"
+        )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aishell4_cuts_test.jsonl.gz"
+        )
