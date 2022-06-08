@@ -61,8 +61,8 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    input_file = args.input
-    output_file = args.output
+    input_file = args.input_file
+    output_file = args.output_file
 
     f = open(input_file, "r", encoding="utf-8")
     lines = f.readlines()
