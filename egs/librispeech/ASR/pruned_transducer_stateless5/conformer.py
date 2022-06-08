@@ -198,10 +198,8 @@ class ConformerEncoderLayer(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
-        self.dropout_ff_macaron = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
-        self.dropout_conv = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
-        self.dropout_self_attn = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
-        self.dropout_ff = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
+        self.dropout = nn.Dropout(dropout)
+        self.decorrelate = Decorrelate(d_model, scale=0.02)
 
 
     def forward(
@@ -245,7 +243,7 @@ class ConformerEncoderLayer(nn.Module):
             alpha = 1.0
 
         # macaron style feed forward module
-        src = self.dropout_ff_macaron(src, self.feed_forward_macaron(src))
+        src = src + self.dropout(self.feed_forward_macaron(src))
 
         # multi-headed self-attention module
         src_att = self.self_attn(
@@ -256,15 +254,17 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = self.dropout_self_attn(src, src_att)
+        src = src + self.dropout(src_att)
 
         # convolution module
-        src = self.dropout_conv(src, self.conv_module(src))
+        src = src + self.dropout(self.conv_module(src))
 
         # feed forward module
-        src = self.dropout_ff(src, self.feed_forward(src))
+        src = src + self.dropout(self.feed_forward(src))
 
         src = self.norm_final(self.balancer(src))
+
+        src = self.decorrelate(src)
 
         if alpha != 1.0:
             src = alpha * src + (1 - alpha) * src_orig
@@ -1032,7 +1032,6 @@ class Conv2dSubsampling(nn.Module):
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
         self.out_norm = BasicNorm(out_channels, learn_eps=False)
-        self.decorrelate = Decorrelate(out_channels)
         # constrain median of output to be close to zero.
         self.out_balancer = ActivationBalancer(
             channel_dim=-1, min_positive=0.45, max_positive=0.55
@@ -1057,7 +1056,6 @@ class Conv2dSubsampling(nn.Module):
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
-        x = self.decorrelate(x)
         x = self.out_balancer(x)
         return x
 
