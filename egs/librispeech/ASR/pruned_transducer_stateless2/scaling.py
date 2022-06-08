@@ -900,7 +900,7 @@ class Decorrelate(torch.nn.Module):
                 x_next.scatter_(-1, perm, x)
                 x = x_next
 
-            mask = (torch.randn_like(x) > 0.5)
+            mask = (torch.rand_like(x) > 0.5)
             x = x - (x * mask) * 2
 
             x = (x * self.rand_scales) + (x_bypass * self.nonrand_scales)
