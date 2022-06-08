@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import List, Optional, Tuple
-
+import logging
 import torch
 from encoder_interface import EncoderInterface
 from scaling import (
@@ -30,7 +30,7 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
     JoinDropout,
-
+    Decorrelate,
 )
 from torch import Tensor, nn
 
@@ -1032,10 +1032,12 @@ class Conv2dSubsampling(nn.Module):
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
         self.out_norm = BasicNorm(out_channels, learn_eps=False)
+        self.decorrelate = Decorrelate(out_channels)
         # constrain median of output to be close to zero.
         self.out_balancer = ActivationBalancer(
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -1055,6 +1057,7 @@ class Conv2dSubsampling(nn.Module):
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
+        x = self.decorrelate(x)
         x = self.out_balancer(x)
         return x
 
