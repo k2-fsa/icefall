@@ -752,10 +752,9 @@ class Decorrelate(torch.nn.Module):
         self.eps = eps
         self.beta = beta
 
-        rand_mat = torch.randn(num_channels, num_channels)
-        U, _, _ = rand_mat.svd()
-
-        self.register_buffer('U', U)  # a random orthogonal square matrix.  will be a buffer.
+        #rand_mat = torch.randn(num_channels, num_channels)
+        #U, _, _ = rand_mat.svd()
+        #self.register_buffer('U', U)  # a random orthogonal square matrix.  will be a buffer.
 
         self.register_buffer('T1', torch.eye(num_channels))
         self.register_buffer('rand_scales', torch.zeros(num_channels))
@@ -887,7 +886,7 @@ class Decorrelate(torch.nn.Module):
 
             x_bypass = x
 
-            if True:
+            if False:
                 # This block, in effect, multiplies x by a random orthogonal matrix,
                 # giving us random noise.
                 perm = self._randperm_like(x)
@@ -900,6 +899,9 @@ class Decorrelate(torch.nn.Module):
                 # from gather, inverting it.
                 x_next.scatter_(-1, perm, x)
                 x = x_next
+
+            mask = (torch.randn_like(x) > 0.5)
+            x = x - (x * mask) * 2
 
             x = (x * self.rand_scales) + (x_bypass * self.nonrand_scales)
 
