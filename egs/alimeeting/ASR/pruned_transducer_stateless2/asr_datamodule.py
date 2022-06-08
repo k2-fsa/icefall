@@ -27,13 +27,13 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
-    load_manifest_lazy,
+    load_manifest,
     set_caching_enabled,
 )
 from lhotse.dataset import (
+    BucketingSampler,
     CutConcatenate,
     CutMix,
-    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -109,7 +109,7 @@ class AlimeetingAsrDataModule:
             "--num-buckets",
             type=int,
             default=300,
-            help="The number of buckets for the DynamicBucketingSampler"
+            help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -204,7 +204,7 @@ class AlimeetingAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
@@ -289,13 +289,14 @@ class AlimeetingAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
+            logging.info("Using BucketingSampler.")
+            train_sampler = BucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 buffer_size=30000,
+                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -350,7 +351,7 @@ class AlimeetingAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = DynamicBucketingSampler(
+        valid_sampler = BucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -380,7 +381,7 @@ class AlimeetingAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+        sampler = BucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -401,20 +402,20 @@ class AlimeetingAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "alimeeting_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "alimeeting_cuts_eval.jsonl.gz"
         )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "alimeeting_cuts_test.jsonl.gz"
         )

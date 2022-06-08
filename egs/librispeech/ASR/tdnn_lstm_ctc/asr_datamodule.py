@@ -24,11 +24,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
+    BucketingSampler,
     CutConcatenate,
     CutMix,
-    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -113,7 +113,7 @@ class LibriSpeechAsrDataModule:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the DynamicBucketingSampler"
+            help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -224,7 +224,7 @@ class LibriSpeechAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest_lazy(
+            cuts_musan = load_manifest(
                 self.args.manifest_dir / "musan_cuts.jsonl.gz"
             )
             transforms.append(
@@ -306,12 +306,13 @@ class LibriSpeechAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
+            logging.info("Using BucketingSampler.")
+            train_sampler = BucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                bucket_method="equal_duration",
                 drop_last=self.args.drop_last,
             )
         else:
@@ -366,7 +367,7 @@ class LibriSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = DynamicBucketingSampler(
+        valid_sampler = BucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -376,7 +377,7 @@ class LibriSpeechAsrDataModule:
             validate,
             sampler=valid_sampler,
             batch_size=None,
-            num_workers=2,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
         )
 
@@ -390,7 +391,7 @@ class LibriSpeechAsrDataModule:
             else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+        sampler = BucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -407,48 +408,48 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         )
 
     @lru_cache()
     def train_clean_360_cuts(self) -> CutSet:
         logging.info("About to get train-clean-360 cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
         )
 
     @lru_cache()
     def train_other_500_cuts(self) -> CutSet:
         logging.info("About to get train-other-500 cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
         )
 
     @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         )
 
     @lru_cache()
     def dev_other_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
         )
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
         )
 
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         )

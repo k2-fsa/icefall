@@ -24,8 +24,8 @@ from typing import Optional
 
 from lhotse import CutSet, Fbank, FbankConfig
 from lhotse.dataset import (
+    BucketingSampler,
     CutMix,
-    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     SpecAugment,
 )
@@ -72,7 +72,7 @@ class AsrDataModule:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the DynamicBucketingSampler "
+            help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
 
@@ -226,12 +226,13 @@ class AsrDataModule:
             return_cuts=self.args.return_cuts,
         )
 
-        logging.info("Using DynamicBucketingSampler.")
-        train_sampler = DynamicBucketingSampler(
+        logging.info("Using BucketingSampler.")
+        train_sampler = BucketingSampler(
             cuts_train,
             max_duration=self.args.max_duration,
             shuffle=self.args.shuffle,
             num_buckets=self.args.num_buckets,
+            bucket_method="equal_duration",
             drop_last=True,
         )
 
@@ -262,7 +263,7 @@ class AsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = DynamicBucketingSampler(
+        valid_sampler = BucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -286,7 +287,7 @@ class AsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+        sampler = BucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
             shuffle=False,

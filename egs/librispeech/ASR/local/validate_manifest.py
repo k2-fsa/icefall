@@ -33,7 +33,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 
 
@@ -76,7 +76,7 @@ def main():
     logging.info(f"Validating {manifest}")
 
     assert manifest.is_file(), f"{manifest} does not exist"
-    cut_set = load_manifest_lazy(manifest)
+    cut_set = load_manifest(manifest)
     assert isinstance(cut_set, CutSet)
 
     for c in cut_set:

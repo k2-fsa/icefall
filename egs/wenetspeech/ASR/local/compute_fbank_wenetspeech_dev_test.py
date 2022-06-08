@@ -24,7 +24,7 @@ from lhotse import (
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
-    LilcomHdf5Writer,
+    LilcomChunkyWriter,
 )
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -70,7 +70,7 @@ def compute_fbank_wenetspeech_dev_test():
             storage_path=f"{in_out_dir}/feats_{partition}",
             num_workers=num_workers,
             batch_duration=batch_duration,
-            storage_type=LilcomHdf5Writer,
+            storage_type=LilcomChunkyWriter,
         )
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None

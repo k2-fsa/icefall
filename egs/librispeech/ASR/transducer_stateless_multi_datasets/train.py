@@ -73,7 +73,7 @@ from conformer import Conformer
 from decoder import Decoder
 from gigaspeech import GigaSpeech
 from joiner import Joiner
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from librispeech import LibriSpeech
@@ -775,7 +775,7 @@ def run(rank, world_size, args):
     train_giga_cuts = train_giga_cuts.repeat(times=None)
 
     if args.enable_musan:
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:
@@ -785,13 +785,15 @@ def run(rank, world_size, args):
 
     train_dl = asr_datamodule.train_dataloaders(
         train_cuts,
+        dynamic_bucketing=False,
         on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )
 
     giga_train_dl = asr_datamodule.train_dataloaders(
         train_giga_cuts,
-        on_the_fly_feats=True,
+        dynamic_bucketing=True,
+        on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )
 

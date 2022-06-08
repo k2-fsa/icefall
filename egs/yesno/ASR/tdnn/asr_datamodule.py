@@ -20,10 +20,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
+    BucketingSampler,
     CutConcatenate,
-    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -85,7 +85,7 @@ class YesNoAsrDataModule(DataModule):
             "--num-buckets",
             type=int,
             default=10,
-            help="The number of buckets for the DynamicBucketingSampler"
+            help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -187,12 +187,13 @@ class YesNoAsrDataModule(DataModule):
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
+            logging.info("Using BucketingSampler.")
+            train_sampler = BucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -225,7 +226,7 @@ class YesNoAsrDataModule(DataModule):
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+        sampler = BucketingSampler(
             cuts_test,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -242,7 +243,7 @@ class YesNoAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest_lazy(
+        cuts_train = load_manifest(
             self.args.feature_dir / "yesno_cuts_train.jsonl.gz"
         )
         return cuts_train
@@ -250,7 +251,7 @@ class YesNoAsrDataModule(DataModule):
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        cuts_test = load_manifest_lazy(
+        cuts_test = load_manifest(
             self.args.feature_dir / "yesno_cuts_test.jsonl.gz"
         )
         return cuts_test

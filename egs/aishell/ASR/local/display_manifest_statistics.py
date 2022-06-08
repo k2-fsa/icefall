@@ -25,7 +25,7 @@ for usage.
 """
 
 
-from lhotse import load_manifest_lazy
+from lhotse import load_manifest
 
 
 def main():
@@ -36,7 +36,7 @@ def main():
     #  path = "./data/fbank/aidatatang_cuts_test.jsonl.gz"
     #  path = "./data/fbank/aidatatang_cuts_dev.jsonl.gz"
 
-    cuts = load_manifest_lazy(path)
+    cuts = load_manifest(path)
     cuts.describe()
 
 

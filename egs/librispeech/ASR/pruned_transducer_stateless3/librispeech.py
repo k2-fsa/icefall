@@ -18,7 +18,7 @@
 import logging
 from pathlib import Path
 
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, load_manifest
 
 
 class LibriSpeech:
@@ -41,34 +41,34 @@ class LibriSpeech:
     def train_clean_100_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         logging.info(f"About to get train-clean-100 cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def train_clean_360_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
         logging.info(f"About to get train-clean-360 cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def train_other_500_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
         logging.info(f"About to get train-other-500 cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def test_clean_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
         logging.info(f"About to get test-clean cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def test_other_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         logging.info(f"About to get test-other cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def dev_clean_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         logging.info(f"About to get dev-clean cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)
 
     def dev_other_cuts(self) -> CutSet:
         f = self.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
         logging.info(f"About to get dev-other cuts from {f}")
-        return load_manifest_lazy(f)
+        return load_manifest(f)

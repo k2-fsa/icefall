@@ -27,7 +27,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -89,7 +89,7 @@ def compute_fbank_tedlium():
                 # when an executor is specified, make more partitions
                 num_jobs=cur_num_jobs,
                 executor=ex,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
             # Split long cuts into many short and un-overlapping cuts
             cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)

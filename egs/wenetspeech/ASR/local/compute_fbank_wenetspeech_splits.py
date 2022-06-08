@@ -23,10 +23,10 @@ from pathlib import Path
 
 import torch
 from lhotse import (
-    ChunkedLilcomHdf5Writer,
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
+    LilcomChunkyWriter,
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
@@ -135,7 +135,7 @@ def compute_fbank_wenetspeech_splits(args):
             storage_path=f"{output_dir}/feats_{subset}_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
-            storage_type=ChunkedLilcomHdf5Writer,
+            storage_type=LilcomChunkyWriter,
         )
 
         logging.info("About to split cuts into smaller chunks.")

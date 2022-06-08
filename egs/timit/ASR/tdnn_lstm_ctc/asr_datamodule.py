@@ -23,11 +23,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Union
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest
 from lhotse.dataset import (
+    BucketingSampler,
     CutConcatenate,
     CutMix,
-    DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
@@ -92,7 +92,7 @@ class TimitAsrDataModule(DataModule):
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the DynamicBucketingSampler"
+            help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -154,7 +154,7 @@ class TimitAsrDataModule(DataModule):
         cuts_train = self.train_cuts()
 
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.feature_dir / "cuts_musan.jsonl.gz"
         )
 
@@ -220,12 +220,13 @@ class TimitAsrDataModule(DataModule):
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
+            logging.info("Using BucketingSampler.")
+            train_sampler = BucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -273,7 +274,7 @@ class TimitAsrDataModule(DataModule):
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = SingleCutSampler(
+        valid_sampler = BucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -306,7 +307,7 @@ class TimitAsrDataModule(DataModule):
                 else PrecomputedFeatures(),
                 return_cuts=self.args.return_cuts,
             )
-            sampler = SingleCutSampler(
+            sampler = BucketingSampler(
                 cuts_test, max_duration=self.args.max_duration
             )
             logging.debug("About to create test dataloader")
@@ -323,7 +324,7 @@ class TimitAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest_lazy(
+        cuts_train = load_manifest(
             self.args.feature_dir / "timit_cuts_TRAIN.jsonl.gz"
         )
 
@@ -332,7 +333,7 @@ class TimitAsrDataModule(DataModule):
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest_lazy(
+        cuts_valid = load_manifest(
             self.args.feature_dir / "timit_cuts_DEV.jsonl.gz"
         )
 
@@ -341,7 +342,7 @@ class TimitAsrDataModule(DataModule):
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.debug("About to get test cuts")
-        cuts_test = load_manifest_lazy(
+        cuts_test = load_manifest(
             self.args.feature_dir / "timit_cuts_TEST.jsonl.gz"
         )
 

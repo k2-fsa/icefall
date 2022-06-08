@@ -27,10 +27,11 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
-    load_manifest_lazy,
+    load_manifest,
     set_caching_enabled,
 )
 from lhotse.dataset import (
+    BucketingSampler,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -109,8 +110,9 @@ class WenetSpeechAsrDataModule:
             "--num-buckets",
             type=int,
             default=300,
-            help="The number of buckets for the DynamicBucketingSampler"
-            "(you might want to increase it for larger datasets).",
+            help="""The number of buckets for the BucketingSampler and
+            DynamicBucketingSampler
+            (you might want to increase it for larger datasets).""",
         )
         group.add_argument(
             "--concatenate-cuts",
@@ -218,7 +220,7 @@ class WenetSpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
@@ -364,23 +366,16 @@ class WenetSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = DynamicBucketingSampler(
+        valid_sampler = BucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
 
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
-
-        dev_iter_dataset = IterableDatasetWrapper(
-            dataset=validate,
-            sampler=valid_sampler,
-        )
         valid_dl = DataLoader(
-            dev_iter_dataset,
+            validate,
+            sampler=valid_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
             persistent_workers=False,
@@ -396,22 +391,16 @@ class WenetSpeechAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+        sampler = BucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
 
-        test_iter_dataset = IterableDatasetWrapper(
-            dataset=test,
-            sampler=sampler,
-        )
         test_dl = DataLoader(
-            test_iter_dataset,
+            test,
             batch_size=None,
+            sampler=sampler,
             num_workers=self.args.num_workers,
         )
         return test_dl
@@ -435,18 +424,16 @@ class WenetSpeechAsrDataModule:
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        return load_manifest(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
 
     @lru_cache()
     def test_net_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_NET cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz"
-        )
+        return load_manifest(self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz")
 
     @lru_cache()
     def test_meeting_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_MEETING cuts")
-        return load_manifest_lazy(
+        return load_manifest(
             self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz"
         )
