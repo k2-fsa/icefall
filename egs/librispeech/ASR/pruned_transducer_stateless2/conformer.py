@@ -1029,6 +1029,8 @@ class Conv2dSubsampling(nn.Module):
 
 
 if __name__ == "__main__":
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     feature_dim = 50
     c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5

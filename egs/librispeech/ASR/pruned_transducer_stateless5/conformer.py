@@ -29,7 +29,7 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-    Decorrelate,
+    JoinDropout,
 
 )
 from torch import Tensor, nn
@@ -198,8 +198,10 @@ class ConformerEncoderLayer(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
-        self.dropout = torch.nn.Dropout(dropout)
-        self.decorrelate = Decorrelate(d_model, apply_prob=0.25, dropout_rate=0.05)
+        self.dropout_ff_macaron = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
+        self.dropout_conv = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
+        self.dropout_self_attn = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
+        self.dropout_ff = JoinDropout(d_model, apply_prob=0.5, dropout_rate=dropout)
 
 
     def forward(
@@ -243,7 +245,7 @@ class ConformerEncoderLayer(nn.Module):
             alpha = 1.0
 
         # macaron style feed forward module
-        src = src + self.dropout(self.feed_forward_macaron(src))
+        src = self.dropout_ff_macaron(src, self.feed_forward_macaron(src))
 
         # multi-headed self-attention module
         src_att = self.self_attn(
@@ -254,17 +256,13 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        src = src + self.dropout(src_att)
+        src = self.dropout_self_attn(src, src_att)
 
         # convolution module
-        src = src + self.dropout(self.conv_module(src))
+        src = self.dropout_conv(src, self.conv_module(src))
 
         # feed forward module
-        src = src + self.dropout(self.feed_forward(src))
-
-        # encourage dimensions of `src` to be un-correlated with each other, this will
-        # help Adam converge better.
-        src = self.decorrelate(src)
+        src = self.dropout_ff(src, self.feed_forward(src))
 
         src = self.norm_final(self.balancer(src))
 
@@ -1326,6 +1324,9 @@ def _test_random_combine_main():
 
 
 if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     feature_dim = 50
     c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5
