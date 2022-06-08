@@ -389,14 +389,14 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 1,
-            "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "log_interval": 50,
+            "reset_interval": 100,
+            "valid_interval": 200,
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             # parameters for Noam
-            "model_warm_step": 3000,  # arg given to model, not for lrate
+            "model_warm_step": 50,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -942,8 +942,10 @@ def run(rank, world_size, args):
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     aishell4 = Aishell4AsrDataModule(args)
-
-    train_cuts = aishell4.train_cuts()
+    # Combine all of the training data
+    train_cuts = aishell4.train_S_cuts()
+    train_cuts += aishell4.train_M_cuts()
+    train_cuts += aishell4.train_L_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

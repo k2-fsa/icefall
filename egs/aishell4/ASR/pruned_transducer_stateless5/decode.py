@@ -74,6 +74,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from lhotse.cut import Cut
+from local.text_normalize import text_normalize
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -380,6 +382,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        texts = [list(str(text).replace(" ", "")) for text in texts]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -393,8 +396,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
-                ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -597,38 +599,17 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # Note: Please use "pip install webdataset==0.1.103"
-    # for installing the webdataset.
-    import glob
-    import os
-
-    from lhotse import CutSet
-    from lhotse.dataset.webdataset import export_to_webdataset
+    def text_normalize_for_cut(c: Cut):
+        # Text normalize for each sample
+        text = c.supervisions[0].text
+        text = text.strip("\n").strip("\t")
+        c.supervisions[0].text = text_normalize(text)
+        return c
 
     aishell4 = Aishell4AsrDataModule(args)
-
-    test = "test"
-    if not os.path.exists(f"{test}/shared-0.tar"):
-        os.makedirs(test)
-        test_cuts = aishell4.test_cuts()
-        export_to_webdataset(
-            test_cuts,
-            output_path=f"{test}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    test_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test, "shared-*.tar")))
-    ]
-    cuts_test_webdataset = CutSet.from_webdataset(
-        test_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    test_dl = aishell4.test_dataloaders(cuts_test_webdataset)
+    test_cuts = aishell4.test_cuts()
+    test_cuts = test_cuts.map(text_normalize_for_cut)
+    test_dl = aishell4.test_dataloaders(test_cuts)
 
     test_sets = ["test"]
     test_dl = [test_dl]

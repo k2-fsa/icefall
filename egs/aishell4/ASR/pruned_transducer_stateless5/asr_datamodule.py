@@ -209,13 +209,6 @@ class Aishell4AsrDataModule:
             help="AudioSamples or PrecomputedFeatures",
         )
 
-        group.add_argument(
-            "--training-subset",
-            type=str,
-            default="L",
-            help="The training subset for using",
-        )
-
     def train_dataloaders(
         self,
         cuts_train: CutSet,
@@ -379,18 +372,14 @@ class Aishell4AsrDataModule:
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
+            rank=0,
+            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
-
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
-
-        dev_iter_dataset = IterableDatasetWrapper(
-            dataset=validate,
-            sampler=valid_sampler,
-        )
         valid_dl = DataLoader(
-            dev_iter_dataset,
+            validate,
+            sampler=valid_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
             persistent_workers=False,
@@ -409,27 +398,38 @@ class Aishell4AsrDataModule:
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
+            rank=0,
+            world_size=1,
             shuffle=False,
         )
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
-
-        test_iter_dataset = IterableDatasetWrapper(
-            dataset=test,
-            sampler=sampler,
-        )
+        logging.info("About to create test dataloader")
         test_dl = DataLoader(
-            test_iter_dataset,
+            test,
             batch_size=None,
+            sampler=sampler,
             num_workers=self.args.num_workers,
         )
         return test_dl
 
     @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
+    def train_S_cuts(self) -> CutSet:
+        logging.info("About to get S train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir
-            / f"aishell4_cuts_train_{self.args.training_subset}.jsonl.gz"
+            self.args.manifest_dir / "aishell4_cuts_train_S.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_M_cuts(self) -> CutSet:
+        logging.info("About to get M train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aishell4_cuts_train_M.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_L_cuts(self) -> CutSet:
+        logging.info("About to get L train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aishell4_cuts_train_L.jsonl.gz"
         )
 
     @lru_cache()
