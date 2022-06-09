@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -86,7 +86,7 @@ def compute_fbank_aishell(num_mel_bins: int = 80):
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
             cut_set.to_file(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
 
