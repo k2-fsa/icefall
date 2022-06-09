@@ -41,8 +41,8 @@ LOG_EPSILON = math.log(1e-10)
 
 
 def unstack_states(
-    states,
-) -> List[List[List[torch.Tensor]]]:
+    states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
+) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]:
     # TODO: modify doc
     """Unstack the emformer state corresponding to a batch of utterances
     into a list of states, were the i-th entry is the state from the i-th
@@ -50,17 +50,13 @@ def unstack_states(
 
     Args:
       states:
-        A list-of-list of tensors. ``len(states)`` equals to number of
-        layers in the emformer. ``states[i]]`` contains the states for
-        the i-th layer. ``states[i][k]`` is either a 3-D tensor of shape
-        ``(T, N, C)`` or a 2-D tensor of shape ``(C, N)``
+        A list-of-list of tensors.
+        ``len(states[0])`` and ``len(states[1])`` eqaul to number of layers.
     """
 
-    past_lens, attn_caches, conv_caches = states
-    batch_size = past_lens.size(0)
+    attn_caches, conv_caches = states
+    batch_size = conv_caches[0].size(0)
     num_layers = len(attn_caches)
-
-    list_past_len = past_lens.tolist()
 
     list_attn_caches = [None] * batch_size
     for i in range(batch_size):
@@ -81,14 +77,14 @@ def unstack_states(
 
     ans = [None] * batch_size
     for i in range(batch_size):
-        ans[i] = [list_past_len[i], list_attn_caches[i], list_conv_caches[i]]
+        ans[i] = [list_attn_caches[i], list_conv_caches[i]]
 
     return ans
 
 
 def stack_states(
-    state_list,
-) -> List[List[torch.Tensor]]:
+    state_list: List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]
+) -> Tuple[List[List[torch.Tensor]], List[torch.Tensor]]:
     # TODO: modify doc
     """Stack list of emformer states that correspond to separate utterances
     into a single emformer state so that it can be used as an input for
@@ -108,18 +104,15 @@ def stack_states(
     """
     batch_size = len(state_list)
 
-    past_lens = [states[0] for states in state_list]
-    past_lens = torch.tensor([past_lens])
-
     attn_caches = []
-    for layer in state_list[0][1]:
+    for layer in state_list[0][0]:
         if batch_size > 1:
             # Note: We will stack attn_caches[layer][s][] later to get attn_caches[layer][s]  # noqa
             attn_caches.append([[s] for s in layer])
         else:
             attn_caches.append([s.unsqueeze(1) for s in layer])
     for b, states in enumerate(state_list[1:], 1):
-        for li, layer in enumerate(states[1]):
+        for li, layer in enumerate(states[0]):
             for si, s in enumerate(layer):
                 attn_caches[li][si].append(s)
                 if b == batch_size - 1:
@@ -128,19 +121,19 @@ def stack_states(
                     )
 
     conv_caches = []
-    for layer in state_list[0][2]:
+    for layer in state_list[0][1]:
         if batch_size > 1:
             # Note: We will stack conv_caches[layer][] later to get attn_caches[layer]  # noqa
             conv_caches.append([layer])
         else:
             conv_caches.append(layer.unsqueeze(0))
     for b, states in enumerate(state_list[1:], 1):
-        for li, layer in enumerate(states[2]):
+        for li, layer in enumerate(states[1]):
             conv_caches[li].append(layer)
             if b == batch_size - 1:
                 conv_caches[li] = torch.stack(conv_caches[li], dim=0)
 
-    return [past_lens, attn_caches, conv_caches]
+    return [attn_caches, conv_caches]
 
 
 class ConvolutionModule(nn.Module):
@@ -1489,13 +1482,12 @@ class EmformerEncoder(nn.Module):
         self,
         x: torch.Tensor,
         lengths: torch.Tensor,
-        states: List[
-            torch.Tensor, List[List[torch.Tensor]], List[torch.Tensor]
-        ],
+        num_processed_frames: torch.Tensor,
+        states: Tuple[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        List[torch.Tensor, List[List[torch.Tensor]], List[torch.Tensor]],
+        Tuple[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]],
     ]:
         """Forward pass for streaming inference.
 
@@ -1526,10 +1518,9 @@ class EmformerEncoder(nn.Module):
               right_context at the end.
             - updated states from current chunk's computation.
         """
-        past_lens = states[0]
-        assert past_lens.shape == (x.size(1),), past_lens.shape
+        assert num_processed_frames.shape == (x.size(1),)
 
-        attn_caches = states[1]
+        attn_caches = states[0]
         assert len(attn_caches) == self.num_encoder_layers, len(attn_caches)
         for i in range(len(attn_caches)):
             assert attn_caches[i][0].shape == (
@@ -1548,24 +1539,23 @@ class EmformerEncoder(nn.Module):
                 self.d_model,
             ), attn_caches[i][2].shape
 
-        conv_caches = states[2]
+        conv_caches = states[1]
         assert len(conv_caches) == self.num_encoder_layers, len(conv_caches)
         for i in range(len(conv_caches)):
             assert conv_caches[i].shape == (
                 x.size(1),
                 self.d_model,
-                self.cnn_module_kernel,
+                self.cnn_module_kernel - 1,
             ), conv_caches[i].shape
 
-        assert x.size(0) == self.chunk_length + self.right_context_length, (
-            "Per configured chunk_length and right_context_length, "
-            f"expected size of {self.chunk_length + self.right_context_length} "
-            f"for dimension 1 of x, but got {x.size(1)}."
-        )
+        # assert x.size(0) == self.chunk_length + self.right_context_length, (
+        #    "Per configured chunk_length and right_context_length, "
+        #    f"expected size of {self.chunk_length + self.right_context_length} "
+        #    f"for dimension 1 of x, but got {x.size(0)}."
+        # )
 
-        right_context_start_idx = x.size(0) - self.right_context_length
-        right_context = x[right_context_start_idx:]
-        utterance = x[:right_context_start_idx]
+        right_context = x[-self.right_context_length :]
+        utterance = x[: -self.right_context_length]
         output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
         memory = (
             self.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)
@@ -1574,29 +1564,29 @@ class EmformerEncoder(nn.Module):
         )
 
         # calcualte padding mask to mask out initial zero caches
-        chunk_mask = make_pad_mask(output_lengths)
-        memory_mask = (
-            (past_lens // self.chunk_length).view(x.size(1), 1)
-            <= torch.arange(self.memory_size, device=x.device).expand(
-                x.size(1), self.memory_size
-            )
-        ).flip(1)
-        left_context_mask = (
-            past_lens.view(x.size(1), 1)
-            <= torch.arange(self.left_context_length, device=x.device).expand(
-                x.size(1), self.left_context_length
-            )
-        ).flip(1)
-        right_context_mask = torch.zeros(
-            x.size(1),
-            self.right_context_length,
-            dtype=torch.bool,
-            device=x.device,
-        )
-        padding_mask = torch.cat(
-            [memory_mask, left_context_mask, right_context_mask, chunk_mask],
-            dim=1,
-        )
+        # chunk_mask = make_pad_mask(output_lengths).to(x.device)
+        # memory_mask = (
+        #    (past_lens // self.chunk_length).view(x.size(1), 1)
+        #    <= torch.arange(self.memory_size, device=x.device).expand(
+        #        x.size(1), self.memory_size
+        #    )
+        # ).flip(1)
+        # left_context_mask = (
+        #    past_lens.view(x.size(1), 1)
+        #    <= torch.arange(self.left_context_length, device=x.device).expand(
+        #        x.size(1), self.left_context_length
+        #    )
+        # ).flip(1)
+        # right_context_mask = torch.zeros(
+        #    x.size(1),
+        #    self.right_context_length,
+        #    dtype=torch.bool,
+        #    device=x.device,
+        # )
+        # padding_mask = torch.cat(
+        #    [memory_mask, left_context_mask, right_context_mask, chunk_mask],
+        #    dim=1,
+        # )
 
         output = utterance
         output_attn_caches: List[List[torch.Tensor]] = []
@@ -1612,19 +1602,14 @@ class EmformerEncoder(nn.Module):
                 output,
                 right_context,
                 memory,
-                padding_mask=padding_mask,
+                # padding_mask=padding_mask,
                 attn_cache=attn_caches[layer_idx],
                 conv_cache=conv_caches[layer_idx],
             )
             output_attn_caches.append(output_attn_cache)
             output_conv_caches.append(output_conv_cache)
 
-        output_past_lens = past_lens + output_lengths
-        output_states = [
-            output_past_lens,
-            output_attn_caches,
-            output_conv_caches,
-        ]
+        output_states = [output_attn_caches, output_conv_caches]
         return output, output_lengths, output_states
 
 
@@ -1738,6 +1723,7 @@ class Emformer(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
+        num_processed_frames: torch.Tensor,
         states: Optional[List[List[torch.Tensor]]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, List[List[torch.Tensor]]]:
         """Forward pass for streaming inference.
@@ -1770,16 +1756,17 @@ class Emformer(EncoderInterface):
             - updated states from current chunk's computation.
         """
         x = self.encoder_embed(x)
+        # drop the first and last frames
+        x = x[:, 1:-1, :]
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # Caution: We assume the subsampling factor is 4!
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            x_lens = ((x_lens - 1) // 2 - 1) // 2
+        x_lens = (((x_lens - 1) >> 1) - 1) >> 1
+        x_lens -= 2
         assert x.size(0) == x_lens.max().item()
 
         output, output_lengths, output_states = self.encoder.infer(
-            x, x_lens, states
+            x, x_lens, num_processed_frames, states
         )
 
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)

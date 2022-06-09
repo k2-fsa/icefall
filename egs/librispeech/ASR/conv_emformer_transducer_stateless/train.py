@@ -449,7 +449,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         cnn_module_kernel=params.cnn_module_kernel,
         left_context_length=params.left_context_length,
         right_context_length=params.right_context_length,
-        max_memory_size=params.memory_size,
+        memory_size=params.memory_size,
     )
     return encoder
 

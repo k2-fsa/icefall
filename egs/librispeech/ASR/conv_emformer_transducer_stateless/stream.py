@@ -18,7 +18,7 @@ import math
 from typing import List, Optional, Tuple
 
 import torch
-from beam_search import HypothesisList
+from beam_search import Hypothesis, HypothesisList
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 from icefall.utils import AttributeDict
@@ -48,6 +48,7 @@ class Stream(object):
         self,
         params: AttributeDict,
         device: torch.device = torch.device("cpu"),
+        LOG_EPS: float = math.log(1e-10),
     ) -> None:
         """
         Args:
@@ -57,11 +58,14 @@ class Stream(object):
             The device to run this stream.
         """
         self.device = device
+        self.LOG_EPS = LOG_EPS
 
         # Containing attention caches and convolution caches
-        self.states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = None
+        self.states: Optional[
+            Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
+        ] = None
         # Initailize zero states.
-        self.init_states()
+        self.init_states(params)
 
         # It use different attributes for different decoding methods.
         self.context_size = params.context_size
@@ -70,6 +74,12 @@ class Stream(object):
             self.hyp = [params.blank_id] * params.context_size
         elif params.decoding_method == "modified_beam_search":
             self.hyps = HypothesisList()
+            self.hyps.add(
+                Hypothesis(
+                    ys=[params.blank_id] * params.context_size,
+                    log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                )
+            )
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
@@ -77,7 +87,7 @@ class Stream(object):
 
         self.ground_truth: str = ""
 
-        self.feature: torch.Tensor = None
+        self.feature: Optional[torch.Tensor] = None
         # Make sure all feature frames can be used.
         # Add 2 here since we will drop the first and last after subsampling.
         self.chunk_length = params.chunk_length
@@ -91,14 +101,14 @@ class Stream(object):
         self._done = False
 
     def set_feature(self, feature: torch.Tensor) -> None:
-        assert feature.dim == 2, feature.dim
+        assert feature.dim() == 2, feature.dim()
         self.num_frames = feature.size(0)
         # tail padding
         self.feature = torch.nn.functional.pad(
             feature,
             (0, 0, 0, self.pad_length),
             mode="constant",
-            value=math.log(1e-10),
+            value=self.LOG_EPS,
         )
 
     def set_ground_truth(self, ground_truth: str) -> None:
@@ -140,9 +150,11 @@ class Stream(object):
         )
         ret_length = update_length + self.pad_length
 
-        ret_feature = self.feature[:ret_length]
+        ret_feature = self.feature[
+            self.num_processed_frames : self.num_processed_frames + ret_length
+        ]
         # Cut off used frames.
-        self.feature = self.feature[update_length:]
+        # self.feature = self.feature[update_length:]
 
         self.num_processed_frames += update_length
         if self.num_processed_frames >= self.num_frames:
