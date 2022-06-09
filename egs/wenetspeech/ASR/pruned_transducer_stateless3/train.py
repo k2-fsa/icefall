@@ -883,7 +883,7 @@ def run(rank, world_size, args):
         dst_state_dict.update(pretrained_dict)
         model.load_state_dict(dst_state_dict)
 
-        initial_lr = 1.5e-4
+        initial_lr = 1e-3
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
@@ -1012,6 +1012,7 @@ def scan_pessimistic_batches_for_oom(
     graph_compiler: CharCtcTrainingGraphCompiler,
     params: AttributeDict,
 ):
+    return
     from lhotse.dataset import find_pessimistic_batches
 
     logging.info(

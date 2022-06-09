@@ -27,6 +27,7 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
+    load_manifest,
     load_manifest_lazy,
     set_caching_enabled,
 )
@@ -192,13 +193,6 @@ class WenetSpeechAsrDataModule:
         )
 
         group.add_argument(
-            "--lazy-load",
-            type=str2bool,
-            default=True,
-            help="lazily open CutSets to avoid OOM (for L|XL subset)",
-        )
-
-        group.add_argument(
             "--training-subset",
             type=str,
             default="L",
@@ -218,7 +212,7 @@ class WenetSpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
@@ -419,18 +413,10 @@ class WenetSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        if self.args.lazy_load:
-            logging.info("use lazy cuts")
-            cuts_train = CutSet.from_jsonl_lazy(
-                self.args.manifest_dir
-                / f"cuts_{self.args.training_subset}.jsonl.gz"
-            )
-        else:
-            cuts_train = CutSet.from_file(
-                self.args.manifest_dir
-                / f"cuts_{self.args.training_subset}.jsonl.gz"
-            )
-        return cuts_train
+        return load_manifest_lazy(
+            self.args.manifest_dir
+            / f"cuts_{self.args.training_subset}.jsonl.gz"
+        )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
