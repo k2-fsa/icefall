@@ -66,7 +66,7 @@ from conformer import Conformer
 from decoder import Decoder
 from gigaspeech import GigaSpeech
 from joiner import Joiner
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -968,7 +968,7 @@ def run(rank, world_size, args):
     train_giga_cuts = train_giga_cuts.repeat(times=None)
 
     if args.enable_musan:
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:

@@ -56,7 +56,7 @@ from asr_datamodule import AsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
-from lhotse import CutSet, load_manifest_lazy
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -735,7 +735,7 @@ def run(rank, world_size, args):
     train_datatang_cuts = train_datatang_cuts.repeat(times=None)
 
     if args.enable_musan:
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:
