@@ -223,3 +223,17 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
       --lang-dir data/lang_char
   fi
 fi
+
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Prepare char with English abbreviation based L_disambig.pt"
+  lang_char_abbreviations_dir=data/lang_char_abbreviations
+  mkdir -p $lang_char_abbreviations_dir
+
+  cp -r data/lang_char/text $lang_char_abbreviations_dir/
+  cp -r data/lang_char/words.txt $lang_char_abbreviations_dir/
+
+  if [ ! -f data/lang_char_abbreviations/L_disambig.pt ]; then
+    python ./local/prepare_char_with_abbreviations.py \
+      --lang-dir data/lang_char_abbreviations
+  fi
+fi
