@@ -199,7 +199,7 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-        self.decorrelate = Decorrelate(d_model, scale=0.02)
+        self.decorrelate = Decorrelate(d_model, scale=0.01)
 
 
     def forward(
