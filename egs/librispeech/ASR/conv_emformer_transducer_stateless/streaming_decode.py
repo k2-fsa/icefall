@@ -302,6 +302,7 @@ def decode_one_chunk(
 
     # update cached states of each stream
     state_list = unstack_states(states)
+    assert len(streams) == len(state_list)
     for i, s in enumerate(state_list):
         streams[i].states = s
 
@@ -358,14 +359,9 @@ def decode_dataset(
     """
     device = next(model.parameters()).device
 
-    opts = FbankOptions()
-    opts.device = device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = 16000
-    opts.mel_opts.num_bins = 80
-
     log_interval = 300
+
+    fbank = create_streaming_feature_extractor()
 
     decode_results = []
     streams = []
@@ -382,7 +378,6 @@ def decode_dataset(
         assert audio.max() <= 1, "Should be normalized to [-1, 1])"
 
         samples = torch.from_numpy(audio).squeeze(0)
-        fbank = create_streaming_feature_extractor()
         feature = fbank(samples)
         stream.set_feature(feature)
         stream.set_ground_truth(cut.supervisions[0].text)
