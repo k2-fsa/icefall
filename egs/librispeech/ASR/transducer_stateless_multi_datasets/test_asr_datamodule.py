@@ -28,7 +28,7 @@ from pathlib import Path
 
 from asr_datamodule import AsrDataModule
 from gigaspeech import GigaSpeech
-from lhotse import load_manifest_lazy
+from lhotse import load_manifest
 from librispeech import LibriSpeech
 
 
@@ -41,7 +41,7 @@ def test_dataset():
     print(args)
 
     if args.enable_musan:
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:

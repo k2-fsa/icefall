@@ -27,6 +27,7 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
+    load_manifest,
     load_manifest_lazy,
     set_caching_enabled,
 )
@@ -218,7 +219,7 @@ class WenetSpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 

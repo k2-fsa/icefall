@@ -23,7 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -183,7 +183,7 @@ class AishellAsrDataModule:
 
     def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest_lazy(
+        cuts_musan = load_manifest(
             self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
