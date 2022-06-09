@@ -29,7 +29,6 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-    JoinDropout,
     Decorrelate,
 )
 from torch import Tensor, nn
