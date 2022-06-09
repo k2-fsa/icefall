@@ -801,7 +801,6 @@ class DecorrelateFunction(torch.autograd.Function):
             loss.backward()
 
         decorr_x_grad = x.grad
-        assert x.grad is not None
 
         # Now, normalize the magnitudes of the rows of the new grad
         # contribution, to have magnitudes equals to ctx.scale times
