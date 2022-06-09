@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig, combine
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter, combine
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -92,7 +92,7 @@ def compute_fbank_musan():
                 storage_path=f"{output_dir}/musan_feats",
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
         )
         musan_cuts.to_file(musan_cuts_path)

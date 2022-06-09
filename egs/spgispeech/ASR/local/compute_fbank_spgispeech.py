@@ -27,7 +27,7 @@ import logging
 from pathlib import Path
 
 import torch
-from lhotse import ChunkedLilcomHdf5Writer, load_manifest_lazy
+from lhotse import LilcomChunkyWriter, load_manifest_lazy
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
@@ -118,7 +118,7 @@ def compute_fbank_spgispeech(args):
                 storage_path=output_dir / f"feats_train_{idx}",
                 batch_duration=500,
                 num_workers=4,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
             cs.to_file(cuts_train_idx_path)
 
@@ -137,7 +137,7 @@ def compute_fbank_spgispeech(args):
                 manifest_path=src_dir / f"cuts_{partition}.jsonl.gz",
                 batch_duration=500,
                 num_workers=4,
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
 
 
