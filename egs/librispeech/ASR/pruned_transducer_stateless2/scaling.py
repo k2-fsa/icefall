@@ -937,7 +937,7 @@ def _test_activation_balancer_sign():
     m = ActivationBalancer(
         channel_dim=0,
         min_positive=0.05,
-        max_positive=0.95,
+        max_positive=0.98,
         max_factor=0.2,
         min_abs=0.0,
     )
