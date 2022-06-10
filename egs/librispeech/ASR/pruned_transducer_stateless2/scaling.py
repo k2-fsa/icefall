@@ -847,7 +847,7 @@ class Decorrelate(torch.nn.Module):
     def __init__(self,
                  num_channels: int,
                  scale: float = 0.1,
-                 apply_prob_decay: int = 500,
+                 apply_prob_decay: int = 1000,
                  eps: float = 1.0e-05,
                  beta: float = 0.95,
                  channel_dim: int = -1):
