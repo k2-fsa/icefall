@@ -2,6 +2,14 @@
 <img src="https://raw.githubusercontent.com/k2-fsa/icefall/master/docs/source/_static/logo.png" width=168>
 </div>
 
+## Introduction
+
+icefall contains ASR recipes for various datasets
+using <https://github.com/k2-fsa/k2>`.
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy models
+trained with icefall.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
