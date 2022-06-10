@@ -94,6 +94,9 @@ class Conformer(EncoderInterface):
             aux_layers=list(range(0, num_encoder_layers - 1, aux_layer_period)),
         )
 
+        self.decorrelate = Decorrelate(d_model, scale=0.1)
+
+
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -128,6 +131,8 @@ class Conformer(EncoderInterface):
         x = self.encoder(
             x, pos_emb, src_key_padding_mask=mask, warmup=warmup
         )  # (T, N, C)
+
+        x = self.decorrelate(x)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
@@ -198,7 +203,6 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-        self.decorrelate = Decorrelate(d_model, scale=0.02)
 
 
     def forward(
@@ -262,8 +266,6 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(self.feed_forward(src))
 
         src = self.norm_final(self.balancer(src))
-
-        src = self.decorrelate(src)
 
         if alpha != 1.0:
             src = alpha * src + (1 - alpha) * src_orig
