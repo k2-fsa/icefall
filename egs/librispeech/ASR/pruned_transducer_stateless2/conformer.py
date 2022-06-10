@@ -250,12 +250,12 @@ class Conformer(EncoderInterface):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         states: List[Tensor],
-        warmup: float = 1.0,
-        chunk_size: int = 16,
+        processed_lens: Optional[Tensor] = None,
         left_context: int = 64,
         right_context: int = 4,
+        chunk_size: int = 16,
         simulate_streaming: bool = False,
-        processed_lens: Optional[Tensor] = None,
+        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """
         Args:
@@ -271,13 +271,8 @@ class Conformer(EncoderInterface):
             the second element is the conv_cache which has a shape of
             (encoder_layers, cnn_module_kernel-1, batch, conv_dim).
             Note: states will be modified in this function.
-          warmup:
-            A floating point value that gradually increases from 0 throughout
-            training; when it is >= 1.0 we are "fully warmed up".  It is used
-            to turn modules on sequentially.
-          chunk_size:
-            The chunk size for decoding, this will be used to simulate streaming
-            decoding using masking.
+          processed_lens:
+            How many frames (after subsampling) have been processed for each sequence.
           left_context:
             How many previous frames the attention can see in current chunk.
             Note: It's not that each individual frame has `left_context` frames
@@ -286,13 +281,18 @@ class Conformer(EncoderInterface):
             How many future frames the attention can see in current chunk.
             Note: It's not that each individual frame has `right_context` frames
             of right context, some have more.
+          chunk_size:
+            The chunk size for decoding, this will be used to simulate streaming
+            decoding using masking.
           simulate_streaming:
             If setting True, it will use a masking strategy to simulate streaming
             fashion (i.e. every chunk data only see limited left context and
             right context). The whole sequence is supposed to be send at a time
             When using simulate_streaming.
-          processed_lens:
-            How many frames (after subsampling) have been processed for each sequence.
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
         Returns:
           Return a tuple containing 2 tensors:
             - logits, its shape is (batch_size, output_seq_len, output_dim)
