@@ -5,7 +5,7 @@
 ## Introduction
 
 icefall contains ASR recipes for various datasets
-using <https://github.com/k2-fsa/k2>`.
+using <https://github.com/k2-fsa/k2>.
 
 You can use <https://github.com/k2-fsa/sherpa> to deploy models
 trained with icefall.
