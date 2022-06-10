@@ -17,6 +17,7 @@
 # limitations under the License.
 
 import argparse
+import copy
 import logging
 import math
 import warnings
@@ -261,11 +262,14 @@ def decode_one_chunk(
     num_processed_frames_list = []
 
     for stream in streams:
+        # We should first get `stream.num_processed_frames`
+        # before calling `stream.get_feature_chunk()`
+        # since `stream.num_processed_frames` would be updated
+        num_processed_frames_list.append(stream.num_processed_frames)
         feature, feature_len = stream.get_feature_chunk()
         feature_list.append(feature)
         feature_len_list.append(feature_len)
         state_list.append(stream.states)
-        num_processed_frames_list.append(stream.num_processed_frames)
 
     features = pad_sequence(
         feature_list, batch_first=True, padding_value=LOG_EPSILON
@@ -288,7 +292,6 @@ def decode_one_chunk(
             mode="constant",
             value=LOG_EPSILON,
         )
-    # print(features.shape)
     # stack states of all streams
     states = stack_states(state_list)
 
@@ -299,12 +302,6 @@ def decode_one_chunk(
         num_processed_frames=num_processed_frames,
     )
     encoder_out = model.joiner.encoder_proj(encoder_out)
-
-    # update cached states of each stream
-    state_list = unstack_states(states)
-    assert len(streams) == len(state_list)
-    for i, s in enumerate(state_list):
-        streams[i].states = s
 
     if params.decoding_method == "greedy_search":
         greedy_search(
@@ -324,6 +321,11 @@ def decode_one_chunk(
         raise ValueError(
             f"Unsupported decoding method: {params.decoding_method}"
         )
+
+    # update cached states of each stream
+    state_list = unstack_states(states)
+    for i, s in enumerate(state_list):
+        streams[i].states = s
 
     finished_streams = [i for i, stream in enumerate(streams) if stream.done]
     return finished_streams
@@ -399,9 +401,7 @@ def decode_dataset(
                         sp.decode(streams[i].decoding_result()).split(),
                     )
                 )
-                print(decode_results[-1])
                 del streams[i]
-                # print("delete", i, len(streams))
 
         if num % log_interval == 0:
             logging.info(f"Cuts processed until now is {num}.")
@@ -470,9 +470,10 @@ def save_results(
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
-    logging.info(s) @ torch.no_grad()
+    logging.info(s)
 
 
+@torch.no_grad()
 def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)

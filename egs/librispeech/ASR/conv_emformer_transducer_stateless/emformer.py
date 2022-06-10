@@ -1564,29 +1564,31 @@ class EmformerEncoder(nn.Module):
         )
 
         # calcualte padding mask to mask out initial zero caches
-        # chunk_mask = make_pad_mask(output_lengths).to(x.device)
-        # memory_mask = (
-        #    (past_lens // self.chunk_length).view(x.size(1), 1)
-        #    <= torch.arange(self.memory_size, device=x.device).expand(
-        #        x.size(1), self.memory_size
-        #    )
-        # ).flip(1)
-        # left_context_mask = (
-        #    past_lens.view(x.size(1), 1)
-        #    <= torch.arange(self.left_context_length, device=x.device).expand(
-        #        x.size(1), self.left_context_length
-        #    )
-        # ).flip(1)
-        # right_context_mask = torch.zeros(
-        #    x.size(1),
-        #    self.right_context_length,
-        #    dtype=torch.bool,
-        #    device=x.device,
-        # )
-        # padding_mask = torch.cat(
-        #    [memory_mask, left_context_mask, right_context_mask, chunk_mask],
-        #    dim=1,
-        # )
+        chunk_mask = make_pad_mask(output_lengths).to(x.device)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            memory_mask = (
+                (num_processed_frames // self.chunk_length).view(x.size(1), 1)
+                <= torch.arange(self.memory_size, device=x.device).expand(
+                    x.size(1), self.memory_size
+                )
+            ).flip(1)
+        left_context_mask = (
+            num_processed_frames.view(x.size(1), 1)
+            <= torch.arange(self.left_context_length, device=x.device).expand(
+                x.size(1), self.left_context_length
+            )
+        ).flip(1)
+        right_context_mask = torch.zeros(
+            x.size(1),
+            self.right_context_length,
+            dtype=torch.bool,
+            device=x.device,
+        )
+        padding_mask = torch.cat(
+            [memory_mask, right_context_mask, left_context_mask, chunk_mask],
+            dim=1,
+        )
 
         output = utterance
         output_attn_caches: List[List[torch.Tensor]] = []
@@ -1602,7 +1604,7 @@ class EmformerEncoder(nn.Module):
                 output,
                 right_context,
                 memory,
-                # padding_mask=padding_mask,
+                padding_mask=padding_mask,
                 attn_cache=attn_caches[layer_idx],
                 conv_cache=conv_caches[layer_idx],
             )
@@ -1764,6 +1766,8 @@ class Emformer(EncoderInterface):
         x_lens = (((x_lens - 1) >> 1) - 1) >> 1
         x_lens -= 2
         assert x.size(0) == x_lens.max().item()
+
+        num_processed_frames = num_processed_frames >> 2
 
         output, output_lengths, output_states = self.encoder.infer(
             x, x_lens, num_processed_frames, states
