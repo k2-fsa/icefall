@@ -901,6 +901,7 @@ class Decorrelate(torch.nn.Module):
             if random.random() > apply_prob:
                 return x
             with torch.cuda.amp.autocast(enabled=False):
+                x = x.to(torch.float32)
                 ans = DecorrelateFunction.apply(x, self.cov.clone(),
                                                 self.scale, self.eps, self.beta,
                                                 self.channel_dim)  # == x.
