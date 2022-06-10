@@ -17,6 +17,7 @@
 import math
 from typing import List, Optional, Tuple
 
+import k2
 import torch
 from beam_search import Hypothesis, HypothesisList
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
@@ -47,6 +48,7 @@ class Stream(object):
     def __init__(
         self,
         params: AttributeDict,
+        decoding_graph: Optional[k2.Fsa] = None,
         device: torch.device = torch.device("cpu"),
         LOG_EPS: float = math.log(1e-10),
     ) -> None:
@@ -80,6 +82,13 @@ class Stream(object):
                     log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 )
             )
+        elif params.decoding_method == "fast_beam_search":
+            # feature_len is needed to get partial results.
+            # The rnnt_decoding_stream for fast_beam_search.
+            self.rnnt_decoding_stream: k2.RnntDecodingStream = (
+                k2.RnntDecodingStream(decoding_graph)
+            )
+            self.hyp: List[int] = None
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
@@ -171,7 +180,9 @@ class Stream(object):
         """Obtain current decoding result."""
         if self.decoding_method == "greedy_search":
             return self.hyp[self.context_size :]
-        else:
-            assert self.decoding_method == "modified_beam_search"
+        elif self.decoding_method == "modified_beam_search":
             best_hyp = self.hyps.get_most_probable(length_norm=True)
             return best_hyp.ys[self.context_size :]
+        else:
+            assert self.decoding_method == "fast_beam_search"
+            return self.hyp
