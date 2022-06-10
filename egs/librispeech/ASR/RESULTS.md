@@ -9,6 +9,8 @@ Use <https://github.com/k2-fsa/icefall/pull/390>.
 Use [Emformer](https://arxiv.org/abs/2010.10759) from [torchaudio](https://github.com/pytorch/audio)
 for streaming ASR. The Emformer model is imported from torchaudio without modifications.
 
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
 |                                     | test-clean | test-other | comment                                |
 |-------------------------------------|------------|------------|----------------------------------------|
 | greedy search (max sym per frame 1) | 4.28       | 11.42       | --epoch 39 --avg 6  --max-duration 600 |
