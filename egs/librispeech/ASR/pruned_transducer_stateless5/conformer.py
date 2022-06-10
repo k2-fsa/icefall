@@ -94,7 +94,7 @@ class Conformer(EncoderInterface):
             aux_layers=list(range(0, num_encoder_layers - 1, aux_layer_period)),
         )
 
-        self.decorrelate = Decorrelate(d_model, scale=0.1)
+        self.decorrelate = Decorrelate(d_model, scale=0.05)
 
 
     def forward(
