@@ -42,7 +42,7 @@ def test_dataset():
 
     if args.enable_musan:
         cuts_musan = load_manifest(
-            Path(args.manifest_dir) / "cuts_musan.json.gz"
+            Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:
         cuts_musan = None
@@ -57,14 +57,12 @@ def test_dataset():
 
     libri_train_dl = asr_datamodule.train_dataloaders(
         train_clean_100,
-        dynamic_bucketing=False,
         on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )
 
     giga_train_dl = asr_datamodule.train_dataloaders(
         train_S,
-        dynamic_bucketing=True,
         on_the_fly_feats=True,
         cuts_musan=cuts_musan,
     )

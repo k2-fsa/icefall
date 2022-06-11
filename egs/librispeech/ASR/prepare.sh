@@ -40,9 +40,9 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  5000
-  2000
-  1000
+  # 5000
+  # 2000
+  # 1000
   500
 )
 
@@ -132,7 +132,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     )
     for part in ${parts[@]}; do
       python3 ./local/validate_manifest.py \
-        data/fbank/cuts_${part}.json.gz
+        data/fbank/librispeech_cuts_${part}.jsonl.gz
     done
     touch data/fbank/.librispeech-validated.done
   fi

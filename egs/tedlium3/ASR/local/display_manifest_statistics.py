@@ -27,15 +27,15 @@ for usage.
 """
 
 
-from lhotse import load_manifest
+from lhotse import load_manifest_lazy
 
 
 def main():
-    path = "./data/fbank/cuts_train.json.gz"
-    path = "./data/fbank/cuts_dev.json.gz"
-    path = "./data/fbank/cuts_test.json.gz"
+    path = "./data/fbank/tedlium_cuts_train.jsonl.gz"
+    path = "./data/fbank/tedlium_cuts_dev.jsonl.gz"
+    path = "./data/fbank/tedlium_cuts_test.jsonl.gz"
 
-    cuts = load_manifest(path)
+    cuts = load_manifest_lazy(path)
     cuts.describe()
 
 

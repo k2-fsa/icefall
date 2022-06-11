@@ -110,9 +110,7 @@ class Conformer(Transformer):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # Caution: We assume the subsampling factor is 4!
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            lengths = ((x_lens - 1) // 2 - 1) // 2
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
