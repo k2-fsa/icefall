@@ -546,7 +546,7 @@ def compute_loss(
     warmup: float = 1.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -799,7 +799,7 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], "
                 f"libri_tot_loss[{libri_tot_loss}], "
                 f"giga_tot_loss[{giga_tot_loss}], "
-                f"batch size: {batch_size}"
+                f"batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}"
             )
 
@@ -969,7 +969,7 @@ def run(rank, world_size, args):
 
     if args.enable_musan:
         cuts_musan = load_manifest(
-            Path(args.manifest_dir) / "cuts_musan.json.gz"
+            Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
         )
     else:
         cuts_musan = None
@@ -978,14 +978,12 @@ def run(rank, world_size, args):
 
     train_dl = asr_datamodule.train_dataloaders(
         train_cuts,
-        dynamic_bucketing=False,
         on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )
 
     giga_train_dl = asr_datamodule.train_dataloaders(
         train_giga_cuts,
-        dynamic_bucketing=True,
         on_the_fly_feats=False,
         cuts_musan=cuts_musan,
     )

@@ -2,6 +2,14 @@
 <img src="https://raw.githubusercontent.com/k2-fsa/icefall/master/docs/source/_static/logo.png" width=168>
 </div>
 
+## Introduction
+
+icefall contains ASR recipes for various datasets
+using <https://github.com/k2-fsa/k2>.
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy models
+trained with icefall.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
@@ -12,7 +20,7 @@ for installation.
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
 for more information.
 
-We provide 6 recipes at present:
+We provide the following recipes:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
@@ -22,6 +30,7 @@ We provide 6 recipes at present:
   - [GigaSpeech][gigaspeech]
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
+  - [Alimeeting][alimeeting]
 
 ### yesno
 
@@ -126,7 +135,7 @@ The best CER we currently have is:
 | CER | 4.26 |
 
 
-We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
+We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
 
 #### Transducer Stateless Model
 
@@ -247,6 +256,20 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
+### Alimeeting
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Alimeeting_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with far subset)
+
+|                      |  Eval  | Test-Net |
+|----------------------|--------|----------|
+|    greedy search     | 31.77  |  34.66   |
+|   fast beam search   | 31.39  |  33.02   |
+| modified beam search | 30.38  |  34.25   |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -274,6 +297,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
+[Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -282,4 +306,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [gigaspeech]: egs/gigaspeech/ASR
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
 [wenetspeech]: egs/wenetspeech/ASR
+[alimeeting]: egs/alimeeting/ASR
 [k2]: https://github.com/k2-fsa/k2
+)

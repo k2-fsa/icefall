@@ -124,9 +124,9 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Split XL subset into ${num_splits} pieces"
-  split_dir=data/fbank/XL_split_${num_splits}
+  split_dir=data/fbank/gigaspeech_XL_split_${num_splits}
   if [ ! -f $split_dir/.split_completed ]; then
-    lhotse split-lazy ./data/fbank/cuts_XL_raw.jsonl.gz $split_dir $chunk_size
+    lhotse split-lazy ./data/fbank/gigaspeech_cuts_XL_raw.jsonl.gz $split_dir $chunk_size
     touch $split_dir/.split_completed
   fi
 fi

@@ -3,6 +3,31 @@
 This page shows the WERs for test-clean/test-other using only
 train-clean-100 subset as training data.
 
+## Distillation with hubert
+### 2022-05-27
+Related models/log/tensorboard:
+https://huggingface.co/GuoLiyong/stateless6_baseline_vs_disstillation
+
+Following results are obtained by ./distillation_with_hubert.sh
+
+The only differences is in pruned_transducer_stateless6/train.py.
+
+For baseline: set enable_distillation=False
+
+For distillation: set enable_distillation=True (the default)
+
+Decoding method is modified beam search.
+|                                     | test-clean | test-other | comment                                  |
+|-------------------------------------|------------|------------|------------------------------------------|
+| baseline no vq distillation         | 7.09       | 18.88      | --epoch 20, --avg 10, --max-duration 200 |
+| baseline no vq distillation         | 6.83       | 18.19      | --epoch 30, --avg 10, --max-duration 200 |
+| baseline no vq distillation         | 6.73       | 17.79      | --epoch 40, --avg 10, --max-duration 200 |
+| baseline no vq distillation         | 6.75       | 17.68      | --epoch 50, --avg 10, --max-duration 200 |
+| distillation with hubert            | 5.82       | 15.98      | --epoch 20, --avg 10, --max-duration 200 |
+| distillation with hubert            | 5.52       | 15.15      | --epoch 30, --avg 10, --max-duration 200 |
+| distillation with hubert            | 5.45       | 14.94      | --epoch 40, --avg 10, --max-duration 200 |
+| distillation with hubert            | 5.50       | 14.77      | --epoch 50, --avg 10, --max-duration 200 |
+
 ## Conformer encoder + embedding decoder
 
 ### 2022-02-21

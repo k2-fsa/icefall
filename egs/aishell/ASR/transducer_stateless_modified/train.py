@@ -37,6 +37,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -411,7 +412,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -625,19 +630,16 @@ def run(rank, world_size, args):
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 12 seconds
+        #
+        # Caution: There is a reason to select 12.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
         return 1.0 <= c.duration <= 12.0
 
-    num_in_total = len(train_cuts)
-
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
-
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
     train_dl = aishell.train_dataloaders(train_cuts)
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
