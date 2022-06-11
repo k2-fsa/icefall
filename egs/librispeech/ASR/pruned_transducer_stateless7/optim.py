@@ -18,6 +18,7 @@
 from typing import List, Optional, Union, Tuple, List
 from lhotse.utils import fix_random_seed
 import torch
+import random
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -74,11 +75,8 @@ class Cain(Optimizer):
           rms value goes below this, we stop learning slower for that parameter,
           i.e. we treat the rms as if it were rms_eps.  In practice, rms values
           will not go much below this.
-        rms_max (float, optional): maximum root-mean-square value for
-          non-scalar parameters, such that we don't let the parameter
-          values exceed this; we'll shrink any parameter matrices that becomes
-          larger than this.
-
+        param_max (float, optional): maximum absolute value for any parameter;
+          we will clamp parameters to satisfy -param_max <= param  <= param_max
 
 
 
@@ -99,7 +97,7 @@ class Cain(Optimizer):
             eps=1e-8,
             scale_speed=0.05,
             rms_eps=1.0e-05,
-            rms_max=10.0,
+            param_max=100.0,
     ):
 
         if not 0.0 <= lr:
@@ -116,8 +114,8 @@ class Cain(Optimizer):
             )
         if not 0 < scale_speed < 1.0:
             raise ValueError("Invalid scale_speed value: {}".format(scale_speed))
-        if not 0.1 < rms_max <= 1000.0:
-            raise ValueError("Invalid rms_max value: {}".format(rms_max))
+        if not 0.1 < param_max <= 10000.0:
+            raise ValueError("Invalid param_max value: {}".format(param_max))
         if not 0.0 < rms_eps < 0.1:
             raise ValueError("Invalid rms_eps value: {}".format(rms_eps))
 
@@ -127,7 +125,7 @@ class Cain(Optimizer):
             eps=eps,
             scale_speed=0.05,
             rms_eps=rms_eps,
-            rms_max=rms_max,
+            param_max=param_max,
         )
         super(Cain, self).__init__(params, defaults)
 
@@ -153,7 +151,7 @@ class Cain(Optimizer):
             scale_speed = group["scale_speed"]
             rms_eps = group["rms_eps"]
             eps = group["eps"]
-            rms_max = group["rms_max"]
+            param_max = group["param_max"]
 
             for p in group["params"]:
                 if p.grad is None:
@@ -163,7 +161,7 @@ class Cain(Optimizer):
                 grad = p.grad
                 if grad.is_sparse:
                     raise RuntimeError(
-                        "AdamW does not support sparse gradients"
+                        "Cain does not support sparse gradients"
                     )
 
                 state = self.state[p]
@@ -182,9 +180,11 @@ class Cain(Optimizer):
                     if p.numel() > 1:
                         # we keep track of the RMS value of the parameters to
                         # help set the learning rate... this emulates Eve.
-                        state["param_rms"] = (p**2).mean().sqrt()
-                        # we learn the scale on the parameters in a way
-                        # that also emulates Eve.
+                        state["param_rms"] = torch.ones_like(p)
+                        # we learn the scale on the parameters in a way that
+                        # also emulates Eve.  scale_exp_avg_sq is the
+                        # moving-average square of the gradient w.r.t. this
+                        # scalar scale.
                         state["scale_exp_avg_sq"] = torch.zeros((), device=p.device,
                                                                 dtype=p.dtype)
 
@@ -195,9 +195,6 @@ class Cain(Optimizer):
                 delta.mul_(beta1)
 
                 if p.numel() > 1:
-
-                    if step % 10 == 0:
-                        state["param_rms"].fill_((p**2).mean().sqrt())
 
                     if True:
                         # This block learns the scale on the parameters.
@@ -224,19 +221,7 @@ class Cain(Optimizer):
                         # delta is the change in `scale`.
                         scale_delta = scale_alpha * (scale_deriv / scale_denom)
 
-                        # the following is equivalent to:
-                        # if torch.all(state["param_rms"] > rms_max):
-                        #    delta = -1.0e-03
-                        # which means: if the parameter root-mean-square value goes above the
-                        # specified limit, start to decay the parameters (and ignore the computed
-                        # delta).
-                        scale_delta = torch.where(state["param_rms"] > rms_max,
-                                                  torch.tensor(-1.0e-03 * (1-beta1),
-                                                               device=scale_delta.device,
-                                                               dtype=scale_delta.dtype),
-                                                  scale_delta)
                         delta.add_(p, alpha=scale_delta)
-
 
                     # Decay the second moment running average coefficient
                     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
@@ -247,9 +232,13 @@ class Cain(Optimizer):
 
                     this_delta = grad / grad_rms
 
+                    param_rms = state["param_rms"]
+                    self._update_param_rms(p, param_rms, step, rms_eps)
                     this_lr = state["param_rms"].clamp(min=rms_eps) * lr * bias_correction2
 
-                    alpha = -(1-beta1) * this_lr
+                    alpha = (-(1-beta1) * lr * bias_correction2)
+
+                    delta.add_(this_delta * param_rms, alpha=alpha)
 
                     # below, will do: delta.add_(this_delta, alpha=alpha)
                 else:
@@ -261,12 +250,83 @@ class Cain(Optimizer):
                     denom = (exp_avg_sq.sqrt()).add_(eps)
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
-
-                delta.add_(this_delta, alpha=alpha)
+                    delta.add_(this_delta, alpha=alpha)
                 p.add_(delta)
+                if step % 10 == 0:
+                    p.clamp_(min=-param_max, max=param_max)
                 state["step"] += 1
 
         return loss
+
+    def _update_param_rms(self, p: Tensor, param_rms: Tensor,
+                          step: int, rms_eps: float):
+        """
+        Updates `param_rms`.  Require p.numel() > 1
+        Args:
+           p: parameter whose magnitude/rms we are measuring
+          param_rms: a Tensor containing non-negative values, with the same
+              shape as p.  Contains an estimate of the root-mean-square
+              value of the parameter.  This has a special structure where
+              it must be a product of one-dimensional quantities,
+              one for each axis of p.
+              We exclude certain axes to avoid estimating the rms value
+              from a too-small number of parameters.
+          step: the step of the algorithm
+          rms_eps: epsilon such that we'll aim to prevent param_rms from
+              going much lower than this.
+        """
+        if step % 1000 == 0:
+            # Periodically refresh param_rms to keep the invariance that it is a
+            # product over its axes (numerical roundoff might destroy this)
+            param_rms.fill_(1.0)
+            for dim in range(p.ndim):
+                self._update_param_rms_for_dim(p, param_rms, dim, rms_eps)
+        else:
+            dim = step % p.ndim
+            self._update_param_rms_for_dim(p, param_rms, dim, rms_eps)
+
+    def _update_param_rms_for_dim(self, p: Tensor,
+                                  param_rms: Tensor,
+                                  dim: int,
+                                  rms_eps: float):
+        """
+        Updates `param_rms` on one of its axes/dimensions.
+        Args:
+           p: parameter whose magnitude/rms we are measuring
+          param_rms: a Tensor containing non-negative values, with the same
+              shape as p.  Contains an estimate of the root-mean-square
+              value of the parameter.  This has a special structure where
+              it must be a product of one-dimensional quantities,
+              one for each axis of p.
+              We exclude certain axes to avoid estimating the rms value
+              from a too-small number of parameters.
+          dim: with 0 <= dim < p.ndim, the
+              dimension/axis on which to update the scale factor
+          rms_eps: epsilon such that we'll aim to prevent param_rms from
+              going much lower than this.
+        """
+        # var_factor is the square of the factor to change param_rms by.  p will
+        # not be super large, we limit it to -param_max <= p <= param_max.
+        # Clamping p**2 to min=1.0e-10 should prevent param_rms from getting much
+        # smaller than 1.0e-05, which should prevent division by zero here.
+        var_factor = (p ** 2).clamp(min=rms_eps*rms_eps) / (param_rms ** 2)
+
+        if p.numel() <= 2 * p.shape[dim]:
+            var_factor = var_factor.mean()
+        else:
+            dims = tuple(d for d in range(p.ndim) if d != dim)
+            var_factor = var_factor.mean(dim=dims, keepdim=True)
+
+        #if random.random() < 0.01:
+        #    print(f"shape={p.shape}, var_factor={var_factor}")
+        param_rms.mul_(var_factor.sqrt())
+
+
+
+
+
+
+
 
 
 
@@ -556,7 +616,7 @@ def _test_eden():
     m = torch.nn.Linear(100, 100)
     optim = Cain(m.parameters(), lr=0.003)
 
-    scheduler = Eden(optim, lr_batches=30, lr_epochs=2, verbose=True)
+    scheduler = Eden(optim, lr_batches=100, lr_epochs=2, verbose=True)
 
     for epoch in range(10):
         scheduler.step_epoch(epoch)  # sets epoch to `epoch`
