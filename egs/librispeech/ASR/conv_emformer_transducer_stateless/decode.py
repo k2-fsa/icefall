@@ -19,41 +19,53 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+./conv_emformer_transducer_stateless/decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --max-duration 300 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method greedy_search \
+      --use-averaged-model True
 
-(2) beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method beam_search \
-        --beam-size 4
+(2) modified beam search
+./conv_emformer_transducer_stateless/decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --max-duration 300 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method modified_beam_search \
+      --use-averaged-model True \
+      --beam-size 4
 
-(3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
-
-(4) fast beam search
-./pruned_transducer_stateless4/decode.py \
-        --epoch 30 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+(3) fast beam search
+./conv_emformer_transducer_stateless/decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --max-duration 300 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method fast_beam_search \
+      --use-averaged-model True \
+      --beam 4 \
+      --max-contexts 4 \
+      --max-states 8
 """
 
 
@@ -122,7 +134,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=10,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -131,7 +143,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -159,7 +171,6 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
-          - beam_search
           - modified_beam_search
           - fast_beam_search
         """,
@@ -207,6 +218,7 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,

@@ -451,9 +451,6 @@ def fast_beam_search_one_best(
 
     decoding_streams.terminate_and_flush_to_streams()
 
-    # import pdb
-
-    # pdb.set_trace()
     lattice = decoding_streams.format_output(processed_lens.tolist())
 
     best_path = one_best_decoding(lattice)
