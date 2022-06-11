@@ -21,28 +21,8 @@ from typing import List, Optional, Tuple
 import k2
 import torch
 from beam_search import Hypothesis, HypothesisList
-from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 from icefall.utils import AttributeDict
-
-
-def _create_streaming_feature_extractor() -> OnlineFeature:
-    """Create a CPU streaming feature extractor.
-
-    At present, we assume it returns a fbank feature extractor with
-    fixed options. In the future, we will support passing in the options
-    from outside.
-
-    Returns:
-      Return a CPU streaming feature extractor.
-    """
-    opts = FbankOptions()
-    opts.device = "cpu"
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = 16000
-    opts.mel_opts.num_bins = 80
-    return OnlineFbank(opts)
 
 
 class Stream(object):
@@ -57,6 +37,9 @@ class Stream(object):
         Args:
           params:
             It's the return value of :func:`get_params`.
+          decoding_graph:
+            The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+            only when --decoding_method is fast_beam_search.
           device:
             The device to run this stream.
         """

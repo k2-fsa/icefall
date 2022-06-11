@@ -466,6 +466,21 @@ def decode_one_chunk(
     params: AttributeDict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> List[int]:
+    """
+    Args:
+      model:
+        The Transducer model.
+      streams:
+        A list of Stream objects.
+      params:
+        It is returned by :func:`get_params`.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding_method is fast_beam_search.
+
+    Returns:
+       A list of indexes indicating the finished streams.
+    """
     device = next(model.parameters()).device
 
     feature_list = []
@@ -529,6 +544,8 @@ def decode_one_chunk(
             beam=params.beam_size,
         )
     elif params.decoding_method == "fast_beam_search":
+        # feature_len is needed to get partial results.
+        # The rnnt_decoding_stream for fast_beam_search.
         fast_beam_search_one_best(
             model=model,
             streams=streams,
