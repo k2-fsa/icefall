@@ -299,7 +299,7 @@ class ConvolutionModule(nn.Module):
         self,
         utterance: torch.Tensor,
         right_context: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Causal convolution module.
 
         Args:
@@ -362,12 +362,13 @@ class ConvolutionModule(nn.Module):
             right_context.permute(2, 0, 1),
         )
 
+    @torch.jit.export
     def infer(
         self,
         utterance: torch.Tensor,
         right_context: torch.Tensor,
-        cache: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+        cache: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Causal convolution module applied on both utterance and right_context.
 
         Args:
@@ -675,6 +676,7 @@ class EmformerAttention(nn.Module):
         )
         return output_right_context_utterance, output_memory[:-1]
 
+    @torch.jit.export
     def infer(
         self,
         utterance: torch.Tensor,
@@ -910,8 +912,8 @@ class EmformerEncoderLayer(nn.Module):
         self,
         right_context_utterance: torch.Tensor,
         R: int,
-        conv_cache: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+        conv_cache: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Apply convolution module on utterance in inference mode."""
         utterance = right_context_utterance[R:]
         right_context = right_context_utterance[:R]
@@ -1012,7 +1014,7 @@ class EmformerEncoderLayer(nn.Module):
         utterance: torch.Tensor,
         right_context: torch.Tensor,
         memory: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: torch.Tensor,
         padding_mask: Optional[torch.Tensor] = None,
         warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -1085,6 +1087,7 @@ class EmformerEncoderLayer(nn.Module):
         output_right_context = src[:R]
         return output_utterance, output_right_context, output_memory
 
+    @torch.jit.export
     def infer(
         self,
         utterance: torch.Tensor,
@@ -1093,7 +1096,13 @@ class EmformerEncoderLayer(nn.Module):
         attn_cache: List[torch.Tensor],
         conv_cache: torch.Tensor,
         padding_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        List[torch.Tensor],
+        torch.Tensor,
+    ]:
         """Forward pass for inference.
 
          B: batch size;
@@ -1478,16 +1487,17 @@ class EmformerEncoder(nn.Module):
 
         return output, output_lengths
 
+    @torch.jit.export
     def infer(
         self,
         x: torch.Tensor,
         lengths: torch.Tensor,
         num_processed_frames: torch.Tensor,
-        states: Tuple[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]],
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        Tuple[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]],
+        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
     ]:
         """Forward pass for streaming inference.
 
@@ -1565,14 +1575,12 @@ class EmformerEncoder(nn.Module):
 
         # calcualte padding mask to mask out initial zero caches
         chunk_mask = make_pad_mask(output_lengths).to(x.device)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            memory_mask = (
-                (num_processed_frames // self.chunk_length).view(x.size(1), 1)
-                <= torch.arange(self.memory_size, device=x.device).expand(
-                    x.size(1), self.memory_size
-                )
-            ).flip(1)
+        memory_mask = (
+            (num_processed_frames // self.chunk_length).view(x.size(1), 1)
+            <= torch.arange(self.memory_size, device=x.device).expand(
+                x.size(1), self.memory_size
+            )
+        ).flip(1)
         left_context_mask = (
             num_processed_frames.view(x.size(1), 1)
             <= torch.arange(self.left_context_length, device=x.device).expand(
@@ -1611,7 +1619,10 @@ class EmformerEncoder(nn.Module):
             output_attn_caches.append(output_attn_cache)
             output_conv_caches.append(output_conv_cache)
 
-        output_states = [output_attn_caches, output_conv_caches]
+        output_states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
+            output_attn_caches,
+            output_conv_caches,
+        )
         return output, output_lengths, output_states
 
 
@@ -1706,10 +1717,7 @@ class Emformer(EncoderInterface):
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        # Caution: We assume the subsampling factor is 4!
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            x_lens = ((x_lens - 1) // 2 - 1) // 2
+        x_lens = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == x_lens.max().item()
 
         output, output_lengths = self.encoder(
@@ -1726,8 +1734,12 @@ class Emformer(EncoderInterface):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         num_processed_frames: torch.Tensor,
-        states: Optional[List[List[torch.Tensor]]] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[List[torch.Tensor]]]:
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+    ]:
         """Forward pass for streaming inference.
 
         B: batch size;
