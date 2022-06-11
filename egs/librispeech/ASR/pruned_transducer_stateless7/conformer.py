@@ -19,7 +19,7 @@ import copy
 import math
 import warnings
 from typing import List, Optional, Tuple
-
+import logging
 import torch
 from encoder_interface import EncoderInterface
 from scaling import (
@@ -29,6 +29,7 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
+    Decorrelate,
 )
 from torch import Tensor, nn
 
@@ -93,6 +94,9 @@ class Conformer(EncoderInterface):
             aux_layers=list(range(0, num_encoder_layers - 1, aux_layer_period)),
         )
 
+        self.decorrelate = Decorrelate(d_model, scale=0.05)
+
+
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -127,6 +131,8 @@ class Conformer(EncoderInterface):
         x = self.encoder(
             x, pos_emb, src_key_padding_mask=mask, warmup=warmup
         )  # (T, N, C)
+
+        x = self.decorrelate(x)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
@@ -200,6 +206,7 @@ class ConformerEncoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
+
 
     def forward(
         self,
@@ -302,7 +309,6 @@ class ConformerEncoder(nn.Module):
         num_channels = encoder_layer.norm_final.num_channels
         self.combiner = RandomCombine(
             num_inputs=len(self.aux_layers),
-            num_channels=num_channels,
             final_weight=0.5,
             pure_prob=0.333,
             stddev=2.0,
@@ -371,7 +377,7 @@ class RelPositionalEncoding(torch.nn.Module):
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.dropout = torch.nn.Dropout(p=dropout_rate)
+        self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
@@ -1032,6 +1038,7 @@ class Conv2dSubsampling(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
 
@@ -1073,7 +1080,6 @@ class RandomCombine(nn.Module):
     def __init__(
         self,
         num_inputs: int,
-        num_channels: int,
         final_weight: float = 0.5,
         pure_prob: float = 0.5,
         stddev: float = 2.0,
@@ -1084,8 +1090,6 @@ class RandomCombine(nn.Module):
             The number of tensor inputs, which equals the number of layers'
             outputs that are fed into this module.  E.g. in an 18-layer neural
             net if we output layers 16, 12, 18, num_inputs would be 3.
-          num_channels:
-            The number of channels on the input, e.g. 512.
           final_weight:
             The amount of weight or probability we assign to the
             final layer when randomly choosing layers or when choosing
@@ -1116,13 +1120,6 @@ class RandomCombine(nn.Module):
         assert 0 < final_weight < 1, final_weight
         assert num_inputs >= 1
 
-        self.linear = nn.ModuleList(
-            [
-                nn.Linear(num_channels, num_channels, bias=True)
-                for _ in range(num_inputs - 1)
-            ]
-        )
-
         self.num_inputs = num_inputs
         self.final_weight = final_weight
         self.pure_prob = pure_prob
@@ -1135,12 +1132,7 @@ class RandomCombine(nn.Module):
             .log()
             .item()
         )
-        self._reset_parameters()
 
-    def _reset_parameters(self):
-        for i in range(len(self.linear)):
-            nn.init.eye_(self.linear[i].weight)
-            nn.init.constant_(self.linear[i].bias, 0.0)
 
     def forward(self, inputs: List[Tensor]) -> Tensor:
         """Forward function.
@@ -1161,14 +1153,9 @@ class RandomCombine(nn.Module):
         num_channels = inputs[0].shape[-1]
         num_frames = inputs[0].numel() // num_channels
 
-        mod_inputs = []
-        for i in range(num_inputs - 1):
-            mod_inputs.append(self.linear[i](inputs[i]))
-        mod_inputs.append(inputs[num_inputs - 1])
-
         ndim = inputs[0].ndim
         # stacked_inputs: (num_frames, num_channels, num_inputs)
-        stacked_inputs = torch.stack(mod_inputs, dim=ndim).reshape(
+        stacked_inputs = torch.stack(inputs, dim=ndim).reshape(
             (num_frames, num_channels, num_inputs)
         )
 
@@ -1282,7 +1269,6 @@ def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
     num_channels = 50
     m = RandomCombine(
         num_inputs=num_inputs,
-        num_channels=num_channels,
         final_weight=final_weight,
         pure_prob=pure_prob,
         stddev=stddev,
@@ -1329,5 +1315,8 @@ def _test_conformer_main():
 
 
 if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     _test_conformer_main()
     _test_random_combine_main()
