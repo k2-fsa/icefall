@@ -20,28 +20,42 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless4/export.py \
-  --exp-dir ./pruned_transducer_stateless4/exp \
+./conv_emformer_transducer_stateless/export.py \
+  --exp-dir ./conv_emformer_transducer_stateless/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10
+  --epoch 30 \
+  --avg 10 \
+  --use-averaged-model=True \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --jit False
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless4/decode.py`,
+To use the generated file with `conv_emformer_transducer_stateless/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless4/decode.py \
-        --exp-dir ./pruned_transducer_stateless4/exp \
+    ./conv_emformer_transducer_stateless/decode.py \
+        --exp-dir ./conv_emformer_transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 100 \
         --bpe-model data/lang_bpe_500/bpe.model \
-        --use-averaged-model False
+        --use-averaged-model=False \
+        --num-encoder-layers 12 \
+        --chunk-length 32 \
+        --cnn-module-kernel 31 \
+        --left-context-length 32 \
+        --right-context-length 8 \
+        --memory-size 32
 """
 
 import argparse
@@ -50,7 +64,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -137,6 +151,8 @@ def get_parser():
         "`epoch` are loaded for averaging. ",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -162,8 +178,6 @@ def main():
 
     logging.info("About to create model")
     model = get_transducer_model(params)
-
-    model.to(device)
 
     if not params.use_averaged_model:
         if params.iter > 0:

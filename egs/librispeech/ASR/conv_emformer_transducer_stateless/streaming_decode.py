@@ -281,7 +281,7 @@ def modified_beam_search(
 
     blank_id = model.decoder.blank_id
     context_size = model.decoder.context_size
-    device = model.device
+    device = next(model.parameters()).device
     batch_size = len(streams)
     T = encoder_out.size(1)
 
@@ -874,7 +874,6 @@ def main():
             )
 
     model.eval()
-    model.device = device
 
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
