@@ -61,7 +61,7 @@ def test_state_stack_unstack():
 
 
 def test_torchscript_consistency_infer():
-    r"""Verify that scripting Emformer does not change the behavior of method `infer`.""" # noqa
+    r"""Verify that scripting Emformer does not change the behavior of method `infer`."""  # noqa
     from emformer import Emformer
 
     num_features = 80
