@@ -122,7 +122,7 @@ def stack_states(
     conv_caches = []
     for layer in state_list[0][1]:
         if batch_size > 1:
-            # Note: We will stack conv_caches[layer][] later to get attn_caches[layer]  # noqa
+            # Note: We will stack conv_caches[layer][] later to get conv_caches[layer]  # noqa
             conv_caches.append([layer])
         else:
             conv_caches.append(layer.unsqueeze(0))
