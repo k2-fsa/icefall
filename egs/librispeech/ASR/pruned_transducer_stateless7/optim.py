@@ -234,7 +234,6 @@ class Cain(Optimizer):
 
                     param_rms = state["param_rms"]
                     self._update_param_rms(p, param_rms, step, rms_eps)
-                    this_lr = state["param_rms"].clamp(min=rms_eps) * lr * bias_correction2
 
                     alpha = (-(1-beta1) * lr * bias_correction2)
 
