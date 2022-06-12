@@ -11,6 +11,8 @@ See <https://github.com/k2-fsa/icefall/pull/389> for more details.
 
 #### Training on full librispeech
 
+In this model, the lengths of chunk and right context are 32 frames (i.e., 0.32s) chunk and 8 frames (i.e., 0.08s), respectively.
+
 The WERs are:
 
 |                                     | test-clean | test-other | comment              | decoding mode        |
