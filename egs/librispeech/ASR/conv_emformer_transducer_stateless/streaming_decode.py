@@ -16,7 +16,57 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+(1) greedy search
+./conv_emformer_transducer_stateless/streaming_decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method greedy_search \
+      --use-averaged-model True
 
+(2) modified beam search
+./conv_emformer_transducer_stateless/streaming_decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method modified_beam_search \
+      --use-averaged-model True \
+      --beam-size 4
+
+(3) fast beam search
+./conv_emformer_transducer_stateless/streaming_decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir conv_emformer_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --chunk-length 32 \
+      --cnn-module-kernel 31 \
+      --left-context-length 32 \
+      --right-context-length 8 \
+      --memory-size 32 \
+      --decoding-method fast_beam_search \
+      --use-averaged-model True \
+      --beam 4 \
+      --max-contexts 4 \
+      --max-states 8
+"""
 import argparse
 import logging
 import warnings
@@ -686,8 +736,9 @@ def decode_dataset(
             )
             del streams[i]
 
-    key = "greedy_search"
-    if params.decoding_method == "fast_beam_search":
+    if params.decoding_method == "greedy_search":
+        key = "greedy_search"
+    elif params.decoding_method == "fast_beam_search":
         key = (
             f"beam_{params.beam}_"
             f"max_contexts_{params.max_contexts}_"
