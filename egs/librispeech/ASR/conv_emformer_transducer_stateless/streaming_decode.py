@@ -245,8 +245,9 @@ def greedy_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
     streams: List[Stream],
-) -> List[List[int]]:
+) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
+
     Args:
       model:
         The transducer model.
@@ -270,10 +271,9 @@ def greedy_search(
         device=device,
         dtype=torch.int64,
     )
-    # decoder_out is of shape (N, decoder_out_dim)
+    # decoder_out is of shape (batch_size, 1, decoder_out_dim)
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
-    # logging.info(f"decoder_out shape : {decoder_out.shape}")
 
     for t in range(T):
         # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
@@ -427,7 +427,7 @@ def fast_beam_search_one_best(
     beam: float,
     max_states: int,
     max_contexts: int,
-) -> List[List[int]]:
+) -> None:
     """It limits the maximum number of symbols per frame to 1.
 
     A lattice is first obtained using modified beam search, and then
@@ -449,8 +449,6 @@ def fast_beam_search_one_best(
         Max states per stream per frame.
       max_contexts:
         Max contexts pre stream per frame.
-    Returns:
-      Return the decoded result.
     """
     assert encoder_out.ndim == 3
 
@@ -543,7 +541,8 @@ def decode_one_chunk(
         # before calling `stream.get_feature_chunk()`
         # since `stream.num_processed_frames` would be updated
         num_processed_frames_list.append(stream.num_processed_frames)
-        feature, feature_len = stream.get_feature_chunk()
+        feature = stream.get_feature_chunk()
+        feature_len = feature.size(0)
         feature_list.append(feature)
         feature_len_list.append(feature_len)
         state_list.append(stream.states)
@@ -809,7 +808,6 @@ def main():
         "fast_beam_search",
         "modified_beam_search",
     )
-    # Note: params.decoding_method is currently not used.
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:

@@ -1,9 +1,64 @@
+#!/usr/bin/env python3
+
 import torch
+from emformer import Emformer, stack_states, unstack_states
+
+
+def test_convolution_module_forward():
+    from emformer import ConvolutionModule
+
+    B, D = 2, 256
+    chunk_length = 4
+    right_context_length = 2
+    num_chunks = 3
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+    kernel_size = 31
+    conv_module = ConvolutionModule(
+        chunk_length,
+        right_context_length,
+        D,
+        kernel_size,
+    )
+
+    utterance = torch.randn(U, B, D)
+    right_context = torch.randn(R, B, D)
+
+    utterance, right_context = conv_module(utterance, right_context)
+    assert utterance.shape == (U, B, D)
+    assert right_context.shape == (R, B, D)
+
+
+def test_convolution_module_infer():
+    from emformer import ConvolutionModule
+
+    B, D = 2, 256
+    chunk_length = 4
+    right_context_length = 2
+    num_chunks = 1
+    U = num_chunks * chunk_length
+    R = num_chunks * right_context_length
+    kernel_size = 31
+    conv_module = ConvolutionModule(
+        chunk_length,
+        right_context_length,
+        D,
+        kernel_size,
+    )
+
+    utterance = torch.randn(U, B, D)
+    right_context = torch.randn(R, B, D)
+    cache = torch.randn(B, D, kernel_size - 1)
+
+    utterance, right_context, new_cache = conv_module.infer(
+        utterance, right_context, cache
+    )
+    assert utterance.shape == (U, B, D)
+    assert right_context.shape == (R, B, D)
+    assert new_cache.shape == (B, D, kernel_size - 1)
 
 
 def test_state_stack_unstack():
-    from emformer import Emformer, stack_states, unstack_states
-
     num_features = 80
     chunk_length = 32
     encoder_dim = 512
@@ -62,8 +117,6 @@ def test_state_stack_unstack():
 
 def test_torchscript_consistency_infer():
     r"""Verify that scripting Emformer does not change the behavior of method `infer`."""  # noqa
-    from emformer import Emformer
-
     num_features = 80
     chunk_length = 32
     encoder_dim = 512
@@ -118,5 +171,7 @@ def test_torchscript_consistency_infer():
 
 
 if __name__ == "__main__":
+    test_convolution_module_forward()
+    test_convolution_module_infer()
     test_state_stack_unstack()
     test_torchscript_consistency_infer()

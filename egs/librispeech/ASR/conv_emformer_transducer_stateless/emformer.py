@@ -42,15 +42,16 @@ LOG_EPSILON = math.log(1e-10)
 def unstack_states(
     states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
 ) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]:
-    # TODO: modify doc
     """Unstack the emformer state corresponding to a batch of utterances
     into a list of states, were the i-th entry is the state from the i-th
     utterance in the batch.
 
     Args:
       states:
-        A list-of-list of tensors.
-        ``len(states[0])`` and ``len(states[1])`` eqaul to number of layers.
+        A list of tuples.
+        ``states[i][0]`` is the attention caches of i-th utterance.
+        ``states[i][1]`` is the convolution caches of i-th utterance.
+        ``len(states[i][0])`` and ``len(states[i][1])`` both eqaul to number of layers.  # noqa
     """
 
     attn_caches, conv_caches = states
@@ -146,7 +147,7 @@ class ConvolutionModule(nn.Module):
       right_context_length (int):
         Length of right context.
       channels (int):
-        The number of channels of conv layers.
+        The number of input channels and output channels of conv layers.
       kernel_size (int):
         Kernerl size of conv layers.
       bias (bool):
@@ -162,9 +163,9 @@ class ConvolutionModule(nn.Module):
         bias: bool = True,
     ) -> None:
         """Construct an ConvolutionModule object."""
-        super(ConvolutionModule, self).__init__()
-        # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
+        super().__init__()
+        # kernerl_size should be an odd number for 'SAME' padding
+        assert (kernel_size - 1) % 2 == 0, kernel_size
 
         self.chunk_length = chunk_length
         self.right_context_length = right_context_length

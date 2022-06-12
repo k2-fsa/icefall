@@ -53,7 +53,7 @@ class Stream(object):
         # Initailize zero states.
         self.init_states(params)
 
-        # It use different attributes for different decoding methods.
+        # It uses different attributes for different decoding methods.
         self.context_size = params.context_size
         self.decoding_method = params.decoding_method
         if params.decoding_method == "greedy_search":
@@ -72,7 +72,7 @@ class Stream(object):
             self.rnnt_decoding_stream: k2.RnntDecodingStream = (
                 k2.RnntDecodingStream(decoding_graph)
             )
-            self.hyp: List[int] = None
+            self.hyp: Optional[List[int]] = None
         else:
             raise ValueError(
                 f"Unsupported decoding method: {params.decoding_method}"
@@ -134,10 +134,14 @@ class Stream(object):
             )
             for _ in range(params.num_encoder_layers)
         ]
-        self.states = [attn_caches, conv_caches]
+        self.states = (attn_caches, conv_caches)
 
-    def get_feature_chunk(self) -> Tuple[torch.Tensor, int]:
-        """Get a chunk of feature frames."""
+    def get_feature_chunk(self) -> torch.Tensor:
+        """Get a chunk of feature frames.
+
+        Returns:
+          A tensor of shape (ret_length, feature_dim).
+        """
         update_length = min(
             self.num_frames - self.num_processed_frames, self.chunk_length
         )
@@ -153,11 +157,11 @@ class Stream(object):
         if self.num_processed_frames >= self.num_frames:
             self._done = True
 
-        return ret_feature, ret_length
+        return ret_feature
 
     @property
     def done(self) -> bool:
-        """Return True if `self.input_finished()` has been invoked"""
+        """Return True if all feature frames are processed."""
         return self._done
 
     def decoding_result(self) -> List[int]:
