@@ -971,7 +971,6 @@ class EmformerEncoderLayer(nn.Module):
            - output memory of current chunk in the lower layer;
            - attention key and value in current chunk's computation, which would
              be resued in next chunk's computation.
-           - length of current chunk.
         """
         utterance = right_context_utterance[R:]
         right_context = right_context_utterance[:R]
