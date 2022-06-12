@@ -14,7 +14,7 @@ See <https://github.com/k2-fsa/icefall/pull/389> for more details.
 The WERs are:
 
 |                                     | test-clean | test-other | comment              | decoding mode        |
-|-------------------------------------|------------|------------|---------------------------------------------|
+|-------------------------------------|------------|------------|----------------------|----------------------|
 | greedy search (max sym per frame 1) | 3.63       | 9.61       | --epoch 30 --avg 10  | simulated streaming  |
 | greedy search (max sym per frame 1) | 3.64       | 9.65       | --epoch 30 --avg 10  | streaming            |
 | fast beam search                    | 3.61       | 9.4        | --epoch 30 --avg 10  | simulated streaming  |
