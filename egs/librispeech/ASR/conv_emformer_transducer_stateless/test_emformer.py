@@ -85,7 +85,6 @@ def test_state_stack_unstack():
     left_context_length = 32
     right_context_length = 8
     memory_size = 32
-    batch_size = 2
 
     model = Emformer(
         num_features=num_features,
@@ -98,39 +97,41 @@ def test_state_stack_unstack():
         right_context_length=right_context_length,
         memory_size=memory_size,
     )
-    attn_caches = [
-        [
-            torch.zeros(memory_size, batch_size, encoder_dim),
-            torch.zeros(left_context_length // 4, batch_size, encoder_dim),
-            torch.zeros(
-                left_context_length // 4,
-                batch_size,
-                encoder_dim,
-            ),
+
+    for batch_size in [1, 2]:
+        attn_caches = [
+            [
+                torch.zeros(memory_size, batch_size, encoder_dim),
+                torch.zeros(left_context_length // 4, batch_size, encoder_dim),
+                torch.zeros(
+                    left_context_length // 4,
+                    batch_size,
+                    encoder_dim,
+                ),
+            ]
+            for _ in range(num_encoder_layers)
         ]
-        for _ in range(num_encoder_layers)
-    ]
-    conv_caches = [
-        torch.zeros(batch_size, encoder_dim, kernel_size - 1)
-        for _ in range(num_encoder_layers)
-    ]
-    states = [attn_caches, conv_caches]
-    x = torch.randn(batch_size, 23, num_features)
-    x_lens = torch.full((batch_size,), 23)
-    num_processed_frames = torch.full((batch_size,), 0)
-    y, y_lens, states = model.infer(
-        x, x_lens, num_processed_frames=num_processed_frames, states=states
-    )
+        conv_caches = [
+            torch.zeros(batch_size, encoder_dim, kernel_size - 1)
+            for _ in range(num_encoder_layers)
+        ]
+        states = [attn_caches, conv_caches]
+        x = torch.randn(batch_size, 23, num_features)
+        x_lens = torch.full((batch_size,), 23)
+        num_processed_frames = torch.full((batch_size,), 0)
+        y, y_lens, states = model.infer(
+            x, x_lens, num_processed_frames=num_processed_frames, states=states
+        )
 
-    state_list = unstack_states(states)
-    states2 = stack_states(state_list)
+        state_list = unstack_states(states)
+        states2 = stack_states(state_list)
 
-    for ss, ss2 in zip(states[0], states2[0]):
-        for s, s2 in zip(ss, ss2):
+        for ss, ss2 in zip(states[0], states2[0]):
+            for s, s2 in zip(ss, ss2):
+                assert torch.allclose(s, s2), f"{s.sum()}, {s2.sum()}"
+
+        for s, s2 in zip(states[1], states2[1]):
             assert torch.allclose(s, s2), f"{s.sum()}, {s2.sum()}"
-
-    for s, s2 in zip(states[1], states2[1]):
-        assert torch.allclose(s, s2), f"{s.sum()}, {s2.sum()}"
 
 
 def test_torchscript_consistency_infer():
