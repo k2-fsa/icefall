@@ -23,6 +23,447 @@ from torch import Tensor
 from torch.optim import Optimizer
 
 
+class NeutralGradient(Optimizer):
+    """
+    Implements 'Neutral Gradient' update (a play on "natural gradient").  The aim is to
+    multiply the gradient by a symmetric positive definite matrix that transforms
+    the covariance of gradients to be the same as the covariance of parameters.
+    (Then multiply by the learning rate).  Since, at any given time, we only have
+    one parameter tensor, in a sense it doesn't make sense to speak of the covariance
+    matrix of parameters; but the idea is, we do this separately for every axis of
+    every tensor and view the indexes into all the other axes of that tensor, as
+    a collection of vectors that we can compute the covariance of.  There may
+    not be enough such vectors to estimate a non-singular covariance matrix; in
+    any case, we smooth with a diagonal matrix.  (If the dimension is too large,
+    we may just use the diagonal only).
+
+    Args:
+         params:  The parameters or param_groups to optimize (like other Optimizer subclasses)
+             lr:  The learning rate.  We will typically use a learning rate schedule that starts
+                  at 0.03 and decreases over time, i.e. much higher than other common
+                  optimizers.
+           beta:  Momentum constants for regular momentum, and stats of gradients.
+            eps:  An epsilon to prevent division by zero
+     scale_speed: This scales the learning rate for purposes of learning the overall scale
+                  of each tensor
+        rms_eps:  An epsilon on the rms value of the parameter, such that when the parameter
+                  gets smaller than this we'll start using a fixed learning rate, not
+                  decreasing with the parameter norm.
+      param_max:  To prevent parameter tensors getting too large, we will clip elements to
+                   -param_max..param_max.
+        max_size: We will only use the full-covariance (not-diagonal) update for
+                  dimension with size <= max_size; for those larger, we will use a diagonal
+                  formula
+   stats_period:  Every `stats_period` steps, we will accumulate stats for one of the dimensions
+                  of the tensor
+    estimate_period: Every `estimate_period` steps, we will re-estimate projections for
+                 the dimensions we are not treating diagonally
+    """
+    def __init__(
+            self,
+            params,
+            lr=1e-2,
+            betas=(0.9, 0.98, 0.99),
+            eps=1e-8,
+            scale_speed=0.05,
+            rms_eps=1.0e-05,
+            param_max=100.0,
+            max_size=1023,
+            stats_period=2,
+            estimate_period=50,
+    ):
+
+        if not 0.0 <= lr:
+            raise ValueError("Invalid learning rate: {}".format(lr))
+        if not 0.0 <= eps:
+            raise ValueError("Invalid epsilon value: {}".format(eps))
+        if not 0.0 <= betas[0] < 1.0:
+            raise ValueError(
+                "Invalid beta parameter at index 0: {}".format(betas[0])
+            )
+        if not 0.0 < betas[1] < 1.0:
+            raise ValueError(
+                "Invalid beta parameter at index 1: {}".format(betas[1])
+            )
+        if not 0.0 < betas[2] < 1.0:
+            raise ValueError(
+                "Invalid beta parameter at index 2: {}".format(betas[2])
+            )
+        if not 0 < scale_speed < 1.0:
+            raise ValueError("Invalid scale_speed value: {}".format(scale_speed))
+        if not 0.0 < rms_eps < 0.1:
+            raise ValueError("Invalid rms_eps value: {}".format(rms_eps))
+        if not 0.1 < param_max <= 10000.0:
+            raise ValueError("Invalid param_max value: {}".format(param_max))
+        if not stats_period > 0:
+            raise ValueError("Invalid stats_period value: {}".format(stats_period))
+        if not estimate_period > 0:
+            raise ValueError("Invalid estimate_period value: {}".format(estimate_period))
+
+
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            scale_speed=0.05,
+            rms_eps=rms_eps,
+            param_max=param_max,
+            max_size=max_size,
+            stats_period=stats_period,
+            estimate_period=estimate_period,
+        )
+        super(NeutralGradient, self).__init__(params, defaults)
+
+    def __setstate__(self, state):
+        super(NeutralGradient, self).__setstate__(state)
+
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Performs a single optimization step.
+
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            beta1, beta2, beta3 = group["betas"]
+            lr = group["lr"]
+            scale_speed = group["scale_speed"]
+            rms_eps = group["rms_eps"]
+            eps = group["eps"]
+            param_max = group["param_max"]
+            max_size = group["max_size"]
+            stats_period = group["stats_period"]
+            estimate_period = group["estimate_period"]
+
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                # Perform optimization step
+                grad = p.grad
+                if grad.is_sparse:
+                    raise RuntimeError(
+                        "Cain does not support sparse gradients"
+                    )
+
+                state = self.state[p]
+
+                # State initialization
+                if len(state) == 0:
+                    state["step"] = 0
+                    # Parameter step (used to implement momentum)
+                    state["delta"] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format
+                    )
+                    # Exponential moving average of squared gradient value
+                    # after all multiplications.  This is used to help
+                    # determine the scalar factor in the update size.  It is
+                    # resert after every `estimate_period` minibatches.
+                    kwargs = {'device':p.device, 'dtype':p.dtype}
+
+                    if p.numel() > 1:
+                        state["scalar_exp_avg_sq"] = torch.zeros((), **kwargs)
+                        is_one_axis = (p.numel() in list(p.shape))  # e.g. a bias
+
+
+                        # we learn the scale on the parameters in a way that
+                        # also emulates Eve.  scale_exp_avg_sq is the
+                        # moving-average square of the gradient w.r.t. this
+                        # scalar scale.
+                        state["scale_exp_avg_sq"] = torch.zeros((), **kwargs)
+
+                        state["param_rms"] = torch.zeros((), **kwargs)
+
+                        # TODO: may have to add some special stuff here if
+                        if is_one_axis:
+                            state["exp_avg_sq"] = torch.zeros_like(p)
+                        else:
+                            state["scalar_exp_avg_sq"] = torch.zeros((), **kwargs)
+
+                        for dim in range(p.ndim):
+                            size = p.shape[dim]
+                            if size == 1 or size == p.numel():
+                                continue
+                            ## TODO: if size == p.numel(), it is the "simple" update
+                            elif size > max_size:
+                                # diagonal only...
+                                state[f"grad_cov_{dim}"] = torch.zeros(size, **kwargs)
+                                state[f"proj_{dim}"] = torch.zeros(size, **kwargs)
+                            else:
+                                state[f"grad_cov_{dim}"] = torch.zeros(size, size,
+                                                                       **kwargs)
+                                state[f"proj_{dim}"] = torch.zeros(size, size,
+                                                                   **kwargs)
+                    else:
+                        # p.numel() == 1: scalar parameter
+                        state["exp_avg_sq"] = torch.zeros_like(p)
+
+                delta = state["delta"]
+                step = state["step"]
+
+                delta.mul_(beta1)
+
+                if p.numel() > 1:
+                    is_one_axis = (p.numel() in list(p.shape))  # e.g. a bias
+
+                    if True:
+                        # This block learns the scale on the parameters.
+                        # scale_deriv is the derivative w.r.t. a log-space scale
+                        # on the parameters, i.e.  if we imagine: p =
+                        # underlying_param * scale.exp(), scale_deriv is the
+                        # derivative w.r.t. scale (it does not matter
+                        # what value `scale` currently has).
+                        scale_deriv = (p * grad).sum()
+                        scale_exp_avg_sq = state["scale_exp_avg_sq"]
+                        scale_exp_avg_sq.mul_(beta3).addcmul_(scale_deriv, scale_deriv,
+                                                              value=1 - beta3)
+
+                        # should actually be step + 1, so on 1st minibatch we are not learning
+                        # anything here.  May fix this at some point.
+                        scale_bias_correction2 = 1 - beta3 ** (step + 1)
+
+                        scale_denom = (scale_exp_avg_sq.sqrt()).add_(eps)
+
+                        scale_alpha = -lr * (scale_bias_correction2 ** 0.5) * scale_speed * (1-beta1)
+
+                        # scale_delta is going to be the change in log-scale (before momentum), i.e. if
+                        # p = underlying_param * scale.exp(),
+                        # delta is the change in `scale`.
+                        scale_delta = scale_alpha * (scale_deriv / scale_denom)
+
+                        delta.add_(p, alpha=scale_delta)
+
+                    param_rms = state["param_rms"]
+                    if step % 10 == 0:
+                        param_rms.copy_((p**2).mean().sqrt())
+
+                    if is_one_axis:
+                        exp_avg_sq = state["exp_avg_sq"]
+                        # Decay the second moment running average coefficient
+                        exp_avg_sq.mul_(beta3).addcmul_(grad, grad, value=1 - beta3)
+
+                        bias_correction2 = 1 - beta3 ** step
+                        grad_rms = (exp_avg_sq.sqrt()).add_(eps)
+                        this_delta = grad / grad_rms
+
+                        alpha = (-(1-beta1) * lr * bias_correction2) * param_rms.clamp(min=rms_eps)
+
+                        delta.add_(this_delta, alpha=alpha)
+                        # below, will do: delta.add_(this_delta, alpha=alpha)
+                    else:
+                        # The full update.
+                        conditioned_grad = self._precondition_grad(p, grad, state, beta3, max_size,
+                                                                    stats_period, estimate_period,
+                                                                    eps, rms_eps)
+                        scalar_exp_avg_sq = state["scalar_exp_avg_sq"]
+                        grad_sq = (grad**2).mean()
+                        conditioned_grad_sq = (conditioned_grad**2).mean()
+                        scalar_exp_avg_sq.mul_(beta2).add_(grad_sq, alpha=(1-beta2))
+                        bias_correction2 = 1 - beta2 ** step
+                        avg_grad_sq = scalar_exp_avg_sq / bias_correction2
+                        scale = param_rms * (grad_sq / ((avg_grad_sq * conditioned_grad_sq) + 1.0e-20)).sqrt()
+                        alpha = -lr * (1-beta1) * scale
+                        delta.add_(conditioned_grad, alpha=alpha)
+                else:
+                    # p.numel() == 1
+                    # Decay the second moment running average coefficient
+                    exp_avg_sq = state["exp_avg_sq"]
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                    bias_correction2 = 1 - beta2 ** step
+                    denom = (exp_avg_sq.sqrt()).add_(eps)
+                    this_delta = grad / denom
+                    alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
+                    delta.add_(this_delta, alpha=alpha)
+                if random.random() < 0.005:
+                    print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
+                p.add_(delta)
+                if step % 10 == 0:
+                    p.clamp_(min=-param_max, max=param_max)
+                state["step"] += 1
+
+        return loss
+
+
+    def _precondition_grad(self,
+                           p: Tensor,
+                           grad: Tensor,
+                           state: dict,
+                           beta3: float,
+                           max_size: int,
+                           stats_period: int,
+                           estimate_period: int,
+                           eps: float,
+                           rms_eps: float
+    ) -> Tensor:
+        """
+        Multiply the grad by a positive-semidefinite matrix for each dimension, to
+        try to make its covariance the same as that of the parameters (up to a
+        scalar constant).
+
+        We know at this point that p has more than one non-trivial dimension/axis
+        (i.e. >1 dimension with size != 1).
+
+        Args:
+            p: the Parameter that the grad is for; may be needed if we re-estimating
+               the learning-rate matrix
+            grad: the gradient to precondition (will not be modified by this function)
+            state: the state-dict where will look up the projections (we may update
+                the stats here, and re-estimate the projections)
+
+        """
+        cur_grad = grad
+        step = state["step"]
+        for dim in range(p.ndim):
+            size = p.shape[dim]
+            if size == 1:
+                continue
+            grad_cov = state[f"grad_cov_{dim}"]
+            proj = state[f"proj_{dim}"]
+
+            if size > max_size:
+                # We are treating this dimension diagonally because it is too big.
+                if step % stats_period == 0 or step < 100:
+                    # for diagonal dims, both re-estimate stats and re-estimate
+                    # transform every `stats_period`, as the re-estimation is
+                    # easy.
+                    other_dims = [ i for i in range(p.ndim) if i != dim]
+                    grad_cov.mul_(beta3).add_((grad**2).mean(dim=other_dims))
+                    # estimate param_var, the variance of the parameters.
+                    param_var = (p**2).mean(dim=other_dims)
+
+                    factor = ((param_var + rms_eps*rms_eps) / (grad_cov + eps*eps)).sqrt()
+                    # normalize these factors to stop preconditioned-grad mean from getting
+                    # very large or small
+                    factor = factor / factor.mean()
+                    proj[:] = factor
+                proj = proj.reshape(size, *([1] * (p.ndim-1-dim)))
+                cur_grad = cur_grad * proj
+            else:
+                # This dimension gets the full-covariance treatment.
+                grad_num_points = grad.numel() // size
+                grad_num_steps_needed = 4 * size / grad_num_points
+
+                if step % stats_period == 0 or step < 100:
+                    # normally use beta3 for the decay of the decaying-average
+                    # gradient stats, but we may use a value closer to 1 if we
+                    # have to estimate a high-dimensional gradient from very
+                    # low-rank covariance contributions.
+                    this_beta3 = max(beta3, 1 - 1. / grad_num_steps_needed)
+                    grad_cov.mul_(this_beta3).add_(self._get_cov(grad, dim),
+                                                   alpha=(1.0-this_beta3))
+                if step % estimate_period == 0 or (step < 100 and step % 10 == 0)
+                    # Estimate the parameter covariance on this dimension,
+                    # treating the other dimensions of the parameter as we would
+                    # frames.  Smooth with the diagonal because there are not
+                    # many points to estimate the covariance from.
+                    param_cov = self._get_cov(p, dim)
+
+                    min_diag = 0.2
+                    if True:  # Smooth parameter
+                        num_points = p.numel() // size
+                        # later we may be able to find a more principled formula for this.
+                        diag_smooth = max(min_diag, dim / (dim + num_points))
+                        diag = param_cov.diag().diag()
+                        param_cov.mul_(1-diag_smooth).add_(diag + rms_eps*rms_eps)
+                    if True:
+                        diag_smooth = min_diag  # This is likely far from optimal!
+                        diag = grad_cov.diag().diag()
+                        grad_cov = grad_cov * (1-diag_smooth) + diag * diag_smooth
+                    proj[:] = self._estimate_proj(grad_cov, param_cov)
+                cur_grad = self._multiply_on_dim(cur_grad, proj, dim)
+        return cur_grad
+
+    def _get_cov(self, x: Tensor, dim: int) -> Tensor:
+        """
+        Computes the covariance of x over dimension `dim`, returning something
+        of shape (x.shape[dim], x.shape[dim])
+        """
+        x = x.transpose(dim, -1)
+        x = x.reshape(-1, x.shape[-1])
+        return torch.matmul(x.t(), x) / x.shape[0]
+
+    def _multiply_on_dim(self, x: Tensor, proj: Tensor, dim: int) -> Tensor:
+        """
+        Matrix-multiplies x by `proj` on x's dimension numbered `dim`
+        Args:
+             x: Tensor to multiply, of arbitrary shape
+            proj: Symmetric matrix to multiply x by, of shape (x.shape[dim], x.shape[dim])
+        """
+        return torch.matmul(x.transpose(-1, dim),
+                            proj).transpose(-1, dim)
+
+    def _estimate_proj(self, grad_cov: Tensor, param_cov: Tensor) -> Tensor:
+        """
+        Return a symmetric positive definite matrix P such that
+             (P grad_cov P^T == param_cov),
+        i.e. a descent direction that makes the covariance of steps look
+        like the covariance of parameter.  This will be normalizes so
+        that the mean of its diagonal is 1.0 (since we'll have a separate
+        such projection per dim of the tensor, and we don't want to count
+        the scalar factor many times).
+
+        Args:
+            grad_cov:  Covariance of gradients, a symmetric-positive-definite
+                      matrix [except for roundoff!] of shape (size, size)
+            param_cov:  Covariance of parameters, a symmetric-positive-definite
+                      matrix [except for roundoff!] of shape (size, size)
+       Returns:
+            A matrix P such that (alpha P grad_cov P^T == param_cov) for some
+            real alpha, and such that P.diag().mean() == 1.
+        """
+        grad_cov = grad_cov + grad_cov.t()
+        C = param_cov + param_cov.t()  # we will normalize away any scalar factor.
+        U, S, V = C.svd()
+
+        # Using G == grad_cov and C == param_cov, and not writing transpose because
+        # all these quantities are symmetric, we can use:
+        #
+        #  P = C^{0.5} (C^{0.5} G C^{0.5})^{-0.5} C^{0.5}
+        #
+        # You can verify fairly easily that P G P == C: multiply on left and right
+        # by C^{-0.5} on each side and you can see that both sides equal I.
+
+        # C_sqrt is symmetric.
+        C_sqrt = torch.matmul(U * S.sqrt(), U.t())  # U . S.sqrt().diag() . U.t().
+        if True:
+            C_check = torch.matmul(C_sqrt, C_sqrt)
+            assert(torch.allclose(C_check, C, atol=1.0e-03*C.diag().mean()))
+
+        prod = torch.matmul(C_sqrt, torch.matmul(grad_cov, C_sqrt))
+        # we need prod^{-0.5}.  First make sure prod is perfectly symmetric so we
+        # can do svd.
+        # we will normalize away any scalar factor so don't bother multiplying by 0.5
+        prod = (prod + prod.t())
+
+        U, S, V = prod.svd()
+        #print("S[2] = " , S)
+        prod_inv_sqrt = torch.matmul(U * (S + 1.0e-30) ** -0.5, U.t())
+
+        P = torch.matmul(torch.matmul(C_sqrt, prod_inv_sqrt), C_sqrt)
+        P = P * (1.0 / P.diag().mean())  # normalize size of P.
+
+        if True:
+            U, S, V = P.svd()
+            if random.random() < 0.1:
+                print(f"Min,max eig of P: {S.min().item()},{S.max().item()}")
+
+            # TODO: remove this testing code.
+            assert (P - P.t()).abs().mean() < 0.01  # make sure symmetric.
+            # testing...  note, this is only true modulo "eps"
+
+            C_check = torch.matmul(torch.matmul(P, grad_cov), P)
+            # C_check should equal C, up to a constant.   First normalize both
+            C_diff = (C_check / C_check.diag().mean()) - (C / C.diag().mean())
+            assert C_diff.abs().mean() < 0.01
+
+        return P
 
 
 
@@ -97,9 +538,8 @@ class Cain(Optimizer):
             eps=1e-8,
             scale_speed=0.05,
             rms_eps=1.0e-05,
-            param_max=100.0,
+            param_max=20.0,
     ):
-
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -237,6 +677,8 @@ class Cain(Optimizer):
 
                     alpha = (-(1-beta1) * lr * bias_correction2)
 
+                    # geometrically interpolate the per-element param_rms with its mean
+                    #param_rms_half = (param_rms * param_rms.mean()) ** 0.5
                     delta.add_(this_delta * param_rms, alpha=alpha)
 
                     # below, will do: delta.add_(this_delta, alpha=alpha)
@@ -250,6 +692,8 @@ class Cain(Optimizer):
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
+                if random.random() < 0.005:
+                    print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
                 p.add_(delta)
                 if step % 10 == 0:
                     p.clamp_(min=-param_max, max=param_max)
@@ -460,7 +904,6 @@ class Eve(Optimizer):
     .. _On the Convergence of Adam and Beyond:
         https://openreview.net/forum?id=ryQu7f-RZ
     """
-
     def __init__(
         self,
         params,
@@ -470,7 +913,6 @@ class Eve(Optimizer):
         weight_decay=1e-3,
         target_rms=0.1,
     ):
-
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
@@ -569,6 +1011,11 @@ class Eve(Optimizer):
 
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
+                if random.random() < 0.005:
+                    step = (exp_avg/denom) * step_size
+                    print(f"Delta rms = {(step**2).mean().item()}, shape = {step.shape}")
+
+
         return loss
 
 
@@ -652,7 +1099,7 @@ def _test_eve_cain():
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [1,0]:
+    for iter in [3, 2, 1, 0]:
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         m = torch.nn.Sequential(Linear(E, 200),
@@ -664,6 +1111,8 @@ def _test_eve_cain():
 
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1: optim = Cain(m.parameters(), lr=0.03)
+        elif iter == 2: optim = NeutralGradient(m.parameters(), lr=0.03, max_size=10)
+        elif iter == 3: optim = NeutralGradient(m.parameters(), lr=0.03, max_size=1000)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=10, verbose=False)
 
         start = timeit.default_timer()
