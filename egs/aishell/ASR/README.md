@@ -14,6 +14,7 @@ The following table lists the differences among them.
 | `transducer_stateless`             | Conformer | Embedding + Conv1d | with `k2.rnnt_loss`                                                               |
 | `transducer_stateless_modified`    | Conformer | Embedding + Conv1d | with modified transducer from `optimized_transducer`                     |
 | `transducer_stateless_modified-2`  | Conformer | Embedding + Conv1d | with modified transducer from `optimized_transducer` + extra data      |
+| `pruned_transducer_stateless3`     | Reworked Conformer | Embedding + Conv1d | Multi dataset: Pruned RNN-T + aishell + aidatatang_200zh|
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).

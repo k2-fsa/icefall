@@ -33,7 +33,7 @@ def test_model():
     params.blank_id = 0
     params.context_size = 2
     params.unk_id = 2
-    params.num_encoder_layers = 36
+    params.num_encoder_layers = 24
     params.dim_feedforward = 1024
     params.nhead = 8
     params.encoder_dim = 256
