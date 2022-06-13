@@ -18,7 +18,7 @@
 import logging
 from pathlib import Path
 
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, load_manifest_lazy
 
 
 class LibriSpeech:
@@ -28,47 +28,47 @@ class LibriSpeech:
           manifest_dir:
             It is expected to contain the following files::
 
-                - cuts_dev-clean.json.gz
-                - cuts_dev-other.json.gz
-                - cuts_test-clean.json.gz
-                - cuts_test-other.json.gz
-                - cuts_train-clean-100.json.gz
-                - cuts_train-clean-360.json.gz
-                - cuts_train-other-500.json.gz
+                - librispeech_cuts_dev-clean.jsonl.gz
+                - librispeech_cuts_dev-other.jsonl.gz
+                - librispeech_cuts_test-clean.jsonl.gz
+                - librispeech_cuts_test-other.jsonl.gz
+                - librispeech_cuts_train-clean-100.jsonl.gz
+                - librispeech_cuts_train-clean-360.jsonl.gz
+                - librispeech_cuts_train-other-500.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
     def train_clean_100_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_train-clean-100.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         logging.info(f"About to get train-clean-100 cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def train_clean_360_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_train-clean-360.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
         logging.info(f"About to get train-clean-360 cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def train_other_500_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_train-other-500.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
         logging.info(f"About to get train-other-500 cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def test_clean_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_test-clean.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
         logging.info(f"About to get test-clean cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def test_other_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_test-other.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         logging.info(f"About to get test-other cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def dev_clean_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_dev-clean.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         logging.info(f"About to get dev-clean cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)
 
     def dev_other_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_dev-other.json.gz"
+        f = self.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
         logging.info(f"About to get dev-other cuts from {f}")
-        return load_manifest(f)
+        return load_manifest_lazy(f)

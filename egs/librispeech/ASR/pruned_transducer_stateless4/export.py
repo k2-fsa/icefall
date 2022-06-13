@@ -40,7 +40,8 @@ you can do:
         --epoch 9999 \
         --avg 1 \
         --max-duration 100 \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_500/bpe.model \
+        --use-averaged-model True
 """
 
 import argparse
@@ -107,7 +108,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,

@@ -23,9 +23,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -218,7 +217,7 @@ class GigaSpeechAsrDataModule:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(
-                self.args.manifest_dir / "cuts_musan.json.gz"
+                self.args.manifest_dir / "musan_cuts.jsonl.gz"
             )
             transforms.append(
                 CutMix(
@@ -358,7 +357,7 @@ class GigaSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
@@ -382,8 +381,10 @@ class GigaSpeechAsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -404,7 +405,9 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        cuts_valid = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_DEV.jsonl.gz"
+        )
         if self.args.small_dev:
             return cuts_valid.subset(first=1000)
         else:
@@ -413,4 +416,4 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
