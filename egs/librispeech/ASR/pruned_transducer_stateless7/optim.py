@@ -358,7 +358,7 @@ class NeutralGradient(Optimizer):
                     this_beta3 = max(beta3, 1 - 1. / grad_num_steps_needed)
                     grad_cov.mul_(this_beta3).add_(self._get_cov(grad, dim),
                                                    alpha=(1.0-this_beta3))
-                if step % estimate_period == 0 or (step < 100 and step % 10 == 0)
+                if step % estimate_period == 0 or (step < 100 and step % 10 == 0):
                     # Estimate the parameter covariance on this dimension,
                     # treating the other dimensions of the parameter as we would
                     # frames.  Smooth with the diagonal because there are not
