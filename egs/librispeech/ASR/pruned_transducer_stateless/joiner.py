@@ -32,13 +32,15 @@ class Joiner(nn.Module):
         """
         Args:
           encoder_out:
-            Output from the encoder. Its shape is (N, T, s_range, C).
+            Output from the encoder. Its shape is (N, T, s_range, C) during
+            training or (N, C) in case of streaming decoding.
           decoder_out:
-            Output from the decoder. Its shape is (N, T, s_range, C).
-        Returns:
+            Output from the decoder. Its shape is (N, T, s_range, C) during
+            training or (N, C) in case of streaming decoding.
           Return a tensor of shape (N, T, s_range, C).
         """
-        assert encoder_out.ndim == decoder_out.ndim == 4
+        assert encoder_out.ndim == decoder_out.ndim
+        assert encoder_out.ndim in (2, 4)
         assert encoder_out.shape == decoder_out.shape
 
         logit = encoder_out + decoder_out

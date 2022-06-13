@@ -25,19 +25,19 @@ for usage.
 """
 
 
-from lhotse import load_manifest
+from lhotse import load_manifest_lazy
 
 
 def main():
     paths = [
-        "./data/fbank/cuts_train.json.gz",
-        "./data/fbank/cuts_dev.json.gz",
-        "./data/fbank/cuts_test.json.gz",
+        "./data/fbank/aidatatang_cuts_train.jsonl.gz",
+        "./data/fbank/aidatatang_cuts_dev.jsonl.gz",
+        "./data/fbank/aidatatang_cuts_test.jsonl.gz",
     ]
 
     for path in paths:
         print(f"Starting display the statistics for {path}")
-        cuts = load_manifest(path)
+        cuts = load_manifest_lazy(path)
         cuts.describe()
 
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     main()
 
 """
-Starting display the statistics for ./data/fbank/cuts_train.json.gz
+Starting display the statistics for ./data/fbank/aidatatang_cuts_train.jsonl.gz
 Cuts count: 494715
 Total duration (hours): 422.6
 Speech duration (hours): 422.6 (100.0%)
@@ -61,7 +61,7 @@ min     1.0
 99.5%   8.0
 99.9%   9.5
 max     18.1
-Starting display the statistics for ./data/fbank/cuts_dev.json.gz
+Starting display the statistics for ./data/fbank/aidatatang_cuts_dev.jsonl.gz
 Cuts count: 24216
 Total duration (hours): 20.2
 Speech duration (hours): 20.2 (100.0%)
@@ -77,7 +77,7 @@ min     1.2
 99.5%   7.3
 99.9%   8.8
 max     11.3
-Starting display the statistics for ./data/fbank/cuts_test.json.gz
+Starting display the statistics for ./data/fbank/aidatatang_cuts_test.jsonl.gz
 Cuts count: 48144
 Total duration (hours): 40.2
 Speech duration (hours): 40.2 (100.0%)
