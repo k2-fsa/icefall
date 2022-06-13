@@ -69,8 +69,8 @@ class NeutralGradient(Optimizer):
             rms_eps=1.0e-05,
             param_max=100.0,
             max_size=1023,
-            stats_period=2,
-            estimate_period=50,
+            stats_period=4,
+            estimate_period=200,
     ):
 
         if not 0.0 <= lr:
@@ -249,7 +249,7 @@ class NeutralGradient(Optimizer):
                         # Decay the second moment running average coefficient
                         exp_avg_sq.mul_(beta3).addcmul_(grad, grad, value=1 - beta3)
 
-                        bias_correction2 = 1 - beta3 ** step
+                        bias_correction2 = 1 - beta3 ** (step + 1)
                         grad_rms = (exp_avg_sq.sqrt()).add_(eps)
                         this_delta = grad / grad_rms
 
@@ -260,13 +260,15 @@ class NeutralGradient(Optimizer):
                     else:
                         # The full update.
                         conditioned_grad = self._precondition_grad(p, grad, state, beta3, max_size,
-                                                                    stats_period, estimate_period,
-                                                                    eps, rms_eps)
+                                                                   stats_period, estimate_period,
+                                                                   eps, rms_eps)
                         scalar_exp_avg_sq = state["scalar_exp_avg_sq"]
                         grad_sq = (grad**2).mean()
                         conditioned_grad_sq = (conditioned_grad**2).mean()
+                        assert grad_sq - grad_sq == 0
+                        assert conditioned_grad_sq - conditioned_grad_sq == 0
                         scalar_exp_avg_sq.mul_(beta2).add_(grad_sq, alpha=(1-beta2))
-                        bias_correction2 = 1 - beta2 ** step
+                        bias_correction2 = 1 - beta2 ** (step + 1)
                         avg_grad_sq = scalar_exp_avg_sq / bias_correction2
                         scale = param_rms * (grad_sq / ((avg_grad_sq * conditioned_grad_sq) + 1.0e-20)).sqrt()
                         alpha = -lr * (1-beta1) * scale
@@ -276,13 +278,14 @@ class NeutralGradient(Optimizer):
                     # Decay the second moment running average coefficient
                     exp_avg_sq = state["exp_avg_sq"]
                     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                    bias_correction2 = 1 - beta2 ** step
+                    bias_correction2 = 1 - beta2 ** (step + 1)
                     denom = (exp_avg_sq.sqrt()).add_(eps)
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
                 if random.random() < 0.005:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
+                assert delta.abs().max() < 10.0
                 p.add_(delta)
                 if step % 10 == 0:
                     p.clamp_(min=-param_max, max=param_max)
@@ -358,7 +361,7 @@ class NeutralGradient(Optimizer):
                     this_beta3 = max(beta3, 1 - 1. / grad_num_steps_needed)
                     grad_cov.mul_(this_beta3).add_(self._get_cov(grad, dim),
                                                    alpha=(1.0-this_beta3))
-                if step % estimate_period == 0 or (step < 100 and step % 10 == 0):
+                if step % estimate_period == 0 or (step < estimate_period and step in [10,40]):
                     # Estimate the parameter covariance on this dimension,
                     # treating the other dimensions of the parameter as we would
                     # frames.  Smooth with the diagonal because there are not
@@ -370,12 +373,12 @@ class NeutralGradient(Optimizer):
                         num_points = p.numel() // size
                         # later we may be able to find a more principled formula for this.
                         diag_smooth = max(min_diag, dim / (dim + num_points))
-                        diag = param_cov.diag().diag()
-                        param_cov.mul_(1-diag_smooth).add_(diag + rms_eps*rms_eps)
+                        diag = param_cov.diag()
+                        param_cov.mul_(1-diag_smooth).add_((diag*diag_smooth+ rms_eps*rms_eps).diag())
                     if True:
                         diag_smooth = min_diag  # This is likely far from optimal!
-                        diag = grad_cov.diag().diag()
-                        grad_cov = grad_cov * (1-diag_smooth) + diag * diag_smooth
+                        diag = grad_cov.diag()
+                        grad_cov = grad_cov * (1-diag_smooth) + (diag*diag_smooth + eps*eps).diag()
                     proj[:] = self._estimate_proj(grad_cov, param_cov)
                 cur_grad = self._multiply_on_dim(cur_grad, proj, dim)
         return cur_grad
@@ -450,9 +453,9 @@ class NeutralGradient(Optimizer):
         P = P * (1.0 / P.diag().mean())  # normalize size of P.
 
         if True:
-            U, S, V = P.svd()
-            if random.random() < 0.1:
-                print(f"Min,max eig of P: {S.min().item()},{S.max().item()}")
+            #U, S, V = P.svd()
+            #if random.random() < 0.1:
+            #    print(f"Min,max eig of P: {S.min().item()},{S.max().item()}")
 
             # TODO: remove this testing code.
             assert (P - P.t()).abs().mean() < 0.01  # make sure symmetric.
@@ -461,7 +464,8 @@ class NeutralGradient(Optimizer):
             C_check = torch.matmul(torch.matmul(P, grad_cov), P)
             # C_check should equal C, up to a constant.   First normalize both
             C_diff = (C_check / C_check.diag().mean()) - (C / C.diag().mean())
-            assert C_diff.abs().mean() < 0.01
+            # actually, roundoff can cause significant differences.
+            assert C_diff.abs().mean() < 0.1
 
         return P
 
@@ -694,6 +698,7 @@ class Cain(Optimizer):
                     delta.add_(this_delta, alpha=alpha)
                 if random.random() < 0.005:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
+
                 p.add_(delta)
                 if step % 10 == 0:
                     p.clamp_(min=-param_max, max=param_max)
