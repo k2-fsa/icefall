@@ -19,12 +19,10 @@
 
 
 import torch
-from emformer import Emformer, stack_states, unstack_states
+from emformer import ConvolutionModule, Emformer, stack_states, unstack_states
 
 
 def test_convolution_module_forward():
-    from emformer import ConvolutionModule
-
     B, D = 2, 256
     chunk_length = 4
     right_context_length = 2
