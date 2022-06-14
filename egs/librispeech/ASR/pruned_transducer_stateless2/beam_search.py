@@ -37,7 +37,7 @@ def fast_beam_search_one_best(
 ) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
-    A lattice is first obtained using modified beam search, and then
+    A lattice is first obtained using fast beam search, and then
     the shortest path within the lattice is used as the final output.
 
     Args:
@@ -74,6 +74,86 @@ def fast_beam_search_one_best(
     return hyps
 
 
+def fast_beam_search_nbest(
+    model: Transducer,
+    decoding_graph: k2.Fsa,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    beam: float,
+    max_states: int,
+    max_contexts: int,
+    num_paths: int,
+    nbest_scale: float = 0.5,
+    use_double_scores: bool = True,
+) -> List[List[int]]:
+    """It limits the maximum number of symbols per frame to 1.
+
+    The process to get the results is:
+     - (1) Use fast beam search to get a lattice
+     - (2) Select `num_paths` paths from the lattice using k2.random_paths()
+     - (3) Unique the selected paths
+     - (4) Intersect the selected paths with the lattice and compute the
+           shortest path from the intersection result
+     - (5) The path with the largest score is used as the decoding output.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      decoding_graph:
+        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      encoder_out_lens:
+        A tensor of shape (N,) containing the number of frames in `encoder_out`
+        before padding.
+      beam:
+        Beam value, similar to the beam used in Kaldi..
+      max_states:
+        Max states per stream per frame.
+      max_contexts:
+        Max contexts pre stream per frame.
+      num_paths:
+        Number of paths to extract from the decoded lattice.
+      nbest_scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
+      use_double_scores:
+        True to use double precision for computation. False to use
+        single precision.
+    Returns:
+      Return the decoded result.
+    """
+    lattice = fast_beam_search(
+        model=model,
+        decoding_graph=decoding_graph,
+        encoder_out=encoder_out,
+        encoder_out_lens=encoder_out_lens,
+        beam=beam,
+        max_states=max_states,
+        max_contexts=max_contexts,
+    )
+
+    nbest = Nbest.from_lattice(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        nbest_scale=nbest_scale,
+    )
+
+    # at this point, nbest.fsa.scores are all zeros.
+
+    nbest = nbest.intersect(lattice)
+    # Now nbest.fsa.scores contains acoustic scores
+
+    max_indexes = nbest.tot_scores().argmax()
+
+    best_path = k2.index_fsa(nbest.fsa, max_indexes)
+
+    hyps = get_texts(best_path)
+
+    return hyps
+
+
 def fast_beam_search_nbest_oracle(
     model: Transducer,
     decoding_graph: k2.Fsa,
@@ -89,7 +169,7 @@ def fast_beam_search_nbest_oracle(
 ) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
-    A lattice is first obtained using modified beam search, and then
+    A lattice is first obtained using fast beam search, and then
     we select `num_paths` linear paths from the lattice. The path
     that has the minimum edit distance with the given reference transcript
     is used as the output.

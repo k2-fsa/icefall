@@ -308,9 +308,7 @@ class Nbest(object):
             del word_fsa.aux_labels
 
         word_fsa.scores.zero_()
-        word_fsa_with_epsilon_loops = k2.remove_epsilon_and_add_self_loops(
-            word_fsa
-        )
+        word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
 
         path_to_utt_map = self.shape.row_ids(1)
 
@@ -609,7 +607,7 @@ def rescore_with_n_best_list(
       num_paths:
         Size of nbest list.
       lm_scale_list:
-        A list of float representing LM score scales.
+        A list of floats representing LM score scales.
       nbest_scale:
         Scale to be applied to ``lattice.score`` when sampling paths
         using ``k2.random_paths``.

@@ -82,6 +82,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search_nbest,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
@@ -250,6 +251,26 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=200,
+        help="""Number of paths for nbest decoding.
+        Used only when the decoding method is fast_beam_search and
+        --use-LG is True.
+        """,
+    )
+
+    parser.add_argument(
+        "--nbest-scale",
+        type=float,
+        default=0.5,
+        help="""Scale applied to lattice scores when computing nbest paths.
+        Used only when the decoding method is fast_beam_search and
+        --use-LG is True.
+        """,
+    )
+
     return parser
 
 
@@ -307,21 +328,32 @@ def decode_one_batch(
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search_one_best(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-        )
-        if params.use_LG:
-            for hyp in hyp_tokens:
-                hyps.append([word_table[i] for i in hyp])
-        else:
+        if not params.use_LG:
+            hyp_tokens = fast_beam_search_one_best(
+                model=model,
+                decoding_graph=decoding_graph,
+                encoder_out=encoder_out,
+                encoder_out_lens=encoder_out_lens,
+                beam=params.beam,
+                max_contexts=params.max_contexts,
+                max_states=params.max_states,
+            )
             for hyp in sp.decode(hyp_tokens):
                 hyps.append(hyp.split())
+        else:
+            hyp_tokens = fast_beam_search_nbest(
+                model=model,
+                decoding_graph=decoding_graph,
+                encoder_out=encoder_out,
+                encoder_out_lens=encoder_out_lens,
+                beam=params.beam,
+                max_contexts=params.max_contexts,
+                max_states=params.max_states,
+                num_paths=params.num_paths,
+                nbest_scale=params.nbest_scale,
+            )
+            for hyp in hyp_tokens:
+                hyps.append([word_table[i] for i in hyp])
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1

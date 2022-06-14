@@ -19,40 +19,66 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method greedy_search
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
 (2) beam search (not recommended)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
-(4) fast beam search
+(4) fast beam search (one best)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
+
+(5) fast beam search (nbest)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(6) fast beam search (nbest oracle WER)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_oracle \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --num-paths 200 \
+    --nbest-scale 0.5
 """
 
 
@@ -69,6 +95,7 @@ import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search_nbest,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,
@@ -147,6 +174,7 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
         """,
     )
@@ -168,7 +196,8 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest, or
+        fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -176,7 +205,8 @@ def get_parser():
         type=int,
         default=4,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest, or
+        fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -184,7 +214,8 @@ def get_parser():
         type=int,
         default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest, or
+        fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -205,9 +236,10 @@ def get_parser():
     parser.add_argument(
         "--num-paths",
         type=int,
-        default=100,
-        help="""Number of paths for computed nbest oracle WER
-        when the decoding method is fast_beam_search_nbest_oracle.
+        default=200,
+        help="""Number of paths for nbest decoding.
+        Used only when the decoding method is fast_beam_search_nbest or
+        fast_beam_search_nbest_oracle
         """,
     )
 
@@ -216,9 +248,11 @@ def get_parser():
         type=float,
         default=0.5,
         help="""Scale applied to lattice scores when computing nbest paths.
-        Used only when the decoding_method is fast_beam_search_nbest_oracle.
+        Used only when the decoding method is fast_beam_search_nbest or
+        fast_beam_search_nbest_oracle
         """,
     )
+
     return parser
 
 
@@ -252,8 +286,8 @@ def decode_one_batch(
         for the format of the `batch`.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is
-        fast_beam_search or fast_beam_search_nbest_oracle.
+        only when --decoding_method is fast_beam_search,
+        fast_beam_search_nbest, or fast_beam_search_nbest_oracle.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -282,6 +316,20 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "fast_beam_search_nbest":
+        hyp_tokens = fast_beam_search_nbest(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -355,7 +403,7 @@ def decode_one_batch(
                 f"max_states_{params.max_states}"
             ): hyps
         }
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+    elif "fast_beam_search_nbest" in params.decoding_method:
         return {
             (
                 f"beam_{params.beam}_"
@@ -389,7 +437,8 @@ def decode_dataset(
         The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        only when --decoding_method is fast_beam_search,
+        fast_beam_search_nbest, or fast_beam_search_nbest_oracle.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -407,7 +456,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 10
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -499,6 +548,7 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_nbest",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
@@ -513,7 +563,7 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+    elif "fast_beam_search_nbest" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
@@ -539,9 +589,9 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.unk_id()
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -583,10 +633,7 @@ def main():
     model.device = device
     model.unk_id = params.unk_id
 
-    if params.decoding_method in (
-        "fast_beam_search",
-        "fast_beam_search_nbest_oracle",
-    ):
+    if "fast_beam_search" in params.decoding_method:
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
