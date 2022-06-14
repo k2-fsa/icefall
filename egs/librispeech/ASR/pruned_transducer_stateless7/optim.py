@@ -67,9 +67,9 @@ class NeutralGradient(Optimizer):
             eps=1e-8,
             scale_speed=0.05,
             rms_eps=1.0e-05,
-            param_max=100.0,
+            param_max=10.0,
             max_size=1023,
-            stats_period=4,
+            stats_period=1,
             estimate_period=200,
     ):
 
@@ -265,12 +265,17 @@ class NeutralGradient(Optimizer):
                         scalar_exp_avg_sq = state["scalar_exp_avg_sq"]
                         grad_sq = (grad**2).mean()
                         conditioned_grad_sq = (conditioned_grad**2).mean()
+                        prod = (grad*conditioned_grad).mean()
+                        cos_angle = prod / (grad_sq * conditioned_grad_sq).sqrt()
+                        if random.random() < 0.001 or cos_angle < 0.0075:
+                            print(f"cos_angle = {cos_angle}, shape={grad.shape}")
+
                         #assert grad_sq - grad_sq == 0
                         #assert conditioned_grad_sq - conditioned_grad_sq == 0
                         scalar_exp_avg_sq.mul_(beta2).add_(grad_sq, alpha=(1-beta2))
                         bias_correction2 = 1 - beta2 ** (step + 1)
                         avg_grad_sq = scalar_exp_avg_sq / bias_correction2
-                        scale = param_rms * (grad_sq / ((avg_grad_sq * conditioned_grad_sq) + 1.0e-20)).sqrt()
+                        scale = param_rms.clamp(min=rms_eps) * (grad_sq / ((avg_grad_sq * conditioned_grad_sq) + 1.0e-20)).sqrt()
                         alpha = -lr * (1-beta1) * scale
                         delta.add_(conditioned_grad, alpha=alpha)
                 else:
@@ -283,9 +288,11 @@ class NeutralGradient(Optimizer):
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
-                if random.random() < 0.005:
+                if random.random() < 0.0005:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
-                #assert delta.abs().max() < 10.0
+                max_abs = delta.abs().max()
+                if max_abs > 1.0:
+                    print("Max_abs_change = ", max_abs)
                 p.add_(delta)
                 if step % 10 == 0:
                     p.clamp_(min=-param_max, max=param_max)
@@ -696,7 +703,7 @@ class Cain(Optimizer):
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
-                if random.random() < 0.005:
+                if random.random() < 0.0005:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
 
                 p.add_(delta)
@@ -1016,7 +1023,7 @@ class Eve(Optimizer):
 
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
-                if random.random() < 0.005:
+                if random.random() < 0.0005:
                     step = (exp_avg/denom) * step_size
                     print(f"Delta rms = {(step**2).mean().item()}, shape = {step.shape}")
 
@@ -1117,7 +1124,7 @@ def _test_eve_cain():
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1: optim = Cain(m.parameters(), lr=0.03)
         elif iter == 2: optim = NeutralGradient(m.parameters(), lr=0.03, max_size=10)
-        elif iter == 3: optim = NeutralGradient(m.parameters(), lr=0.03, max_size=1000)
+        elif iter == 3: optim = NeutralGradient(m.parameters(), lr=0.05, max_size=1000)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=10, verbose=False)
 
         start = timeit.default_timer()
