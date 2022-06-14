@@ -15,30 +15,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
+When use-averaged-model=True, usage:
 
 (1) greedy search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --method greedy_search \
+    --lang-dir data/lang_char \
+    --decoding-method greedy_search \
+    --use-averaged-model True \
     /path/to/foo.wav \
     /path/to/bar.wav
 
 (2) beam search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --method beam_search \
+    --lang-dir data/lang_char \
+    --use-averaged-model True \
+    --decoding-method beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
     /path/to/bar.wav
 
-(3) modified beam search
+(3) modified beam search (not suggest)
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --method modified_beam_search \
+    --lang-dir data/lang_char \
+    --use-averaged-model True \
+    --decoding-method modified_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
     /path/to/bar.wav
@@ -46,8 +49,9 @@ Usage:
 (4) fast beam search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --method fast_beam_search \
+    --lang-dir data/lang_char \
+    --use-averaged-model True \
+    --decoding-method fast_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
     /path/to/bar.wav
@@ -66,7 +70,6 @@ from typing import List
 
 import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import (
@@ -78,6 +81,8 @@ from beam_search import (
 )
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
+
+from icefall.lexicon import Lexicon
 
 
 def get_parser():
@@ -95,13 +100,14 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to lang.
+        """,
     )
 
     parser.add_argument(
-        "--method",
+        "--decoding-method",
         type=str,
         default="greedy_search",
         help="""Possible values are:
@@ -134,7 +140,7 @@ def get_parser():
         type=int,
         default=4,
         help="""An integer indicating how many candidates we will keep for each
-        frame. Used only when --method is beam_search or
+        frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
 
@@ -145,21 +151,21 @@ def get_parser():
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --method is fast_beam_search""",
+        Used only when --decoding-method is fast_beam_search""",
     )
 
     parser.add_argument(
         "--max-contexts",
         type=int,
         default=4,
-        help="""Used only when --method is fast_beam_search""",
+        help="""Used only when --decoding-method is fast_beam_search""",
     )
 
     parser.add_argument(
         "--max-states",
         type=int,
         default=8,
-        help="""Used only when --method is fast_beam_search""",
+        help="""Used only when --decoding-method is fast_beam_search""",
     )
 
     parser.add_argument(
@@ -174,7 +180,7 @@ def get_parser():
         type=int,
         default=1,
         help="""Maximum number of symbols per frame. Used only when
-        --method is greedy_search.
+        --decoding-method is greedy_search.
         """,
     )
 
@@ -216,13 +222,9 @@ def main():
 
     params.update(vars(args))
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(f"{params}")
 
@@ -276,12 +278,12 @@ def main():
 
     num_waves = encoder_out.size(0)
     hyps = []
-    msg = f"Using {params.method}"
-    if params.method == "beam_search":
+    msg = f"Using {params.decoding_method}"
+    if params.decoding_method == "beam_search":
         msg += f" with beam size {params.beam_size}"
     logging.info(msg)
 
-    if params.method == "fast_beam_search":
+    if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
         hyp_tokens = fast_beam_search_one_best(
             model=model,
@@ -292,9 +294,9 @@ def main():
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.method == "modified_beam_search":
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+    elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
@@ -302,37 +304,41 @@ def main():
             beam=params.beam_size,
         )
 
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
         for i in range(num_waves):
             # fmt: off
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
             # fmt: on
-            if params.method == "greedy_search":
+            if params.decoding_method == "greedy_search":
                 hyp = greedy_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
                 )
-            elif params.method == "beam_search":
+            elif params.decoding_method == "beam_search":
                 hyp = beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
                 )
             else:
-                raise ValueError(f"Unsupported method: {params.method}")
-
-            hyps.append(sp.decode(hyp).split())
+                raise ValueError(
+                    f"Unsupported decoding-method: {params.decoding_method}"
+                )
+            hyps.append([lexicon.token_table[idx] for idx in hyp])
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):

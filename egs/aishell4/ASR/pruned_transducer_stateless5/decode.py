@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,43 +18,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
+When use-averaged-model=True, usage:
 (1) greedy search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --iter 36000 \
+    --avg 8 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
+    --max-duration 800 \
+    --decoding-method greedy_search \
+    --use-averaged-model True
 
-(2) beam search (not recommended)
+(2) modified beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --iter 36000 \
+    --avg 8 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
+    --max-duration 800 \
     --decoding-method modified_beam_search \
-    --beam-size 4
+    --beam-size 4 \
+    --use-averaged-model True
 
-(4) fast beam search
+(3) fast beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --iter 36000 \
+    --avg 8 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
+    --max-duration 800 \
     --decoding-method fast_beam_search \
     --beam 4 \
     --max-contexts 4 \
-    --max-states 8
+    --max-states 8 \
+    --use-averaged-model True
 """
 
 
