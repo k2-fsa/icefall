@@ -56,10 +56,7 @@ def main():
         max_sent_len=3,
         batch_size=4,
     )
-    print(dataset.sentences)
-    print(dataset.words)
-    print(dataset.batch_indexes)
-    print(len(dataset))
+
     collate_fn = LmDatasetCollate(sos_id=1, eos_id=-1, blank_id=0)
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=1, collate_fn=collate_fn

@@ -144,7 +144,6 @@ def main():
     args.lm_data = Path(args.lm_data)
 
     params = AttributeDict(vars(args))
-    print(params)
 
     setup_logger(f"{params.exp_dir}/log-ppl/")
     logging.info("Computing perplexity started")

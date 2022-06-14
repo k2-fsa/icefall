@@ -125,6 +125,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=50,
@@ -136,6 +143,49 @@ def get_parser():
         default=False,
         help="True if using torch.distributed.launch",
     )
+
+    parser.add_argument(
+        "--lm-data",
+        type=str,
+        default="data/lm_training_bpe_500/sorted_lm_data.pt",
+        help="LM training data",
+    )
+
+    parser.add_argument(
+        "--lm-data-valid",
+        type=str,
+        default="data/lm_training_bpe_500/sorted_lm_data-valid.pt",
+        help="LM validation data",
+    )
+
+    parser.add_argument(
+        "--vocab-size",
+        type=int,
+        default=500,
+        help="Vocabulary size of the model",
+    )
+
+    parser.add_argument(
+        "--embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
+    )
+
+    parser.add_argument(
+        "--hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
+    )
+
+    parser.add_argument(
+        "--num-layers",
+        type=int,
+        default=4,
+        help="Number of RNN layers the model",
+    )
+
     return parser
 
 
@@ -144,24 +194,12 @@ def get_params() -> AttributeDict:
 
     params = AttributeDict(
         {
-            # LM training/validation data
-            "lm_data": "data/lm_training_bpe_500/sorted_lm_data.pt",
-            "lm_data_valid": "data/lm_training_bpe_500/sorted_lm_data-valid.pt",
             "max_sent_len": 200,
             "sos_id": 1,
             "eos_id": 1,
             "blank_id": 0,
-            # model related
-            #
-            # vocab size of the BPE model
-            "vocab_size": 500,
-            "embedding_dim": 2048,
-            "hidden_dim": 2048,
-            "num_layers": 4,
-            #
             "lr": 1e-3,
             "weight_decay": 1e-6,
-            #
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -321,14 +359,14 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         x, y, sentence_lengths = batch
-
-        loss, loss_info = compute_loss(
-            model=model,
-            x=x,
-            y=y,
-            sentence_lengths=sentence_lengths,
-            is_training=False,
-        )
+        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            loss, loss_info = compute_loss(
+                model=model,
+                x=x,
+                y=y,
+                sentence_lengths=sentence_lengths,
+                is_training=False,
+            )
 
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -383,14 +421,14 @@ def train_one_epoch(
         params.batch_idx_train += 1
         x, y, sentence_lengths = batch
         batch_size = x.size(0)
-
-        loss, loss_info = compute_loss(
-            model=model,
-            x=x,
-            y=y,
-            sentence_lengths=sentence_lengths,
-            is_training=True,
-        )
+        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            loss, loss_info = compute_loss(
+                model=model,
+                x=x,
+                y=y,
+                sentence_lengths=sentence_lengths,
+                is_training=True,
+            )
 
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info

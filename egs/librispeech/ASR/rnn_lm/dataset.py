@@ -70,9 +70,9 @@ class LmDataset(torch.utils.data.Dataset):
             # in the worst case, the subsequent sentences also have
             # this number of tokens, we should reduce the batch size
             # so that this batch will not contain too many tokens
-            actucal_batch_size = batch_size // sz + 1
-            actucal_batch_size = min(actucal_batch_size, batch_size)
-            end = cur + actucal_batch_size
+            actual_batch_size = batch_size // sz + 1
+            actual_batch_size = min(actual_batch_size, batch_size)
+            end = cur + actual_batch_size
             end = min(end, num_sentences)
             this_batch_indexes = torch.arange(cur, end).tolist()
             batch_indexes.append(this_batch_indexes)
