@@ -69,8 +69,9 @@ class NeutralGradient(Optimizer):
             scale_speed=0.05,
             eps=1e-8,
             param_eps=1.0e-05,
-            cond_eps=1.0e-08,
+            cond_eps=1.0e-10,
             param_max=10.0,
+            min_diag_smooth=0.2,
             max_size=1023,
             stats_period=1,
             estimate_period=200,
@@ -111,6 +112,7 @@ class NeutralGradient(Optimizer):
             scale_speed=0.05,
             param_eps=param_eps,
             cond_eps=cond_eps,
+            min_diag_smooth=min_diag_smooth,
             param_max=param_max,
             max_size=max_size,
             stats_period=stats_period,
@@ -141,6 +143,8 @@ class NeutralGradient(Optimizer):
             scale_speed = group["scale_speed"]
             param_eps = group["param_eps"]
             eps = group["eps"]
+            cond_eps = group["cond_eps"]
+            min_diag_smooth = group["min_diag_smooth"]
             param_max = group["param_max"]
             max_size = group["max_size"]
             stats_period = group["stats_period"]
@@ -218,12 +222,12 @@ class NeutralGradient(Optimizer):
                         # what value `scale` currently has).
                         scale_deriv = (p * grad).sum()
                         scale_exp_avg_sq = state["scale_exp_avg_sq"]
-                        scale_exp_avg_sq.mul_(beta3).addcmul_(scale_deriv, scale_deriv,
-                                                              value=1 - beta3)
+                        scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
+                                                              value=1 - beta2)
 
                         # should actually be step + 1, so on 1st minibatch we are not learning
                         # anything here.  May fix this at some point.
-                        scale_bias_correction2 = 1 - beta3 ** (step + 1)
+                        scale_bias_correction2 = 1 - beta2 ** (step + 1)
 
                         scale_denom = (scale_exp_avg_sq.sqrt()).add_(eps)
 
@@ -260,7 +264,8 @@ class NeutralGradient(Optimizer):
                         if step % estimate_period == 0 or step in [50, 200, 400]:
                             self._estimate(p, state, beta3, max_size,
                                            stats_period, estimate_period,
-                                           eps, param_eps)
+                                           eps, param_eps,
+                                           cond_eps, min_diag_smooth)
 
                         ref_exp_avg_sq = state["ref_exp_avg_sq"]  # computed in self._estimate()
 
@@ -272,7 +277,8 @@ class NeutralGradient(Optimizer):
 
                         grad_scale = (ref_exp_avg_sq / (exp_avg_sq/bias_correction2 + eps*eps)) ** 0.25
 
-                        #print(f"grad_scale mean = {grad_scale.mean()}, shape = {p.shape}")
+                        if random.random() < 0.02:
+                            print(f"grad_scale mean = {grad_scale.mean()}, shape = {p.shape}")
 
                         cur_grad = grad * grad_scale
                         cur_grad = self._precondition_grad(cur_grad, state)
@@ -287,7 +293,7 @@ class NeutralGradient(Optimizer):
                         if random.random() < 0.1:
                             prod = (grad*cur_grad).mean()
                             cos_angle = prod / ((grad**2).mean() * (cur_grad**2).mean()).sqrt()
-                            if random.random() < 0.01 or cos_angle < 0.0075:
+                            if random.random() < 0.01 or cos_angle < 0.01:
                                 print(f"cos_angle = {cos_angle}, shape={grad.shape}")
 
                         alpha = -lr * (1-beta1)
@@ -347,7 +353,9 @@ class NeutralGradient(Optimizer):
                   stats_period: int,
                   estimate_period: int,
                   eps: float,
-                  param_eps: float
+                  param_eps: float,
+                  cond_eps: float,
+                  min_diag_smooth: float
     ) -> Tensor:
         """
         Estimate the per-dimension projections proj_0, proj_1 and so on, and
@@ -405,14 +413,17 @@ class NeutralGradient(Optimizer):
                 proj[:] = (param_var_smoothed / grad_var_smoothed).sqrt()
             else:
                 param_cov_smoothed = self._estimate_and_smooth_param_cov(p, dim,
-                                                                         param_eps)
+                                                                         param_eps,
+                                                                         cond_eps=cond_eps,
+                                                                         min_diag_smooth=min_diag_smooth)
                 grad_cov_smoothed = self._smooth_grad_cov(p, grad_cov,
                                                           eps, norm_step,
-                                                          beta3)
+                                                          beta3,
+                                                          cond_eps=cond_eps,
+                                                          min_diag_smooth=min_diag_smooth)
                 ref_exp_avg_sq = update_ref_exp_avg_sq(ref_exp_avg_sq,
                                                        grad_cov_smoothed.diag(),
                                                        dim)
-
 
                 if dim != 0:
                     # If dim != 0, make the traces of grad_cov_smoothed and
@@ -574,16 +585,6 @@ class NeutralGradient(Optimizer):
         return torch.matmul(x.t(), x) / x.shape[0]
 
     def _multiply_on_dim(self, x: Tensor, proj: Tensor, dim: int) -> Tensor:
-        """
-        Matrix-multiplies x by `proj` on x's dimension numbered `dim`
-        Args:
-             x: Tensor to multiply, of arbitrary shape
-            proj: Symmetric matrix to multiply x by, of shape (x.shape[dim], x.shape[dim])
-        """
-        return torch.matmul(x.transpose(-1, dim),
-                            proj).transpose(-1, dim)
-
-    def _multiply_on_dim_diag(self, x: Tensor, proj: Tensor, dim: int) -> Tensor:
         """
         Matrix-multiplies x by `proj` on x's dimension numbered `dim`
         Args:
