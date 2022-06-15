@@ -312,6 +312,5 @@ def get_dataloader(
         collate_fn=collate_fn,
         sampler=sampler,
         shuffle=sampler is None,
-        num_workers=2,
     )
     return dataloader
