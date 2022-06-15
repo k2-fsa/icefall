@@ -63,6 +63,7 @@ class CodebookIndexExtractor:
         setup_logger(f"{self.vq_dir}/log-vq_extraction")
 
     def init_dirs(self):
+        # TODO:
         # vq_dir is the root dir for quantizer:
         #    training data/ quantizer / extracted codebook indexes
         self.vq_dir = (
@@ -229,15 +230,40 @@ class CodebookIndexExtractor:
             split_cmd = f"lhotse split {self.params.world_size} {ori_manifest} {self.manifest_dir}"
             os.system(f"{split_cmd}")
 
+    def join_manifests(self):
+        """TODO:"""
+
+        for subset in self.params.subsets:
+            vq_manifest_path = (
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
+            )
+            ori_manifest_path = (
+                self.ori_manifest_dir
+                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+            )
+            dst_vq_manifest_path = (
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+            )
+            cuts_vq = load_manifest(vq_manifest_path)
+            cuts_ori = load_manifest(ori_manifest_path)
+            cuts_vq = cuts_vq.sort_like(cuts_ori)
+            for cut_idx, (cut_vq, cut_ori) in enumerate(zip(cuts_vq, cuts_ori)):
+                assert cut_vq.id == cut_ori.id
+                cut_ori.codebook_indexes = cut_vq.codebook_indexes
+
+            CutSet.from_cuts(cuts_ori).to_jsonl(dst_vq_manifest_path)
+
     def merge_vq_manifests(self):
         """
         Merge generated vq included manfiests and storage to self.dst_manifest_dir.
         """
         for subset in self.params.subsets:
-            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.jsonl.gz"
+            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-librispeech-cuts_train-{subset}*.jsonl.gz"
             dst_vq_manifest = (
                 self.dst_manifest_dir
-                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
             )
             if 1 == self.params.world_size:
                 merge_cmd = f"cp {vq_manifests} {dst_vq_manifest}"
@@ -385,12 +411,9 @@ class CodebookIndexExtractor:
                         message += f" by job {self.params.manifest_index}"
                     logging.info(f"{message}.")
 
-                    if batch_idx >= 1:
-                        break
-
                 json_file_path = (
                     self.manifest_dir
-                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.jsonl.gz"  # noqa
+                    / f"with_codebook_indexes-librispeech-cuts_train-{manifest_file_id}.jsonl.gz"  # noqa
                 )
                 CutSet.from_cuts(new_cuts).to_jsonl(json_file_path)
 
