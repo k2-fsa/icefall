@@ -37,6 +37,7 @@ from icefall.utils import (
     setup_logger,
 )
 from lhotse import CutSet, load_manifest
+from lhotse.cut import MonoCut
 from lhotse.features.io import NumpyHdf5Writer
 
 
@@ -222,7 +223,9 @@ class CodebookIndexExtractor:
         """
         for subset in self.params.subsets:
             logging.info(f"About to split {subset}.")
-            ori_manifest = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest = (
+                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
+            )
             split_cmd = f"lhotse split {self.params.world_size} {ori_manifest} {self.manifest_dir}"
             os.system(f"{split_cmd}")
 
@@ -231,9 +234,10 @@ class CodebookIndexExtractor:
         Merge generated vq included manfiests and storage to self.dst_manifest_dir.
         """
         for subset in self.params.subsets:
-            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.json.gz"
+            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.jsonl.gz"
             dst_vq_manifest = (
-                self.dst_manifest_dir / f"cuts_train-{subset}.json.gz"
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}.jsonl.gz"
             )
             if 1 == self.params.world_size:
                 merge_cmd = f"cp {vq_manifests} {dst_vq_manifest}"
@@ -294,11 +298,13 @@ class CodebookIndexExtractor:
 
     def load_ori_dl(self, subset):
         if self.params.world_size == 1:
-            ori_manifest_path = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest_path = (
+                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
+            )
         else:
             ori_manifest_path = (
                 self.manifest_dir
-                / f"cuts_train-{subset}.{self.params.manifest_index}.json.gz"
+                / f"librispeech_cuts_train-{subset}.{self.params.manifest_index}.jsonl.gz"
             )
 
         cuts = load_manifest(ori_manifest_path)
@@ -333,7 +339,7 @@ class CodebookIndexExtractor:
     def extract_codebook_indexes_imp(self):
         for subset in self.params.subsets:
             num_cuts = 0
-            cuts = []
+            new_cuts = []
             if self.params.world_size == 1:
                 manifest_file_id = f"{subset}"
             else:
@@ -356,26 +362,37 @@ class CodebookIndexExtractor:
                     assert len(cut_list) == codebook_indexes.shape[0]
                     assert all(c.start == 0 for c in supervisions["cut"])
 
+                    new_cut_list = []
                     for idx, cut in enumerate(cut_list):
-                        cut.codebook_indexes = writer.store_array(
+                        new_cut = MonoCut(
+                            id=cut.id,
+                            start=cut.start,
+                            duration=cut.duration,
+                            channel=cut.channel,
+                        )
+                        new_cut.codebook_indexes = writer.store_array(
                             key=cut.id,
                             value=codebook_indexes[idx][: num_frames[idx]],
                             frame_shift=0.02,
                             temporal_dim=0,
                             start=0,
                         )
-                    cuts += cut_list
+                        new_cut_list.append(new_cut)
+                    new_cuts += new_cut_list
                     num_cuts += len(cut_list)
                     message = f"Processed {num_cuts} cuts from {subset}"
                     if self.params.world_size > 1:
                         message += f" by job {self.params.manifest_index}"
                     logging.info(f"{message}.")
 
+                    if batch_idx >= 1:
+                        break
+
                 json_file_path = (
                     self.manifest_dir
-                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.json.gz"
+                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.jsonl.gz"  # noqa
                 )
-                CutSet.from_cuts(cuts).to_json(json_file_path)
+                CutSet.from_cuts(new_cuts).to_jsonl(json_file_path)
 
 
 @torch.no_grad()
