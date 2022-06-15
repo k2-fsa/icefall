@@ -20,18 +20,19 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse.dataset import (
+    CutConcatenate,
+    DynamicBucketingSampler,
+    K2SpeechRecognitionDataset,
+    PrecomputedFeatures,
+    SingleCutSampler,
+)
+from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from torch.utils.data import DataLoader
 
 from icefall.dataset.datamodule import DataModule
 from icefall.utils import str2bool
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest
-from lhotse.dataset import (
-    BucketingSampler,
-    CutConcatenate,
-    K2SpeechRecognitionDataset,
-    PrecomputedFeatures,
-)
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
 
 
 class YesNoAsrDataModule(DataModule):
@@ -84,7 +85,7 @@ class YesNoAsrDataModule(DataModule):
             "--num-buckets",
             type=int,
             default=10,
-            help="The number of buckets for the BucketingSampler"
+            help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
         group.add_argument(
@@ -186,18 +187,17 @@ class YesNoAsrDataModule(DataModule):
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
             logging.info("Using SingleCutSampler.")
-            train_sampler = BucketingSampler(
+            train_sampler = SingleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -225,8 +225,10 @@ class YesNoAsrDataModule(DataModule):
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts_test, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts_test,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -240,11 +242,15 @@ class YesNoAsrDataModule(DataModule):
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        cuts_train = load_manifest(self.args.feature_dir / "cuts_train.json.gz")
+        cuts_train = load_manifest_lazy(
+            self.args.feature_dir / "yesno_cuts_train.jsonl.gz"
+        )
         return cuts_train
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        cuts_test = load_manifest(self.args.feature_dir / "cuts_test.json.gz")
+        cuts_test = load_manifest_lazy(
+            self.args.feature_dir / "yesno_cuts_test.jsonl.gz"
+        )
         return cuts_test
