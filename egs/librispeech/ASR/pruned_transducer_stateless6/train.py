@@ -178,6 +178,18 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--masked-scale",
+        type=float,
+        default=1.0,
+    )
+
+    parser.add_argument(
+        "--unmasked-scale",
+        type=float,
+        default=1.0,
+    )
+
+    parser.add_argument(
         "--lr-batches",
         type=float,
         default=5000,
@@ -378,6 +390,8 @@ def get_params() -> AttributeDict:
             # two successive codebook_index are concatenated together.
             # Detailed in function Transducer::concat_sucessive_codebook_indexes.
             "num_codebooks": 16,  # used to construct distillation loss
+            "masked_scale": 1.0,
+            "unmasked_scale": 1.0,
         }
     )
 
@@ -436,6 +450,8 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         num_codebooks=params.num_codebooks
         if params.enable_distiallation
         else 0,
+        masked_scale=params.masked_scale,
+        unmasked_scale=params.unmasked_scale,
     )
     return model
 
@@ -602,7 +618,7 @@ def compute_loss(
         if isinstance(model, DDP)
         else next(model.parameters()).device
     )
-    feature = batch["inputs"]
+    feature, time_masked_area = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -631,6 +647,7 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
             codebook_indexes=codebook_indexes,
+            time_masked_area=time_masked_area,
         )
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
@@ -1089,7 +1106,9 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
+    args.exp_dir = Path(
+        f"{args.exp_dir}-masked_scale-{args.masked_scale}-un-{args.unmasked_scale}-{args.spec_aug_max_frames_mask_fraction}"
+    )
 
     world_size = args.world_size
     assert world_size >= 1
