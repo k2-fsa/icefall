@@ -150,7 +150,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     mkdir -p codebook_dir
     codebook_download_dir=$exp_dir/download_codebook
     if [ -d $codebook_download_dir ]; then
-      log "$download_codebook exists, you should remove it first."
+      log "$codebook_download_dir exists, you should remove it first."
       exit 1
     fi
     log "Downloading extracted codebook indexes to $codebook_download_dir"
