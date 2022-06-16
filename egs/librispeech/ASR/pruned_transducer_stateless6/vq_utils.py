@@ -63,17 +63,15 @@ class CodebookIndexExtractor:
         setup_logger(f"{self.vq_dir}/log-vq_extraction")
 
     def init_dirs(self):
-        # TODO:
-        # vq_dir is the root dir for quantizer:
-        #    training data/ quantizer / extracted codebook indexes
+        # vq_dir is the root dir for quantization, containing:
+        # training data, trained quantizer, and extracted codebook indexes
         self.vq_dir = (
             self.params.exp_dir / f"vq/{self.params.teacher_model_id}/"
         )
         self.vq_dir.mkdir(parents=True, exist_ok=True)
 
-        # manifest_dir for :
-        # splited original manifests,
-        # extracted codebook indexes and their related manifests
+        # manifest_dir contains:
+        # splited original manifests, extracted codebook indexes with related manifests # noqa
         self.manifest_dir = self.vq_dir / f"splits{self.params.world_size}"
         self.manifest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -137,6 +135,7 @@ class CodebookIndexExtractor:
             logging.warn(warn_message)
             return
 
+        logging.info("Start to extract embeddings for training the quantizer.")
         total_cuts = 0
         with NumpyHdf5Writer(self.embedding_file_path) as writer:
             for batch_idx, batch in enumerate(self.quantizer_train_dl):
@@ -189,14 +188,15 @@ class CodebookIndexExtractor:
             return
 
         assert self.embedding_file_path.exists()
+        logging.info("Start to train quantizer.")
         trainer = quantization.QuantizerTrainer(
             dim=self.params.embedding_dim,
             bytes_per_frame=self.params.num_codebooks,
             device=self.params.device,
         )
         train, valid = quantization.read_hdf5_data(self.embedding_file_path)
-        B = 512  # Minibatch size, this is very arbitrary, it's close to what we used
-        # when we tuned this method.
+        B = 512  # Minibatch size, this is very arbitrary,
+        # it's close to what we used when we tuned this method.
 
         def minibatch_generator(data: torch.Tensor, repeat: bool):
             assert 3 * B < data.shape[0]
@@ -231,8 +231,10 @@ class CodebookIndexExtractor:
             os.system(f"{split_cmd}")
 
     def join_manifests(self):
-        """TODO:"""
-
+        """
+        Join the vq manifest to the original manifest according to cut id.
+        """
+        logging.info("Start to join manifest files.")
         for subset in self.params.subsets:
             vq_manifest_path = (
                 self.dst_manifest_dir
@@ -254,6 +256,8 @@ class CodebookIndexExtractor:
                 cut_ori.codebook_indexes = cut_vq.codebook_indexes
 
             CutSet.from_cuts(cuts_ori).to_jsonl(dst_vq_manifest_path)
+            logging.info(f"Processed {subset}.")
+            logging.info(f"Saved to {dst_vq_manifest_path}.")
 
     def merge_vq_manifests(self):
         """
@@ -303,7 +307,6 @@ class CodebookIndexExtractor:
                 os.symlink(ori_manifest_path, dst_manifest_path)
 
     def create_vq_fbank(self):
-        self.reuse_manifests()
         self.merge_vq_manifests()
 
     @cached_property
@@ -330,7 +333,7 @@ class CodebookIndexExtractor:
         else:
             ori_manifest_path = (
                 self.manifest_dir
-                / f"librispeech_cuts_train-{subset}.{self.params.manifest_index}.jsonl.gz"
+                / f"librispeech_cuts_train-{subset}.{self.params.manifest_index}.jsonl.gz"  # noqa
             )
 
         cuts = load_manifest(ori_manifest_path)
@@ -343,6 +346,7 @@ class CodebookIndexExtractor:
         torch.cuda.empty_cache()
 
     def extract_codebook_indexes(self):
+        logging.info("Start to extract codebook indexes.")
         if self.params.world_size == 1:
             self.extract_codebook_indexes_imp()
         else:
