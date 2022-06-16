@@ -16,19 +16,15 @@
 #    teacher embeddings.
 # 3. a middle layer 6(1-based) out of total 6 layers is used to extract
 #    student embeddings.
-
-# This is an example to do distillation with librispeech clean-100 subset.
-# run with command:
-# bash distillation_with_hubert.sh [0|1|2|3|4]
 #
-# For example command
-# bash distillation_with_hubert.sh 0
-# will download hubert model.
-
-set -x
+# To directly download the extracted codebook indexes for model distillation, you can
+# set stage=2, stop_stage=4, use_extracted_codebook=True
+#
+# To start from scratch, you can
+# set stage=0, stop_stage=4, use_extracted_codebook=False
 
 stage=2
-stop_stage=3
+stop_stage=4
 
 # Set the GPUs available.
 # This script requires at least one GPU.
@@ -45,12 +41,15 @@ exp_dir=./pruned_transducer_stateless6/exp
 mkdir -p $exp_dir
 
 # full_libri can be "True" or "False"
-# If "True", the distillation will use full librispeech dataset.
+#   "True" -> use full librispeech dataset for distillation
+#   "False" -> use train-clean-100 subset for distillation
 full_libri=False
 
 # use_extracted_codebook can be "True" or "False"
-# If "True", stage 0 and stage 1 would be skipped
-use_extracted_codebook=False
+#   "True" -> stage 0 and stage 1 would be skipped,
+#     and directly download the extracted codebook indexes for distillation
+#   "False" -> start from scratch
+use_extracted_codebook=True
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
