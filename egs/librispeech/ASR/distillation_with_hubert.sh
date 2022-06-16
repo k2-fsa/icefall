@@ -30,10 +30,10 @@ stage=$1
 # even you only have ONE GPU. It needed by CodebookIndexExtractor to determine numbert of jobs to extract codebook indexes parallelly.
 
 # Suppose only one GPU exists:
-# export CUDA_VISIBLE_DEVICES="0"
+export CUDA_VISIBLE_DEVICES="0"
 #
 # Suppose GPU 2,3,4,5 are available.
-export CUDA_VISIBLE_DEVICES="2,3,4,5"
+# export CUDA_VISIBLE_DEVICES="2,3,4,5"
 
 
 if [ $stage -eq 0 ]; then
@@ -71,7 +71,7 @@ if [ $stage -eq 0 ]; then
   if [ -f ${hubert_model} ]; then
     echo "hubert model alread exists."
   else
-    wget -c https://dl.fbaipublicfiles.com/hubert/${model_id} -P ${hubert_model}
+    wget -c https://dl.fbaipublicfiles.com/hubert/${model_id}.pt -P ${hubert_model}
     wget -c wget https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt -P ${hubert_model_dir}
   fi
 fi

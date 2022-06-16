@@ -36,7 +36,7 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
 )
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, load_manifest_lazy
 from lhotse.features.io import NumpyHdf5Writer
 
 
@@ -222,7 +222,7 @@ class CodebookIndexExtractor:
         """
         for subset in self.params.subsets:
             logging.info(f"About to split {subset}.")
-            ori_manifest = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest = f"./data/fbank/cuts_train-{subset}.jsonl.gz"
             split_cmd = f"lhotse split {self.params.world_size} {ori_manifest} {self.manifest_dir}"
             os.system(f"{split_cmd}")
 
@@ -231,9 +231,9 @@ class CodebookIndexExtractor:
         Merge generated vq included manfiests and storage to self.dst_manifest_dir.
         """
         for subset in self.params.subsets:
-            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.json.gz"
+            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.jsonl.gz"
             dst_vq_manifest = (
-                self.dst_manifest_dir / f"cuts_train-{subset}.json.gz"
+                self.dst_manifest_dir / f"cuts_train-{subset}.jsonl.gz"
             )
             if 1 == self.params.world_size:
                 merge_cmd = f"cp {vq_manifests} {dst_vq_manifest}"
@@ -294,14 +294,14 @@ class CodebookIndexExtractor:
 
     def load_ori_dl(self, subset):
         if self.params.world_size == 1:
-            ori_manifest_path = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest_path = f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
         else:
             ori_manifest_path = (
                 self.manifest_dir
-                / f"cuts_train-{subset}.{self.params.manifest_index}.json.gz"
+                / f"librispeech_cuts_train-{subset}.{self.params.manifest_index}.jsonl.gz"
             )
 
-        cuts = load_manifest(ori_manifest_path)
+        cuts = load_manifest_lazy(ori_manifest_path)
         dl = LibriSpeechAsrDataModule(self.params).train_dataloaders(cuts)
         return dl
 
@@ -373,9 +373,9 @@ class CodebookIndexExtractor:
 
                 json_file_path = (
                     self.manifest_dir
-                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.json.gz"
+                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.jsonl.gz"
                 )
-                CutSet.from_cuts(cuts).to_json(json_file_path)
+                CutSet.from_cuts(cuts).to_file(json_file_path)
 
 
 @torch.no_grad()
