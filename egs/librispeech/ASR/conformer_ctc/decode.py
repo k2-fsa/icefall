@@ -30,7 +30,7 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import load_checkpoint
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -46,8 +46,10 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     get_texts,
+    load_averaged_model,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -174,19 +176,47 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--rnn-lm-embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-num-layers",
+        type=int,
+        default=4,
+        help="Number of RNN layers the model",
+    )
+    parser.add_argument(
+        "--rnn-lm-tie-weights",
+        type=str2bool,
+        default=False,
+        help="""True share the weights between the input embedding layer and the
+        last output linear layer
+        """,
+    )
+
     return parser
 
 
 def get_rnn_lm_model(params: AttributeDict):
     from rnn_lm.model import RnnLmModel
 
-    # TODO: Pass the following options from command-line
     rnn_lm_model = RnnLmModel(
         vocab_size=params.num_classes,
-        embedding_dim=1024,
-        hidden_dim=1024,
-        num_layers=2,
-        tie_weights=False,
+        embedding_dim=params.rnn_lm_embedding_dim,
+        hidden_dim=params.rnn_lm_hidden_dim,
+        num_layers=params.rnn_lm_num_layers,
+        tie_weights=params.rnn_lm_tie_weights,
     )
     return rnn_lm_model
 
@@ -727,20 +757,16 @@ def main():
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model = load_averaged_model(
+            params.exp_dir, model, params.epoch, params.avg, device
+        )
 
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
+    rnn_lm_model = None
     if params.method == "rnn-lm":
         rnn_lm_model = get_rnn_lm_model(params)
         if params.rnn_lm_avg == 1:
@@ -748,19 +774,16 @@ def main():
                 f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",
                 rnn_lm_model,
             )
-        else:
-            start = params.rnn_lm_epoch - params.rnn_lm_avg + 1
-            filenames = []
-            for i in range(start, params.rnn_lm_epoch + 1):
-                if start >= 0:
-                    filenames.append(f"{params.rnn_lm_exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
             rnn_lm_model.to(device)
-            rnn_lm_model.load_state_dict(
-                average_checkpoints(filenames, device=device)
+        else:
+            rnn_lm_model = load_averaged_model(
+                params.rnn_lm_exp_dir,
+                rnn_lm_model,
+                params.rnn_lm_epoch,
+                params.rnn_lm_avg,
+                device,
             )
-    else:
-        rnn_lm_model = None
+        rnn_lm_model.eval()
 
     librispeech = LibriSpeechAsrDataModule(args)
 

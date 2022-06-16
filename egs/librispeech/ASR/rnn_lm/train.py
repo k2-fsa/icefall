@@ -206,7 +206,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 200,
             "reset_interval": 2000,
-            "valid_interval": 30000,
+            "valid_interval": 10000,
             "env_info": get_env_info(),
         }
     )
@@ -539,6 +539,7 @@ def run(rank, world_size, args):
         embedding_dim=params.embedding_dim,
         hidden_dim=params.hidden_dim,
         num_layers=params.num_layers,
+        tie_weights=params.tie_weights,
     )
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)

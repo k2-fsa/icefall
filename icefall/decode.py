@@ -22,6 +22,33 @@ import torch
 
 from icefall.utils import add_eos, add_sos, get_texts
 
+DEFAULT_LM_SCALE = [
+    0.01,
+    0.05,
+    0.08,
+    0.1,
+    0.3,
+    0.5,
+    0.6,
+    0.7,
+    0.9,
+    1.0,
+    1.1,
+    1.2,
+    1.3,
+    1.5,
+    1.7,
+    1.9,
+    2.0,
+    2.1,
+    2.2,
+    2.3,
+    2.5,
+    3.0,
+    4.0,
+    5.0,
+]
+
 
 def _intersect_device(
     a_fsas: k2.Fsa,
@@ -1082,28 +1109,17 @@ def rescore_with_rnn_lm(
 
     rnn_lm_scores = -1 * rnn_lm_nll.sum(dim=1)
 
-    if ngram_lm_scale is None:
-        ngram_lm_scale_list = [0.01, 0.05, 0.08]
-        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-        ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
-        ngram_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
-    else:
+    ngram_lm_scale_list = DEFAULT_LM_SCALE
+    attention_scale_list = DEFAULT_LM_SCALE
+    rnn_lm_scale_list = DEFAULT_LM_SCALE
+
+    if ngram_lm_scale:
         ngram_lm_scale_list = [ngram_lm_scale]
 
-    if attention_scale is None:
-        attention_scale_list = [0.01, 0.05, 0.08]
-        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
-        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
-    else:
+    if attention_scale:
         attention_scale_list = [attention_scale]
 
-    if rnn_lm_scale is None:
-        rnn_lm_scale_list = [0.01, 0.05, 0.08]
-        rnn_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-        rnn_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
-        rnn_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
-    else:
+    if rnn_lm_scale:
         rnn_lm_scale_list = [rnn_lm_scale]
 
     ans = dict()
