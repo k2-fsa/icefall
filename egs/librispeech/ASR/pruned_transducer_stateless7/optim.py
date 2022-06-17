@@ -709,7 +709,9 @@ class NeutralGradient(Optimizer):
             C_diff = C_check - C
             # Roundoff can cause significant differences, so use a fairly large
             # threshold of 0.001.  We may increase this later or even remove the check.
-            assert C_diff.abs().mean() < 0.01 * C.diag().mean()
+            if not C_diff.abs().mean() < 0.01 * C.diag().mean():
+                print("Warning: large C_diff: {C_diff.abs().mean()}, C diag mean: {C.diag().mean()}")
+
 
         return P
 
