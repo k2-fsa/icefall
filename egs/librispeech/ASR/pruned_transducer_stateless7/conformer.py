@@ -29,6 +29,8 @@ from scaling import (
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
+    StructuredConv1d,
+    StructuredLinear,
 )
 from torch import Tensor, nn
 
@@ -464,7 +466,7 @@ class RelPositionMultiheadAttention(nn.Module):
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
 
-        self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
+        self.in_proj = StructuredLinear((embed_dim,), (3, embed_dim), bias=True)
         self.in_balancer = ActivationBalancer(channel_dim=-1, max_abs=5.0)
         self.proj_balancer = ActivationBalancer(channel_dim=-1, min_positive=0.0,
                                                 max_positive=1.0, max_abs=10.0)
@@ -542,8 +544,8 @@ class RelPositionMultiheadAttention(nn.Module):
             pos_emb,
             self.embed_dim,
             self.num_heads,
-            self.in_proj.weight,
-            self.in_proj.bias,
+            self.in_proj.get_weight(),
+            self.in_proj.get_bias(),
             self.dropout,
             self.out_proj.weight,
             self.out_proj.bias,
@@ -879,9 +881,9 @@ class ConvolutionModule(nn.Module):
         # kernerl_size should be a odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0
 
-        self.pointwise_conv1 = nn.Conv1d(
-            channels,
-            2 * channels,
+        self.pointwise_conv1 = StructuredConv1d(
+            (channels,),
+            (2, channels),
             kernel_size=1,
             stride=1,
             padding=0,
@@ -1021,8 +1023,9 @@ class Conv2dSubsampling(nn.Module):
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
         )
-        self.out = nn.Linear(
-            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
+        out_height = (((in_channels - 1) // 2 - 1) // 2)
+        self.out = StructuredLinear(
+            (out_height, layer3_channels), (out_channels,)
         )
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
