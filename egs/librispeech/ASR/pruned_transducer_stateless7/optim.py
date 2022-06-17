@@ -278,8 +278,7 @@ class NeutralGradient(Optimizer):
                         if step_within_period == estimate_period:
                             self._estimate_projections(p, state, param_eps, param_rel_eps, param_pow)
                             state["step_within_period"] = 0
-
-                        if step_within_period >= estimate_period - stats_steps:
+                        elif step_within_period >= estimate_period - stats_steps:
                             self._store_grad_stats(grad, state, max_fullcov_size)
 
                         cur_grad = grad
