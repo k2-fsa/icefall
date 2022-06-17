@@ -188,7 +188,9 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --spec-aug-time-warp-factor -1 \
     --max-duration 300 \
     --world-size ${WORLD_SIZE} \
-    --num-epochs 20
+    --num-epochs 20 \
+    --exp-dir $exp_dir \
+    --enable-distillation True
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
@@ -200,5 +202,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     --epoch 20 \
     --avg 10 \
     --max-duration 200 \
-    --exp-dir ./pruned_transducer_stateless6/exp
+    --exp-dir $exp_dir \
+    --enable-distillation True
 fi
