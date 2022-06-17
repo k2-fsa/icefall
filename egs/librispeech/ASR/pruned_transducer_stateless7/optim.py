@@ -42,47 +42,50 @@ class NeutralGradient(Optimizer):
              lr:  The learning rate.  We will typically use a learning rate schedule that starts
                   at 0.03 and decreases over time, i.e. much higher than other common
                   optimizers.
-           beta:  Momentum constants for regular momentum, and stats of gradients.
+          betas:  Momentum constants for regular momentum, and second-order (per-element) stats
      scale_speed: This scales the learning rate for purposes of learning the overall scale
                   of each tensor
             eps:  An epsilon to prevent division by zero
       param_eps:  An epsilon on the rms value of the parameter, such that when the parameter
                   gets smaller than this we'll start using a fixed learning rate, not
                   decreasing with the parameter norm.
-        rel_eps:  An epsilon that limits the condition number of gradient covariance matrices
-   param_rel_eps:  An epsilon that limits the condition number of parameter covariance matrices
+   param_rel_eps: An epsilon that limits how different different parameter rms estimates can
+                  be within the same tensor
       param_max:  To prevent parameter tensors getting too large, we will clip elements to
                    -param_max..param_max.
-        max_size: We will only use the full-covariance (not-diagonal) update for
+   max_fullcov_size: We will only use the full-covariance (not-diagonal) update for
                   dimension with size <= max_size; for those larger, we will use a diagonal
                   formula
-   stats_period:  Every `stats_period` steps, we will accumulate stats for one of the dimensions
-                  of the tensor
     estimate_period: Every `estimate_period` steps, we will re-estimate projections for
-                 the dimensions we are not treating diagonally
+                 the dimensions we are not treating diagonally.  Each tensor will have a separately
+                 randomly-chosen batch index modulo `estimate_period` to do this, to
+                 decrease maximum memory consumption.
+       stats_steps: The number of minibatches of stats that we accumulate for purpose of basis
+                 changes.  Must be less than estimate_period
+        param_pow: A scale 0 <= param_pow <= 1.0 where 1.0 means we try to fully normalize
+                 the parameter scale for each dimension (i.e. try to learn with speed proportional
+                 to the parameter rms) and 0.0 means no such normalization at all (only a scalar
+                 per tensor).  In any case we fully normalize the parameter scale at the
+                 whole-tensor level, for non-scalar tensors.
     """
     def __init__(
             self,
             params,
             lr=1e-2,
-            betas=(0.9, 0.98, 0.98),
+            betas=(0.9, 0.98),
             scale_speed=0.1,
             grad_eps=1e-8,
-            param_eps=1.0e-05,
-            grad_rel_eps=1.0e-10,
+            param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_max=10.0,
-            grad_diag_smooth=0.2,
-            param_diag_smooth=0.4,
-            max_size=1023,
-            stats_period=1,
-            estimate_period=50,
+            max_fullcov_size=1023,
+            estimate_period=2000,
+            stats_steps=200,
+            param_pow=1.0,
     ):
 
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= grad_eps:
-            raise ValueError("Invalid grad_eps value: {}".format(grad_eps))
         if not 0.0 <= betas[0] < 1.0:
             raise ValueError(
                 "Invalid beta parameter at index 0: {}".format(betas[0])
@@ -97,14 +100,16 @@ class NeutralGradient(Optimizer):
             )
         if not 0 < scale_speed < 1.0:
             raise ValueError("Invalid scale_speed value: {}".format(scale_speed))
+        if not 0.0 <= grad_eps < 0.1:
+            raise ValueError("Invalid grad_eps value: {}".format(grad_eps))
         if not 0.0 < param_eps < 0.1:
             raise ValueError("Invalid param_eps value: {}".format(param_eps))
-        if not 0.1 < param_max <= 10000.0:
+        if not 0.1 < param_max:
             raise ValueError("Invalid param_max value: {}".format(param_max))
-        if not stats_period > 0:
-            raise ValueError("Invalid stats_period value: {}".format(stats_period))
-        if not estimate_period > 0:
+        if not 0 < estimate_period:
             raise ValueError("Invalid estimate_period value: {}".format(estimate_period))
+        if not 0 < stats_steps < estimate_period:
+            raise ValueError("Invalid stats_steps value: {}".format(stats_steps))
 
 
         defaults = dict(
@@ -113,14 +118,12 @@ class NeutralGradient(Optimizer):
             scale_speed=scale_speed,
             grad_eps=grad_eps,
             param_eps=param_eps,
-            grad_rel_eps=grad_rel_eps,
             param_rel_eps=param_rel_eps,
-            grad_diag_smooth=grad_diag_smooth,
-            param_diag_smooth=param_diag_smooth,
             param_max=param_max,
-            max_size=max_size,
-            stats_period=stats_period,
+            max_fullcov_size=max_fullcov_size,
             estimate_period=estimate_period,
+            stats_steps=stats_steps,
+            param_pow=param_pow
         )
         super(NeutralGradient, self).__init__(params, defaults)
 
@@ -142,19 +145,17 @@ class NeutralGradient(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            beta1, beta2, beta3 = group["betas"]
             lr = group["lr"]
+            beta1, beta2 = group["betas"]
             scale_speed = group["scale_speed"]
-            param_eps = group["param_eps"]
             grad_eps = group["grad_eps"]
-            grad_rel_eps = group["grad_rel_eps"]
+            param_eps = group["param_eps"]
             param_rel_eps = group["param_rel_eps"]
-            grad_diag_smooth = group["grad_diag_smooth"]
-            param_diag_smooth = group["param_diag_smooth"]
             param_max = group["param_max"]
-            max_size = group["max_size"]
-            stats_period = group["stats_period"]
+            max_fullcov_size = group["max_fullcov_size"]
             estimate_period = group["estimate_period"]
+            stats_steps = group["stats_steps"]
+            param_pow = group["param_pow"]
 
             for p in group["params"]:
                 if p.grad is None:
@@ -172,23 +173,23 @@ class NeutralGradient(Optimizer):
                 # State initialization
                 if len(state) == 0:
                     state["step"] = 0
-                    # Parameter step (used to implement momentum)
+                    # Parameter step (used to implement momentum).
                     state["delta"] = torch.zeros_like(
                         p, memory_format=torch.preserve_format
                     )
-                    # Exponential moving average of squared gradient value
+                    # Exponential moving average of squared gradient value, all
+                    # tensors have this.
                     state["exp_avg_sq"] = torch.zeros_like(p)
-
-
 
                     kwargs = {'device':p.device, 'dtype':p.dtype}
 
                     if p.numel() > 1:
                         is_one_axis = (p.numel() in list(p.shape))  # e.g. a bias
-                        if not is_one_axis:
-                            state["ref_exp_avg_sq"] = torch.ones_like(p)
-                        else:
-                            state["param_rms"] = torch.zeros((), **kwargs)
+                        if is_one_axis:
+                            # "scale" is just a per-tensor scale on the learning rate.
+                            param_rms = (p**2).mean().sqrt().add_(param_eps)
+                            state["scale"] = param_rms
+
 
                         # we learn the scale on the parameters in a way that
                         # also emulates Eve.  scale_exp_avg_sq is the
@@ -196,20 +197,34 @@ class NeutralGradient(Optimizer):
                         # scalar scale.
                         state["scale_exp_avg_sq"] = torch.zeros((), **kwargs)
 
+                        if not is_one_axis:
+                            # each parameter has a different random time, modulo estimate_period,
+                            # to re-estimate the projections.  "steps_this_period" will
+                            # be reset to 0 when it reaches esetimate_period.
+                            state["steps_this_period"] = random.random(0,
+                                                                       estimate_period-stats_steps)
+
+                        used_scale = False
                         for dim in range(p.ndim):
                             size = p.shape[dim]
                             if size == 1 or size == p.numel():
+                                # if size == p.numel(), is_one_axis == True above
                                 continue
-                            ## TODO: if size == p.numel(), it is the "simple" update
-                            elif size > max_size:
+                            elif size > max_fullcov_size:
                                 # diagonal only...
-                                state[f"grad_cov_{dim}"] = torch.zeros(size, **kwargs)
-                                state[f"proj_{dim}"] = torch.ones(size, **kwargs)
+                                state[f"proj_{dim}"] = torch.ones(size, **kwargs) * param_rms
                             else:
-                                state[f"grad_cov_{dim}"] = torch.zeros(size, size,
-                                                                       **kwargs)
                                 state[f"proj_{dim}"] = torch.eye(size, **kwargs)
+                            if not used_scale:
+                                param_rms = (p**2).mean().sqrt().add_(param_eps)
+                                state[f"proj_{dim}"] *= param_rms
+                                used_scale = True
 
+                            state[f"grad_cov_count_{dim}"] = 0
+                            # we will also be using
+                            # state[f"grad_cov_{dim}"]
+                            # but we'll allocate this and deallocate it as needed, for individual
+                            # parameters, to save memory.
 
                 delta = state["delta"]
                 step = state["step"]
@@ -249,54 +264,42 @@ class NeutralGradient(Optimizer):
                         delta.add_(p, alpha=scale_delta)
 
                     exp_avg_sq = state["exp_avg_sq"]
-                    # Decay the second moment running average coefficient
-                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-
-                    bias_correction2 = 1 - beta2 ** (step + 1)
 
                     if is_one_axis:
-                        param_rms = state["param_rms"]
+                        scale = state["scale"]
+                        bias_correction2 = 1 - beta2 ** (step + 1)
                         if step % 10 == 0:
-                            param_rms.copy_((p**2).mean().sqrt())
-
+                            scale.copy_((p**2).mean().sqrt().add_(param_eps))
+                        # Decay the second moment running average coefficient
+                        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
                         grad_rms = (exp_avg_sq.sqrt()).add_(grad_eps)
                         this_delta = grad / grad_rms
-                        alpha = (-(1-beta1) * lr * bias_correction2) * param_rms.clamp(min=param_eps)
+                        alpha = (-(1-beta1) * lr * bias_correction2) * scale
                         delta.add_(this_delta, alpha=alpha)
                     else:
                         # The full update.
-                        # First, if needed, accumulate per-dimension stats from the grad
-                        if step % stats_period == 0:
-                            self._accumulate_per_dim_stats(grad, state, beta3, grad_eps)
+                        step_within_period = state["step_within_period"]
+                        if step_within_period == estimate_step:
+                            self._estimate_projections(p, state, param_eps, param_rel_eps, param_pow)
+                            state["step_within_period"] = 0
 
-                        if step % estimate_period == 0  or step in [25, 50, 200, 400]:
-                            self._estimate(p, state, beta3, max_size,
-                                           stats_period, estimate_period,
-                                           grad_eps, param_eps,
-                                           grad_rel_eps, param_rel_eps,
-                                           grad_diag_smooth, param_diag_smooth)
-
-                            state["ref_exp_avg_sq"][:] = (exp_avg_sq/bias_correction2 + grad_eps*grad_eps)
-
-
-                        ref_exp_avg_sq = state["ref_exp_avg_sq"]  # computed in self._estimate()
-
-                        # do ** 0.25, not ** 0.5, because we divide this into two factors:
-                        # one to be applied before the grad preconditioning, and one after.
-                        # This keeps the overall transformation on the gradient symmetric
-                        # (if viewed as a matrix of shape (p.numel(), p.numel())
-                        # Note: ref_exp_avg_sq had eps*eps added to it when we created it.
-
-                        grad_scale = (ref_exp_avg_sq / (exp_avg_sq/bias_correction2 +
-                                                        grad_eps*grad_eps)) ** 0.25
-
-                        #if random.random() < 0.02:
-                        #    print(f"grad_scale mean = {grad_scale.mean().item():.43}, shape = {p.shape}")
+                        if step_within_period >= estimate_period - stats_steps:
+                            self._store_grad_stats(grad, state)
 
                         cur_grad = grad
-                        cur_grad = cur_grad * grad_scale
-                        cur_grad = self._multiply_grad(cur_grad, state)
-                        cur_grad *= grad_scale
+
+                        # First, change grad co-ordinates.  This is a non-orthogonal transformation
+                        # if param_pow != 0.
+                        cur_grad = self._change_coordinates(cur_grad, state, forward=True)
+
+                        # Decay the second moment running average coefficient
+                        exp_avg_sq.mul_(beta2).addcmul_(cur_grad, cur_grad, value=1 - beta2)
+
+                        # _get_step accounts for the fact that we may have reset these
+                        # stats when we changed the co-ordinates.
+                        bias_correction2 = 1 - beta2 ** (min(step, step_within_period) + 1)
+
+                        cur_grad = self._change_coordinates(cur_grad, state, forward=False)
 
                         if random.random() < 0.004:
                             # in principle, the cur_grad is supposed to have the same rms as params, on average.
@@ -309,6 +312,8 @@ class NeutralGradient(Optimizer):
                             print(f"cur_grad_rms={cur_grad_rms.item():.3e}, corrected_grad_rms={cur_grad_rms_corrected.item():.3e}, param_rms={param_rms.item():.3e}")
 
                         if random.random() < 0.1:
+                            # check the cosine angle between cur_grad and grad, to see how different this update
+                            # is from gradient descent.
                             prod = (grad*cur_grad).mean()
                             cos_angle = prod / ((grad**2).mean() * (cur_grad**2).mean()).sqrt()
                             if random.random() < 0.01 or cos_angle < 0.01:
@@ -316,8 +321,10 @@ class NeutralGradient(Optimizer):
 
                         alpha = -lr * (1-beta1)
                         delta.add_(cur_grad, alpha=alpha)
+
+                        state["step_within_period"] += 1
                 else:
-                    # p.numel() == 1
+                    # p.numel() == 1.
                     # Decay the second moment running average coefficient
                     exp_avg_sq = state["exp_avg_sq"]
                     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
@@ -326,6 +333,7 @@ class NeutralGradient(Optimizer):
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
+
                 if random.random() < 0.0005:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
                 max_abs = delta.abs().max()
@@ -339,151 +347,188 @@ class NeutralGradient(Optimizer):
         return loss
 
 
-    def _accumulate_per_dim_stats(self,
-                                  grad: Tensor,
-                                  state: dict,
-                                  beta3: float,
-                                  eps: float) -> None:
+    def _store_grad_stats(self,
+                          grad: Tensor,
+                          state: dict,
+                          max_fullcov_size: int) -> None:
         """
         Accumulate some stats for each dimension of the tensor, about the covariance of gradients.
+        The stats are just summed, not decayed; we will re-estimate the projections periodically,
+        and accumulate the statistics over set periods of time.
         """
         ndim = grad.ndim
+        kwargs = {'device': grad.device, 'dtype': grad.dtype}
         for dim in range(ndim):
             size = grad.shape[dim]
-            if size == 1:
+            is_fullcov = (size <= max_fullcov_size)
+            if size == 1 or not is_fullcov:
                 continue
-            grad_cov = state[f"grad_cov_{dim}"]
-            if grad_cov.ndim == 1:
-                # We are treating this dimension diagonally because it is too big.
-                # note: other_dims is nonempty because we know ndim != 1 when we get
-                # here.  dim=[] to torch mean() does not work as you would expect.
-                other_dims = [ i for i in range(ndim) if i != dim]
-                grad_cov.mul_(beta3).add_((grad**2).mean(dim=other_dims),
-                                          alpha=(1.0-beta3))
-            else:
-                # full-covariance stats.
-                this_beta3 = self._get_this_beta3(beta3, grad.numel(), size)
-                if this_beta3 != beta3 and random.random() < 0.01:
-                    print("this_beta3=", this_beta3)
-                grad_cov.mul_(this_beta3).add_(self._get_cov(grad, dim),
-                                               alpha=(1.0-this_beta3))
+            name = f"grad_cov_{dim}"
+            if name not in state:
+                state[f"grad_cov_count_{dim}"] = 0
+                state[name] = torch.zeros(size, size, **kwargs)
 
-    def _estimate(self,
-                  p: Tensor,
-                  state: dict,
-                  beta3: float,
-                  max_size: int,
-                  stats_period: int,
-                  estimate_period: int,
-                  grad_eps: float,
-                  param_eps: float,
-                  grad_rel_eps: float,
-                  param_rel_eps: float,
-                  grad_diag_smooth: float,
-                  param_diag_smooth: float
-    ) -> None:
+            grad_cov = state[name]
+            # just sum up the stats without normalization; we will divide by
+            # count in _estimate_projections()
+            g = grad.transpose(dim, -1)
+            g = g.reshape(-1, g.shape[-1])
+            grad_cov.add_(torch.matmul(g.t(), g))
+            count = g.shape[0]
+            state[f"grad_cov_count_{dim}"] += count
+
+
+    def _estimate_projections(self,
+                              p: Tensor,
+                              state: dict,
+                              param_eps: float,
+                              param_rel_eps: float,
+                              param_pow: float) -> None:
         """
-        Estimate the per-dimension projections proj_0, proj_1 and so on
+        Estimate the per-dimension projections proj_0, proj_1 and so on.
+        These projections, when applied with forward==True by _change_coordinates(),
+        first rotate into a space
+        where the optimal learning-rate-scale is diagonalized (see self._estimate_proj);
+        then scale by the parameter scale.  When applied with forward == False
+        they first scale by the parameter scale and then rotate back into canonical
+        co-ordinates.  (Thus, applying with forward==True and then forward==False
+        is not a round trip).
+
+
+        Args:
+             p: The parameter for which we are etimating the projections.  Supplied
+                because we need this to estimate parameter covariance matrices in
+                each of its tensor directions.
+            state: The state dict for this parameter tensor
+            param_eps:  Small epsilon representing a minimum parameter magnitude;
+                 once the estimated parameter rms for some element of p gets below
+                 this value, we'll treat it as having this value.
+            param_rel_eps:  Another constraint on minimum parameter rms, relative to
+                 sqrt(overall_param_rms), where overall_param_rms is the sqrt of the
+                 parameter variance averaged over the entire tensor.
+            param_pow: param_pow==1.0 means fully normalizing for parameter scale;
+                 setting to a smaller value closer to 0.0 means partial normalization.
         """
         kwargs = {'device':p.device, 'dtype':p.dtype}
-        ref_exp_avg_sq = torch.ones([1] * p.ndim, **kwargs)
 
         ndim = p.ndim
-        step = state["step"]
-        assert step % stats_period == 0
-        norm_step = step // stats_period
-
-        scale_change = True
 
         for dim in range(ndim):
             size = p.shape[dim]
             if size == 1:
                 continue
-            grad_cov = state[f"grad_cov_{dim}"]
+            count = state[f"grad_cov_count_{dim}"]
+            assert count != 0  # we can find a way to deal with this case later,
+                               # if it happens.
+            grad_cov = state[f"grad_cov_{dim}"] / count
+            del state[f"grad_cov_{dim}"]  # save memory
             proj = state[f"proj_{dim}"]
 
-            if grad_cov.ndim == 1:
-                # This dim is treated diagonally, because it is too large.
-                other_dims = [ i for i in range(ndim) if i != dim]
-                bias_correction3 = 1 - beta3 ** (norm_step + 1)
-                # _smoothed means we have the eps terms.
-                param_var_smoothed = (p**2).mean(dim=other_dims)
-                param_var_smoothed.add_(param_eps*param_eps + param_rel_eps * param_var_smoothed.mean())
-                if bias_correction3 < 0.9999:
-                    grad_cov = grad_cov / bias_correction3
-                grad_var_smoothed = grad_cov + (grad_eps*grad_eps +
-                                                grad_rel_eps * grad_cov.mean())
+            if proj.ndim == 2:
+                # This dimension gets the full-covariance treatment.
+                self._randomize_lowrank_cov(grad_cov, count)
+                param_cov = self._get_param_cov(p, dim)
 
-                if scale_change:
-                    scale_change = False  # only use the scale change once
-                else:
-                    # For all but the first non-trivial dim, make the
-                    # grad_var_smoothed and param_var_smoothed have the same
-                    # mean, because when preconditioning gradients, we only want
-                    # to count the overall change in scale once.
-                    grad_var_smoothed *= (param_var_smoothed.sum() / grad_var_smoothed.sum())
-                proj[:] = (param_var_smoothed / grad_var_smoothed).sqrt()
-
+                # P is the SPD matrix such that P G P^T == C^{param_pow},
+                # where G == grad_cov and C == param_cov.
+                P = self._estimate_proj(grad_cov_smoothed,
+                                        param_cov_smoothed,
+                                        param_pow)
+                # The only thing we want from P is the basis that diagonalizes
+                # it, i.e. if we do the symmetric svd P = U S U^T, we can
+                # interpret the shape of U as (canonical_coordinate,
+                # diagonalized_coordinate)
+                U, S, _ = P.svd()
+                # `proj` will be of shape (diagonalized_coordinate, canonical_coordinate)
+                # Later we will modify `proj` to incorporate the parameter scale.
+                proj[:] = U.t()
             else:
-                param_cov_smoothed = self._estimate_and_smooth_param_cov(p, dim,
-                                                                         param_eps,
-                                                                         param_rel_eps=param_rel_eps,
-                                                                         param_diag_smooth=param_diag_smooth)
-                grad_cov_smoothed = self._smooth_grad_cov(p, grad_cov,
-                                                          grad_eps, norm_step,
-                                                          beta3,
-                                                          grad_rel_eps=grad_rel_eps,
-                                                          grad_diag_smooth=grad_diag_smooth)
+                # This dimension will be treated diagonally.  For now just set `proj` to
+                # all ones, later we will modify it in _estimate_params_scale()
+                proj.fill_(1.0)
 
-                if scale_change:
-                    scale_change = False  # only use the scale change once
+        self._estimate_param_scale(p, state, param_eps,
+                                   param_rel_eps, param_pow)
+
+
+    def _estimate_param_scale(self,
+                              p: Tensor,
+                              state: dict,
+                              param_eps: float,
+                              param_rel_eps: float,
+                              param_pow: float) -> None:
+        """
+        This is called from _estimate_projections() after suitably "diagonalizing" bases
+        have already been estimated and written in state[f"proj_{dim}"] for the
+        non-trivial dimensions of `p`.  This function computes a factored estimate
+        of the parmeter variance, and uses this to apply scales to the rows of the
+        projections.
+
+        See the documentation of _estimate_projections() for documentation of the
+        args.
+        """
+        # Rotate `p` to the diagonalize basis.  At this point there is no scaling,
+        # just an orthogonal transformation; this function is going to add the
+        # scaling to state[f"proj_{dim}"]
+        rotated_p = self._change_coordinates(rotated_p, state, forward=True)
+
+        params_sq = rotated_p**2
+        params_sq.add_(param_eps*param_eps +
+                       param_rel_eps*param_rel_eps * params_sq.mean())
+
+        param_var = torch.ones_like(p)
+
+        for _ in range(3):
+            # Iterate 3 times, this should be enough to converge.
+            for dim in range(p.ndim):
+                size = p.shape[dim]
+                if size == 1:
+                    continue
+                # p will have at least one non-trivial dim.
+                other_dims = [ i for i in range(p.ndim) if i != dim ]
+                this_var = param_var.mean(dim=other_dims, keepdim=True)
+                param_var = param_var / this_var
+
+                this_var = this_var.reshape(size)
+                this_scale = (this_var ** (param_pow * 0.5)).reshape(size)
+                proj = state[f"proj_{dim}"]
+
+                if proj.ndim == 1:
+                    proj *= this_scale
                 else:
-                    # If dim != 0, make the traces of grad_cov_smoothed and
-                    # param_cov_smoothed be the same, because when
-                    # preconditioning gradients, we only want to count the
-                    # overall change in scale once.
-                    grad_cov_smoothed *= (param_cov_smoothed.diag().sum() /
-                                          grad_cov_smoothed.diag().sum())
+                    # scale the rows; dim 0 of `proj` corresponds to the
+                    # diagonalized space.
+                    proj *= this_scale.unsqueeze(-1)
 
-                proj[:] = self._estimate_proj(grad_cov_smoothed,
-                                              param_cov_smoothed)
+        # Reset the squared-gradient stats because we have changed the basis.
+        state["exp_avg_sq"].fill_(0.0)
 
 
-    def _get_this_beta3(self, beta3: float, numel: int, size: int):
+
+    def _change_coordinates(self,
+                            grad: Tensor,
+                            state: dict,
+                            forward: bool) -> Tensor:
         """
-        Get a discounting value beta3 (e.g. 0.99) that is used in computing moving
-        averages of stats.  The idea is that the stats are accumulated from a tensor
-        x that has `numel` elements and `size == x.shape[dim]`, and we want the covariance
-        of shape (dim, dim).  We may need to make beta3 closer to 1 if this means
-        we'll be getting only very rank-deficient stats each time.
-        """
-        rank_per_iter = numel // size  # maximum rank of each iteration's covaraince
-        safety_factor = 4.0  # should be > 1.0
-        grad_num_steps_needed = safety_factor * size / rank_per_iter
-        ans = max(beta3, 1 - 1. / grad_num_steps_needed)
-        if ans != beta3 and random.random() > 0.1:
-            print(f"get_this_beta3: ans={ans}, beta3={beta3}, numel={numel}, size={size}")
-        return ans
+        Multiply the grad by a matrix for each dimension, interpreted as a non-orthogonal
+        basis change.
+        If forward == True, `grad` is interpreted as: gradient -> gradient in new basis;
+        if forward == False, it is interpreted as:
+              parameter-change in new basis -> parameter-change in canonical basis.
+        These differ by a transpose (this is not the same as inversion as the matrix is not
+        orthogonal).  Therefore the co-ordinate change applied both forward and backward
+        does not represent a "round trip".
 
-
-    def _multiply_grad(self,
-                       grad: Tensor,
-                       state: dict) -> Tensor:
-        """
-        Multiply the grad by a positive-semidefinite matrix for each dimension, to
-        try to make its covariance the same as that of the parameters (up to a
-        scalar constant).
-
-        We know at this point that p has more than one non-trivial dimension/axis
+        We know at this point that `grad` has more than one non-trivial dimension/axis
         (i.e. >1 dimension with size != 1).
 
         Args:
             p: the Parameter that the grad is for; may be needed if we re-estimating
                the learning-rate matrix
             grad: the gradient to precondition (will not be modified by this function)
-            state: the state-dict where will look up the projections (we may update
-                the stats here, and re-estimate the projections)
-
+            state: the state-dict where will look up the projections.
+       Returns:
+             The co-ordinate-changed grad or parameter change
         """
         cur_grad = grad
         ndim = grad.ndim
@@ -499,25 +544,21 @@ class NeutralGradient(Optimizer):
                 proj = proj.reshape(size, *([1] * (ndim-1-dim)))
                 cur_grad = cur_grad * proj
             else:
-                cur_grad = self._multiply_on_dim(cur_grad, proj, dim)
+                cur_grad = self._multiply_on_dim(cur_grad, proj, dim, forward)
         return cur_grad
 
-    def _estimate_and_smooth_param_cov(self, p: Tensor, dim: int,
-                                       param_eps: float,
-                                       param_rel_eps: float = 1.0e-10,
-                                       param_diag_smooth: float = 0.4) -> Tensor:
+    def _get_param_cov(self, p: Tensor, dim: int) -> Tensor:
         """
-        Compute a smoothed version of a covariance matrix for one dimension of
-        a parameter tensor, estimated by treating the other
-        dimensions as a batch index.
+        Compute a covariance matrix for one dimension of a parameter tensor,
+        estimated by treating the other dimensions as a batch index.  If this would
+        be rank-deficient or close to rank-deficient, make it full-rank by adding
+        a random SPD matrix with what we think is a suitable scaling.
 
-          p: The parameter tensor from which we are estimating the covariance
-        dim: The dimenion that we want the covariances for.
-      param_eps:  A small epsilon value that represents the minimum root-mean-square
-            parameter value that we'll estimate.
-       param_rel_eps: An epsilon value that limits the condition number of the resulting
-            matrix.  Caution: this applies to the variance, not the rms value,
-            so should be quite small.
+        The idea is that we want the projections to be a little random in
+        the rank-deficient case, or we may get projections that lead us to
+        too-dispersed estimates of parameter variance (i.e. some dimensions
+        with exactly-zero parameter covariance, which leads to a too-small
+        scaling for the gradient update).
 
         Returns:
            A non-singular covariance matrix of shape (p.shape[dim], p.shape[dim])
@@ -525,104 +566,73 @@ class NeutralGradient(Optimizer):
         p = p.transpose(dim, -1)
         p = p.reshape(-1, p.shape[-1])
         (num_outer_products, size) = p.shape
-        param_cov = torch.matmul(p.t(), p) / p.shape[0]
 
-        # later we may be able to find a more principled formula for this.
-        #if random.random() < 0.2:
-        #    print(f"param diag_smooth = {diag_smooth}, shape={p.shape}")
+        param_cov = torch.matmul(p.t(), p) / num_outer_products
 
-        diag_smooth = max(param_diag_smooth,
-                          size / (size + num_outer_products))
+        self._randomize_lowrank_cov(param_cov, num_outer_products)
 
-        diag = param_cov.diag()
-        extra_diag = (diag * diag_smooth) + (diag.mean() * param_rel_eps +
-                                             param_eps * param_eps)
-        param_cov.mul_(1-diag_smooth).add_(extra_diag.diag())
         return param_cov
 
-    def _smooth_grad_cov(self,
-                         p: Tensor,
-                         grad_cov: Tensor,
-                         grad_eps: float,
-                         norm_step: int,
-                         beta3: float,
-                         grad_rel_eps: float = 1.0e-10,
-                         grad_diag_smooth: float = 0.2) -> Tensor:
+    def _randomize_lowrank_cov(self, cov: Tensor, rank: int) -> None:
         """
-        Compute a smoothed version of a covariance matrix for one dimension of
-        a gradient tensor.  The covariance stats are supplied; this function
-        is responsible for making sure it is nonsingular and smoothed with its
-        diagonal in a reasonably smart way.
+        If this covariance has too-low rank (based on our knowledge of how we computed it),
+        add to it a random positive-semidefinite matrix to make sure it is full-rank.
+        The reason for the randomness is that when we estimate the parameter covariance
+        after the co-ordinate change, we won't get a very robust estimate if the
+        axes have been chosen to align too precisely with the parameter covariance
+        eigenvalues.  E.g. we might get close-to-zero estimates of parameter covariance.
 
-          p: The parameter tensor from which we are estimating the covariance
-            of the gradient (over one of its dimensions); only needed for the shape
-       grad_cov: The moving-average covariance statistics, to be smoothed
-       grad_eps:  An epsilon value that represents a root-mean-square gradient
-            magnitude, used to avoid zero values
-        norm_step: The step count that reflects how many times we updated
-           grad_cov, we assume we have updated it (norm_step + 1) times; this
-           is just step divided by stats_perio.
-        beta3: The user-supplied beta value for decaying the gradient covariance
-           stats
-        grad_rel_eps: An epsilon value that limits the condition number of the resulting
-            matrix.  Caution: this applies to the variance, not the rms value,
-            so should be quite small.
-      grad_diag_smooth:  A minimum proportion by which we smooth the covariance
-            with the diagonal.
-
-     Returns:
-        A non-singular covariance matrix of gradients, of shape (p.shape[dim], p.shape[dim])
+        Args:
+              cov: covariance matrix to randomize, of shape (size, size).  Will be modified
+                in-place (we will add to it)
+              rank:  the number of outer products that `cov` is a sum over.  If
+                this is much larger than `size`, we will do nothing.
         """
-        size = grad_cov.shape[0]
-        this_beta3 = self._get_this_beta3(beta3, p.numel(), size)
-        bias_correction3 = 1 - this_beta3 ** (norm_step + 1)
-        if bias_correction3 < 0.9999:
-            grad_cov = grad_cov / bias_correction3
+        # To be confident in our estimate of the covariance, we want `rank` (which
+        # actually represents the number of outer products added together)
+        # to be at least `required_rank`; otherwise we'll add a random component.
+        required_rank = int(size * 1.2) + 1
 
-        rank_per_iter = p.numel() // size  # maximum rank of each iteration's covariance
-        # the second part of the following formula roughly represents the number of
-        # frames that have a "large" weight in the stats.
-        num_iters_in_stats = min(norm_step + 1, 1.0 / (1 - beta3))
-        # grad_cov_rank is generally suposed to represent the number of
-        # individual outer products that are represented with significant weight
-        # in grad_cov
-        num_outer_products = rank_per_iter * num_iters_in_stats
-        diag_smooth = max(grad_diag_smooth,
-                          size / (size + num_outer_products))
-        if random.random() < 0.5:
-            print(f"grad diag_smooth = {diag_smooth}, shape={p.shape}")
+        if rank  < required_rank:
+            # This epsilon is to avoid division by zero in weird situations where the
+            # params are exactly zero or we sample a zero matrix; the exact value is not
+            # going to affect the performance.
+            eps = 1.0e-20
+            param_cov_scale = param_cov.diag().mean() + 1.0e-20
 
-        diag = grad_cov.diag()
-        extra_diag = (diag * diag_smooth).add_(diag.mean() * grad_rel_eps +
-                                               grad_eps * grad_eps)
-        grad_cov = (grad_cov * (1-diag_smooth)).add_(extra_diag.diag())
-        return grad_cov
+            # The following formula assumes that the "missing" outer products are
+            # expected to be smaller than the ones that we do have, i.e. 0.2 the size.
+            # We are trying to find the trace of the matrix we need to add,
+            # i.e. how big it is relative to the trace of the existing matrix.
+            missing_rank = (required_rank - rank)
+            rand_scale = 0.2 * missing_rank / rank
+            R = torch.randn(size, size)
+            R = torch.matmul(C, C.t()) # positive semidefinite random matrix
+            R_scale = R.diag().mean() + 1.0e-20
+            if random.random() < 0.02:
+                print(f"required_rank={required_rank}, rank={rank}, size={size}, R_scale={R_scale}")
+            param_cov.add_(R, alpha=rand_scale * param_cov_scale / R_scale)
 
-    def _get_cov(self, x: Tensor, dim: int) -> Tensor:
-        """
-        Computes the covariance of x over dimension `dim`, returning something
-        of shape (x.shape[dim], x.shape[dim])
-        """
-        x = x.transpose(dim, -1)
-        x = x.reshape(-1, x.shape[-1])
-        return torch.matmul(x.t(), x) / x.shape[0]
 
-    def _multiply_on_dim(self, x: Tensor, proj: Tensor, dim: int) -> Tensor:
+    def _multiply_on_dim(self, x: Tensor, proj: Tensor, dim: int,
+                         forward: bool = True) -> Tensor:
         """
         Matrix-multiplies x by `proj` on x's dimension numbered `dim`
         Args:
              x: Tensor to multiply, of arbitrary shape
-            proj: Symmetric matrix to multiply x by, of shape (x.shape[dim], x.shape[dim])
+            proj: M matrix to multiply x by, of shape
+               (x.shape[dim], x.shape[dim]), interpreted as
+               (modified_coordinate, canonical_coordinate)
         """
         return torch.matmul(x.transpose(-1, dim),
-                            proj).transpose(-1, dim)
+                            (proj.t() if forward else proj)).transpose(-1, dim)
 
 
-
-    def _estimate_proj(self, grad_cov: Tensor, param_cov: Tensor) -> Tensor:
+    def _estimate_proj(self, grad_cov: Tensor, param_cov: Tensor,
+                       param_pow: float = 1.0) -> Tensor:
         """
         Return a symmetric positive definite matrix P such that
-             (P grad_cov P^T == param_cov),
+             (P grad_cov P^T == param_cov^{param_pow}),
         i.e. a descent direction that makes the covariance of steps look
         like the covariance of parameter.  This will be normalizes so
         that the mean of its diagonal is 1.0 (since we'll have a separate
@@ -634,8 +644,10 @@ class NeutralGradient(Optimizer):
                       matrix [except for roundoff!] of shape (size, size)
             param_cov:  Covariance of parameters, a symmetric-positive-definite
                       matrix [except for roundoff!] of shape (size, size)
+            param_pow: Power that we take "param_cov" to, between 0 and 1.
+                      Normally it will be 1, and not all the comments mention it.
        Returns:
-            A matrix P such that (alpha P grad_cov P^T == param_cov)
+            A matrix P such that (alpha P grad_cov P^T == param_cov^param_pow)
         """
         # symmetrize grad_cov and param_cov.  The projection P only cares about the
         # relative sizes, so doubling both of them does not matter.
@@ -661,7 +673,10 @@ class NeutralGradient(Optimizer):
         #  P = Q^T (Q G Q^T)^{-0.5} Q.
 
         # because C is symmetric, C == U S U^T, we can ignore V.
-        Q = (U * S.sqrt()).t()
+        # S_sqrt is S.sqrt() in the normal case where param_pow == 1.0
+        S_sqrt = S ** (0.5 * param_pow)
+        Q = (U * S_sqrt).t()
+
         X = torch.matmul(Q, torch.matmul(G, Q.t()))
 
         U2, S2, _ = X.svd()
