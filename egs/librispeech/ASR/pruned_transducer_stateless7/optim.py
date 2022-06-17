@@ -301,7 +301,7 @@ class NeutralGradient(Optimizer):
 
                         cur_grad = self._change_coordinates(cur_grad, state, forward=False)
 
-                        if random.random() < 0.004:
+                        if random.random() < 0.001:
                             # in principle, the cur_grad is supposed to have the same rms as params, on average.
                             cur_grad_rms = (cur_grad**2).mean().sqrt()
                             # _corrected corrects for the overall size of the grad, making cur_grad_rms more similar
@@ -311,7 +311,7 @@ class NeutralGradient(Optimizer):
                             param_rms = (p**2).mean().sqrt()
                             print(f"cur_grad_rms={cur_grad_rms.item():.3e}, corrected_grad_rms={cur_grad_rms_corrected.item():.3e}, param_rms={param_rms.item():.3e}")
 
-                        if random.random() < 0.1:
+                        if random.random() < 0.025:
                             # check the cosine angle between cur_grad and grad, to see how different this update
                             # is from gradient descent.
                             prod = (grad*cur_grad).mean()
