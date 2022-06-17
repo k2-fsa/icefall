@@ -301,7 +301,7 @@ class NeutralGradient(Optimizer):
 
                         cur_grad = self._change_coordinates(cur_grad, state, forward=False)
 
-                        if random.random() < 0.001:
+                        if random.random() < 0.0002:
                             # in principle, the cur_grad is supposed to have the same rms as params, on average.
                             cur_grad_rms = (cur_grad**2).mean().sqrt()
                             # _corrected corrects for the overall size of the grad, making cur_grad_rms more similar
@@ -311,7 +311,7 @@ class NeutralGradient(Optimizer):
                             param_rms = (p**2).mean().sqrt()
                             print(f"cur_grad_rms={cur_grad_rms.item():.3e}, corrected_grad_rms={cur_grad_rms_corrected.item():.3e}, param_rms={param_rms.item():.3e}")
 
-                        if random.random() < 0.025:
+                        if random.random() < 0.001:
                             # check the cosine angle between cur_grad and grad, to see how different this update
                             # is from gradient descent.
                             prod = (grad*cur_grad).mean()
@@ -426,7 +426,7 @@ class NeutralGradient(Optimizer):
                 grad_cov = state[f"grad_cov_{dim}"] / count
                 del state[f"grad_cov_{dim}"]  # save memory
 
-                self._randomize_lowrank_cov(grad_cov, count)
+                self._randomize_lowrank_cov(grad_cov, count, p.shape)
                 param_cov = self._get_param_cov(p, dim)
 
                 # P is the SPD matrix such that P G P^T == C^{param_pow},
@@ -571,11 +571,12 @@ class NeutralGradient(Optimizer):
 
         param_cov = torch.matmul(p.t(), p) / num_outer_products
 
-        self._randomize_lowrank_cov(param_cov, num_outer_products)
+        self._randomize_lowrank_cov(param_cov, num_outer_products,
+                                    p.shape)
 
         return param_cov
 
-    def _randomize_lowrank_cov(self, cov: Tensor, rank: int) -> None:
+    def _randomize_lowrank_cov(self, cov: Tensor, rank: int, shape: torch.Size) -> None:
         """
         If this covariance has too-low rank (based on our knowledge of how we computed it),
         add to it a random positive-semidefinite matrix to make sure it is full-rank.
@@ -589,6 +590,7 @@ class NeutralGradient(Optimizer):
                 in-place (we will add to it)
               rank:  the number of outer products that `cov` is a sum over.  If
                 this is much larger than `size`, we will do nothing.
+             shape: supplied for debug
         """
         # To be confident in our estimate of the covariance, we want `rank` (which
         # actually represents the number of outer products added together)
@@ -612,8 +614,8 @@ class NeutralGradient(Optimizer):
             R = torch.randn(size, size, device=cov.device, dtype=cov.dtype)
             R = torch.matmul(R, R.t()) # positive semidefinite random matrix
             R_scale = R.diag().mean() + 1.0e-20
-            if random.random() < 0.02:
-                print(f"required_rank={required_rank}, rank={rank}, size={size}, R_scale={R_scale}")
+            if random.random() < 0.1:
+                print(f"required_rank={required_rank}, rank={rank}, size={size}, R_scale={R_scale}, rand_scale={rand_scale}, shape={shape}")
             cov.add_(R, alpha=rand_scale * cov_scale / R_scale)
 
 
