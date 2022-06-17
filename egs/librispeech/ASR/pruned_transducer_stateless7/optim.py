@@ -76,7 +76,7 @@ class NeutralGradient(Optimizer):
             scale_speed=0.1,
             grad_eps=1e-8,
             param_eps=1.0e-06,
-            param_rel_eps=1.0e-04,
+            param_rel_eps=1.0e-02,
             param_max=10.0,
             max_fullcov_size=1023,
             estimate_period=2000,
