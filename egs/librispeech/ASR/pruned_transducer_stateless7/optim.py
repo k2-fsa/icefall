@@ -333,7 +333,7 @@ class NeutralGradient(Optimizer):
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
 
-                if random.random() < 0.0005:
+                if random.random() < 0.0001:
                     print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
                 max_abs = delta.abs().max()
                 if max_abs > 1.0:
