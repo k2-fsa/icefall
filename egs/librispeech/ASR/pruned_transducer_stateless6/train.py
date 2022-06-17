@@ -382,7 +382,7 @@ def get_params() -> AttributeDict:
             "distillation_layer": 5,  # 0-based index
             # Since output rate of hubert is 50, while that of encoder is 8,
             # two successive codebook_index are concatenated together.
-            # Detailed in function Transducer::concat_sucessive_codebook_indexes.
+            # Detailed in function Transducer::concat_sucessive_codebook_indexes
             "num_codebooks": 16,  # used to construct distillation loss
         }
     )
@@ -439,9 +439,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
-        num_codebooks=params.num_codebooks
-        if params.enable_distillation
-        else 0,
+        num_codebooks=params.num_codebooks if params.enable_distillation else 0,
     )
     return model
 
