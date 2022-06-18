@@ -53,16 +53,13 @@ class ActivationBalancerFunction(torch.autograd.Function):
             if channel_dim < 0:
                 channel_dim += x.ndim
 
+            #  sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+            # The above line is not torch scriptable for torch 1.6.0
+            # torch.jit.frontend.NotSupportedError: comprehension ifs not supported yet:  # noqa
             sum_dims = []
-            # If torch version less than 1.7.0, `if` in List will cause
-            # torch.jit.frontend.NotSupportedError: comprehension ifs not
-            # supported yet
-            if torch.jit.is_scripting() and torch.__version__ < '1.7.0':
-                for d in range(x.ndim):
-                    if d != channel_dim:
-                        sum_dims.append(d)
-            else:
-                sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+            for d in range(x.ndim):
+                if d != channel_dim:
+                    sum_dims.append(d)
 
             xgt0 = x > 0
             proportion_positive = torch.mean(
@@ -245,6 +242,9 @@ class ScaledConv1d(nn.Conv1d):
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
+
+        self.bias_scale: Optional[nn.Parameter]  # for torchscript
+
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
@@ -343,7 +343,8 @@ class ScaledConv2d(nn.Conv2d):
         bias_scale = self.bias_scale
         if bias is None or bias_scale is None:
             return None
-        return bias * bias_scale.exp()
+        else:
+            return bias * bias_scale.exp()
 
     def _conv_forward(self, input, weight):
         F = torch.nn.functional
