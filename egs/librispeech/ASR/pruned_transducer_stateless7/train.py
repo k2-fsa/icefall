@@ -762,6 +762,16 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
             scheduler.step_batch(params.batch_idx_train)
+
+            if params.batch_idx_train == params.model_warm_step:
+                # we're about to start using the pruned loss, which brings new
+                # modules into play, so reset the frequencies of update, to
+                # avoid possible instability.
+                try:
+                    optimizer.reset_speedup()
+                    logging.info("Reset speedup on optimizer")
+                except:
+                    pass
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -916,7 +926,9 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = NeutralGradient(model.parameters(), lr=params.initial_lr)
+    optimizer = NeutralGradient(model.parameters(),
+                                lr=params.initial_lr,
+                                lr_for_speedup=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
