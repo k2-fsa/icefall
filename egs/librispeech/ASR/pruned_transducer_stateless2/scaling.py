@@ -56,10 +56,10 @@ class ActivationBalancerFunction(torch.autograd.Function):
             #  sum_dims = [d for d in range(x.ndim) if d != channel_dim]
             # The above line is not torch scriptable for torch 1.6.0
             # torch.jit.frontend.NotSupportedError: comprehension ifs not supported yet:  # noqa
-            sum_dims = 0
+            sum_dims = []
             for d in range(x.ndim):
                 if d != channel_dim:
-                    sum_dims += d
+                    sum_dims.append(d)
 
             xgt0 = x > 0
             proportion_positive = torch.mean(
