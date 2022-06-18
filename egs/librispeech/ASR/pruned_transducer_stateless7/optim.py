@@ -67,11 +67,19 @@ class NeutralGradient(Optimizer):
                  to the parameter rms) and 0.0 means no such normalization at all (only a scalar
                  per tensor).  In any case we fully normalize the parameter scale at the
                  whole-tensor level, for non-scalar tensors.
+      lr_for_speedup: A learning rate that determines how much speedup we aim for by
+                 accumulating gradients over multiple batches (the update is done after
+                 different delays for different parameters, based on an estimate of their
+                 importance).  The target speedup factor will be (lr_for_speedup / lr).
+  speedup_first_step: The first step that we start doing the speedup.
+
+   speedup_recalibrate_period: The number of steps between recalibrating the speedup
+                 (i.e. choosing the periodicity for updating each parameter tensor)
     """
     def __init__(
             self,
             params,
-            lr=1e-2,
+            lr=3e-02,
             betas=(0.9, 0.98),
             scale_speed=0.1,
             grad_eps=1e-8,
@@ -82,6 +90,9 @@ class NeutralGradient(Optimizer):
             estimate_period=2000,
             stats_steps=200,
             param_pow=1.0,
+            lr_for_speedup=0.1,
+            speedup_first_step=500,  # TEMP.  Make this 3500? must be > warmup.
+            speedup_recalibrate_period=100,
     ):
 
         if not 0.0 <= lr:
@@ -119,7 +130,11 @@ class NeutralGradient(Optimizer):
             max_fullcov_size=max_fullcov_size,
             estimate_period=estimate_period,
             stats_steps=stats_steps,
-            param_pow=param_pow
+            param_pow=param_pow,
+            lr_for_speedup=lr_for_speedup,
+            speedup_first_step=speedup_first_step,
+            speedup_recalibrate_period=speedup_recalibrate_period,
+            group_step=0,
         )
         super(NeutralGradient, self).__init__(params, defaults)
 
@@ -152,6 +167,24 @@ class NeutralGradient(Optimizer):
             estimate_period = group["estimate_period"]
             stats_steps = group["stats_steps"]
             param_pow = group["param_pow"]
+            lr_for_speedup = group["lr_for_speedup"]
+            speedup_first_step = group["speedup_first_step"]
+            speedup_recalibrate_period = group["speedup_recalibrate_period"]
+
+            group_step = group["group_step"]
+            group["group_step"] = group_step + 1
+
+            recalibrate = (group_step >= speedup_first_step and
+                           (group_step - speedup_first_step) % speedup_recalibrate_period == 0)
+            if recalibrate:
+                # param_prods will be an array of products, one per parameter tensor, equal to:
+                #   E[grad . step],
+                # where "step" is the individual step, before momentum (i.e. computed as if beta1==0).
+                # We compute these in such a way as to reflect the expectation if there is no speedup
+                # (i.e. assuming we are doing the update on every step with no gradient accumulation).
+                # The idea is that this product reflects the importance of each parameter matrix,
+                # so that parameter matrices with larger values will need more frequent updates.
+                self._recalibrate_speedup(group)
 
             for p in group["params"]:
                 if p.grad is None:
@@ -161,13 +194,26 @@ class NeutralGradient(Optimizer):
                 grad = p.grad
                 if grad.is_sparse:
                     raise RuntimeError(
-                        "Cain does not support sparse gradients"
+                        "NeutralGradient optimizer does not support sparse gradients"
                     )
-
                 state = self.state[p]
 
                 # State initialization
                 if len(state) == 0:
+                    # For speed, we will actually take a step every
+                    # `step_period` times step() is called; we will store the
+                    # gradient in state["grad"] until state["n_cached_grads"]
+                    # reaches step_period, at which point we'll really do the
+                    # update.
+                    state["step_period"] = 1
+                    state["n_cached_grads"] = 0
+                    # Allocate these cached_grad members immediately even though
+                    # we may not need them immediately, so that any OOMs will
+                    # occur quickly.
+                    state["cached_grad"] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format
+                    )
+
                     state["step"] = 0
                     # Parameter step (used to implement momentum).
                     state["delta"] = torch.zeros_like(
@@ -222,6 +268,33 @@ class NeutralGradient(Optimizer):
                             # but we'll allocate this and deallocate it as needed, for individual
                             # parameters, to save memory.
 
+                step_period = state["step_period"]
+                n_cached_grads = state["n_cached_grads"]
+                if step_period > 1:
+                    cached_grad = state["cached_grad"]
+                    cached_grad += grad
+                    n_cached_grads += 1
+                    state["n_cached_grads"] = n_cached_grads
+                    # the point of random_step_prob is to inject a little randomness
+                    # into the timing of the updates, so they don't stay synchronized.
+                    random_step_prob = 0.05 / step_period
+                    if n_cached_grads == step_period or random.random() < random_step_prob:
+                        # We will continue to the code below, and do a step
+                        grad = cached_grad
+                    else:
+                        # Don't do a step this time.
+                        continue
+                else:
+                    # We are doing a step on every iteration.
+                    n_cached_grads = 1  # will be used to scale gradients below.
+
+                # sqrt_n_grads will be used to scale down estimates of grad variances
+                # (in situations where the scale matters), to reflect the sizes of
+                # grads of individual
+                inv_sqrt_n_grads = n_cached_grads ** 0.5
+
+
+
                 delta = state["delta"]
                 step = state["step"]
 
@@ -240,7 +313,7 @@ class NeutralGradient(Optimizer):
                         scale_deriv = (p * grad).sum()
                         scale_exp_avg_sq = state["scale_exp_avg_sq"]
                         scale_exp_avg_sq.mul_(beta2).addcmul_(scale_deriv, scale_deriv,
-                                                              value=1 - beta2)
+                                                              value=(1 - beta2)/n_cached_grads)
 
                         # should actually be step + 1, so on 1st minibatch we are not learning
                         # anything here.  May fix this at some point.
@@ -267,7 +340,7 @@ class NeutralGradient(Optimizer):
                         if step % 10 == 0:
                             scale.copy_((p**2).mean().sqrt().add_(param_eps))
                         # Decay the second moment running average coefficient
-                        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2)/n_cached_grads)
                         grad_rms = (exp_avg_sq.sqrt()).add_(grad_eps)
                         this_delta = grad / grad_rms
                         alpha = (-(1-beta1) * lr * (bias_correction2 ** 0.5)) * scale
@@ -288,7 +361,7 @@ class NeutralGradient(Optimizer):
                         cur_grad = self._change_coordinates(cur_grad, state, forward=True)
 
                         # Decay the second moment running average coefficient
-                        exp_avg_sq.mul_(beta2).addcmul_(cur_grad, cur_grad, value=1 - beta2)
+                        exp_avg_sq.mul_(beta2).addcmul_(cur_grad, cur_grad, value=(1 - beta2)/n_cached_grads)
 
                         # _get_step accounts for the fact that we may have reset these
                         # stats when we changed the co-ordinates.
@@ -301,6 +374,8 @@ class NeutralGradient(Optimizer):
                         cur_grad = self._change_coordinates(cur_grad, state, forward=False)
 
                         if random.random() < 0.0002:
+                            # This is only for debug.  The logic below would not be valid for n_cache_grads>0,
+                            # anyway we will delete this code at some point.
                             # in principle, the cur_grad is supposed to have the same rms as params, on average.
                             cur_grad_rms = (cur_grad**2).mean().sqrt()
                             # _corrected corrects for the overall size of the grad, making cur_grad_rms more similar
@@ -326,7 +401,7 @@ class NeutralGradient(Optimizer):
                     # p.numel() == 1.
                     # Decay the second moment running average coefficient
                     exp_avg_sq = state["exp_avg_sq"]
-                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2)/n_cached_grads)
                     bias_correction2 = 1 - beta2 ** (step + 1)
                     denom = (exp_avg_sq.sqrt()).add_(grad_eps)
                     this_delta = grad / denom
@@ -713,6 +788,66 @@ class NeutralGradient(Optimizer):
 
 
         return P
+
+    def _recalibrate_speedup(self, group: dict):
+        param_prods = []
+        speedup = group["lr_for_speedup"] / group["lr"]
+        if speedup > 10.0:
+            speedup = 10.0
+        if speedup < 2.0:
+            speedup = 2.0
+        _, beta2 = group["betas"]
+
+        for p in group["params"]:
+            if p.grad is None:
+                continue
+            # We ignore the part of the parameter change that comes from the scale
+            # (see 'scale_deriv' in the code)
+            state = self.state[p]
+            step = state["step"]
+
+            prod = state["exp_avg_sq"].sqrt().sum()
+            is_one_axis = (p.numel() in list(p.shape))  # e.g. a bias
+            if is_one_axis or p.numel() == 1:
+                if is_one_axis:
+                    prod *= state["scale"]
+                bias_correction2 = 1 - beta2 ** (step + 1)
+            else:
+                step_within_period = state["step_within_period"]
+                bias_correction2 = 1 - beta2 ** (min(step, step_within_period) + 1)
+            prod /= bias_correction2 ** 0.5
+            param_prods.append(prod)
+
+        param_prods = torch.stack(param_prods).to('cpu')
+        avg_update_freq = 1.0 / speedup
+        param_freqs = param_prods * (avg_update_freq / param_prods.mean())
+
+        # Don't delay more than 40 steps for any parameter.  Note: with beta=0.1,
+        # this would mean an average delay of about 500 steps before the gradient
+        # makes it to the parameter.
+        min_freq = 1.0 / 40
+
+        # get the mean after applying limits of [min_freq..1] for the frequencies of
+        # update
+        param_freqs_mean = param_freqs.clamp(min=min_freq, max=1.0).mean()
+        # renormalize after applying min and max limits
+        param_freqs = param_freqs * (avg_update_freq / param_freqs_mean)
+        # ...and apply the limits again.
+        param_freqs = param_freqs.clamp(min=min_freq, max=1.0)
+        param_periods = (1.0 / param_freqs).to(torch.int32)  # .to(torch.int32) rounds down
+
+        param_prods = param_prods.tolist()
+        param_freqs = param_freqs.tolist()
+        param_periods = param_periods.tolist()
+
+        print("speedup = ", speedup)
+        for i,p in enumerate(group["params"]):
+            if p.grad is None:
+                continue
+            print(f"Shape = {p.shape}, prod = {param_prods[i]}, freq = {param_freqs[i]}, period = {param_periods[i]}.")
+
+        # Do nothing more, as yet.
+
 
 
 
