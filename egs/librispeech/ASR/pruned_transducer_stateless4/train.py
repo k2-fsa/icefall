@@ -932,6 +932,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -992,6 +993,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1012,7 +1014,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=warmup,
                 )
             loss.backward()
             optimizer.step()
