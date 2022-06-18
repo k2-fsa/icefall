@@ -359,20 +359,16 @@ def decode_one_chunk(
     states = []
 
     rnnt_stream_list = []
-    processed_feature_lens = []
+    processed_lens = []
 
     for stream in decode_streams:
-        # we plus 2 here because we will cut off one frame on each size of
-        # encoder_embed output as they see invalid paddings. so we need extra 2
-        # frames.
         feat, feat_len = stream.get_feature_frames(
-            (params.decode_chunk_size + 2 + params.right_context)
-            * params.subsampling_factor
+            params.decode_chunk_size * params.subsampling_factor
         )
         features.append(feat)
         feature_lens.append(feat_len)
         states.append(stream.states)
-        processed_feature_lens.append(stream.feature_len)
+        processed_lens.append(stream.done_frames)
         if params.decoding_method == "fast_beam_search":
             rnnt_stream_list.append(stream.rnnt_decoding_stream)
 
@@ -405,7 +401,7 @@ def decode_one_chunk(
         torch.stack([x[0] for x in states], dim=2),
         torch.stack([x[1] for x in states], dim=2),
     ]
-    processed_feature_lens = torch.tensor(processed_feature_lens, device=device)
+    processed_lens = torch.tensor(processed_lens, device=device)
 
     encoder_out, encoder_out_lens, states = model.encoder.streaming_forward(
         x=features,
@@ -413,7 +409,7 @@ def decode_one_chunk(
         states=states,
         left_context=params.left_context,
         right_context=params.right_context,
-        processed_lens=processed_feature_lens,
+        processed_lens=processed_lens,
     )
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
@@ -429,7 +425,7 @@ def decode_one_chunk(
             max_states=params.max_states,
         )
         decoding_streams = k2.RnntDecodingStreams(rnnt_stream_list, config)
-        processed_lens = processed_feature_lens + encoder_out_lens
+        processed_lens = processed_lens + encoder_out_lens
         hyp_tokens = fast_beam_search(
             model, encoder_out, processed_lens, decoding_streams
         )
@@ -441,7 +437,7 @@ def decode_one_chunk(
     finished_streams = []
     for i in range(len(decode_streams)):
         decode_streams[i].states = [states[0][i], states[1][i]]
-        decode_streams[i].feature_len += encoder_out_lens[i]
+        decode_streams[i].done_frames += encoder_out_lens[i]
         if params.decoding_method == "fast_beam_search":
             decode_streams[i].hyp = hyp_tokens[i]
         if decode_streams[i].done:
@@ -576,7 +572,8 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        store_transcripts(filename=recog_path, texts=sorted(results))
+        results = sorted(results)
+        store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned

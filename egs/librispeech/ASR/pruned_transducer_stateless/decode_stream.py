@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import List, Optional, Tuple
 
 import k2
@@ -45,6 +46,7 @@ class DecodeStream(object):
             assert device == decoding_graph.device
 
         self.params = params
+        self.LOG_EPS = math.log(1e-10)
 
         self.states = initial_states
 
@@ -52,6 +54,7 @@ class DecodeStream(object):
         self.features: torch.Tensor = None
         # how many frames have been processed. (before subsampling).
         # we only modify this value in `func:get_feature_frames`.
+        self.num_frames = 0
         self.num_processed_frames: int = 0
         self._done: bool = False
         # The transcript of current utterance.
@@ -62,7 +65,11 @@ class DecodeStream(object):
         # how many frames have been processed, after subsampling (i.e. a
         # cumulative sum of the second return value of
         # encoder.streaming_forward
-        self.feature_len: int = 0
+        self.done_frames: int = 0
+
+        self.pad_length = (
+            params.right_context + 2
+        ) * params.subsampling_factor + 3
 
         if params.decoding_method == "greedy_search":
             self.hyp = [params.blank_id] * params.context_size
@@ -86,27 +93,32 @@ class DecodeStream(object):
         features: torch.Tensor,
     ) -> None:
         """Set features tensor of current utterance."""
-        self.features = features
+        assert features.dim() == 2, features.dim()
+        self.num_frames = features.size(0)
+        # tail padding
+        self.features = torch.nn.functional.pad(
+            features,
+            (0, 0, 0, self.pad_length),
+            mode="constant",
+            value=self.LOG_EPS,
+        )
 
     def get_feature_frames(self, chunk_size: int) -> Tuple[torch.Tensor, int]:
         """Consume chunk_size frames of features"""
         # plus 3 here because we subsampling features with
         # lengths = ((x_lens - 1) // 2 - 1) // 2
-        ret_chunk_size = min(
-            self.features.size(0) - self.num_processed_frames, chunk_size + 3
+        update_length = min(
+            self.num_frames - self.num_processed_frames, chunk_size
         )
+        ret_length = update_length + self.pad_length
+
         ret_features = self.features[
             self.num_processed_frames : self.num_processed_frames  # noqa
-            + ret_chunk_size,
-            :,
+            + ret_length
         ]
-        self.num_processed_frames += (
-            chunk_size
-            - 2 * self.params.subsampling_factor
-            - self.params.right_context * self.params.subsampling_factor
-        )
 
-        if self.num_processed_frames >= self.features.size(0):
+        self.num_processed_frames += update_length
+        if self.num_processed_frames >= self.num_frames:
             self._done = True
 
-        return ret_features, ret_chunk_size
+        return ret_features, ret_length
