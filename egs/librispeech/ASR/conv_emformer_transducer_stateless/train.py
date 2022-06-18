@@ -1090,9 +1090,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
