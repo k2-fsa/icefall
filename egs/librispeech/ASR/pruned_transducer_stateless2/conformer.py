@@ -740,12 +740,12 @@ class ConformerEncoder(nn.Module):
         assert not self.training
         assert len(states) == 2
         assert states[0].shape == (
-            len(self.layers),
+            self.num_layers,
             left_context,
             src.size(1),
             src.size(2),
         )
-        assert states[1].size(0) == len(self.layers)
+        assert states[1].size(0) == self.num_layers
 
         output = src
 
