@@ -909,7 +909,7 @@ class NeutralGradient(Optimizer):
         param_periods = param_periods.tolist()
 
         logging.info(f"NeutralGradient._recalibrate_speedup: speedup = {speedup:.2g}, actual_speedup = {actual_speedup:.2g}")
-        print_info = True # random.random() < 0.1
+        print_info = random.random() < 0.05
         i = 0
         for p in group["params"]:
             if p.grad is None:
