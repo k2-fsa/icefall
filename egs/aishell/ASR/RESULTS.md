@@ -19,6 +19,9 @@ It uses pruned RNN-T.
 Training command is:
 
 ```bash
+./prepare.sh
+./prepare_aidatatang_200zh.sh
+
 export CUDA_VISIBLE_DEVICES="4,5,6,7"
 
 ./pruned_transducer_stateless3/train.py \
