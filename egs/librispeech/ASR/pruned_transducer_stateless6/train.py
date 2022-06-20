@@ -74,9 +74,9 @@ from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut, MonoCut
+from lhotse.dataset.collation import collate_custom_field
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from lhotse.dataset.collation import collate_custom_field
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -376,7 +376,7 @@ def get_params() -> AttributeDict:
             "distillation_layer": 5,  # 0-based index
             # Since output rate of hubert is 50, while that of encoder is 8,
             # two successive codebook_index are concatenated together.
-            # Detailed in function Transducer::concat_sucessive_codebook_indexes.
+            # Detailed in function Transducer::concat_sucessive_codebook_indexes
             "num_codebooks": 16,  # used to construct distillation loss
         }
     )
@@ -988,6 +988,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1048,6 +1049,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1058,9 +1060,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
@@ -1068,7 +1067,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=warmup,
                 )
             loss.backward()
             optimizer.step()
