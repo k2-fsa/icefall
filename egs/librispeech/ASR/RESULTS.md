@@ -1139,7 +1139,7 @@ You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3x
 
 #### 2021-11-09
 
-The best WER, as of 2022-20-06, for the librispeech test dataset is below
+The best WER, as of 2022-06-20, for the librispeech test dataset is below
 (using HLG decoding + n-gram LM rescoring + attention decoder rescoring + rnn lm rescoring):
 
 |     | test-clean | test-other |
