@@ -1139,17 +1139,18 @@ You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3x
 
 #### 2021-11-09
 
-The best WER, as of 2021-11-09, for the librispeech test dataset is below
-(using HLG decoding + n-gram LM rescoring + attention decoder rescoring):
+The best WER, as of 2022-20-06, for the librispeech test dataset is below
+(using HLG decoding + n-gram LM rescoring + attention decoder rescoring + rnn lm rescoring):
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.42       | 5.73       |
+| WER | 2.32       | 5.39       |
 
 Scale values used in n-gram LM rescoring and attention rescoring for the best WERs are:
-| ngram_lm_scale | attention_scale |
-|----------------|-----------------|
-| 2.0            | 2.0             |
+
+| ngram_lm_scale | attention_scale | rnn_lm_scale |
+|----------------|-----------------|--------------|
+| 0.3            | 2.1             | 2.2          |
 
 
 To reproduce the above result, use the following commands for training:
@@ -1170,11 +1171,27 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 0 \
   --num-epochs 90
 # Note: It trains for 90 epochs, but the best WER is at epoch-77.pt
+
+# Train the RNN-LM
+cd icefall
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./rnn_lm/train.py \
+  --exp-dir rnn_lm/exp_2048_3_tied \
+  --start-epoch 0 \
+  --world-size 4 \
+  --num-epochs 30 \
+  --use-fp16 1 \
+  --embedding-dim 2048 \
+  --hidden-dim 2048 \
+  --num-layers 3 \
+  --batch-size 500 \
+  --tie-weights true
 ```
 
 and the following command for decoding
 
 ```
+rnn_dir=$(git rev-parse --show-toplevel)/icefall/rnn_lm
 ./conformer_ctc/decode.py \
   --exp-dir conformer_ctc/exp_500_att0.8 \
   --lang-dir data/lang_bpe_500 \
@@ -1184,8 +1201,15 @@ and the following command for decoding
   --num-paths 1000 \
   --epoch 77 \
   --avg 55 \
-  --method attention-decoder \
-  --nbest-scale 0.5
+  --nbest-scale 0.5 \
+  --rnn-lm-exp-dir ${rnn_dir}/exp_2048_3_tied\
+  --rnn-lm-epoch 29 \
+  --rnn-lm-avg 3 \
+  --rnn-lm-embedding-dim 2048 \
+  --rnn-lm-hidden-dim 2048 \
+  --rnn-lm-num-layers 3 \
+  --rnn-lm-tie-weights true \
+  --method rnn-lm
 ```
 
 You can find the pre-trained model by visiting

@@ -121,13 +121,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-ddp-launch",
-        type=str2bool,
-        default=False,
-        help="True if using torch.distributed.launch",
-    )
-
-    parser.add_argument(
         "--lm-data",
         type=str,
         default="data/lm_training_bpe_500/sorted_lm_data.pt",
@@ -165,7 +158,7 @@ def get_parser():
     parser.add_argument(
         "--num-layers",
         type=int,
-        default=4,
+        default=3,
         help="Number of RNN layers the model",
     )
 
@@ -206,7 +199,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 200,
             "reset_interval": 2000,
-            "valid_interval": 10000,
+            "valid_interval": 5000,
             "env_info": get_env_info(),
         }
     )

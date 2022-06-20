@@ -43,6 +43,7 @@ from icefall.decode import (
 )
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -206,19 +207,6 @@ def get_parser():
     )
 
     return parser
-
-
-def get_rnn_lm_model(params: AttributeDict):
-    from rnn_lm.model import RnnLmModel
-
-    rnn_lm_model = RnnLmModel(
-        vocab_size=params.num_classes,
-        embedding_dim=params.rnn_lm_embedding_dim,
-        hidden_dim=params.rnn_lm_hidden_dim,
-        num_layers=params.rnn_lm_num_layers,
-        tie_weights=params.rnn_lm_tie_weights,
-    )
-    return rnn_lm_model
 
 
 def get_params() -> AttributeDict:
@@ -768,7 +756,13 @@ def main():
 
     rnn_lm_model = None
     if params.method == "rnn-lm":
-        rnn_lm_model = get_rnn_lm_model(params)
+        rnn_lm_model = RnnLmModel(
+            vocab_size=params.num_classes,
+            embedding_dim=params.rnn_lm_embedding_dim,
+            hidden_dim=params.rnn_lm_hidden_dim,
+            num_layers=params.rnn_lm_num_layers,
+            tie_weights=params.rnn_lm_tie_weights,
+        )
         if params.rnn_lm_avg == 1:
             load_checkpoint(
                 f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",

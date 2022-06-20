@@ -33,8 +33,8 @@ import torch
 from rnn_lm.dataset import get_dataloader
 from rnn_lm.model import RnnLmModel
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.utils import AttributeDict, setup_logger
+from icefall.checkpoint import load_checkpoint
+from icefall.utils import AttributeDict, load_averaged_model, setup_logger
 
 
 def get_parser():
@@ -165,17 +165,12 @@ def main():
 
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        model.to(device)
     else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model = load_averaged_model(
+            params.exp_dir, model, params.epoch, params.avg, device
+        )
 
+    model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     num_param_requires_grad = sum(

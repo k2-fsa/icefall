@@ -41,9 +41,9 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  # 5000
-  # 2000
-  # 1000
+  5000
+  2000
+  1000
   500
 )
 
@@ -277,6 +277,8 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_lg.py --lang-dir $lang_dir
+  done
+fi
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 11: Generate LM training data"

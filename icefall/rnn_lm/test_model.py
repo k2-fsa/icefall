@@ -40,7 +40,7 @@ def test_rnn_lm_model():
     )
     lengths = torch.tensor([4, 3, 2])
     nll_loss = model(x, y, lengths)
-
+    print(nll_loss)
     """
     tensor([[1.1180, 1.3059, 1.2426, 1.7773],
             [1.4231, 1.2783, 1.7321, 0.0000],
