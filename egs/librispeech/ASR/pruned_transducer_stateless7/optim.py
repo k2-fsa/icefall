@@ -85,7 +85,7 @@ class NeutralGradient(Optimizer):
             lr=3e-02,
             betas=(0.9, 0.98),
             scale_speed=0.1,
-            grad_eps=1e-8,
+            grad_eps=1e-14,
             param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_max_rms=2.0,
