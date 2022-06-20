@@ -4,7 +4,6 @@
 Please refer to <https://icefall.readthedocs.io/en/latest/recipes/aishell/index.html>
 for how to run models in this recipe.
 
-# Pruned transducer stateless 3
 
 
 # Transducers

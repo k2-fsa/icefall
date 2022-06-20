@@ -101,14 +101,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
-        default=36,
+        default=12,
         help="Number of conformer encoder layers..",
     )
 
     parser.add_argument(
         "--dim-feedforward",
         type=int,
-        default=1024,
+        default=2048,
         help="Feedforward dimension of the conformer encoder layer.",
     )
 
@@ -122,7 +122,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=int,
-        default=256,
+        default=512,
         help="Attention dimension in the conformer encoder layer.",
     )
 
@@ -1185,7 +1185,7 @@ def scan_pessimistic_batches_for_oom(
                     graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=0.0 if params.start_epoch == 1 else 1.0,
                 )
             loss.backward()
             optimizer.step()
