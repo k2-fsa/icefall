@@ -23,7 +23,7 @@
 # To start from scratch, you can
 # set stage=0, stop_stage=4, use_extracted_codebook=False
 
-stage=2
+stage=0
 stop_stage=4
 
 # Set the GPUs available.
@@ -49,11 +49,11 @@ full_libri=False
 #   "True" -> stage 0 and stage 1 would be skipped,
 #     and directly download the extracted codebook indexes for distillation
 #   "False" -> start from scratch
-use_extracted_codebook=True
+use_extracted_codebook=False
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
-#   "hubert_xtralarge_ll60k.pt" -> pretrained model without fintuing
+#   "hubert_xtralarge_ll60k" -> pretrained model without fintuing
 teacher_model_id=hubert_xtralarge_ll60k_finetune_ls960
 
 log() {
