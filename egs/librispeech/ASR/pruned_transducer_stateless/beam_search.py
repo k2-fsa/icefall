@@ -86,6 +86,7 @@ def fast_beam_search_nbest(
     num_paths: int,
     nbest_scale: float = 0.5,
     use_double_scores: bool = True,
+    use_max: bool = True,
 ) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -121,6 +122,8 @@ def fast_beam_search_nbest(
       use_double_scores:
         True to use double precision for computation. False to use
         single precision.
+      use_max:
+        False to use log-add to compute total scores. True to use max.
     Returns:
       Return the decoded result.
     """
@@ -141,14 +144,47 @@ def fast_beam_search_nbest(
         nbest_scale=nbest_scale,
     )
 
-    # at this point, nbest.fsa.scores are all zeros.
+    # The following code is modified from nbest.intersect()
+    word_fsa = k2.invert(nbest.fsa)
+    if hasattr(lattice, "aux_labels"):
+        # delete token IDs as it is not needed
+        del word_fsa.aux_labels
+    word_fsa.scores.zero_()
+    word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
+    path_to_utt_map = nbest.shape.row_ids(1)
 
-    nbest = nbest.intersect(lattice)
-    # Now nbest.fsa.scores contains acoustic scores
+    if hasattr(lattice, "aux_labels"):
+        # lattice has token IDs as labels and word IDs as aux_labels.
+        # inv_lattice has word IDs as labels and token IDs as aux_labels
+        inv_lattice = k2.invert(lattice)
+        inv_lattice = k2.arc_sort(inv_lattice)
+    else:
+        inv_lattice = k2.arc_sort(lattice)
 
-    max_indexes = nbest.tot_scores().argmax()
+    if inv_lattice.shape[0] == 1:
+        path_lattice = k2.intersect_device(
+            inv_lattice,
+            word_fsa_with_epsilon_loops,
+            b_to_a_map=torch.zeros_like(path_to_utt_map),
+            sorted_match_a=True,
+        )
+    else:
+        path_lattice = k2.intersect_device(
+            inv_lattice,
+            word_fsa_with_epsilon_loops,
+            b_to_a_map=path_to_utt_map,
+            sorted_match_a=True,
+        )
 
-    best_path = k2.index_fsa(nbest.fsa, max_indexes)
+    # path_lattice has word IDs as labels and token IDs as aux_labels
+    path_lattice = k2.top_sort(k2.connect(path_lattice))
+    tot_scores = path_lattice.get_tot_scores(
+        use_double_scores=use_double_scores,
+        log_semiring=(False if use_max else True),
+    )
+    ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+    best_hyp_indexes = ragged_tot_scores.argmax()
+    best_path = k2.index_fsa(nbest.fsa, best_hyp_indexes)
 
     hyps = get_texts(best_path)
 

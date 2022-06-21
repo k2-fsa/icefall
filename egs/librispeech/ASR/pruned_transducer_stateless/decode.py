@@ -154,7 +154,7 @@ def get_parser():
 
     parser.add_argument(
         "--lang-dir",
-        type=str,
+        type=Path,
         default="data/lang_bpe_500",
         help="The lang dir containing word table and LG graph",
     )
@@ -195,8 +195,8 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""Whether to use an LG graph for FSA-based beam search.
-        Used only when --decoding_method is fast_beam_search. If setting true,
-        it assumes there is an LG.pt file in lang_dir.""",
+        Used only when --decoding_method is fast_beam_search. If true,
+        it uses lang_dir/LG.pt during decoding.""",
     )
 
     parser.add_argument(
@@ -320,6 +320,7 @@ def decode_one_batch(
     # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
+
     feature_lens = supervisions["num_frames"].to(device)
 
     encoder_out, encoder_out_lens = model.encoder(
@@ -351,6 +352,7 @@ def decode_one_batch(
                 max_states=params.max_states,
                 num_paths=params.num_paths,
                 nbest_scale=params.nbest_scale,
+                use_max=params.use_max,
             )
             for hyp in hyp_tokens:
                 hyps.append([word_table[i] for i in hyp])
@@ -563,7 +565,10 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
-        params.suffix += f"-use-max-{params.use_max}"
+        if params.use_LG:
+            params.suffix += f"-use-max-{params.use_max}"
+            params.suffix += f"-nbest-scale-{params.nbest_scale}"
+            params.suffix += f"-num-paths-{params.num_paths}"
     elif "beam_search" in params.decoding_method:
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
@@ -632,8 +637,10 @@ def main():
         if params.use_LG:
             lexicon = Lexicon(params.lang_dir)
             word_table = lexicon.word_table
+            lg_filename = params.lang_dir / "LG.pt"
+            logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(f"{params.lang_dir}/LG.pt", map_location=device)
+                torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:
