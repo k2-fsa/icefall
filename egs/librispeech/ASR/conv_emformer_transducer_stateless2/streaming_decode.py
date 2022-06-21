@@ -19,10 +19,10 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless/streaming_decode.py \
+./conv_emformer_transducer_stateless2/streaming_decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -34,10 +34,10 @@ Usage:
       --use-averaged-model True
 
 (2) modified beam search
-./conv_emformer_transducer_stateless/streaming_decode.py \
+./conv_emformer_transducer_stateless2/streaming_decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -50,10 +50,10 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless/streaming_decode.py \
+./conv_emformer_transducer_stateless2/streaming_decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -682,6 +682,8 @@ def decode_dataset(
             device=device,
             LOG_EPS=LOG_EPSILON,
         )
+
+        stream.set_states(model.encoder.init_states(device))
 
         audio: np.ndarray = cut.load_audio()
         # audio.shape: (1, num_samples)

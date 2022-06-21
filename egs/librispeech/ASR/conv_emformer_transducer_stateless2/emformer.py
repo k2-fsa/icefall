@@ -1529,6 +1529,30 @@ class EmformerEncoder(nn.Module):
         )
         return output, output_lengths, output_states
 
+    def init_states(self, device: torch.device = torch.device("cpu")):
+        """Create initial states."""
+        attn_caches = [
+            [
+                torch.zeros(self.memory_size, self.d_model, device=device),
+                torch.zeros(
+                    self.left_context_length, self.d_model, device=device
+                ),
+                torch.zeros(
+                    self.left_context_length, self.d_model, device=device
+                ),
+            ]
+            for _ in range(self.num_encoder_layers)
+        ]
+        conv_caches = [
+            torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
+            for _ in range(self.num_encoder_layers)
+        ]
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
+            attn_caches,
+            conv_caches,
+        )
+        return states
+
 
 class Emformer(EncoderInterface):
     def __init__(
@@ -1700,6 +1724,10 @@ class Emformer(EncoderInterface):
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
         return output, output_lengths, output_states
+
+    def init_states(self, device: torch.device = torch.device("cpu")):
+        """Create initial states."""
+        return self.encoder.init_states(device)
 
 
 class Conv2dSubsampling(nn.Module):

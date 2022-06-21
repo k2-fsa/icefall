@@ -22,11 +22,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./conv_emformer_transducer_stateless/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir conv_emformer_transducer_stateless/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300 \
   --master-port 12321 \
@@ -38,12 +38,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --memory-size 32
 
 # For mix precision training:
-./conv_emformer_transducer_stateless/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir conv_emformer_transducer_stateless/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300 \
   --master-port 12321 \
