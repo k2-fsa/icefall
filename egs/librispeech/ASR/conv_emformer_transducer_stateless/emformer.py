@@ -1141,8 +1141,8 @@ class EmformerEncoderLayer(nn.Module):
              - output utterance, with shape (U, B, D);
              - output right_context, with shape (R, B, D);
              - output memory, with shape (1, B, D) or (0, B, D).
-             - output state.
-             - updated conv_cache.
+             - updated attention cache.
+             - updated convolution cache.
         """
         R = right_context.size(0)
         src = torch.cat([right_context, utterance])
@@ -1525,7 +1525,6 @@ class EmformerEncoder(nn.Module):
             right_context at the end.
           states (List[torch.Tensor, List[List[torch.Tensor]], List[torch.Tensor]]: # noqa
             Cached states containing:
-            - past_lens: number of past frames for each sample in batch
             - attn_caches: attention states from preceding chunk's computation,
               where each element corresponds to each emformer layer
             - conv_caches: left context for causal convolution, where each
