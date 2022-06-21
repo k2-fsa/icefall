@@ -213,7 +213,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=8.0,
+        default=20.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -236,7 +236,7 @@ def get_parser():
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=4,
+        default=8,
         help="""Used only when --decoding-method is
         fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle""",
@@ -320,7 +320,8 @@ def decode_one_batch(
         The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
