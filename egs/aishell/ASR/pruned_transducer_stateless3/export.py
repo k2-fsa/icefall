@@ -20,35 +20,33 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless5/export.py \
-  --exp-dir ./pruned_transducer_stateless5/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10
+./pruned_transducer_stateless3/export.py \
+  --exp-dir ./pruned_transducer_stateless3/exp \
+  --jit 0 \
+  --epoch 29 \
+  --avg 5
 
-It will generate a file exp_dir/pretrained.pt
+It will generate a file exp_dir/pretrained-epoch-29-avg-5.pt
 
-To use the generated file with `pruned_transducer_stateless5/decode.py`,
-you can do:
+To use the generated file with `pruned_transducer_stateless3/decode.py`,
+you can do::
 
     cd /path/to/exp_dir
-    ln -s pretrained.pt epoch-9999.pt
+    ln -s pretrained-epoch-29-avg-5.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless5/decode.py \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+    cd /path/to/egs/aishell/ASR
+    ./pruned_transducer_stateless3/decode.py \
+        --exp-dir ./pruned_transducer_stateless3/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 600 \
-        --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --max-duration 100 \
+        --lang-dir data/lang_char
 """
 
 import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -58,6 +56,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
 
@@ -69,7 +68,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
+        default=29,
         help="""It specifies the checkpoint to use for averaging.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
@@ -97,7 +96,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -107,18 +106,11 @@ def get_parser():
 
     parser.add_argument(
         "--exp-dir",
-        type=str,
-        default="pruned_transducer_stateless5/exp",
+        type=Path,
+        default=Path("pruned_transducer_stateless3/exp"),
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -130,9 +122,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=Path,
+        default=Path("data/lang_char"),
+        help="The lang dir",
+    )
+
+    parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
@@ -144,7 +143,6 @@ def get_parser():
 
 def main():
     args = get_parser().parse_args()
-    args.exp_dir = Path(args.exp_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -155,12 +153,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    lexicon = Lexicon(params.lang_dir)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
@@ -255,14 +251,19 @@ def main():
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
-        filename = params.exp_dir / "cpu_jit.pt"
+        filename = (
+            params.exp_dir / f"cpu_jit-epoch-{params.epoch}-avg-{params.avg}.pt"
+        )
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
         logging.info("Not using torch.jit.script")
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
-        filename = params.exp_dir / "pretrained.pt"
+        filename = (
+            params.exp_dir
+            / f"pretrained-epoch-{params.epoch}-avg-{params.avg}.pt"
+        )
         torch.save({"model": model.state_dict()}, str(filename))
         logging.info(f"Saved to {filename}")
 
