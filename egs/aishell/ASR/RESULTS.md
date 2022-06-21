@@ -6,6 +6,7 @@
 
 See <https://github.com/k2-fsa/icefall/pull/436>
 
+
 [./pruned_transducer_stateless3](./pruned_transducer_stateless3)
 
 It uses pruned RNN-T.
@@ -75,6 +76,10 @@ done
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/csukuangfj/icefall-aishell-pruned-transducer-stateless3-2022-06-20>
+
+We have a tutorial in [sherpa](https://github.com/k2-fsa/sherpa) about how
+to use the pre-trained model for non-streaming ASR. See
+<https://k2-fsa.github.io/sherpa/offline_asr/conformer/aishell.html>
 
 #### 2022-03-01
 
