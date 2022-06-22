@@ -1,1 +1,1 @@
-/Users/ezerhoun/repos/open_source/icefall/egs/librispeech/ASR/local/train_bpe_model.py
+../../librispeech/ASR/local/train_bpe_model.py
