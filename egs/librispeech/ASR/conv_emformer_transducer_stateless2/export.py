@@ -20,8 +20,8 @@
 # to a single one using model averaging.
 """
 Usage:
-./conv_emformer_transducer_stateless/export.py \
-  --exp-dir ./conv_emformer_transducer_stateless/exp \
+./conv_emformer_transducer_stateless2/export.py \
+  --exp-dir ./conv_emformer_transducer_stateless2/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 10 \
@@ -36,15 +36,15 @@ Usage:
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `conv_emformer_transducer_stateless/decode.py`,
+To use the generated file with `conv_emformer_transducer_stateless2/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./conv_emformer_transducer_stateless/decode.py \
-        --exp-dir ./conv_emformer_transducer_stateless/exp \
+    ./conv_emformer_transducer_stateless2/decode.py \
+        --exp-dir ./conv_emformer_transducer_stateless2/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 100 \

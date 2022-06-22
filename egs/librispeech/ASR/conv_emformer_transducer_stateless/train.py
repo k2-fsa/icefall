@@ -28,7 +28,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --exp-dir conv_emformer_transducer_stateless/exp \
   --full-libri 1 \
-  --max-duration 300 \
+  --max-duration 280 \
   --master-port 12321 \
   --num-encoder-layers 12 \
   --chunk-length 32 \
