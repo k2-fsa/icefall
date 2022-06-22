@@ -1202,7 +1202,7 @@ rnn_dir=$(git rev-parse --show-toplevel)/icefall/rnn_lm
   --epoch 77 \
   --avg 55 \
   --nbest-scale 0.5 \
-  --rnn-lm-exp-dir ${rnn_dir}/exp_2048_3_tied\
+  --rnn-lm-exp-dir ${rnn_dir}/exp_2048_3_tied \
   --rnn-lm-epoch 29 \
   --rnn-lm-avg 3 \
   --rnn-lm-embedding-dim 2048 \

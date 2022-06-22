@@ -201,7 +201,7 @@ def get_parser():
         "--rnn-lm-tie-weights",
         type=str2bool,
         default=False,
-        help="""True share the weights between the input embedding layer and the
+        help="""True to share the weights between the input embedding layer and the
         last output linear layer
         """,
     )
@@ -235,7 +235,7 @@ def get_params() -> AttributeDict:
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    rnn_lm_model: nn.Module,
+    rnn_lm_model: Optional[nn.Module],
     HLG: Optional[k2.Fsa],
     H: Optional[k2.Fsa],
     bpe_model: Optional[spm.SentencePieceProcessor],
