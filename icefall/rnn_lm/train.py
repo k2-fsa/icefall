@@ -166,7 +166,7 @@ def get_parser():
         "--tie-weights",
         type=str2bool,
         default=False,
-        help="""True share the weights between the input embedding layer and the
+        help="""True to share the weights between the input embedding layer and the
         last output linear layer
         """,
     )
