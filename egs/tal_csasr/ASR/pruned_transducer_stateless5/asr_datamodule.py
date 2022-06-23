@@ -314,7 +314,8 @@ class TAL_CSASRAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=30000,
+                num_cuts_for_bins_estimate=20000,
+                buffer_size=60000,
                 drop_last=self.args.drop_last,
             )
         else:

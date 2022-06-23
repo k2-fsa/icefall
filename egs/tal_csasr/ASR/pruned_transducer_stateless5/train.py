@@ -954,20 +954,20 @@ def run(rank, world_size, args):
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
-        # Caution: There is a reason to select 18.0 here. Please see
+        # Caution: There is a reason to select 20.0 here. Please see
         # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 18.0
+        return 1.0 <= c.duration <= 20.0
 
     def text_normalize_for_cut(c: Cut):
         # Text normalize for each sample
         text = c.supervisions[0].text
         text = text.strip("\n").strip("\t")
         text = text_normalize(text)
-        text = "/".join(tokenize_by_bpe_model(sp, text))
+        text = tokenize_by_bpe_model(sp, text)
         c.supervisions[0].text = text
         return c
 

@@ -288,7 +288,8 @@ def decode_one_batch(
             chars = pattern.split(hyp.upper())
             chars_new = []
             for char in chars:
-                chars_new.extend(char.strip().split(" "))
+                if char != "":
+                    chars_new.extend(char.strip().split(" "))
             hyps.append(chars_new)
     elif (
         params.decoding_method == "greedy_search"
@@ -304,7 +305,8 @@ def decode_one_batch(
             chars = pattern.split(hyp.upper())
             chars_new = []
             for char in chars:
-                chars_new.extend(char.strip().split(" "))
+                if char != "":
+                    chars_new.extend(char.strip().split(" "))
             hyps.append(chars_new)
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
@@ -318,7 +320,8 @@ def decode_one_batch(
             chars = pattern.split(hyp.upper())
             chars_new = []
             for char in chars:
-                chars_new.extend(char.strip().split(" "))
+                if char != "":
+                    chars_new.extend(char.strip().split(" "))
             hyps.append(chars_new)
     else:
         batch_size = encoder_out.size(0)
@@ -350,7 +353,8 @@ def decode_one_batch(
                 chars = pattern.split(hyp.upper())
                 chars_new = []
                 for char in chars:
-                    chars_new.extend(char.strip().split(" "))
+                    if char != "":
+                        chars_new.extend(char.strip().split(" "))
                 hyps.append(chars_new)
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -415,7 +419,8 @@ def decode_dataset(
             chars = pattern.split(text.upper())
             chars_new = []
             for char in chars:
-                chars_new.extend(char.strip().split(" "))
+                if char != "":
+                    chars_new.extend(char.strip().split(" "))
             texts[i] = chars_new
         hyps_dict = decode_one_batch(
             params=params,
@@ -648,7 +653,7 @@ def main():
 
     dev_cuts = tal_csasr.valid_cuts()
     dev_cuts = dev_cuts.map(text_normalize_for_cut)
-    dev_dl = tal_csasr.valid_dataloader(dev_cuts)
+    dev_dl = tal_csasr.valid_dataloaders(dev_cuts)
 
     test_cuts = tal_csasr.test_cuts()
     test_cuts = test_cuts.map(text_normalize_for_cut)

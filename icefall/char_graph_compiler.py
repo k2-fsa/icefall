@@ -80,7 +80,8 @@ class CharCtcTrainingGraphCompiler(object):
         return ids
 
     def texts_to_ids_with_bpe(self, texts: List[str]) -> List[List[int]]:
-        """Convert a list of texts to a list-of-list of token IDs.
+        """Convert a list of texts (which include chars and bpes)
+           to a list-of-list of token IDs.
 
         Args:
           texts:
