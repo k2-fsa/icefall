@@ -23,6 +23,7 @@ This file downloads the following LibriSpeech LM files:
     - 4-gram.arpa.gz
     - librispeech-vocab.txt
     - librispeech-lexicon.txt
+    - librispeech-lm-norm.txt.gz
 
 from http://www.openslr.org/resources/11
 and save them in the user provided directory.
@@ -61,6 +62,7 @@ def main(out_dir: str):
         "4-gram.arpa.gz",
         "librispeech-vocab.txt",
         "librispeech-lexicon.txt",
+        "librispeech-lm-norm.txt.gz",
     )
 
     for f in tqdm(files_to_download, desc="Downloading LibriSpeech LM files"):
