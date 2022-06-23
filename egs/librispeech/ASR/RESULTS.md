@@ -1212,8 +1212,11 @@ rnn_dir=$(git rev-parse --show-toplevel)/icefall/rnn_lm
   --method rnn-lm
 ```
 
-You can find the pre-trained model by visiting
+You can find the Conformer-CTC pre-trained model by visiting
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09>
+
+and the RNN-LM pre-trained model:
+<https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
 
 The tensorboard log for training is available at
 <https://tensorboard.dev/experiment/hZDWrZfaSqOMqtW0NEfXKg/#scalars>
