@@ -68,6 +68,8 @@ class NeutralGradient(Optimizer):
                  to the parameter rms) and 0.0 means no such normalization at all (only a scalar
                  per tensor).  In any case we fully normalize the parameter scale at the
                  whole-tensor level, for non-scalar tensors.
+       grad_pow: A scale 0 <= grad_pow <= 1.0 where 1.0 means we fully normalize the
+                 gradient magnitude.
    grad_min_rand: Minimum proportion of random tensor that we add to the gradient covariance,
                  to make the gradient covariance have less effect.
       lr_for_speedup: A learning rate that determines how much speedup we aim for by
@@ -85,7 +87,7 @@ class NeutralGradient(Optimizer):
             lr=3e-02,
             betas=(0.9, 0.98),
             scale_speed=0.1,
-            grad_eps=1e-14,
+            grad_eps=1e-10,
             param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_max_rms=2.0,
@@ -93,7 +95,8 @@ class NeutralGradient(Optimizer):
             max_fullcov_size=1023,
             estimate_period=2000,
             stats_steps=200,
-            param_pow=0.75,
+            param_pow=0.85,
+            grad_pow=0.9,
             grad_min_rand=0.0,
             lr_for_speedup=0.03,
             speedup_recalibrate_period=100,
@@ -143,6 +146,7 @@ class NeutralGradient(Optimizer):
             estimate_period=estimate_period,
             stats_steps=stats_steps,
             param_pow=param_pow,
+            grad_pow=grad_pow,
             grad_min_rand=grad_min_rand,
             lr_for_speedup=lr_for_speedup,
             speedup_recalibrate_period=speedup_recalibrate_period,
@@ -181,6 +185,7 @@ class NeutralGradient(Optimizer):
             estimate_period = group["estimate_period"]
             stats_steps = group["stats_steps"]
             param_pow = group["param_pow"]
+            grad_pow = group["grad_pow"]
             grad_min_rand = group["grad_min_rand"]
             lr_for_speedup = group["lr_for_speedup"]
             speedup_first_step = group["speedup_first_step"]
@@ -242,10 +247,11 @@ class NeutralGradient(Optimizer):
 
                     if p.numel() > 1:
                         is_one_axis = (p.numel() in list(p.shape))  # e.g. a bias
-                        if is_one_axis:
-                            # "scale" is just a per-tensor scale on the learning rate.
-                            param_rms = (p**2).mean().sqrt().add_(param_eps)
-                            state["scale"] = param_rms
+
+
+                        # "scale" is just a per-tensor scale on the learning rate.
+                        param_rms = (p**2).mean().sqrt().add_(param_min_rms)
+                        state["scale"] = param_rms
 
 
                         # we learn the scale on the parameters in a way that
@@ -260,6 +266,9 @@ class NeutralGradient(Optimizer):
                             # 1 on each step, and will  be reset to 0 when it reaches estimate_period.
                             state["step_within_period"] = random.randint(0,
                                                                          estimate_period-stats_steps)
+
+                            if param_pow != 1.0:
+                                state["scalar_exp_avg_sq"] = torch.zeros((), **kwargs)
 
                         used_scale = False
                         for dim in range(p.ndim):
@@ -355,11 +364,12 @@ class NeutralGradient(Optimizer):
 
                     exp_avg_sq = state["exp_avg_sq"]
 
+                    scale = state["scale"]
+                    if step % 10 == 0:
+                        scale.copy_((p**2).mean().sqrt().add_(param_min_rms))
+
                     if is_one_axis:
-                        scale = state["scale"]
                         bias_correction2 = 1 - beta2 ** (step + 1)
-                        if step % 10 == 0:
-                            scale.copy_((p**2).mean().sqrt().add_(param_eps))
                         # Decay the second moment running average coefficient
                         exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2)/n_cached_grads)
                         grad_rms = (exp_avg_sq.sqrt()).add_(grad_eps)
@@ -371,7 +381,7 @@ class NeutralGradient(Optimizer):
                         step_within_period = state["step_within_period"]
                         if step_within_period == estimate_period:
                             self._estimate_projections(p, state, param_eps, param_rel_eps,
-                                                       param_pow, grad_min_rand)
+                                                       param_pow, grad_pow, grad_min_rand)
                             state["step_within_period"] = 0
                         elif step_within_period >= estimate_period - stats_steps:
                             self._store_grad_stats(grad, state, max_fullcov_size)
@@ -389,7 +399,10 @@ class NeutralGradient(Optimizer):
                         # stats when we changed the co-ordinates.
                         bias_correction2 = 1 - beta2 ** (min(step, step_within_period) + 1)
 
-                        cur_grad = cur_grad / (exp_avg_sq.sqrt() + grad_eps)
+
+                        denom = exp_avg_sq ** (grad_pow * 0.5)
+
+                        cur_grad = cur_grad / (denom + grad_eps)
                         if bias_correction2 < 0.99:
                             cur_grad *= (bias_correction2 ** 0.5)
 
@@ -416,6 +429,12 @@ class NeutralGradient(Optimizer):
                                 print(f"cos_angle = {cos_angle}, shape={grad.shape}")
 
                         alpha = -lr * (1-beta1)
+                        if param_pow != 1.0 or grad_pow != 1.0:
+                            # Renormalize scale of cur_grad
+                            scalar_exp_avg_sq = state["scalar_exp_avg_sq"]
+                            scalar_exp_avg_sq.mul_(beta2).add_((cur_grad**2).mean(), alpha=(1-beta2))
+                            alpha = alpha * scale / ((scalar_exp_avg_sq / bias_correction2).sqrt() + grad_eps)
+
                         delta.add_(cur_grad, alpha=alpha)
 
                         state["step_within_period"] += 1
@@ -476,6 +495,7 @@ class NeutralGradient(Optimizer):
                               param_eps: float,
                               param_rel_eps: float,
                               param_pow: float,
+                              grad_pow: float,
                               grad_min_rand: float,
     ) -> None:
         """
@@ -527,11 +547,15 @@ class NeutralGradient(Optimizer):
 
                 param_cov = self._get_param_cov(p, dim)
 
-                # P is the SPD matrix such that P G P^T == C^{param_pow},
+                # We want the orthogonal matrix U that diagonalizes P, where
+                # P is the SPD matrix such that P G^{param_pow} P^T == C^{param_pow},
                 # where G == grad_cov and C == param_cov.
+                # .. this is the same as the U that diagonalizes a different P
+                # such that P G P^T == C^{param_pow/(2-param_pow)},
+                # since the P's are related by taking-to-a-power.
                 P = self._estimate_proj(grad_cov,
                                         param_cov,
-                                        param_pow)
+                                        param_pow / grad_pow)
                 # The only thing we want from P is the basis that diagonalizes
                 # it, i.e. if we do the symmetric svd P = U S U^T, we can
                 # interpret the shape of U as (canonical_coordinate,
@@ -607,8 +631,9 @@ class NeutralGradient(Optimizer):
                     proj *= this_scale.unsqueeze(-1)
 
         if param_pow != 1.0:
-            # need to get the overall scale corret, as if we had param_pow == 1.0
+            # need to get the overall scale correct, as if we had param_pow == 1.0
             scale = (params_sq_partnorm.mean() ** 0.5)
+            print("scale = ", scale)
             for dim in range(p.ndim):
                 size = p.shape[dim]
                 if size == 1:
@@ -619,6 +644,8 @@ class NeutralGradient(Optimizer):
 
         # Reset the squared-gradient stats because we have changed the basis.
         state["exp_avg_sq"].fill_(0.0)
+        if param_pow != 1.0:
+            state["scalar_exp_avg_sq"].fill_(0.0)
 
 
 
@@ -1571,9 +1598,9 @@ def _test_eve_cain():
 
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1: optim = Cain(m.parameters(), lr=0.03)
-        elif iter == 2: optim = NeutralGradient(m.parameters(), lr=0.03, max_fullcov_size=10,
+        elif iter == 2: optim = NeutralGradient(m.parameters(), lr=0.04, max_fullcov_size=10,
                                                 estimate_period=500, stats_steps=100)
-        elif iter == 3: optim = NeutralGradient(m.parameters(), lr=0.03, max_fullcov_size=1000,
+        elif iter == 3: optim = NeutralGradient(m.parameters(), lr=0.04, max_fullcov_size=1000,
                                                 estimate_period=500, stats_steps=100)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=10, verbose=False)
 
