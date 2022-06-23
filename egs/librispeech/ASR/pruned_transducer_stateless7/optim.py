@@ -418,7 +418,7 @@ class NeutralGradient(Optimizer):
                             cur_grad_rms_corrected = cur_grad_rms * ((exp_avg_sq/bias_correction2).mean().sqrt() /
                                                                      (grad**2).mean().sqrt())
                             param_rms = (p**2).mean().sqrt()
-                            print(f"cur_grad_rms={cur_grad_rms.item():.3e}, corrected_grad_rms={cur_grad_rms_corrected.item():.3e}, param_rms={param_rms.item():.3e}")
+                            logging.info(f"cur_grad_rms={cur_grad_rms.item():.3e}, corrected_grad_rms={cur_grad_rms_corrected.item():.3e}, param_rms={param_rms.item():.3e}")
 
                         if random.random() < 0.0005:
                             # check the cosine angle between cur_grad and grad, to see how different this update
@@ -426,7 +426,7 @@ class NeutralGradient(Optimizer):
                             prod = (grad*cur_grad).mean()
                             cos_angle = prod / ((grad**2).mean() * (cur_grad**2).mean()).sqrt()
                             if random.random() < 0.04 or cos_angle < 0.01:
-                                print(f"cos_angle = {cos_angle}, shape={grad.shape}")
+                                logging.info(f"cos_angle = {cos_angle}, shape={grad.shape}")
 
                         alpha = -lr * (1-beta1)
                         if param_pow != 1.0 or grad_pow != 1.0:
@@ -450,7 +450,7 @@ class NeutralGradient(Optimizer):
                     delta.add_(this_delta, alpha=alpha)
 
                 if random.random() < 0.0001:
-                    print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
+                    logging.info(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
                 p.add_(delta)
 
                 state["step"] += 1
@@ -622,7 +622,6 @@ class NeutralGradient(Optimizer):
                 this_scale = (this_var ** (param_pow * 0.5)).reshape(size)
                 proj = state[f"proj_{dim}"]
 
-                #print(f"iter={_}, dim={dim}, this_scale = {this_scale}")
                 if proj.ndim == 1:
                     proj *= this_scale
                 else:
@@ -633,7 +632,6 @@ class NeutralGradient(Optimizer):
         if param_pow != 1.0:
             # need to get the overall scale correct, as if we had param_pow == 1.0
             scale = (params_sq_partnorm.mean() ** 0.5)
-            print("scale = ", scale)
             for dim in range(p.ndim):
                 size = p.shape[dim]
                 if size == 1:
@@ -1177,8 +1175,6 @@ class Cain(Optimizer):
                     this_delta = grad / denom
                     alpha = -lr*(1-beta1)*(bias_correction2 ** 0.5)
                     delta.add_(this_delta, alpha=alpha)
-                if random.random() < 0.0001:
-                    print(f"Delta rms = {(delta**2).mean().item()}, shape = {delta.shape}")
 
                 p.add_(delta)
                 if step % 10 == 0:
