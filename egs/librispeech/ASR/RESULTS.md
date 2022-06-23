@@ -1,5 +1,165 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T)
+
+[conv_emformer_transducer_stateless](./conv_emformer_transducer_stateless)
+
+It implements [Emformer](https://arxiv.org/abs/2010.10759) augmented with convolution module for streaming ASR.
+It is modified from [torchaudio](https://github.com/pytorch/audio).
+
+See <https://github.com/k2-fsa/icefall/pull/389> for more details.
+
+#### Training on full librispeech
+
+In this model, the lengths of chunk and right context are 32 frames (i.e., 0.32s) and 8 frames (i.e., 0.08s), respectively.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment              | decoding mode        |
+|-------------------------------------|------------|------------|----------------------|----------------------|
+| greedy search (max sym per frame 1) | 3.63       | 9.61       | --epoch 30 --avg 10  | simulated streaming  |
+| greedy search (max sym per frame 1) | 3.64       | 9.65       | --epoch 30 --avg 10  | streaming            |
+| fast beam search                    | 3.61       | 9.4        | --epoch 30 --avg 10  | simulated streaming  |
+| fast beam search                    | 3.58       | 9.5        | --epoch 30 --avg 10  | streaming            |
+| modified beam search                | 3.56       | 9.41       | --epoch 30 --avg 10  | simulated streaming  |
+| modified beam search                | 3.54       | 9.46       | --epoch 30 --avg 10  | streaming            |
+
+The training command is:
+
+```bash
+./conv_emformer_transducer_stateless/train.py \
+  --world-size 6 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300 \
+  --master-port 12321 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/4em2FLsxRwGhmoCRQUEoDw/>
+
+The simulated streaming decoding command using greedy search is:
+```bash
+./conv_emformer_transducer_stateless/decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --max-duration 300 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method greedy_search \
+  --use-averaged-model True
+```
+
+The simulated streaming decoding command using fast beam search is:
+```bash
+./conv_emformer_transducer_stateless/decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --max-duration 300 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method fast_beam_search \
+  --use-averaged-model True \
+  --beam 4 \
+  --max-contexts 4 \
+  --max-states 8
+```
+
+The simulated streaming decoding command using modified beam search is:
+```bash
+./conv_emformer_transducer_stateless/decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --max-duration 300 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method modified_beam_search \
+  --use-averaged-model True \
+  --beam-size 4
+```
+
+The streaming decoding command using greedy search is:
+```bash
+./conv_emformer_transducer_stateless/streaming_decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --num-decode-streams 2000 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method greedy_search \
+  --use-averaged-model True
+```
+
+The streaming decoding command using fast beam search is:
+```bash
+./conv_emformer_transducer_stateless/streaming_decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --num-decode-streams 2000 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method fast_beam_search \
+  --use-averaged-model True \
+  --beam 4 \
+  --max-contexts 4 \
+  --max-states 8
+```
+
+The streaming decoding command using modified beam search is:
+```bash
+./conv_emformer_transducer_stateless/streaming_decode.py \
+  --epoch 30 \
+  --avg 10 \
+  --exp-dir conv_emformer_transducer_stateless/exp \
+  --num-decode-streams 2000 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32 \
+  --decoding-method modified_beam_search \
+  --use-averaged-model True \
+  --beam-size 4
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless-2022-06-11>
+
 ### LibriSpeech BPE training results (Pruned Stateless Emformer RNN-T)
 
 [pruned_stateless_emformer_rnnt2](./pruned_stateless_emformer_rnnt2)
@@ -8,6 +168,8 @@ Use <https://github.com/k2-fsa/icefall/pull/390>.
 
 Use [Emformer](https://arxiv.org/abs/2010.10759) from [torchaudio](https://github.com/pytorch/audio)
 for streaming ASR. The Emformer model is imported from torchaudio without modifications.
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 |                                     | test-clean | test-other | comment                                |
 |-------------------------------------|------------|------------|----------------------------------------|
@@ -278,12 +440,12 @@ The WERs are:
 
 |                                     | test-clean | test-other | comment                                                                       |
 |-------------------------------------|------------|------------|-------------------------------------------------------------------------------|
-| greedy search (max sym per frame 1) | 2.75       | 6.74       | --epoch 30 --avg 6  --use_averaged_model False                                |
-| greedy search (max sym per frame 1) | 2.69       | 6.64       | --epoch 30 --avg 6  --use_averaged_model True                                 |
-| fast beam search                    | 2.72       | 6.67       | --epoch 30 --avg 6  --use_averaged_model False                                |
-| fast beam search                    | 2.66       | 6.6        | --epoch 30 --avg 6  --use_averaged_model True                                 |
-| modified beam search                | 2.67       | 6.68       | --epoch 30 --avg 6  --use_averaged_model False                                |
-| modified beam search                | 2.62       | 6.57       | --epoch 30 --avg 6  --use_averaged_model True                                 |
+| greedy search (max sym per frame 1) | 2.75       | 6.74       | --epoch 30 --avg 6  --use-averaged-model False                                |
+| greedy search (max sym per frame 1) | 2.69       | 6.64       | --epoch 30 --avg 6  --use-averaged-model True                                 |
+| fast beam search                    | 2.72       | 6.67       | --epoch 30 --avg 6  --use-averaged-model False                                |
+| fast beam search                    | 2.66       | 6.6        | --epoch 30 --avg 6  --use-averaged-model True                                 |
+| modified beam search                | 2.67       | 6.68       | --epoch 30 --avg 6  --use-averaged-model False                                |
+| modified beam search                | 2.62       | 6.57       | --epoch 30 --avg 6  --use-averaged-model True                                 |
 
 The training command is:
 

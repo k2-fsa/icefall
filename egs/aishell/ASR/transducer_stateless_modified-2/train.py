@@ -405,7 +405,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -640,7 +640,7 @@ def train_one_epoch(
 
 def filter_short_and_long_utterances(cuts: CutSet) -> CutSet:
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
+        # Keep only utterances with duration between 1 second and 12 seconds
         #
         # Caution: There is a reason to select 12.0 here. Please see
         # ../local/display_manifest_statistics.py
