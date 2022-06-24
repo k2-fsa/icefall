@@ -1,1 +1,1 @@
-../../librispeech/ASR/local/prepare_lm_training_data.py
+../../../librispeech/ASR/local/prepare_lm_training_data.py
