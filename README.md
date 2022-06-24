@@ -293,12 +293,12 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 #### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 
-The best CER(%) results:
-|                      |  dev | test |
-|----------------------|------|------|
-|    greedy search     | 7.30 | 7.39 |
-|   fast beam search   | 7.15 | 7.22 |
-| modified beam search | 7.18 | 7.26 |
+The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+|decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
+|--|--|--|--|--|--|--|
+|greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
+|modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
+|fast_beam_search| 7.18 | 6.39| 18.90 |  7.27| 6.55 | 18.77|
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
 

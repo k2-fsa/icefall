@@ -15,10 +15,17 @@ The WERs are
 |fast_beam_search | 30 | 24 | 7.32 | 7.42|
 |greedy_search(use-averaged-model=True) | 30 | 24 | 7.30 | 7.39|
 |modified_beam_search(use-averaged-model=True) | 30 | 24 | 7.15 | 7.22|
-|fast_beam_search(use-averaged-model=True) | 30 | 24 | 7.18 | 7.26|
+|fast_beam_search(use-averaged-model=True) | 30 | 24 | 7.18 | 7.27|
 |greedy_search | 348000 | 30 | 7.46 | 7.54|
 |modified_beam_search | 348000 | 30 | 7.24 | 7.36|
 |fast_beam_search | 348000 | 30 | 7.25 | 7.39 |
+
+The results (CER(%) and WER(%)) for Chinese CER and English WER respectivly (zh: Chinese, en: English):
+|decoding-method | epoch(iter) | avg | dev | dev_zh | dev_en | test | test_zh | test_en |
+|--|--|--|--|--|--|--|--|--|
+|greedy_search(use-averaged-model=True) | 30 | 24 | 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
+|modified_beam_search(use-averaged-model=True) | 30 | 24 | 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
+|fast_beam_search(use-averaged-model=True) | 30 | 24 | 7.18 | 6.39| 18.90 |  7.27| 6.55 | 18.77|
 
 The training command for reproducing is given below:
 

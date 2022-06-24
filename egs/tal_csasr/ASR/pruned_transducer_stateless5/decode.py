@@ -272,7 +272,11 @@ def decode_one_batch(
         x=feature, x_lens=feature_lens
     )
     hyps = []
+    zh_hyps = []
+    en_hyps = []
     pattern = re.compile(r"([\u4e00-\u9fff])")
+    en_letter = "[\u0041-\u005a|\u0061-\u007a]+"  # English letters
+    zh_char = "[\u4e00-\u9fa5]+"  # Chinese chars
     if params.decoding_method == "fast_beam_search":
         hyp_tokens = fast_beam_search_one_best(
             model=model,
@@ -287,10 +291,18 @@ def decode_one_batch(
             hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
             chars = pattern.split(hyp.upper())
             chars_new = []
+            zh_text = []
+            en_text = []
             for char in chars:
                 if char != "":
-                    chars_new.extend(char.strip().split(" "))
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
             hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -304,10 +316,18 @@ def decode_one_batch(
             hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
             chars = pattern.split(hyp.upper())
             chars_new = []
+            zh_text = []
+            en_text = []
             for char in chars:
                 if char != "":
-                    chars_new.extend(char.strip().split(" "))
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
             hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -319,10 +339,18 @@ def decode_one_batch(
             hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
             chars = pattern.split(hyp.upper())
             chars_new = []
+            zh_text = []
+            en_text = []
             for char in chars:
                 if char != "":
-                    chars_new.extend(char.strip().split(" "))
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
             hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     else:
         batch_size = encoder_out.size(0)
 
@@ -352,22 +380,30 @@ def decode_one_batch(
                 )
                 chars = pattern.split(hyp.upper())
                 chars_new = []
+                zh_text = []
+                en_text = []
                 for char in chars:
                     if char != "":
-                        chars_new.extend(char.strip().split(" "))
+                        tokens = char.strip().split(" ")
+                        chars_new.extend(tokens)
+                        for token in tokens:
+                            zh_text.extend(re.findall(zh_char, token))
+                            en_text.extend(re.findall(en_letter, token))
                 hyps.append(chars_new)
+                zh_hyps.append(zh_text)
+                en_hyps.append(en_text)
     if params.decoding_method == "greedy_search":
-        return {"greedy_search": hyps}
+        return {"greedy_search": (hyps, zh_hyps, en_hyps)}
     elif params.decoding_method == "fast_beam_search":
         return {
             (
                 f"beam_{params.beam}_"
                 f"max_contexts_{params.max_contexts}_"
                 f"max_states_{params.max_states}"
-            ): hyps
+            ): (hyps, zh_hyps, en_hyps)
         }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}": (hyps, zh_hyps, en_hyps)}
 
 
 def decode_dataset(
@@ -410,17 +446,30 @@ def decode_dataset(
         log_interval = 20
 
     results = defaultdict(list)
+    zh_results = defaultdict(list)
+    en_results = defaultdict(list)
     pattern = re.compile(r"([\u4e00-\u9fff])")
+    en_letter = "[\u0041-\u005a|\u0061-\u007a]+"  # English letters
+    zh_char = "[\u4e00-\u9fa5]+"  # Chinese chars
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        # texts = [list(str(text).replace(" ", "")) for text in texts]
+        zh_texts = []
+        en_texts = []
         for i in range(len(texts)):
             text = texts[i]
             chars = pattern.split(text.upper())
             chars_new = []
+            zh_text = []
+            en_text = []
             for char in chars:
                 if char != "":
-                    chars_new.extend(char.strip().split(" "))
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
+            zh_texts.append(zh_text)
+            en_texts.append(en_text)
             texts[i] = chars_new
         hyps_dict = decode_one_batch(
             params=params,
@@ -431,13 +480,25 @@ def decode_dataset(
             sp=sp,
         )
 
-        for name, hyps in hyps_dict.items():
+        for name, hyps_texts in hyps_dict.items():
             this_batch = []
+            this_batch_zh = []
+            this_batch_en = []
+            # print(hyps_texts)
+            hyps, zh_hyps, en_hyps = hyps_texts
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
                 this_batch.append((ref_text, hyp_words))
 
+            for hyp_words, ref_text in zip(zh_hyps, zh_texts):
+                this_batch_zh.append((ref_text, hyp_words))
+
+            for hyp_words, ref_text in zip(en_hyps, en_texts):
+                this_batch_en.append((ref_text, hyp_words))
+
             results[name].extend(this_batch)
+            zh_results[name + "_zh"].extend(this_batch_zh)
+            en_results[name + "_en"].extend(this_batch_en)
 
         num_cuts += len(texts)
 
@@ -447,7 +508,7 @@ def decode_dataset(
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
-    return results
+    return results, zh_results, en_results
 
 
 def save_results(
@@ -663,7 +724,7 @@ def main():
     test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
-        results_dict = decode_dataset(
+        results_dict, zh_results_dict, en_results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
@@ -675,6 +736,16 @@ def main():
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
+        )
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=zh_results_dict,
+        )
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=en_results_dict,
         )
 
     logging.info("Done!")
