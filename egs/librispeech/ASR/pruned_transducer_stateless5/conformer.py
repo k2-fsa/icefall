@@ -1195,7 +1195,7 @@ class RandomCombine(nn.Module):
         ans = torch.matmul(stacked_inputs, weights)
         # ans: (*, num_channels)
 
-        ans = ans.reshape(inputs[0].shape[:-1] + [num_channels])
+        ans = ans.reshape(inputs[0].shape[:-1] + (num_channels,))
 
         # The following if causes errors for torch script in torch 1.6.0
         #  if __name__ == "__main__":
