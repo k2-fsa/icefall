@@ -56,6 +56,9 @@ class NeutralGradient(Optimizer):
                   original mean.   Setting this to a not-very-large value like 1 ensures that
                   we only apply the param scaling for smaller-than-average, not larger-than-average,
                   eigenvalues, which limits the dispersion of eigenvalues of the parameter tensors.
+ param_reverse_cutoff:  Once the variance in a parameter direction becomes over param_reverse_cutoff times the
+                  average variance, we start to train slower in this direction, which should help
+                  avoid too much eigenvalue dispersion in the parameter matrices.
       param_max:  To prevent parameter tensors getting too large, we will clip elements to
                    -param_max..param_max.
    max_fullcov_size: We will only use the full-covariance (not-diagonal) update for
@@ -95,6 +98,7 @@ class NeutralGradient(Optimizer):
             param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_rel_max=1.0,
+            param_reverse_cutoff=4.0,
             param_max_rms=2.0,
             param_min_rms=1.0e-05,
             max_fullcov_size=1023,
@@ -146,6 +150,7 @@ class NeutralGradient(Optimizer):
             param_eps=param_eps,
             param_rel_eps=param_rel_eps,
             param_rel_max=param_rel_max,
+            param_reverse_cutoff=param_reverse_cutoff,
             param_max_rms=param_max_rms,
             param_min_rms=param_min_rms,
             max_fullcov_size=max_fullcov_size,
@@ -186,6 +191,7 @@ class NeutralGradient(Optimizer):
             param_eps = group["param_eps"]
             param_rel_eps = group["param_rel_eps"]
             param_rel_max = group["param_rel_max"]
+            param_reverse_cutoff = group["param_reverse_cutoff"]
             param_max_rms = group["param_max_rms"]
             param_min_rms = group["param_min_rms"]
             max_fullcov_size = group["max_fullcov_size"]
@@ -400,7 +406,8 @@ class NeutralGradient(Optimizer):
                         step_within_period = state["step_within_period"]
                         if step_within_period == estimate_period:
                             self._estimate_projections(p, state, param_eps, param_rel_eps,
-                                                       param_rel_max, beta3,
+                                                       param_rel_max, param_reverse_cutoff,
+                                                       beta3,
                                                        param_pow, grad_pow, grad_min_rand)
                             state["step_within_period"] = 0
                         elif step_within_period >= estimate_period - stats_steps:
@@ -523,6 +530,7 @@ class NeutralGradient(Optimizer):
                               param_eps: float,
                               param_rel_eps: float,
                               param_rel_max: float,
+                              param_reverse_cutoff: float,
                               beta3: float,
                               param_pow: float,
                               grad_pow: float,
@@ -590,7 +598,8 @@ class NeutralGradient(Optimizer):
                                         param_cov,
                                         param_pow / grad_pow,
                                         param_rel_eps,
-                                        param_rel_max)
+                                        param_rel_max,
+                                        param_reverse_cutoff)
 
 
                 # The only thing we want from P is the basis that diagonalizes
@@ -607,17 +616,18 @@ class NeutralGradient(Optimizer):
                 proj.fill_(1.0)
 
         self._estimate_param_scale(p, state, param_eps,
-                                   param_rel_eps, param_rel_max,
-                                   param_pow)
+                                   param_pow, param_rel_eps, param_rel_max,
+                                   param_reverse_cutoff)
 
 
     def _estimate_param_scale(self,
                               p: Tensor,
                               state: dict,
+                              param_pow: float,
                               param_eps: float,
                               param_rel_eps: float,
                               param_rel_max: float,
-                              param_pow: float) -> None:
+                              param_reverse_cutoff: float) -> None:
         """
         This is called from _estimate_projections() after suitably "diagonalizing" bases
         have already been estimated and written in state[f"proj_{dim}"] for the
@@ -671,7 +681,8 @@ class NeutralGradient(Optimizer):
             param_diag_var = self._smooth_param_diag_var(param_diag_var,
                                                          param_pow,
                                                          param_rel_eps,
-                                                         param_rel_max)
+                                                         param_rel_max,
+                                                         param_reverse_cutoff)
             param_scale = param_diag_var ** 0.5
             proj = state[f"proj_{dim}"]
 
@@ -828,7 +839,8 @@ class NeutralGradient(Optimizer):
                                param_diag: Tensor,
                                param_pow: float,
                                param_rel_eps: float,
-                               param_rel_max: float) -> Tensor:
+                               param_rel_max: float,
+                               param_reverse_cutoff: float) -> Tensor:
         """
         Applies the smoothing formula to the eigenvalues of the parameter covariance
         tensor.
@@ -840,15 +852,21 @@ class NeutralGradient(Optimizer):
         param_diag = param_diag / (param_diag.mean()  + 1.0e-20)
         # use 1/(1/x + 1/y) to apply soft-max of param_diag with param_rel_max.
         # use param_rel_eps here to prevent division by zero.
-        param_diag = 1. / (1. / (param_diag + param_rel_eps) + 1. / param_rel_max)
-        return param_diag ** param_pow
+        ans = 1. / (1. / (param_diag + param_rel_eps) + 1. / param_rel_max)
+
+        # 2nd factor below becomes a 1/param_diag type of function when
+        # param_diag >> param_reverse_cutoff.
+        ans = (ans ** param_pow)  * (param_reverse_cutoff / (param_diag + param_reverse_cutoff))
+        return ans
+
 
     def _estimate_proj(self,
                        grad_cov: Tensor,
                        param_cov: Tensor,
-                       param_pow: float = 1.0,
-                       param_rel_eps: float = 0.0,
-                       param_rel_max: float = 1.0e+10) -> Tensor:
+                       param_pow: float,
+                       param_rel_eps: float,
+                       param_rel_max: float,
+                       param_reverse_cutoff: float) -> Tensor:
         """
         Return a symmetric positive definite matrix P such that
              (P grad_cov P^T == param_cov^{param_pow}),
@@ -895,7 +913,8 @@ class NeutralGradient(Optimizer):
         # S_sqrt is S.sqrt() in the limit where param_pow == 1.0,
         # param_rel_eps=0, param_rel_max=inf
         S_smoothed = self._smooth_param_diag_var(S, param_pow,
-                                                 param_rel_eps, param_rel_max)
+                                                 param_rel_eps, param_rel_max,
+                                                 param_reverse_cutoff)
         S_sqrt = S_smoothed ** 0.5
         Q = (U * S_sqrt).t()
 
