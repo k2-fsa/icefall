@@ -95,7 +95,7 @@ class NeutralGradient(Optimizer):
             max_fullcov_size=1023,
             estimate_period=2000,
             stats_steps=200,
-            param_pow=0.75,
+            param_pow=0.5,
             grad_pow=0.95,
             grad_min_rand=0.0,
             lr_for_speedup=0.03,
