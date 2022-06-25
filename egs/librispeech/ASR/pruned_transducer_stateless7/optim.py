@@ -681,10 +681,10 @@ class NeutralGradient(Optimizer):
             if size == 1:
                 continue
             param_diag_var = param_diag_vars[dim]
-            num_samples = (p.numel() // size) * 4 > size
+            num_samples = p.numel() // size
             # don't apply this reverse_cutoff thing in situations where we can't get a reasonable estimate
             # of param_cov even with stats accumulation, due to the shape of the tensor.
-            reverse_cutoff = (param_reverse_cutoff if num_samples > size//4 else 1.0e+10)
+            reverse_cutoff = (param_reverse_cutoff if num_samples > size // 4 else 1.0e+10)
             param_diag_var = self._smooth_param_diag_var(param_diag_var,
                                                          param_pow,
                                                          param_rel_eps,
@@ -920,8 +920,6 @@ class NeutralGradient(Optimizer):
         # S_sqrt is S.sqrt() in the limit where param_pow == 1.0,
         # param_rel_eps=0, param_rel_max=inf
 
-        # don't apply this reverse_cutoff thing in situations where we can't get a reasonable estimate
-        # of param_cov even with stats accumulation, due to the shape of the tensor.
         S_smoothed = self._smooth_param_diag_var(S, param_pow,
                                                  param_rel_eps, param_rel_max,
                                                  param_reverse_cutoff)
