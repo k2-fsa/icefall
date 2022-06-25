@@ -35,6 +35,8 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
+from icefall.checkpoint import average_checkpoints
+
 Pathlike = Union[str, Path]
 
 
@@ -90,7 +92,11 @@ def str2bool(v):
 
 
 def setup_logger(
-    log_filename: Pathlike, log_level: str = "info", use_console: bool = True
+    log_filename: Pathlike,
+    log_level: str = "info",
+    rank: int = 0,
+    world_size: int = 1,
+    use_console: bool = True,
 ) -> None:
     """Setup log level.
 
@@ -100,12 +106,16 @@ def setup_logger(
       log_level:
         The log level to use, e.g., "debug", "info", "warning", "error",
         "critical"
+      rank:
+        Rank of this node in DDP training.
+      world_size:
+        Number of nodes in DDP training.
+      use_console:
+        True to also print logs to console.
     """
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-    if dist.is_available() and dist.is_initialized():
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
+    if world_size > 1:
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:
@@ -835,3 +845,34 @@ def optim_step_and_measure_param_change(
             delta = l2_norm(p_orig - p_new) / l2_norm(p_orig)
             relative_change[n] = delta.item()
     return relative_change
+
+
+def load_averaged_model(
+    model_dir: str,
+    model: torch.nn.Module,
+    epoch: int,
+    avg: int,
+    device: torch.device,
+):
+    """
+    Load a model which is the average of all checkpoints
+
+    :param model_dir: a str of the experiment directory
+    :param model: a torch.nn.Module instance
+
+    :param epoch: the last epoch to load from
+    :param avg: how many models to average from
+    :param device: move model to this device
+
+    :return: A model averaged
+    """
+
+    # start cannot be negative
+    start = max(epoch - avg + 1, 0)
+    filenames = [f"{model_dir}/epoch-{i}.pt" for i in range(start, epoch + 1)]
+
+    logging.info(f"averaging {filenames}")
+    model.to(device)
+    model.load_state_dict(average_checkpoints(filenames, device=device))
+
+    return model
