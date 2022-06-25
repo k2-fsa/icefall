@@ -98,7 +98,7 @@ class NeutralGradient(Optimizer):
             param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_rel_max=1.0,
-            param_reverse_cutoff=4.0,
+            param_reverse_cutoff=16.0,
             param_max_rms=2.0,
             param_min_rms=1.0e-05,
             max_fullcov_size=1023,
