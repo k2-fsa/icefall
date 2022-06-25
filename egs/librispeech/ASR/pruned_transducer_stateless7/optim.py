@@ -105,7 +105,7 @@ class NeutralGradient(Optimizer):
             estimate_period=2000,
             stats_steps=200,
             param_pow=0.5,
-            grad_pow=0.95,
+            grad_pow=1.0,
             grad_min_rand=0.0,
             lr_for_speedup=0.03,
             speedup_recalibrate_period=100,
@@ -594,12 +594,15 @@ class NeutralGradient(Optimizer):
                 # .. this is the same as the U that diagonalizes a different P
                 # such that P G P^T == C^{param_pow/(2-param_pow)},
                 # since the P's are related by taking-to-a-power.
+
+                num_samples = p.numel() // size
+                reverse_cutoff = (param_reverse_cutoff if num_samples > size//4 else 1.0e+10)
                 P = self._estimate_proj(grad_cov,
                                         param_cov,
                                         param_pow / grad_pow,
                                         param_rel_eps,
                                         param_rel_max,
-                                        param_reverse_cutoff)
+                                        reverse_cutoff)
 
 
                 # The only thing we want from P is the basis that diagonalizes
@@ -678,11 +681,15 @@ class NeutralGradient(Optimizer):
             if size == 1:
                 continue
             param_diag_var = param_diag_vars[dim]
+            num_samples = (p.numel() // size) * 4 > size
+            # don't apply this reverse_cutoff thing in situations where we can't get a reasonable estimate
+            # of param_cov even with stats accumulation, due to the shape of the tensor.
+            reverse_cutoff = (param_reverse_cutoff if num_samples > size//4 else 1.0e+10)
             param_diag_var = self._smooth_param_diag_var(param_diag_var,
                                                          param_pow,
                                                          param_rel_eps,
                                                          param_rel_max,
-                                                         param_reverse_cutoff)
+                                                         reverse_cutoff)
             param_scale = param_diag_var ** 0.5
             proj = state[f"proj_{dim}"]
 
@@ -912,6 +919,9 @@ class NeutralGradient(Optimizer):
         # because C is symmetric, C == U S U^T, we can ignore V.
         # S_sqrt is S.sqrt() in the limit where param_pow == 1.0,
         # param_rel_eps=0, param_rel_max=inf
+
+        # don't apply this reverse_cutoff thing in situations where we can't get a reasonable estimate
+        # of param_cov even with stats accumulation, due to the shape of the tensor.
         S_smoothed = self._smooth_param_diag_var(S, param_pow,
                                                  param_rel_eps, param_rel_max,
                                                  param_reverse_cutoff)
