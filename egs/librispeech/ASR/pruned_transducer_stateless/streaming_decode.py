@@ -44,7 +44,7 @@ from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -57,7 +57,6 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
-    str2bool,
     write_error_stats,
 )
 
@@ -154,38 +153,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        Note: not needed for decoding, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
-        type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        Note: not needed for decoding, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
-        "--num-left-chunks",
-        type=int,
-        default=4,
-        help="""How many left context can be seen in chunks when calculating attention.
-        Note: not needed for decoding, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -212,6 +179,8 @@ def get_parser():
         default=2000,
         help="The number of streams that can be decoded parallel.",
     )
+
+    add_model_arguments(parser)
 
     return parser
 

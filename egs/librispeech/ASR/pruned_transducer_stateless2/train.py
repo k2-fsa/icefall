@@ -95,6 +95,42 @@ LRSchedulerType = Union[
 ]
 
 
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
+
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -275,39 +311,7 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        """,
-    )
-
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
-        type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
-    )
-
-    parser.add_argument(
-        "--num-left-chunks",
-        type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
-    )
+    add_model_arguments(parser)
 
     return parser
 

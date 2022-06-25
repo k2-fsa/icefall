@@ -49,7 +49,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import str2bool
@@ -110,38 +110,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        Note: not needed here, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
-        type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        Note: not needed for here, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
-        "--num-left-chunks",
-        type=int,
-        default=4,
-        help="""How many left context can be seen in chunks when calculating attention.
-        Note: not needed here, adding it here to construct transducer model,
-              as we reuse the code in train.py.
-        """,
-    )
-
-    parser.add_argument(
         "--streaming-model",
         type=str2bool,
         default=False,
@@ -150,14 +118,7 @@ def get_parser():
         """,
     )
 
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        exporting a streaming model.
-        """,
-    )
+    add_model_arguments(parser)
 
     return parser
 
