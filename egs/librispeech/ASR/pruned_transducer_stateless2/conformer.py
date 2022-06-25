@@ -249,7 +249,7 @@ class Conformer(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        states: List[Tensor],
+        states: Optional[List[Tensor]] = None,
         processed_lens: Optional[Tensor] = None,
         left_context: int = 64,
         right_context: int = 4,
@@ -311,6 +311,8 @@ class Conformer(EncoderInterface):
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
 
         if not simulate_streaming:
+            assert states is not None
+            assert processed_lens is not None
             assert (
                 len(states) == 2
                 and states[0].shape
@@ -331,8 +333,6 @@ class Conformer(EncoderInterface):
             lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
 
             src_key_padding_mask = make_pad_mask(lengths)
-
-            assert processed_lens is not None
 
             processed_mask = torch.arange(left_context, device=x.device).expand(
                 x.size(0), left_context
@@ -366,6 +366,8 @@ class Conformer(EncoderInterface):
                 x = x[0:-right_context, ...]
                 lengths -= right_context
         else:
+            assert states is None
+            states = []  # just to make torch.script.jit happy
             # this branch simulates streaming decoding using mask as we are
             # using in training time.
             src_key_padding_mask = make_pad_mask(lengths)

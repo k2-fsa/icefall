@@ -245,7 +245,7 @@ class Conformer(Transformer):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        states: List[torch.Tensor],
+        states: Optional[List[torch.Tensor]] = None,
         processed_lens: Optional[Tensor] = None,
         left_context: int = 64,
         right_context: int = 0,
@@ -302,6 +302,8 @@ class Conformer(Transformer):
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
 
         if not simulate_streaming:
+            assert states is not None
+            assert processed_lens is not None
             assert (
                 len(states) == 2
                 and states[0].shape
@@ -321,8 +323,6 @@ class Conformer(Transformer):
 
             lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
             src_key_padding_mask = make_pad_mask(lengths)
-
-            assert processed_lens is not None
 
             processed_mask = torch.arange(left_context, device=x.device).expand(
                 x.size(0), left_context
@@ -352,6 +352,8 @@ class Conformer(Transformer):
                 right_context=right_context,
             )  # (T, B, F)
         else:
+            assert states is None
+            states = []  # just to make torch.script.jit happy
             src_key_padding_mask = make_pad_mask(lengths)
             x = self.encoder_embed(x)
             x, pos_emb = self.encoder_pos(x)
