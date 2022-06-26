@@ -114,8 +114,12 @@ def test_state_stack_unstack():
             for _ in range(num_encoder_layers)
         ]
         states = [attn_caches, conv_caches]
-        x = torch.randn(batch_size, 23, num_features)
-        x_lens = torch.full((batch_size,), 23)
+        x = torch.randn(
+            batch_size, chunk_length + right_context_length + 3, num_features
+        )
+        x_lens = torch.full(
+            (batch_size,), chunk_length + right_context_length + 3
+        )
         num_processed_frames = torch.full((batch_size,), 0)
         y, y_lens, states = model.infer(
             x, x_lens, num_processed_frames=num_processed_frames, states=states
@@ -172,8 +176,10 @@ def test_torchscript_consistency_infer():
         for _ in range(num_encoder_layers)
     ]
     states = [attn_caches, conv_caches]
-    x = torch.randn(batch_size, 23, num_features)
-    x_lens = torch.full((batch_size,), 23)
+    x = torch.randn(
+        batch_size, chunk_length + right_context_length + 3, num_features
+    )
+    x_lens = torch.full((batch_size,), chunk_length + right_context_length + 3)
     num_processed_frames = torch.full((batch_size,), 0)
     y, y_lens, out_states = model.infer(
         x, x_lens, num_processed_frames=num_processed_frames, states=states
@@ -187,8 +193,38 @@ def test_torchscript_consistency_infer():
     assert torch.allclose(y, sc_y)
 
 
+def test_emformer_forward_shape():
+    num_features = 80
+    chunk_length = 32
+    encoder_dim = 512
+    num_encoder_layers = 2
+    kernel_size = 31
+    left_context_length = 32
+    right_context_length = 8
+    memory_size = 32
+    batch_size = 2
+
+    model = Emformer(
+        num_features=num_features,
+        chunk_length=chunk_length,
+        subsampling_factor=4,
+        d_model=encoder_dim,
+        num_encoder_layers=num_encoder_layers,
+        cnn_module_kernel=kernel_size,
+        left_context_length=left_context_length,
+        right_context_length=right_context_length,
+        memory_size=memory_size,
+    )
+    U = 2 * chunk_length
+    x = torch.randn(batch_size, U + right_context_length + 3, num_features)
+    x_lens = torch.full((batch_size,), U + right_context_length + 3)
+    output, output_lengths = model(x, x_lens)
+    assert output.shape == (batch_size, U >> 2, encoder_dim)
+
+
 if __name__ == "__main__":
     test_convolution_module_forward()
     test_convolution_module_infer()
     test_state_stack_unstack()
     test_torchscript_consistency_infer()
+    test_emformer_forward_shape()
