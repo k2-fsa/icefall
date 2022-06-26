@@ -98,7 +98,7 @@ class NeutralGradient(Optimizer):
             param_eps=1.0e-06,
             param_rel_eps=1.0e-04,
             param_rel_max=1.0,
-            param_reverse_cutoff=16.0,
+            param_reverse_cutoff=4.0,
             param_max_rms=2.0,
             param_min_rms=1.0e-05,
             max_fullcov_size=1023,
@@ -863,8 +863,8 @@ class NeutralGradient(Optimizer):
 
         # 2nd factor below becomes a 1/param_diag type of function when
         # param_diag >> param_reverse_cutoff.
-        ans = (ans ** param_pow)  * (param_reverse_cutoff / (param_diag + param_reverse_cutoff))
-        return ans
+        ans = ans * (param_reverse_cutoff / (param_diag + param_reverse_cutoff))
+        return ans ** param_pow
 
 
     def _estimate_proj(self,
