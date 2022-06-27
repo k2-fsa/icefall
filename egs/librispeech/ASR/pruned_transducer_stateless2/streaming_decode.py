@@ -22,7 +22,7 @@ Usage:
         --avg 15 \
         --left-context 32 \
         --decode-chunk-size 8 \
-        --right-context 2 \
+        --right-context 0 \
         --exp-dir ./pruned_transducer_stateless2/exp \
         --decoding_method greedy_search \
         --num-decode-streams 1000
@@ -169,7 +169,7 @@ def get_parser():
     parser.add_argument(
         "--right-context",
         type=int,
-        default=4,
+        default=0,
         help="right context can be seen during decoding (in frames after subsampling)",
     )
 
