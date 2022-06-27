@@ -48,11 +48,28 @@ When training with the L subset, usage:
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
+
+(4) decode in a streaming mode (take greedy search as an example)
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --simulate-streaming 1 \
+        --causal-convolution 1 \
+        --decode-chunk-size 16 \
+        --left-context 64 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 600 \
+        --decoding-method greedy_search \
+        --beam 20.0 \
+        --max-contexts 8 \
+        --max-states 64
 """
 
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -68,7 +85,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -80,8 +97,11 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -204,6 +224,30 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
+        """,
+    )
+
+    parser.add_argument(
+        "--decode-chunk-size",
+        type=int,
+        default=16,
+        help="The chunk size for decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
+    )
+
+    add_model_arguments(parser)
     return parser
 
 
@@ -250,9 +294,27 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
+    feature_lens += params.left_context
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.left_context),
+        value=LOG_EPS,
     )
+
+    if params.simulate_streaming:
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+            x=feature,
+            x_lens=feature_lens,
+            states=[],
+            chunk_size=params.decode_chunk_size,
+            left_context=params.left_context,
+            simulate_streaming=True,
+        )
+    else:
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -459,6 +521,11 @@ def main():
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+
+    if params.simulate_streaming:
+        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
+        params.suffix += f"-left-context-{params.left_context}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -481,6 +548,11 @@ def main():
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
+
+    if params.simulate_streaming:
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
