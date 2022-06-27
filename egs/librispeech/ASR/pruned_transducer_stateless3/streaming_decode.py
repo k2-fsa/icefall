@@ -292,7 +292,6 @@ def fast_beam_search(
 def decode_one_chunk(
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
     decode_streams: List[DecodeStream],
 ) -> List[int]:
     """Decode one chunk frames of features for each decode_streams and
@@ -303,8 +302,6 @@ def decode_one_chunk(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       decode_streams:
         A List of DecodeStream, each belonging to a utterance.
     Returns:
@@ -478,7 +475,7 @@ def decode_dataset(
 
         while len(decode_streams) >= params.num_decode_streams:
             finished_streams = decode_one_chunk(
-                params, model, sp, decode_streams
+                params=params, model=model, decode_streams=decode_streams
             )
             for i in sorted(finished_streams, reverse=True):
                 hyp = decode_streams[i].hyp
@@ -497,7 +494,9 @@ def decode_dataset(
 
     # decode final chunks of last sequences
     while len(decode_streams):
-        finished_streams = decode_one_chunk(params, model, sp, decode_streams)
+        finished_streams = decode_one_chunk(
+            params=params, model=model, decode_streams=decode_streams
+        )
         for i in sorted(finished_streams, reverse=True):
             hyp = decode_streams[i].hyp
             if params.decoding_method == "greedy_search":
