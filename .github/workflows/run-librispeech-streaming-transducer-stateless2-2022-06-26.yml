@@ -134,7 +134,7 @@ jobs:
           tree ./pruned_transducer_stateless2/exp
 
           cd pruned_transducer_stateless2
-          echo "results for pruned_transducer_stateless4"
+          echo "results for pruned_transducer_stateless2"
           echo "===greedy search==="
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
