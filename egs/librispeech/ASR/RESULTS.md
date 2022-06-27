@@ -1,5 +1,312 @@
 ## Results
 
+### LibriSpeech BPE training results (Pruned Stateless Streaming Conformer RNN-T)
+
+#### [pruned_transducer_stateless](./pruned_transducer_stateless)
+
+See <https://github.com/k2-fsa/icefall/pull/380> for more details.
+
+##### Training on full librispeech
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 4.74 & 11.38   | 4.57 & 10.86   | 4.18 & 10.37   | 3.87 & 9.85    |
+| greedy search        | 64           | 4.74 & 11.25   | 4.48 & 10.72   | 4.1 & 10.24    | 3.85 & 9.73    |
+| fast beam search     | 32           | 4.75 & 11.1    | 4.48 & 10.65   | 4.12 & 10.18   | 3.95 & 9.67    |
+| fast beam search     | 64           | 4.7 & 11       | 4.37 & 10.49   | 4.07 & 10.04   | 3.89 & 9.53    |
+| modified beam search | 32           | 4.64 & 10.94   | 4.38 & 10.51   | 4.11 & 10.14   | 3.87 & 9.61    |
+| modified beam search | 64           | 4.59 & 10.81   | 4.29 & 10.39   | 4.02 & 10.02   | 3.84 & 9.43    |
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless/train.py \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 20 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --world-size 4 \
+  --start-epoch 0 \
+  --num-epochs 25
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/ofxRakE6R7WHB1AoB8Bweg/>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless/decode.py \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 24 \
+            --avg 10 \
+            --exp-dir ./pruned_transducer_stateless/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless_20220625>
+
+#### [pruned_transducer_stateless2](./pruned_transducer_stateless2)
+
+See <https://github.com/k2-fsa/icefall/pull/380> for more details.
+
+##### Training on full librispeech
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 4.2 & 10.64    | 3.97 & 10.03   | 3.83 & 9.58    | 3.7 & 9.11     |
+| greedy search        | 64           | 4.16 & 10.5    | 3.93 & 9.99    | 3.73 & 9.45    | 3.63 & 9.04    |
+| fast beam search     | 32           | 4.13 & 10.3    | 3.93 & 9.82    | 3.8 & 9.35     | 3.62 & 8.93    |
+| fast beam search     | 64           | 4.13 & 10.22   | 3.89 & 9.68    | 3.73 & 9.27    | 3.52 & 8.82    |
+| modified beam search | 32           | 4.02 & 10.22   | 3.9 & 9.71     | 3.74 & 9.33    | 3.59 & 8.87    |
+| modified beam search | 64           | 4.05 & 10.08   | 3.81 & 9.67    | 3.68 & 9.21    | 3.56 & 8.77    |
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless2/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless2/train.py \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 20 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --world-size 4 \
+  --start-epoch 0 \
+  --num-epochs 25
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/hbltNS5TQ1Kiw0D1vcoakw/>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless2/decode.py \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 24 \
+            --avg 10 \
+            --exp-dir ./pruned_transducer_stateless2/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless2_20220625>
+
+#### [pruned_transducer_stateless3](./pruned_transducer_stateless3)
+
+See <https://github.com/k2-fsa/icefall/pull/380> for more details.
+
+##### Training on full librispeech (**Use giga_prob = 0.5**)
+
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 3.7 & 9.53     | 3.45 & 8.88    | 3.28 & 8.45    | 3.13 & 7.93    |
+| greedy search        | 64           | 3.69 & 9.36    | 3.39 & 8.68    | 3.28 & 8.19    | 3.08 & 7.83    |
+| fast beam search     | 32           | 3.71 & 9.18    | 3.36 & 8.65    | 3.23 & 8.23    | 3.17 & 7.78    |
+| fast beam search     | 64           | 3.61 & 9.03    | 3.46 & 8.43    | 3.2 & 8.0      | 3.11 & 7.63    |
+| modified beam search | 32           | 3.56 & 9.08    | 3.34 & 8.58    | 3.21 & 8.14    | 3.06 & 7.73    |
+| modified beam search | 64           | 3.55 & 8.86    | 3.29 & 8.34    | 3.16 & 8.01    | 3.05 & 7.57    |
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless3/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is (Note: this model was trained with mix-precision training):
+
+```bash
+./pruned_transducer_stateless3/train.py \
+  --exp-dir pruned_transducer_stateless3/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 32 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --world-size 4 \
+  --use-fp16 1 \
+  --start-epoch 0 \
+  --num-epochs 37 \
+  --num-workers 2 \
+  --giga-prob 0.5
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/vL7dWVZqTYaSeoOED4rtow/>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless3/decode.py \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 36 \
+            --avg 8 \
+            --exp-dir ./pruned_transducer_stateless3/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless3_giga_0.5_20220625>
+
+##### Training on full librispeech (**Use giga_prob = 0.9**)
+
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 3.25 & 8.2     | 3.07 & 7.67    | 2.91 & 7.28    | 2.8 & 6.89     |
+| greedy search        | 64           | 3.22 & 8.12    | 3.05 & 7.59    | 2.91 & 7.07    | 2.78 & 6.81    |
+| fast beam search     | 32           | 3.26 & 8.2     | 3.06 & 7.56    | 2.98 & 7.08    | 2.77 & 6.75    |
+| fast beam search     | 64           | 3.24 & 8.09    | 3.06 & 7.43    | 2.88 & 7.03    | 2.73 & 6.68    |
+| modified beam search | 32           | 3.13 & 7.91    | 2.99 & 7.45    | 2.83 & 6.98    | 2.68 & 6.75    |
+| modified beam search | 64           | 3.08 & 7.8     | 2.97 & 7.37    | 2.81 & 6.82    | 2.66 & 6.67    |
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless3/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless3/train.py \
+  --exp-dir pruned_transducer_stateless3/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 25 \
+  --num-left-chunks 8 \
+  --max-duration 300 \
+  --world-size 8 \
+  --start-epoch 0 \
+  --num-epochs 26 \
+  --num-workers 2 \
+  --giga-prob 0.9
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/WBGBDzt7SByRnvCBEfQpGQ/>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless3/decode.py \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 25 \
+            --avg 12 \
+            --exp-dir ./pruned_transducer_stateless3/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless3_giga_0.9_20220625>
+
+#### [pruned_transducer_stateless4](./pruned_transducer_stateless4)
+
+See <https://github.com/k2-fsa/icefall/pull/380> for more details.
+
+##### Training on full librispeech
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 3.96 & 10.45   | 3.73 & 9.97    | 3.54 & 9.56    | 3.45 & 9.08    |
+| greedy search        | 64           | 3.9 & 10.34    | 3.7 & 9.9      | 3.53 & 9.41    | 3.39 & 9.03    |
+| fast beam search     | 32           | 3.9 & 10.09    | 3.69 & 9.65    | 3.58 & 9.28    | 3.46 & 8.91    |
+| fast beam search     | 64           | 3.82 & 10.03   | 3.67 & 9.56    | 3.51 & 9.18    | 3.43 & 8.78    |
+| modified beam search | 32           | 3.78 & 10.0    | 3.63 & 9.54    | 3.43 & 9.29    | 3.39 & 8.84    |
+| modified beam search | 64           | 3.76 & 9.95    | 3.54 & 9.48    | 3.4 & 9.13     | 3.33 & 8.74    |
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless4/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless4/train.py \
+  --exp-dir pruned_transducer_stateless4/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 20 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --world-size 4 \
+  --start-epoch 1 \
+  --num-epochs 25
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/97VKXf80Ru61CnP2ALWZZg/>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless4/decode.py \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 25 \
+            --avg 3 \
+            --exp-dir ./pruned_transducer_stateless4/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless4_20220625>
+
+
 ### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T)
 
 [conv_emformer_transducer_stateless](./conv_emformer_transducer_stateless)
@@ -781,9 +1088,25 @@ The WERs are:
 
 
 The train and decode commands are:
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp --world-size 8 --num-epochs 26  --full-libri 1 --max-duration 300`
+```bash
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp \
+  --world-size 8 \
+  --num-epochs 26 \
+  --full-libri 1 \
+  --max-duration 300
+```
+
 and:
-`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp --epoch 25 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`
+
+```bash
+python3 ./pruned_transducer_stateless2/decode.py \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --epoch 25 \
+  --avg 8 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 600
+```
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/Xoz0oABMTWewo1slNFXkyA> (apologies, log starts
 only from epoch 3).
@@ -796,9 +1119,26 @@ can be found at
 #### Training on train-clean-100:
 
 Trained with 1 job:
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws1 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300`
+```
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp_100h_ws1 \
+  --world-size 1 \
+  --num-epochs 40  \
+  --full-libri 0 \
+  --max-duration 300
+```
+
 and decoded with:
-`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws1 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+```
+python3 ./pruned_transducer_stateless2/decode.py \
+  --exp-dir pruned_transducer_stateless2/exp_100h_ws1 \
+  --epoch 19 \
+  --avg 8 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 600
+```
+
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/AhnhooUBRPqTnaggoqo7lg> (learning rate
 schedule is not visible due to a since-fixed bug).
@@ -812,9 +1152,26 @@ schedule is not visible due to a since-fixed bug).
 | fast beam search                    | 6.53       | 16.82      | --epoch 39 --avg 10 --decoding-method fast_beam_search |
 
 Trained with 2 jobs:
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws2 --world-size 2 --num-epochs 40  --full-libri 0 --max-duration 300`
+
+```bash
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp_100h_ws2 \
+  --world-size 2 \
+  --num-epochs 40  \
+  --full-libri 0 \
+  --max-duration 300
+```
+
 and decoded with:
-`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws2 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+```
+python3 ./pruned_transducer_stateless2/decode.py \
+  --exp-dir pruned_transducer_stateless2/exp_100h_ws2 \
+  --epoch 19 \
+  --avg 8 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 600
+```
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/dvOC9wsrSdWrAIdsebJILg/>
 (learning rate schedule is not visible due to a since-fixed bug).
@@ -827,9 +1184,26 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/dvOC9wsrSdWrAIdseb
 
 
 Trained with 4 jobs:
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_ws4 --world-size 4 --num-epochs 40  --full-libri 0 --max-duration 300`
+
+```
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp_100h_ws4 \
+  --world-size 4 \
+  --num-epochs 40  \
+  --full-libri 0 \
+  --max-duration 300
+```
+
 and decoded with:
-`python3 ./pruned_transducer_stateless2/decode.py --exp-dir pruned_transducer_stateless2/exp_100h_ws4 --epoch 19 --avg 8 --bpe-model ./data/lang_bpe_500/bpe.model --max-duration 600`.
+
+```
+python3 ./pruned_transducer_stateless2/decode.py \
+  --exp-dir pruned_transducer_stateless2/exp_100h_ws4 \
+  --epoch 19 \
+  --avg 8 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 600
+```
 
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFbRErA/>
@@ -846,7 +1220,16 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/a3T0TyC0R5aLj5bmFb
 Trained with 1 job, with  --use-fp16=True --max-duration=300 i.e. with half-precision
 floats (but without increasing max-duration), after merging <https://github.com/k2-fsa/icefall/pull/305>.
 Train command was
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 300 --use-fp16 True`
+
+```
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 \
+  --world-size 1 \
+  --num-epochs 40  \
+  --full-libri 0 \
+  --max-duration 300 \
+  --use-fp16 True
+```
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/DAtGG9lpQJCROUDwPNxwpA>
 
@@ -860,7 +1243,16 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/DAtGG9lpQJCROUDwPN
 Trained with 1 job, with  --use-fp16=True --max-duration=500, i.e. with half-precision
 floats and max-duration increased from 300 to 500, after merging <https://github.com/k2-fsa/icefall/pull/305>.
 Train command was
-`python3 ./pruned_transducer_stateless2/train.py --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 --world-size 1 --num-epochs 40  --full-libri 0 --max-duration 500 --use-fp16 True`
+
+```
+python3 ./pruned_transducer_stateless2/train.py \
+  --exp-dir=pruned_transducer_stateless2/exp_100h_fp16 \
+  --world-size 1 \
+  --num-epochs 40  \
+  --full-libri 0 \
+  --max-duration 500 \
+  --use-fp16 True
+```
 
 The Tensorboard log is at <https://tensorboard.dev/experiment/Km7QBHYnSLWs4qQnAJWsaA>
 
@@ -869,7 +1261,6 @@ The Tensorboard log is at <https://tensorboard.dev/experiment/Km7QBHYnSLWs4qQnAJ
 | greedy search (max sym per frame 1) | 7.10       | 18.79      | --epoch 19  --avg 8   |
 | greedy search (max sym per frame 1) | 6.92       | 18.16      | --epoch 29  --avg 8   |
 | greedy search (max sym per frame 1) | 6.89       | 17.75      | --epoch 30  --avg 10  |
-
 
 
 
