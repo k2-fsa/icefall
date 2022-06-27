@@ -48,7 +48,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless/exp \
   --full-libri 1 \
   --dynamic-chunk-training 1 \
-  --causal_convolution 1 \
+  --causal-convolution 1 \
   --short-chunk-size 25 \
   --num-left-chunks 4 \
   --max-duration 300
