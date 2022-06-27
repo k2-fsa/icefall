@@ -1032,7 +1032,6 @@ def scan_pessimistic_batches_for_oom(
     graph_compiler: CharCtcTrainingGraphCompiler,
     params: AttributeDict,
 ):
-    return
     from lhotse.dataset import find_pessimistic_batches
 
     logging.info(
