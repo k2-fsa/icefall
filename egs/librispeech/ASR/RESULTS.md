@@ -1,6 +1,6 @@
 ## Results
 
-### LibriSpeech BPE training results (Pruned Stateless streaming conformer RNN-T)
+### LibriSpeech BPE training results (Pruned Stateless Streaming Conformer RNN-T)
 
 #### [pruned_transducer_stateless](./pruned_transducer_stateless)
 
@@ -8,6 +8,7 @@ See <https://github.com/k2-fsa/icefall/pull/380> for more details.
 
 ##### Training on full librispeech
 The WERs are (the number in the table formatted as test-clean & test-other):
+
 We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
 
 | decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
@@ -37,7 +38,7 @@ The training command is:
   --num-epochs 25
 ```
 
-You can find the tensorboard log here <>
+You can find the tensorboard log here <https://tensorboard.dev/experiment/ofxRakE6R7WHB1AoB8Bweg/>
 
 The decoding command is:
 ```bash
@@ -60,7 +61,7 @@ for chunk in 2 4 8 16; do
 done
 ```
 
-Pre-trained models, training and decoding logs, and decoding results are available at <>
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless_20220625>
 
 #### [pruned_transducer_stateless2](./pruned_transducer_stateless2)
 
@@ -68,6 +69,7 @@ See <https://github.com/k2-fsa/icefall/pull/380> for more details.
 
 ##### Training on full librispeech
 The WERs are (the number in the table formatted as test-clean & test-other):
+
 We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
 
 | decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
@@ -97,7 +99,7 @@ The training command is:
   --num-epochs 25
 ```
 
-You can find the tensorboard log here <>
+You can find the tensorboard log here <https://tensorboard.dev/experiment/hbltNS5TQ1Kiw0D1vcoakw/>
 
 The decoding command is:
 ```bash
@@ -120,13 +122,14 @@ for chunk in 2 4 8 16; do
 done
 ```
 
-Pre-trained models, training and decoding logs, and decoding results are available at <>
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless2_20220625>
 
 #### [pruned_transducer_stateless3](./pruned_transducer_stateless3)
 
 See <https://github.com/k2-fsa/icefall/pull/380> for more details.
 
-##### Training on full librispeech (**Use giga_prob = 0.5)
+##### Training on full librispeech (**Use giga_prob = 0.5**)
+
 The WERs are (the number in the table formatted as test-clean & test-other):
 
 | decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
@@ -159,7 +162,7 @@ The training command is (Note: this model was trained with mix-precision trainin
   --giga-prob 0.5
 ```
 
-You can find the tensorboard log here <>
+You can find the tensorboard log here <https://tensorboard.dev/experiment/vL7dWVZqTYaSeoOED4rtow/>
 
 The decoding command is:
 ```bash
@@ -182,9 +185,10 @@ for chunk in 2 4 8 16; do
 done
 ```
 
-Pre-trained models, training and decoding logs, and decoding results are available at <>
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless3_giga_0.5_20220625>
 
 ##### Training on full librispeech (**Use giga_prob = 0.9**)
+
 The WERs are (the number in the table formatted as test-clean & test-other):
 
 | decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
@@ -216,7 +220,7 @@ The training command is:
   --giga-prob 0.9
 ```
 
-You can find the tensorboard log here <>
+You can find the tensorboard log here <https://tensorboard.dev/experiment/WBGBDzt7SByRnvCBEfQpGQ/>
 
 The decoding command is:
 ```bash
@@ -239,7 +243,7 @@ for chunk in 2 4 8 16; do
 done
 ```
 
-Pre-trained models, training and decoding logs, and decoding results are available at <>
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless3_giga_0.9_20220625>
 
 #### [pruned_transducer_stateless4](./pruned_transducer_stateless4)
 
@@ -247,6 +251,7 @@ See <https://github.com/k2-fsa/icefall/pull/380> for more details.
 
 ##### Training on full librispeech
 The WERs are (the number in the table formatted as test-clean & test-other):
+
 We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
 
 | decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
@@ -276,7 +281,7 @@ The training command is:
   --num-epochs 25
 ```
 
-You can find the tensorboard log here <>
+You can find the tensorboard log here <https://tensorboard.dev/experiment/97VKXf80Ru61CnP2ALWZZg/>
 
 The decoding command is:
 ```bash
@@ -299,7 +304,7 @@ for chunk in 2 4 8 16; do
 done
 ```
 
-Pre-trained models, training and decoding logs, and decoding results are available at <>
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless4_20220625>
 
 
 ### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T)
