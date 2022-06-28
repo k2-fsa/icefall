@@ -128,7 +128,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -141,6 +141,13 @@ def get_parser():
         type=str,
         default="pruned_transducer_stateless6/exp",
         help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--enable-distillation",
+        type=str2bool,
+        default=True,
+        help="Whether to eanble distillation.",
     )
 
     parser.add_argument(

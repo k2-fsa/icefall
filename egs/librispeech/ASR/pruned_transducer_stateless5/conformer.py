@@ -124,10 +124,7 @@ class Conformer(EncoderInterface):
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # Caution: We assume the subsampling factor is 4!
-            lengths = ((x_lens - 1) // 2 - 1) // 2
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
@@ -300,8 +297,10 @@ class ConformerEncoder(nn.Module):
         )
         self.num_layers = num_layers
 
+        assert len(set(aux_layers)) == len(aux_layers)
+
         assert num_layers - 1 not in aux_layers
-        self.aux_layers = set(aux_layers + [num_layers - 1])
+        self.aux_layers = aux_layers + [num_layers - 1]
 
         self.combiner = RandomCombine(
             num_inputs=len(self.aux_layers),
@@ -389,7 +388,7 @@ class RelPositionalEncoding(torch.nn.Module):
                 ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        # Suppose `i` means to the position of query vecotr and `j` means the
+        # Suppose `i` means to the position of query vector and `j` means the
         # position of key vector. We use position relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x.size(1), self.d_model)
@@ -1143,7 +1142,7 @@ class RandomCombine(nn.Module):
         """
         num_inputs = self.num_inputs
         assert len(inputs) == num_inputs
-        if not self.training:
+        if not self.training or torch.jit.is_scripting():
             return inputs[-1]
 
         # Shape of weights: (*, num_inputs)
@@ -1151,9 +1150,8 @@ class RandomCombine(nn.Module):
         num_frames = inputs[0].numel() // num_channels
 
         mod_inputs = []
-        for i in range(num_inputs - 1):
+        for i in range(num_inputs):
             mod_inputs.append(inputs[i])
-        mod_inputs.append(inputs[num_inputs - 1])
 
         ndim = inputs[0].ndim
         # stacked_inputs: (num_frames, num_channels, num_inputs)
@@ -1170,11 +1168,13 @@ class RandomCombine(nn.Module):
         # ans: (num_frames, num_channels, 1)
         ans = torch.matmul(stacked_inputs, weights)
         # ans: (*, num_channels)
-        ans = ans.reshape(*tuple(inputs[0].shape[:-1]), num_channels)
 
-        if __name__ == "__main__":
-            # for testing only...
-            print("Weights = ", weights.reshape(num_frames, num_inputs))
+        ans = ans.reshape(inputs[0].shape[:-1] + (num_channels,))
+
+        # The following if causes errors for torch script in torch 1.6.0
+        #  if __name__ == "__main__":
+        #      # for testing only...
+        #      print("Weights = ", weights.reshape(num_frames, num_inputs))
         return ans
 
     def _get_random_weights(

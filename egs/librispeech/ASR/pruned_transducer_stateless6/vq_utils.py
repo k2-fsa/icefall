@@ -37,6 +37,7 @@ from icefall.utils import (
     setup_logger,
 )
 from lhotse import CutSet, load_manifest
+from lhotse.cut import MonoCut
 from lhotse.features.io import NumpyHdf5Writer
 
 
@@ -62,16 +63,15 @@ class CodebookIndexExtractor:
         setup_logger(f"{self.vq_dir}/log-vq_extraction")
 
     def init_dirs(self):
-        # vq_dir is the root dir for quantizer:
-        #    training data/ quantizer / extracted codebook indexes
+        # vq_dir is the root dir for quantization, containing:
+        # training data, trained quantizer, and extracted codebook indexes
         self.vq_dir = (
             self.params.exp_dir / f"vq/{self.params.teacher_model_id}/"
         )
         self.vq_dir.mkdir(parents=True, exist_ok=True)
 
-        # manifest_dir for :
-        # splited original manifests,
-        # extracted codebook indexes and their related manifests
+        # manifest_dir contains:
+        # splited original manifests, extracted codebook indexes with related manifests # noqa
         self.manifest_dir = self.vq_dir / f"splits{self.params.world_size}"
         self.manifest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -135,6 +135,7 @@ class CodebookIndexExtractor:
             logging.warn(warn_message)
             return
 
+        logging.info("Start to extract embeddings for training the quantizer.")
         total_cuts = 0
         with NumpyHdf5Writer(self.embedding_file_path) as writer:
             for batch_idx, batch in enumerate(self.quantizer_train_dl):
@@ -187,14 +188,15 @@ class CodebookIndexExtractor:
             return
 
         assert self.embedding_file_path.exists()
+        logging.info("Start to train quantizer.")
         trainer = quantization.QuantizerTrainer(
             dim=self.params.embedding_dim,
             bytes_per_frame=self.params.num_codebooks,
             device=self.params.device,
         )
         train, valid = quantization.read_hdf5_data(self.embedding_file_path)
-        B = 512  # Minibatch size, this is very arbitrary, it's close to what we used
-        # when we tuned this method.
+        B = 512  # Minibatch size, this is very arbitrary,
+        # it's close to what we used when we tuned this method.
 
         def minibatch_generator(data: torch.Tensor, repeat: bool):
             assert 3 * B < data.shape[0]
@@ -222,18 +224,50 @@ class CodebookIndexExtractor:
         """
         for subset in self.params.subsets:
             logging.info(f"About to split {subset}.")
-            ori_manifest = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest = (
+                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
+            )
             split_cmd = f"lhotse split {self.params.world_size} {ori_manifest} {self.manifest_dir}"
             os.system(f"{split_cmd}")
+
+    def join_manifests(self):
+        """
+        Join the vq manifest to the original manifest according to cut id.
+        """
+        logging.info("Start to join manifest files.")
+        for subset in self.params.subsets:
+            vq_manifest_path = (
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
+            )
+            ori_manifest_path = (
+                self.ori_manifest_dir
+                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+            )
+            dst_vq_manifest_path = (
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+            )
+            cuts_vq = load_manifest(vq_manifest_path)
+            cuts_ori = load_manifest(ori_manifest_path)
+            cuts_vq = cuts_vq.sort_like(cuts_ori)
+            for cut_idx, (cut_vq, cut_ori) in enumerate(zip(cuts_vq, cuts_ori)):
+                assert cut_vq.id == cut_ori.id
+                cut_ori.codebook_indexes = cut_vq.codebook_indexes
+
+            CutSet.from_cuts(cuts_ori).to_jsonl(dst_vq_manifest_path)
+            logging.info(f"Processed {subset}.")
+            logging.info(f"Saved to {dst_vq_manifest_path}.")
 
     def merge_vq_manifests(self):
         """
         Merge generated vq included manfiests and storage to self.dst_manifest_dir.
         """
         for subset in self.params.subsets:
-            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-cuts_train-{subset}*.json.gz"
+            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-librispeech-cuts_train-{subset}*.jsonl.gz"
             dst_vq_manifest = (
-                self.dst_manifest_dir / f"cuts_train-{subset}.json.gz"
+                self.dst_manifest_dir
+                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
             )
             if 1 == self.params.world_size:
                 merge_cmd = f"cp {vq_manifests} {dst_vq_manifest}"
@@ -273,7 +307,6 @@ class CodebookIndexExtractor:
                 os.symlink(ori_manifest_path, dst_manifest_path)
 
     def create_vq_fbank(self):
-        self.reuse_manifests()
         self.merge_vq_manifests()
 
     @cached_property
@@ -294,11 +327,13 @@ class CodebookIndexExtractor:
 
     def load_ori_dl(self, subset):
         if self.params.world_size == 1:
-            ori_manifest_path = f"./data/fbank/cuts_train-{subset}.json.gz"
+            ori_manifest_path = (
+                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
+            )
         else:
             ori_manifest_path = (
                 self.manifest_dir
-                / f"cuts_train-{subset}.{self.params.manifest_index}.json.gz"
+                / f"librispeech_cuts_train-{subset}.{self.params.manifest_index}.jsonl.gz"  # noqa
             )
 
         cuts = load_manifest(ori_manifest_path)
@@ -311,6 +346,7 @@ class CodebookIndexExtractor:
         torch.cuda.empty_cache()
 
     def extract_codebook_indexes(self):
+        logging.info("Start to extract codebook indexes.")
         if self.params.world_size == 1:
             self.extract_codebook_indexes_imp()
         else:
@@ -333,7 +369,7 @@ class CodebookIndexExtractor:
     def extract_codebook_indexes_imp(self):
         for subset in self.params.subsets:
             num_cuts = 0
-            cuts = []
+            new_cuts = []
             if self.params.world_size == 1:
                 manifest_file_id = f"{subset}"
             else:
@@ -356,15 +392,23 @@ class CodebookIndexExtractor:
                     assert len(cut_list) == codebook_indexes.shape[0]
                     assert all(c.start == 0 for c in supervisions["cut"])
 
+                    new_cut_list = []
                     for idx, cut in enumerate(cut_list):
-                        cut.codebook_indexes = writer.store_array(
+                        new_cut = MonoCut(
+                            id=cut.id,
+                            start=cut.start,
+                            duration=cut.duration,
+                            channel=cut.channel,
+                        )
+                        new_cut.codebook_indexes = writer.store_array(
                             key=cut.id,
                             value=codebook_indexes[idx][: num_frames[idx]],
                             frame_shift=0.02,
                             temporal_dim=0,
                             start=0,
                         )
-                    cuts += cut_list
+                        new_cut_list.append(new_cut)
+                    new_cuts += new_cut_list
                     num_cuts += len(cut_list)
                     message = f"Processed {num_cuts} cuts from {subset}"
                     if self.params.world_size > 1:
@@ -373,9 +417,9 @@ class CodebookIndexExtractor:
 
                 json_file_path = (
                     self.manifest_dir
-                    / f"with_codebook_indexes-cuts_train-{manifest_file_id}.json.gz"
+                    / f"with_codebook_indexes-librispeech-cuts_train-{manifest_file_id}.jsonl.gz"  # noqa
                 )
-                CutSet.from_cuts(cuts).to_json(json_file_path)
+                CutSet.from_cuts(new_cuts).to_jsonl(json_file_path)
 
 
 @torch.no_grad()
