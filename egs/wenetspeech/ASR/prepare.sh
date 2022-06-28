@@ -54,7 +54,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   # ln -sfv /path/to/WenetSpeech $dl_dir/WenetSpeech
   #
   if [ ! -d $dl_dir/WenetSpeech/wenet_speech ] && [ ! -f $dl_dir/WenetSpeech/metadata/v1.list ]; then
-    log "Stage 0: should download WenetSpeech first"
+    log "Stage 0: You should download WenetSpeech first"
     exit 1;
   fi
 
