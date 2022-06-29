@@ -193,13 +193,6 @@ class WenetSpeechAsrDataModule:
         )
 
         group.add_argument(
-            "--lazy-load",
-            type=str2bool,
-            default=True,
-            help="lazily open CutSets to avoid OOM (for L|XL subset)",
-        )
-
-        group.add_argument(
             "--training-subset",
             type=str,
             default="L",
@@ -420,17 +413,10 @@ class WenetSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        if self.args.lazy_load:
-            logging.info("use lazy cuts")
-            cuts_train = CutSet.from_jsonl_lazy(
-                self.args.manifest_dir
-                / f"cuts_{self.args.training_subset}.jsonl.gz"
-            )
-        else:
-            cuts_train = CutSet.from_file(
-                self.args.manifest_dir
-                / f"cuts_{self.args.training_subset}.jsonl.gz"
-            )
+        cuts_train = load_manifest_lazy(
+            self.args.manifest_dir
+            / f"cuts_{self.args.training_subset}.jsonl.gz"
+        )
         return cuts_train
 
     @lru_cache()
