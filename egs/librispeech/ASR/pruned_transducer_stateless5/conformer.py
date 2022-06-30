@@ -1149,13 +1149,9 @@ class RandomCombine(nn.Module):
         num_channels = inputs[0].shape[-1]
         num_frames = inputs[0].numel() // num_channels
 
-        mod_inputs = []
-        for i in range(num_inputs):
-            mod_inputs.append(inputs[i])
-
         ndim = inputs[0].ndim
         # stacked_inputs: (num_frames, num_channels, num_inputs)
-        stacked_inputs = torch.stack(mod_inputs, dim=ndim).reshape(
+        stacked_inputs = torch.stack(inputs, dim=ndim).reshape(
             (num_frames, num_channels, num_inputs)
         )
 
