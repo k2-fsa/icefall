@@ -58,15 +58,16 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     Return:
       The lexicon.txt file and the train.text in lang_dir.
     """
+    import gzip
     phones = set()
 
-    supervisions_train = Path(manifests_dir) / "supervisions_TRAIN.json"
+    supervisions_train = Path(manifests_dir) / "timit_supervisions_TRAIN.jsonl.gz"
     lexicon = Path(lang_dir) / "lexicon.txt"
 
     logging.info(f"Loading {supervisions_train}!")
-    with open(supervisions_train, "r") as load_f:
-        load_dicts = json.load(load_f)
-        for load_dict in load_dicts:
+    with gzip.open(supervisions_train, "r") as load_f:
+        for line in load_f.readlines():
+            load_dict = json.loads(line)
             text = load_dict["text"]
             # list the phone units and filter the empty item
             phones_list = list(filter(None, text.split()))
