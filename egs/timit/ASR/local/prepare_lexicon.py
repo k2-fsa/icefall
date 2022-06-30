@@ -61,7 +61,8 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     import gzip
     phones = set()
 
-    supervisions_train = Path(manifests_dir) / "timit_supervisions_TRAIN.jsonl.gz"
+    supervisions_train = Path(manifests_dir) / \
+        "timit_supervisions_TRAIN.jsonl.gz"
     lexicon = Path(lang_dir) / "lexicon.txt"
 
     logging.info(f"Loading {supervisions_train}!")
