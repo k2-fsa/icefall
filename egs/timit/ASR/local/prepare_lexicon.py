@@ -59,6 +59,7 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
       The lexicon.txt file and the train.text in lang_dir.
     """
     import gzip
+    
     phones = set()
 
     supervisions_train = (
