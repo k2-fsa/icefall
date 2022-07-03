@@ -41,7 +41,7 @@ you can do:
         --avg 1 \
         --max-duration 100 \
         --bpe-model data/lang_bpe_500/bpe.model \
-        --use-averaged-model False
+        --use-averaged-model True
 """
 
 import argparse
@@ -50,7 +50,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -95,9 +95,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-averaged-model",
+        type=str2bool,
+        default=True,
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
+    )
+
+    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -127,15 +138,15 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-averaged-model",
+        "--streaming-model",
         type=str2bool,
-        default=True,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
+        default=False,
+        help="""Whether to export a streaming model, if the models in exp-dir
+        are streaming model, this should be True.
+        """,
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -148,6 +159,8 @@ def main():
     params.update(vars(args))
 
     device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
@@ -157,6 +170,9 @@ def main():
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.streaming_model:
+        assert params.causal_convolution
 
     logging.info(params)
 
@@ -242,6 +258,7 @@ def main():
                 )
             )
 
+    model.to("cpu")
     model.eval()
 
     if params.jit:
