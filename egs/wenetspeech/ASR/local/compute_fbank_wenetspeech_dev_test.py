@@ -43,7 +43,7 @@ def compute_fbank_wenetspeech_dev_test():
     # number of seconds in a batch
     batch_duration = 600
 
-    subsets = ("S", "M", "DEV", "TEST_NET", "TEST_MEETING")
+    subsets = ("DEV", "TEST_NET", "TEST_MEETING")
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
