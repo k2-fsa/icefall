@@ -1579,13 +1579,19 @@ class EmformerEncoder(nn.Module):
         # calcualte padding mask to mask out initial zero caches
         chunk_mask = make_pad_mask(output_lengths).to(x.device)
         memory_mask = (
-            torch.div(
-                num_processed_frames, self.chunk_length, rounding_mode="floor"
-            ).view(x.size(1), 1)
-            <= torch.arange(self.memory_size, device=x.device).expand(
-                x.size(1), self.memory_size
-            )
-        ).flip(1)
+            (
+                torch.div(
+                    num_processed_frames,
+                    self.chunk_length,
+                    rounding_mode="floor",
+                ).view(x.size(1), 1)
+                <= torch.arange(self.memory_size, device=x.device).expand(
+                    x.size(1), self.memory_size
+                )
+            ).flip(1)
+            if self.use_memory
+            else torch.empty(0).to(dtype=torch.bool, device=x.device)
+        )
         left_context_mask = (
             num_processed_frames.view(x.size(1), 1)
             <= torch.arange(self.left_context_length, device=x.device).expand(
