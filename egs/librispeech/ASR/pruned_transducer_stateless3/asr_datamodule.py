@@ -291,7 +291,6 @@ class AsrDataModule:
             max_duration=self.args.max_duration,
             shuffle=False,
             num_buckets=self.args.num_buckets,
-            drop_last=True,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
