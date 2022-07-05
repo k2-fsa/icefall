@@ -29,13 +29,9 @@ from lhotse import load_manifest
 
 
 def main():
-    path = "./data/fbank/cuts_train-clean-100.json.gz"
-    path = "./data/fbank/cuts_train-clean-360.json.gz"
-    path = "./data/fbank/cuts_train-other-500.json.gz"
-    path = "./data/fbank/cuts_dev-clean.json.gz"
-    path = "./data/fbank/cuts_dev-other.json.gz"
-    path = "./data/fbank/cuts_test-clean.json.gz"
-    path = "./data/fbank/cuts_test-other.json.gz"
+    # path = "./data/fbank/cuts_train.jsonl.gz"
+    path = "./data/fbank/cuts_dev.jsonl.gz"
+    # path = "./data/fbank/cuts_test.jsonl.gz"
 
     cuts = load_manifest(path)
     cuts.describe()
@@ -45,171 +41,57 @@ if __name__ == "__main__":
     main()
 
 """
-## train-clean-100
-Cuts count: 85617
-Total duration (hours): 303.8
-Speech duration (hours): 303.8 (100.0%)
+# train
+
+Cuts count: 1125309
+Total duration (hours): 3403.9
+Speech duration (hours): 3403.9 (100.0%)
 ***
 Duration statistics (seconds):
-mean    12.8
-std     3.8
-min     1.3
-0.1%    1.9
-0.5%    2.2
-1%      2.5
-5%      4.2
-10%     6.4
-25%     11.4
-50%     13.8
-75%     15.3
-90%     16.7
-95%     17.3
-99%     18.1
-99.5%   18.4
-99.9%   18.8
-max     27.2
+mean    10.9
+std     10.1
+min     0.2
+25%     5.2
+50%     7.8
+75%     12.7
+99%     52.0
+99.5%   65.1
+99.9%   99.5
+max     228.9
 
-## train-clean-360
-Cuts count: 312042
-Total duration (hours): 1098.2
-Speech duration (hours): 1098.2 (100.0%)
-***
-Duration statistics (seconds):
-mean    12.7
-std     3.8
-min     1.0
-0.1%    1.8
-0.5%    2.2
-1%      2.5
-5%      4.2
-10%     6.2
-25%     11.2
-50%     13.7
-75%     15.3
-90%     16.6
-95%     17.3
-99%     18.1
-99.5%   18.4
-99.9%   18.8
-max     33.0
 
-## train-other 500
-Cuts count: 446064
-Total duration (hours): 1500.6
-Speech duration (hours): 1500.6 (100.0%)
-***
-Duration statistics (seconds):
-mean    12.1
-std     4.2
-min     0.8
-0.1%    1.7
-0.5%    2.1
-1%      2.3
-5%      3.5
-10%     5.0
-25%     9.8
-50%     13.4
-75%     15.1
-90%     16.5
-95%     17.2
-99%     18.1
-99.5%   18.4
-99.9%   18.9
-max     31.0
-
-## dev-clean
-Cuts count: 2703
-Total duration (hours): 5.4
-Speech duration (hours): 5.4 (100.0%)
-***
-Duration statistics (seconds):
-mean    7.2
-std     4.7
-min     1.4
-0.1%    1.6
-0.5%    1.8
-1%      1.9
-5%      2.4
-10%     2.7
-25%     3.8
-50%     5.9
-75%     9.3
-90%     13.3
-95%     16.4
-99%     23.8
-99.5%   28.5
-99.9%   32.3
-max     32.6
-
-## dev-other
-Cuts count: 2864
-Total duration (hours): 5.1
-Speech duration (hours): 5.1 (100.0%)
+# test
+Cuts count: 5365
+Total duration (hours): 9.6
+Speech duration (hours): 9.6 (100.0%)
 ***
 Duration statistics (seconds):
 mean    6.4
-std     4.3
-min     1.1
-0.1%    1.3
-0.5%    1.7
-1%      1.8
-5%      2.2
-10%     2.6
-25%     3.5
-50%     5.3
-75%     7.9
-90%     12.0
-95%     15.0
-99%     22.2
-99.5%   27.1
-99.9%   32.4
-max     35.2
+std     1.5
+min     1.6
+25%     5.3
+50%     6.5
+75%     7.6
+99%     9.5
+99.5%   9.7
+99.9%   10.3
+max     12.4
 
-## test-clean
-Cuts count: 2620
-Total duration (hours): 5.4
-Speech duration (hours): 5.4 (100.0%)
+# dev
+Cuts count: 5002
+Total duration (hours): 8.5
+Speech duration (hours): 8.5 (100.0%)
 ***
 Duration statistics (seconds):
-mean    7.4
-std     5.2
-min     1.3
-0.1%    1.6
-0.5%    1.8
-1%      2.0
-5%      2.3
-10%     2.7
-25%     3.7
-50%     5.8
-75%     9.6
-90%     14.6
-95%     17.8
-99%     25.5
-99.5%   28.4
-99.9%   32.8
-max     35.0
+mean    6.1
+std     1.7
+min     1.5
+25%     4.8
+50%     6.2
+75%     7.4
+99%     9.5
+99.5%   9.7
+99.9%   10.1
+max     20.3
 
-## test-other
-Cuts count: 2939
-Total duration (hours): 5.3
-Speech duration (hours): 5.3 (100.0%)
-***
-Duration statistics (seconds):
-mean    6.5
-std     4.4
-min     1.2
-0.1%    1.5
-0.5%    1.8
-1%      1.9
-5%      2.3
-10%     2.6
-25%     3.4
-50%     5.2
-75%     8.2
-90%     12.6
-95%     15.8
-99%     21.4
-99.5%   23.8
-99.9%   33.5
-max     34.5
 """
