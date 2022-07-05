@@ -2,6 +2,14 @@
 <img src="https://raw.githubusercontent.com/k2-fsa/icefall/master/docs/source/_static/logo.png" width=168>
 </div>
 
+## Introduction
+
+icefall contains ASR recipes for various datasets
+using <https://github.com/k2-fsa/k2>.
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy models
+trained with icefall.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
@@ -23,6 +31,8 @@ We provide the following recipes:
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
+  - [Aishell4][aishell4]
+  - [TAL_CSASR][tal_csasr]
 
 ### yesno
 
@@ -262,6 +272,36 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
 
+### Aishell4
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
+
+The best CER(%) results:
+|                      |  test  |
+|----------------------|--------|
+|    greedy search     | 29.89  |
+|   fast beam search   | 28.91  |
+| modified beam search | 29.08  |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
+
+### TAL_CSASR
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TAL_CSASR_pruned_transducer_stateless5].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+|decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
+|--|--|--|--|--|--|--|
+|greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
+|modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
+|fast_beam_search| 7.18 | 6.39| 18.90 |  7.27| 6.55 | 18.77|
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -290,6 +330,8 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
+[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
+[TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -299,5 +341,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
+[aishell4]: egs/aishell4/ASR
+[tal_csasr]: egs/tal_csasr/ASR
 [k2]: https://github.com/k2-fsa/k2
-)
