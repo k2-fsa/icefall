@@ -3,8 +3,8 @@
 set -eou pipefail
 
 nj=30
-stage=3
-stop_stage=3
+stage=0
+stop_stage=5
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, you need to apply aishell2 through
@@ -117,12 +117,12 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   mkdir -p $lang_char_dir
 
   # Prepare text.
-  grep "\"text\":" data/manifests/aishell2_supervisions_train.json \
+  grep "\"text\":" data/manifests/aishell2_supervisions_train.jsonl.gz \
     | sed -e 's/["text:\t ]*//g' | sed 's/,//g' \
     | ./local/text2token.py -t "char" > $lang_char_dir/text
 
   # Prepare words.txt
-  grep "\"text\":" data/manifests/aishell2_supervisions_train.json \
+  grep "\"text\":" data/manifests/aishell2_supervisions_train.jsonl.gz \
     | sed -e 's/["text:\t]*//g' | sed 's/,//g' \
     | ./local/text2token.py -t "char" > $lang_char_dir/text_words
 
