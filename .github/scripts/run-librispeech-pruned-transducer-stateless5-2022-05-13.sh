@@ -82,6 +82,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
 
     ./pruned_transducer_stateless5/decode.py \
       --decoding-method $method \
+      --use-averaged-model 0 \
       --epoch 999 \
       --avg 1 \
       --max-duration $max_duration \
