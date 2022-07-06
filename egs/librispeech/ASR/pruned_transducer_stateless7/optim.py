@@ -26,9 +26,8 @@ import logging
 
 class LearnedGradient(Optimizer):
     """
-    Implements 'Learned Gradient' update.  It's a learned positive definite learning-rate
-    matrix for each dimension of each tensor, that we multiply the derivative by, and
-    then scale the delta/param-change before the update.
+    Implements 'Learned Gradient' update.  It's special factorization of the
+    parameter matrix..
 
 
     Args:
