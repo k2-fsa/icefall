@@ -37,7 +37,7 @@ for sym in 1 2 3; do
     --nhead 8 \
     --encoder-dim 512 \
     --decoder-dim 512 \
-    --joiner-dim 512
+    --joiner-dim 512 \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav
