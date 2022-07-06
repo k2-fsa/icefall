@@ -179,7 +179,7 @@ The training command is:
 
 ```bash
 ./conv_emformer_transducer_stateless2/train.py \
-  --world-size 6 \
+  --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir conv_emformer_transducer_stateless2/exp \
