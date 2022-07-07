@@ -60,7 +60,7 @@ class LearnedGradient(Optimizer):
             params,
             lr=3e-02,
             size_lr_scale=0.1,
-            meta_lr_scale=0.2,
+            meta_lr_scale=0.1,
             betas=(0.9, 0.98),
             eps=1.0e-08,
             size_update_period=1,
@@ -347,7 +347,7 @@ class LearnedGradient(Optimizer):
         # (group["lr_est_period"] ** 0.5) is intended to make it approximately invariant
         # to the lr_est_period (close to convergence).
         meta_lr = group["lr"] * group["meta_lr_scale"] * (group["lr_est_period"] ** 0.5)
-        beta1, beta2 = group["betas"]
+        beta1 = group["betas"][0]
         eps = group["eps"]
         delta = state["delta"]
         ndim = p.ndim
