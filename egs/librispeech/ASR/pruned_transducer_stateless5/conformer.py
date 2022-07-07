@@ -1064,10 +1064,6 @@ class RandomCombine(nn.Module):
     is a random combination of all the inputs; but which in test time
     will be just the last input.
 
-    All but the last input will have a linear transform before we
-    randomly combine them; these linear transforms will be initialized
-    to the identity transform.
-
     The idea is that the list of Tensors will be a list of outputs of multiple
     conformer layers.  This has a similar effect as iterated loss. (See:
     DEJA-VU: DOUBLE FEATURE PRESENTATION AND ITERATED LOSS IN DEEP TRANSFORMER
