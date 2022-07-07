@@ -957,15 +957,15 @@ def run(rank, world_size, args):
     train_cuts = aishell2.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
+        # Keep only utterances with duration between 1 second and 8 seconds
         #
-        # Caution: There is a reason to select 20.0 here. Please see
+        # Caution: There is a reason to select 8.0 here. Please see
         # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 20.0
+        return 1.0 <= c.duration <= 8.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
