@@ -1284,9 +1284,7 @@ def _test_random_combine_main():
     _test_random_combine(0.5, 0.5, 0.3)
 
     feature_dim = 50
-    c = Conformer(
-        num_features=feature_dim, d_model=128, nhead=4
-    )
+    c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
