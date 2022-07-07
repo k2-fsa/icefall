@@ -56,7 +56,7 @@ class AiShell2AsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. aishell2 ios, android, mic).
+    but there can be multiple test dataloaders (e.g. ios, android, mic).
 
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
@@ -416,5 +416,3 @@ class AiShell2AsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "aishell2_cuts_test.jsonl.gz"
         )
-
-
