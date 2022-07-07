@@ -1138,6 +1138,9 @@ class EmformerEncoder(nn.Module):
     Streaming Speech Recognition*
     [:footcite:`shi2021emformer`].
 
+    In this model, the memory bank computation is simplifed, using the averaged
+    value of each chunk as its memory vector.
+
     Args:
       d_model (int):
         Input dimension.
