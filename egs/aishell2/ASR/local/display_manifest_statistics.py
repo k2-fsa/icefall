@@ -43,3 +43,54 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+Starting display the statistics for ./data/fbank/aishell2_cuts_train.jsonl.gz
+Cuts count: 3026106
+Total duration (hours): 3021.2
+Speech duration (hours): 3021.2 (100.0%)
+***
+Duration statistics (seconds):
+mean	3.6
+std	1.5
+min	0.3
+25%	2.4
+50%	3.3
+75%	4.4
+99%	8.2
+99.5%	8.9
+99.9%	10.6
+max	21.5
+Starting display the statistics for ./data/fbank/aishell2_cuts_dev.jsonl.gz
+Cuts count: 2500
+Total duration (hours): 2.0
+Speech duration (hours): 2.0 (100.0%)
+***
+Duration statistics (seconds):
+mean	2.9
+std	1.0
+min	1.1
+25%	2.2
+50%	2.7
+75%	3.4
+99%	6.3
+99.5%	6.7
+99.9%	7.8
+max	9.4
+Starting display the statistics for ./data/fbank/aishell2_cuts_test.jsonl.gz
+Cuts count: 5000
+Total duration (hours): 4.0
+Speech duration (hours): 4.0 (100.0%)
+***
+Duration statistics (seconds):
+mean	2.9
+std	1.0
+min	1.1
+25%	2.2
+50%	2.7
+75%	3.3
+99%	6.2
+99.5%	6.6
+99.9%	7.7
+max	8.5
+'''
