@@ -73,6 +73,9 @@ class Decoder(nn.Module):
                 groups=decoder_dim,
                 bias=False,
             )
+        else:
+            # It is to support torch script
+            self.conv = nn.Identity()
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """

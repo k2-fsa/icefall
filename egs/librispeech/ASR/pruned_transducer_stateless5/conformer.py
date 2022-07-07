@@ -87,10 +87,17 @@ class Conformer(EncoderInterface):
             layer_dropout,
             cnn_module_kernel,
         )
+        # aux_layers from 1/3
         self.encoder = ConformerEncoder(
             encoder_layer,
             num_encoder_layers,
-            aux_layers=list(range(0, num_encoder_layers - 1, aux_layer_period)),
+            aux_layers=list(
+                range(
+                    num_encoder_layers // 3,
+                    num_encoder_layers - 1,
+                    aux_layer_period,
+                )
+            ),
         )
 
     def forward(
@@ -117,10 +124,7 @@ class Conformer(EncoderInterface):
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # Caution: We assume the subsampling factor is 4!
-            lengths = ((x_lens - 1) // 2 - 1) // 2
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == lengths.max().item()
         mask = make_pad_mask(lengths)
 
@@ -293,13 +297,13 @@ class ConformerEncoder(nn.Module):
         )
         self.num_layers = num_layers
 
-        assert num_layers - 1 not in aux_layers
-        self.aux_layers = set(aux_layers + [num_layers - 1])
+        assert len(set(aux_layers)) == len(aux_layers)
 
-        num_channels = encoder_layer.norm_final.num_channels
+        assert num_layers - 1 not in aux_layers
+        self.aux_layers = aux_layers + [num_layers - 1]
+
         self.combiner = RandomCombine(
             num_inputs=len(self.aux_layers),
-            num_channels=num_channels,
             final_weight=0.5,
             pure_prob=0.333,
             stddev=2.0,
@@ -384,7 +388,7 @@ class RelPositionalEncoding(torch.nn.Module):
                 ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        # Suppose `i` means to the position of query vecotr and `j` means the
+        # Suppose `i` means to the position of query vector and `j` means the
         # position of key vector. We use position relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x.size(1), self.d_model)
@@ -1073,7 +1077,6 @@ class RandomCombine(nn.Module):
     def __init__(
         self,
         num_inputs: int,
-        num_channels: int,
         final_weight: float = 0.5,
         pure_prob: float = 0.5,
         stddev: float = 2.0,
@@ -1084,8 +1087,6 @@ class RandomCombine(nn.Module):
             The number of tensor inputs, which equals the number of layers'
             outputs that are fed into this module.  E.g. in an 18-layer neural
             net if we output layers 16, 12, 18, num_inputs would be 3.
-          num_channels:
-            The number of channels on the input, e.g. 512.
           final_weight:
             The amount of weight or probability we assign to the
             final layer when randomly choosing layers or when choosing
@@ -1116,13 +1117,6 @@ class RandomCombine(nn.Module):
         assert 0 < final_weight < 1, final_weight
         assert num_inputs >= 1
 
-        self.linear = nn.ModuleList(
-            [
-                nn.Linear(num_channels, num_channels, bias=True)
-                for _ in range(num_inputs - 1)
-            ]
-        )
-
         self.num_inputs = num_inputs
         self.final_weight = final_weight
         self.pure_prob = pure_prob
@@ -1135,12 +1129,6 @@ class RandomCombine(nn.Module):
             .log()
             .item()
         )
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        for i in range(len(self.linear)):
-            nn.init.eye_(self.linear[i].weight)
-            nn.init.constant_(self.linear[i].bias, 0.0)
 
     def forward(self, inputs: List[Tensor]) -> Tensor:
         """Forward function.
@@ -1154,21 +1142,16 @@ class RandomCombine(nn.Module):
         """
         num_inputs = self.num_inputs
         assert len(inputs) == num_inputs
-        if not self.training:
+        if not self.training or torch.jit.is_scripting():
             return inputs[-1]
 
         # Shape of weights: (*, num_inputs)
         num_channels = inputs[0].shape[-1]
         num_frames = inputs[0].numel() // num_channels
 
-        mod_inputs = []
-        for i in range(num_inputs - 1):
-            mod_inputs.append(self.linear[i](inputs[i]))
-        mod_inputs.append(inputs[num_inputs - 1])
-
         ndim = inputs[0].ndim
         # stacked_inputs: (num_frames, num_channels, num_inputs)
-        stacked_inputs = torch.stack(mod_inputs, dim=ndim).reshape(
+        stacked_inputs = torch.stack(inputs, dim=ndim).reshape(
             (num_frames, num_channels, num_inputs)
         )
 
@@ -1181,11 +1164,13 @@ class RandomCombine(nn.Module):
         # ans: (num_frames, num_channels, 1)
         ans = torch.matmul(stacked_inputs, weights)
         # ans: (*, num_channels)
-        ans = ans.reshape(*tuple(inputs[0].shape[:-1]), num_channels)
 
-        if __name__ == "__main__":
-            # for testing only...
-            print("Weights = ", weights.reshape(num_frames, num_inputs))
+        ans = ans.reshape(inputs[0].shape[:-1] + (num_channels,))
+
+        # The following if causes errors for torch script in torch 1.6.0
+        #  if __name__ == "__main__":
+        #      # for testing only...
+        #      print("Weights = ", weights.reshape(num_frames, num_inputs))
         return ans
 
     def _get_random_weights(

@@ -24,7 +24,7 @@ import torch
 from vq_utils import CodebookIndexExtractor
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
-from icefall.utils import AttributeDict
+from icefall.utils import AttributeDict, str2bool
 
 
 def get_parser():
@@ -36,6 +36,13 @@ def get_parser():
         type=Path,
         default="pruned_transducer_stateless6/exp/",
         help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--use-extracted-codebook",
+        type=str2bool,
+        default=False,
+        help="Whether to use the extracted codebook indexes.",
     )
 
     return parser
@@ -71,9 +78,13 @@ def main():
     params.world_size = world_size
 
     extractor = CodebookIndexExtractor(params=params)
-    extractor.extract_and_save_embedding()
-    extractor.train_quantizer()
-    extractor.extract_codebook_indexes()
+    if not params.use_extracted_codebook:
+        extractor.extract_and_save_embedding()
+        extractor.train_quantizer()
+        extractor.extract_codebook_indexes()
+
+    extractor.reuse_manifests()
+    extractor.join_manifests()
 
 
 if __name__ == "__main__":

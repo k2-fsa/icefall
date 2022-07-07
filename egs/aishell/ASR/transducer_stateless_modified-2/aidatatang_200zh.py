@@ -18,7 +18,7 @@
 import logging
 from pathlib import Path
 
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, load_manifest_lazy
 
 
 class AIDatatang200zh:
@@ -28,26 +28,26 @@ class AIDatatang200zh:
           manifest_dir:
             It is expected to contain the following files::
 
-                - cuts_dev_raw.jsonl.gz
-                - cuts_train_raw.jsonl.gz
-                - cuts_test_raw.jsonl.gz
+                - aidatatang_cuts_dev.jsonl.gz
+                - aidatatang_cuts_train.jsonl.gz
+                - aidatatang_cuts_test.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
     def train_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_train_raw.jsonl.gz"
+        f = self.manifest_dir / "aidatatang_cuts_train.jsonl.gz"
         logging.info(f"About to get train cuts from {f}")
-        cuts_train = load_manifest(f)
+        cuts_train = load_manifest_lazy(f)
         return cuts_train
 
     def valid_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_valid_raw.jsonl.gz"
+        f = self.manifest_dir / "aidatatang_cuts_valid.jsonl.gz"
         logging.info(f"About to get valid cuts from {f}")
-        cuts_valid = load_manifest(f)
+        cuts_valid = load_manifest_lazy(f)
         return cuts_valid
 
     def test_cuts(self) -> CutSet:
-        f = self.manifest_dir / "cuts_test_raw.jsonl.gz"
+        f = self.manifest_dir / "aidatatang_cuts_test.jsonl.gz"
         logging.info(f"About to get test cuts from {f}")
-        cuts_test = load_manifest(f)
+        cuts_test = load_manifest_lazy(f)
         return cuts_test

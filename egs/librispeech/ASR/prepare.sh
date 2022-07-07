@@ -24,6 +24,7 @@ stop_stage=100
 #        - 4-gram.arpa
 #        - librispeech-vocab.txt
 #        - librispeech-lexicon.txt
+#        - librispeech-lm-norm.txt.gz
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -132,7 +133,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     )
     for part in ${parts[@]}; do
       python3 ./local/validate_manifest.py \
-        data/fbank/cuts_${part}.json.gz
+        data/fbank/librispeech_cuts_${part}.jsonl.gz
     done
     touch data/fbank/.librispeech-validated.done
   fi
@@ -276,5 +277,101 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_lg.py --lang-dir $lang_dir
+  done
+fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Generate LM training data"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    log "Processing vocab_size == ${vocab_size}"
+    lang_dir=data/lang_bpe_${vocab_size}
+    out_dir=data/lm_training_bpe_${vocab_size}
+    mkdir -p $out_dir
+
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data $dl_dir/lm/librispeech-lm-norm.txt \
+      --lm-archive $out_dir/lm_data.pt
+  done
+fi
+
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "Stage 12: Generate LM validation data"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    log "Processing vocab_size == ${vocab_size}"
+    out_dir=data/lm_training_bpe_${vocab_size}
+    mkdir -p $out_dir
+
+    if [ ! -f $out_dir/valid.txt ]; then
+      files=$(
+        find "$dl_dir/LibriSpeech/dev-clean" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/dev-other" -name "*.trans.txt"
+      )
+      for f in ${files[@]}; do
+        cat $f | cut -d " " -f 2-
+      done > $out_dir/valid.txt
+    fi
+
+    lang_dir=data/lang_bpe_${vocab_size}
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data $out_dir/valid.txt \
+      --lm-archive $out_dir/lm_data-valid.pt
+  done
+fi
+
+if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
+  log "Stage 13: Generate LM test data"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    log "Processing vocab_size == ${vocab_size}"
+    out_dir=data/lm_training_bpe_${vocab_size}
+    mkdir -p $out_dir
+
+    if [ ! -f $out_dir/test.txt ]; then
+      files=$(
+        find "$dl_dir/LibriSpeech/test-clean" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/test-other" -name "*.trans.txt"
+      )
+      for f in ${files[@]}; do
+        cat $f | cut -d " " -f 2-
+      done > $out_dir/test.txt
+    fi
+
+    lang_dir=data/lang_bpe_${vocab_size}
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data $out_dir/test.txt \
+      --lm-archive $out_dir/lm_data-test.pt
+  done
+fi
+
+if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
+  log "Stage 14: Sort LM training data"
+  # Sort LM training data by sentence length in descending order
+  # for ease of training.
+  #
+  # Sentence length equals to the number of BPE tokens
+  # in a sentence.
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    out_dir=data/lm_training_bpe_${vocab_size}
+    mkdir -p $out_dir
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_data.pt \
+      --out-lm-data $out_dir/sorted_lm_data.pt \
+      --out-statistics $out_dir/statistics.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_data-valid.pt \
+      --out-lm-data $out_dir/sorted_lm_data-valid.pt \
+      --out-statistics $out_dir/statistics-valid.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_data-test.pt \
+      --out-lm-data $out_dir/sorted_lm_data-test.pt \
+      --out-statistics $out_dir/statistics-test.txt
   done
 fi

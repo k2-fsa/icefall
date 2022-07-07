@@ -28,6 +28,19 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir pruned_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 300
+
+# train a streaming model
+./pruned_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 0 \
+  --exp-dir pruned_transducer_stateless/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 25 \
+  --num-left-chunks 4 \
+  --max-duration 300
 """
 
 
@@ -71,6 +84,42 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
 
 
 def get_parser():
@@ -222,6 +271,8 @@ def get_parser():
         """,
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -263,7 +314,7 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - attention_dim: Hidden dim for multi-head attention model.
+        - encoder_dim: Hidden dim for multi-head attention model.
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
@@ -283,7 +334,7 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "attention_dim": 512,
+            "encoder_dim": 512,
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
@@ -305,11 +356,15 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_features=params.feature_dim,
         output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
+        d_model=params.encoder_dim,
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         vgg_frontend=params.vgg_frontend,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -456,7 +511,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -762,6 +817,11 @@ def run(rank, world_size, args):
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
+    if params.dynamic_chunk_training:
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
+
     logging.info(params)
 
     logging.info("About to create model")
@@ -780,7 +840,7 @@ def run(rank, world_size, args):
 
     optimizer = Noam(
         model.parameters(),
-        model_size=params.attention_dim,
+        model_size=params.encoder_dim,
         factor=params.lr_factor,
         warm_step=params.warm_step,
     )
@@ -807,27 +867,7 @@ def run(rank, world_size, args):
         # the threshold
         return 1.0 <= c.duration <= 20.0
 
-    num_in_total = len(train_cuts)
-
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    try:
-        num_left = len(train_cuts)
-        num_removed = num_in_total - num_left
-        removed_percent = num_removed / num_in_total * 100
-
-        logging.info(
-            f"Before removing short and long utterances: {num_in_total}"
-        )
-        logging.info(f"After removing short and long utterances: {num_left}")
-        logging.info(
-            f"Removed {num_removed} utterances ({removed_percent:.5f}%)"
-        )
-    except TypeError as e:
-        # You can ignore this error as previous versions of Lhotse work fine
-        # for the above code. In recent versions of Lhotse, it uses
-        # lazy filter, producing cutsets that don't have the __len__  method
-        logging.info(str(e))
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
