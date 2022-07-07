@@ -1267,7 +1267,6 @@ def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
     num_channels = 50
     m = RandomCombine(
         num_inputs=num_inputs,
-        num_channels=num_channels,
         final_weight=final_weight,
         pure_prob=pure_prob,
         stddev=stddev,
@@ -1290,7 +1289,7 @@ def _test_random_combine_main():
 
     feature_dim = 50
     c = Conformer(
-        num_features=feature_dim, output_dim=256, d_model=128, nhead=4
+        num_features=feature_dim, d_model=128, nhead=4
     )
     batch_size = 5
     seq_len = 20
