@@ -112,30 +112,41 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 6: Prepare char based lang"
+  log "Stage 5: Prepare char based lang"
   lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
   # Prepare text.
-  grep "\"text\":" data/manifests/aishell2_supervisions_train.jsonl.gz \
-    | sed -e 's/["text:\t ]*//g' | sed 's/,//g' \
-    | ./local/text2token.py -t "char" > $lang_char_dir/text
+  # Note: in Linux, you can install jq with the following command:
+  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+  # 2. chmod +x ./jq
+  # 3. cp jq /usr/bin
+  if [ ! -f $lang_char_dir/text ]; then
+    gunzip -c data/manifests/aishell2_supervisions_train.jsonl.gz \
+      | jq '.text' | sed 's/"//g' \
+      | ./local/text2token.py -t "char" > $lang_char_dir/text
+  fi
 
-  # Prepare words.txt
-  grep "\"text\":" data/manifests/aishell2_supervisions_train.jsonl.gz \
-    | sed -e 's/["text:\t]*//g' | sed 's/,//g' \
-    | ./local/text2token.py -t "char" > $lang_char_dir/text_words
+  # The implementation of chinese word segmentation for text,
+  # and it will take about 15 minutes.
+  # If can't install paddle-tiny with python 3.8, please refer
+  # https://github.com/fxsjy/jieba/issues/920
+  if [ ! -f $lang_char_dir/text_words_segmentation ]; then
+    python3 ./local/text2segments.py \
+      --input-file $lang_char_dir/text \
+      --output-file $lang_char_dir/text_words_segmentation
+  fi
 
-  cat $lang_char_dir/text_words | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
-    | uniq > $lang_char_dir/words_no_ids.txt
+  cat $lang_char_dir/text_words_segmentation | sed 's/ /\n/g' \
+    | sort -u | sed '/^$/d' | uniq > $lang_char_dir/words_no_ids.txt
 
   if [ ! -f $lang_char_dir/words.txt ]; then
-    ./local/prepare_words.py \
-      --input-file $lang_char_dir/words_no_ids.txt
+    python3 ./local/prepare_words.py \
+      --input-file $lang_char_dir/words_no_ids.txt \
       --output-file $lang_char_dir/words.txt
   fi
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
-    ./local/prepare_char.py
+    python3 ./local/prepare_char.py
   fi
 fi
