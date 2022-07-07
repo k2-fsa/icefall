@@ -37,7 +37,7 @@ for sym in 1 2 3; do
     --nhead 8 \
     --encoder-dim 512 \
     --decoder-dim 512 \
-    --joiner-dim 512
+    --joiner-dim 512 \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav
@@ -82,6 +82,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
 
     ./pruned_transducer_stateless5/decode.py \
       --decoding-method $method \
+      --use-averaged-model 0 \
       --epoch 999 \
       --avg 1 \
       --max-duration $max_duration \
