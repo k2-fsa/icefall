@@ -879,6 +879,11 @@ def run(rank, world_size, args):
         The return value of get_parser().parse_args()
     """
     params = get_params()
+
+    # Note: it's better to set --spec-aug-time-warpi-factor=-1
+    # when doing distillation with vq.
+    assert args.spec_aug_time_warp_factor == -1
+
     params.update(vars(args))
     if params.full_libri is False:
         params.valid_interval = 1600
