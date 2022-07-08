@@ -67,7 +67,7 @@ class LearnedGradient(Optimizer):
             param_min_rms=1.0e-05,
             param_max_rms=2.0,
             lr_mat_min=0.01,
-            lr_mat_max=4.0,
+            lr_mat_max=10.0,
             lr_est_period=2,
             diagonalize_period=4,
     ):
@@ -474,7 +474,8 @@ class LearnedGradient(Optimizer):
             # are the final changes, the only 2 we make in this loop that have
             # side effects.
 
-            # delta_scale < 1 will make it update the learning rates faster than it otherwise would.
+            # delta_scale < 1 will make it update the learning rates faster than it otherwise would,
+            # as we'll reach equilbrium with M less rapidly.
             delta_scale=1.0
             delta.add_(this_delta, alpha=-delta_scale*meta_lr*(1-beta1))
             # there is no momentum on Q.
