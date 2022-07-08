@@ -56,7 +56,7 @@ def get_git_sha1():
         git_commit = (
             git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
         )
-    except subprocess.CalledProcessError:
+    except:  # noqa
         return None
 
     return git_commit
@@ -74,7 +74,7 @@ def get_git_date():
             .rstrip("\n")
             .strip()
         )
-    except subprocess.CalledProcessError:
+    except:  # noqa
         return None
 
     return git_date
@@ -92,7 +92,7 @@ def get_git_branch_name():
             .rstrip("\n")
             .strip()
         )
-    except subprocess.CalledProcessError:
+    except:  # noqa
         return None
 
     return git_date
