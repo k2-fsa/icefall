@@ -19,10 +19,10 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless/decode.py \
+./conv_emformer_transducer_stateless2/decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --max-duration 300 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -34,10 +34,10 @@ Usage:
       --use-averaged-model True
 
 (2) modified beam search
-./conv_emformer_transducer_stateless/decode.py \
+./conv_emformer_transducer_stateless2/decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --max-duration 300 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -50,10 +50,10 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless/decode.py \
+./conv_emformer_transducer_stateless2/decode.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless/exp \
+      --exp-dir conv_emformer_transducer_stateless2/exp \
       --max-duration 300 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
