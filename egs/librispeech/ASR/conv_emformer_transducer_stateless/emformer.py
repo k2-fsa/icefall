@@ -1585,7 +1585,7 @@ class EmformerEncoder(nn.Module):
         memory_mask = (
             (
                 (
-                    num_processed_frames << int(math.log(self.chunk_length, 2))
+                    num_processed_frames >> int(math.log(self.chunk_length, 2))
                 ).view(x.size(1), 1)
                 <= torch.arange(self.memory_size, device=x.device).expand(
                     x.size(1), self.memory_size
