@@ -109,7 +109,6 @@ class LearnedGradient(Optimizer):
 
         for group in self.param_groups:
             lr = group["lr"]
-            meta_lr_scale = group["meta_lr_scale"]
             size_lr = lr * group["size_lr_scale"]
             beta1, beta2 = group["betas"]
             lr_mat_min = group["lr_mat_min"]
@@ -454,7 +453,7 @@ class LearnedGradient(Optimizer):
             # for now just estimate proj2_grad_var from proj2_grad; later, we
             # may try aggregating it across iterations.  This is like exp_avg_sq
             # in Adam.
-            proj2_grad_var = self._get_matrix_var(proj_grad, group["eps"])
+            proj2_grad_var = self._get_matrix_var(proj2_grad, group["eps"])
 
             denom = proj2_grad_var.sqrt()
 
