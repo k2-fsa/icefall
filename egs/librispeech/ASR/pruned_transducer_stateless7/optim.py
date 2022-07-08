@@ -60,7 +60,7 @@ class LearnedGradient(Optimizer):
             params,
             lr=3e-02,
             size_lr_scale=0.1,
-            meta_lr_scale=0.1,
+            meta_lr_scale=0.0,
             betas=(0.9, 0.98),
             eps=1.0e-08,
             size_update_period=1,
