@@ -74,7 +74,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare aishell2 manifest"
   # We assume that you have downloaded and unzip the aishell2 corpus
   # to $dl_dir/aishell2
-  if [ ! -f data/manifests/.aishell_manifests.done ]; then
+  if [ ! -f data/manifests/.aishell2_manifests.done ]; then
     mkdir -p data/manifests
     lhotse prepare aishell2 $dl_dir/aishell2 data/manifests -j $nj
     touch data/manifests/.aishell2_manifests.done
@@ -94,7 +94,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute fbank for aishell"
+  log "Stage 3: Compute fbank for aishell2"
   if [ ! -f data/fbank/.aishell2.done ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_aishell2.py
@@ -129,7 +129,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   # The implementation of chinese word segmentation for text,
   # and it will take about 15 minutes.
-  # If can't install paddle-tiny with python 3.8, please refer
+  # If you can't install paddle-tiny with python 3.8, please refer to
   # https://github.com/fxsjy/jieba/issues/920
   if [ ! -f $lang_char_dir/text_words_segmentation ]; then
     python3 ./local/text2segments.py \
