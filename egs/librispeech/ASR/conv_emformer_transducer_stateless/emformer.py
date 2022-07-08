@@ -1252,8 +1252,8 @@ class EmformerEncoder(nn.Module):
     ):
         super().__init__()
 
-        assert int(math.log(chunk_length, 2)) == math.log(
-            chunk_length, 2
+        assert (
+            chunk_length - 1 & chunk_length == 0
         ), "chunk_length should be a power of 2."
 
         self.use_memory = memory_size > 0
