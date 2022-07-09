@@ -415,7 +415,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
 
         #debug = random.random() < 0.1
-        debug = True
+        debug = (random.random() < 0.001)
         for i in range(4):  # for 4 iterations..
             for dim in range(ndim):
                 size = p.shape[dim]
