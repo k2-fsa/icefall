@@ -370,8 +370,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             rank = numel // size
             rms = self._smooth_param_rms(group, S.sqrt(), rank)
 
-            if random.random() < 0.05:
-                logging.info(f"Shape={tuple(p.shape)}, dim={dim}, size={size}, rms={rms[::10]}")
+            if random.random() < 0.0005:
+                logging.info(f"Shape={tuple(p.shape)}, dim={dim}, rank={rank}, size={size}, rms={rms[::10]}")
 
             Q = state[f"Q_{dim}"]
             Q[:] = (U * rms).t()
@@ -405,7 +405,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 N_grad_cov = torch.matmul(Q, torch.matmul(grad_cov, Q.t()))
                 N_grad_cov = N_grad_cov + N_grad_cov.t()  # ensure symmetric
                 U, S, V = _svd(N_grad_cov)
-                if random.random() < 0.1:
+                if random.random() < 0.001:
                     logging.info(f"Diagonalizing, shape={tuple(p.shape)}, dim={dim}, dispersion "
                                  f"changed from {dispersion(N_grad_cov.diag())} to {dispersion(S)}")
 
