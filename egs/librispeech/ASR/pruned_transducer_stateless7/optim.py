@@ -360,23 +360,100 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         ndim = p.ndim
         numel = p.numel()
 
+        if numel in p.shape:
+            return  # Nothing to do for this parameter matrix.  E.g. a bias or a scalar.
+
+        scale_arr = [None] * ndim
+
+        # the small random part is to ensure there are no exact zeros, e.g.
+        # if we initialized some parameters to zero.
+        eps = 1.0e-20
+        cur_p = p + eps * torch.randn_like(p)
+
+        dims_to_sum = list(range(ndim-1))
+
         for dim in range(ndim):
             size = p.shape[dim]
             if size == 1 or size == p.numel():
                 continue
             param_cov = state[f"param_cov_{dim}"]
             U, S, V = _svd(param_cov)
-            rank = numel // size
-            rms = self._smooth_param_rms(group, S.sqrt(), rank)
+            Q = state[f"Q_{dim}"]
+            Q[:] = U.t()
 
-            if random.random() < 0.0005:
-                logging.info(f"Shape={tuple(p.shape)}, dim={dim}, rank={rank}, size={size}, rms={rms[::10]}")
+            M = cur_p.transpose(dim, -1)
+            N = torch.matmul(M, U)
+            cur_param_var = (N * N).mean(dim=dims_to_sum)
+            # OK, cur_param_var would be the same as S if the variance stats
+            # param_cov_{dim} were accumulated from this exact parameter matrix,
+            # but actually they contain other versions of the parameter
+            # covariance so they will, in general, be less extreme.  We scale
+            # p so that it matches the accumulated stats, the idea is to
+            # ensure it doesn't have any too-small eigenvalues (where the
+            # stats permit).
+            scale = (S.clamp(min=eps) / cur_param_var.clamp(min=eps)).sqrt()
+            N *= scale
+            cur_p = N.transpose(dim, -1)
+
+        # OK, at this point we have a matrix cur_p that is multiplied by orthogonal matrices
+        # in each non-trivial dim, that is also multiplied by scalars to match the
+        # accumulated covariance stats (in general this will make a modest difference,
+        # making the eigenvalue distribution a bit flatter).  Now we will work out
+        # the "scaling" part of the learning-rate matrices Q.  We can't do this independenty
+        # for each dim, because there is a risk of "counting things twice".
+        # E.g. for a matrix with 2 dims, if we do SVD M = U S V^T, if we consider the
+        # covariance on the left and the right, S will be reflected in both covariances,
+        # so it doesn't make sense to correct for S twice.  Not all parameter matrices
+        # have exactly 2 dims, and also we're dealing with accumulated parameter stats
+        # which makes things not quite so simple, so we don't want to just take the sqrt of S.
+
+        # cur_scales[dim] will be a 1-d tensor of shape (size,) = (p.shape[dim],),
+        # containing the scales on the learning-rate matrix for this dimension.
+        # we apply these scales to the parameter matrix before estimating the
+        # cur_scales for the other dims.
+        cur_scales = [None] * ndim
+
+
+        #debug = random.random() < 0.1
+        debug = True
+        for i in range(4):  # for 4 iterations..
+            for dim in range(ndim):
+                size = p.shape[dim]
+                if size == 1 or size == p.numel():
+                    continue
+
+                M = cur_p.transpose(dim, -1)
+                # correct for the fact that we have already normalized this dim in cur_p.
+                if cur_scales[dim] is not None:
+                    M *= cur_scales[dim]
+                rms = (M**2).mean(dim=dims_to_sum).sqrt()
+                rank = numel // size
+                smoothed_rms = self._smooth_param_rms(group, rms, rank)
+                cur_scales[dim] = smoothed_rms
+                M /= smoothed_rms # normalize this dim..
+
+                if debug:
+                    logging.info(f"i={i} shape={tuple(p.shape)}, dim={dim}, rank={rank}, size={size}, rms={rms[::10]}, smoothed_rms={smoothed_rms[::10]}")
+
+        # Apply the scales in `cur_scales` to Q for each dim, this reflects the
+        # parameter rms values in the parameter-diagonalized space.
+        for dim in range(ndim):
+            if cur_scales[dim] is not None:
+                # Q is indexed indexed [diagonalized_coordinate, canonical_coordinate],
+                # want to multiply on the diagonalized co-ordinate.
+                state[f"Q_{dim}"] *= cur_scales[dim].unsqueeze(-1)
+
+        for dim in range(ndim):
+            size = p.shape[dim]
+            if size == 1 or size == p.numel():
+                continue
 
             Q = state[f"Q_{dim}"]
-            Q[:] = (U * rms).t()
-
             if True:
-                # This block does the actual diagonalization.
+                # This block does the diagonalization of the gradient covariance, by
+                # multiplying by an orthogonal matrix (we'll take into account each element's
+                # gradient variance via exp_avg_sq).
+                #
                 # Suppose the actual parameter matrix p is M, of shape (-1, size), where
                 # the -1 represents all other tensor dims treated as a batch dimension.
                 # M_grad is the same shape as M.  We could write a pseudo-loss as
@@ -606,12 +683,13 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         new_mean = (eps + (smooth + 1) * mean)
         ans = rms / new_mean
 
-        # Apply max_rms
-        max_rms = 5.0
-        ans.clamp_(max=max_eig*2)
-        ans /= ans.mean()
-        ans.clamp_(max=max_eig)
-        ans /= ans.mean()
+        if False:
+            # Apply max_rms
+            max_rms = 5.0
+            ans.clamp_(max=max_rms*2)
+            ans /= ans.mean()
+            ans.clamp_(max=max_rms)
+            ans /= ans.mean()
         return ans
 
 
