@@ -604,8 +604,15 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         mean = rms.mean()
         rms += eps + smooth * mean
         new_mean = (eps + (smooth + 1) * mean)
-        return rms / new_mean
+        ans = rms / new_mean
 
+        # Apply max_rms
+        max_rms = 5.0
+        ans.clamp_(max=max_eig*2)
+        ans /= ans.mean()
+        ans.clamp_(max=max_eig)
+        ans /= ans.mean()
+        return ans
 
 
 
