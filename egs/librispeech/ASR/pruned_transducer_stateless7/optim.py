@@ -824,8 +824,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         """
         smooth0 = group["param_rms_smooth0"]
         smooth1 = group["param_rms_smooth1"]
+        param_pow = group["param_pow"]
         eps = group["eps"]
         size, = rms.shape
+        rms = rms ** param_pow
         smooth = (smooth0 +
                   (smooth1 - smooth0) * size / (size + rank))
         mean = rms.mean()
