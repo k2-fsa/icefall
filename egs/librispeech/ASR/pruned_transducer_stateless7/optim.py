@@ -470,6 +470,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # grad_cov_{dim}, which are for periodically updating the
             # learning-rate matrices.
             size = grad.shape[dim]
+            if size == 1:
+                continue
             grad_cov = state[f"grad_cov_{dim}"]
             this_m = p.transpose(-1, dim).reshape(-1, size)  # parameter matrix M
             this_g = grad.transpose(-1, dim).reshape(-1, size)  # M_grad
