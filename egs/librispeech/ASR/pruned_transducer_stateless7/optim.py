@@ -1664,10 +1664,8 @@ def _test_eve_cain():
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         # TODO: find out why this is not converging...
         m = torch.nn.Sequential(Linear(E, 200),
-                                ActivationBalancer(-1),
                                 torch.nn.PReLU(),
                                 Linear(200, 200),
-                                ActivationBalancer(-1),
                                 torch.nn.PReLU(),
                                 Linear(200, E),
                                 ).to(device)
