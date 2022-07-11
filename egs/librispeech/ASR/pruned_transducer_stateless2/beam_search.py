@@ -126,6 +126,8 @@ def fast_beam_search_nbest_LG(
       use_double_scores:
         True to use double precision for computation. False to use
         single precision.
+      temperature:
+        Softmax temperature.
     Returns:
       Return the decoded result.
     """
@@ -244,6 +246,8 @@ def fast_beam_search_nbest(
       use_double_scores:
         True to use double precision for computation. False to use
         single precision.
+      temperature:
+        Softmax temperature.
     Returns:
       Return the decoded result.
     """
@@ -331,7 +335,8 @@ def fast_beam_search_nbest_oracle(
       nbest_scale:
         It's the scale applied to the lattice.scores. A smaller value
         yields more unique paths.
-
+      temperature:
+        Softmax temperature.
     Returns:
       Return the decoded result.
     """
@@ -404,6 +409,8 @@ def fast_beam_search(
         Max states per stream per frame.
       max_contexts:
         Max contexts pre stream per frame.
+      temperature:
+        Softmax temperature.
     Returns:
       Return an FsaVec with axes [utt][state][arc] containing the decoded
       lattice. Note: When the input graph is a TrivialGraph, the returned
@@ -809,6 +816,8 @@ def modified_beam_search(
         encoder_out before padding.
       beam:
         Number of active paths during the beam search.
+      temperature:
+        Softmax temperature.
     Returns:
       Return a list-of-list of token IDs. ans[i] is the decoding results
       for the i-th utterance.
@@ -1072,6 +1081,8 @@ def beam_search(
         A tensor of shape (N, T, C) from the encoder. Support only N==1 for now.
       beam:
         Beam size.
+      temperature:
+        Softmax temperature.
     Returns:
       Return the decoded result.
     """
