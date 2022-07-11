@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from collections import defaultdict
 from typing import List, Optional, Union, Tuple, List
 from lhotse.utils import fix_random_seed
 import torch
@@ -23,7 +23,73 @@ from torch import Tensor
 from torch.optim import Optimizer
 import logging
 
-class PrAdam(Optimizer):
+
+class BatchedOptimizer(Optimizer):
+    """
+    This class adds to class Optimizer the capability to optimize parameters in batches:
+    it will stack the parameters and their grads for you so the optimizer can work
+    on tensors with an extra leading dimension.
+
+    Args:
+      params:
+    """
+    def __init__(self, params, defaults):
+        super(BatchedOptimizer, self).__init__(params, defaults)
+
+
+    def batched_params(self, param_group):
+        """
+        This function returns an iterator over tuples (p, state), where
+        p is a `fake` parameter that is stacked (over axis 0) from real parameters
+        that share the same shape, and its gradient is also stacked;
+        `state` is the state corresponding to this fake parameter
+        (it will be physically located in the "state" for one of the real
+        parameters, the last one that has any particular shape and dtype).
+
+        The idea is, instead of doing:
+        <code>
+          for p in group["params"]:
+             state = self.state[p]
+             ...
+        </code>
+        you can do:
+        <code>
+          for p, state in self.batched_params(group["params"]):
+             ...
+        </code>
+
+        Args:
+          group: a parameter group, which is a list of parameters; should be
+                one of self.groups.
+        """
+        batches = defaultdict(list)   # `batches` maps from tuple (dtype_as_str,*shape) to list of nn.Parameter
+
+        for p in param_group:
+            assert p.grad is not None and "All parameters must have a grad when you call optimizer.step()"
+            assert not p.grad.is_sparse and "Sparse gradients not supported."
+            key = (str(p.dtype), *p.shape)
+            batches[key].append(p)
+
+        for p in param_group:
+            key = (str(p.dtype), *p.shape)
+            batch = batches[key]
+            if p is batch[0]:  # if this is the 1st param in the batch...
+                # we arbitrarily store the state in the
+                # state corresponding to the 1st parameter in the
+                # group.  class Optimizer will take care of saving/loading state.
+                state = self.state[p]
+                p_stacked = torch.stack(batch)
+                grad = torch.stack([p.grad for p in batch])
+                p_stacked.grad = grad
+                yield p_stacked, state  # <-- calling code will do the actual optimization here!
+                # Now un-stack the parameter changes
+                for i,p in enumerate(batch):
+                    p[:] = p_stacked[i]
+
+
+
+
+class PrAdam(BatchedOptimizer):
     """
     Implements 'Projected Adam', a variant of Adam with projections for each
     dim of each tensor.
@@ -79,7 +145,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             size_update_period=4,
             lr_update_period=200,
             grad_cov_period=3,
+            param_cov_period=100,
+            max_fullcov_size=2048,
     ):
+
 
 
         defaults = dict(
@@ -97,6 +166,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             size_update_period=size_update_period,
             lr_update_period=lr_update_period,
             grad_cov_period=grad_cov_period,
+            param_cov_period=param_cov_period,
+            max_fullcov_size=max_fullcov_size,
         )
 
         super(PrAdam, self).__init__(params, defaults)
@@ -118,15 +189,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             with torch.enable_grad():
                 loss = closure()
 
+        batch = True
         for group in self.param_groups:
-            do_batch = False
-
-            if len([ p if p.grad is None for p in group.params ]) != 0:
-                self._init_group_state(group)
-
-            for p in group["params"]:
-                if p.grad is None:
-                    continue
+            for p, state in self.batched_params(group["params"]):
 
                 # Perform optimization step
                 grad = p.grad
@@ -134,201 +199,189 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                     raise RuntimeError(
                         "PrAdam optimizer does not support sparse gradients"
                     )
-                state = self.state[p]
-
                 # State initialization
                 if len(state) == 0:
                     self._init_state(group, p, state)
-                if not do_batch:
-                    self._step_one_param(group, p, state, batch=False)
-            if do_batch:
-                batches = self._get_batches(group)
+                self._step_one_batch(group, p, state)
+
 
         return loss
 
 
-    def _get_batches(self,
-                     group: dict):
+    def _init_state(self,
+                    group: dict,
+                    p: Tensor,
+                    state: dict):
         """
-        Arrange the parameters in the group into batches, and return a "fake" version of
-        group["params"] that contains the parameters stacked into batches, arranged  by
-        size.
-        """
-        is_initialized = False
-        if "batches" not in group:
-            self._init_batches(self, group)
+        Initializes state dict for parameter 'p'.  Assumes that dim 0 of tensor p
+        is actually the batch dimension, corresponding to batched-together
+        parameters of a given shape.
 
-
-    def _init_batches(self,
-                      group: dict):
-        """
-        Arrange the parameters in this parameter group by dtype and shape, and group
-        them into batches; this involves reallocating the tensors that are members
-        of self.state[p] for each param, so that there can be an underlying group
-        """
-
-        batches = []
-        for (dtype,shape), params in itertools.groupby(group["params"],
-                                                       lambda p: (p.dtype, p.shape)):
-            # (dtype,shape) is the "key" of the grouping, "params" is the list
-            # of parameters that share the dtype and shape.  group["params"] is
-            # a list of all the parameters in this group.
-            #param_batches =
-
-    def _init_group_state(self,
-                          group: dict,
-                          batch: bool):
-        """
-        Initializes state dict for parameter group `group`.  Expects all elements of the state
-        to be uninitialized, i.e. you cannot have gradient for some parameters now and other
-        parameters later, it must be all or nothing.  This is also a requirement for DDP,
-        so it's not much inconvenience.
         Args:
-           group:   Parameter group to initialize state for.  A list of nn.Parameter.
-           batch:   if True, we will arrange parameters into batches for more efficient
-                    optimizatin.
+           group:   Dict to look up configuration values.
+               p: The parameter that we are initializing the state for, actually
+                  will be stacked-together "real" parameters
+           state: Dict from string to whatever state we are initializing
         """
-
         eps = group["eps"]
         size_update_period = group["size_update_period"]
+        max_fullcov_size = group["max_fullcov_size"]
 
-        for p in group["params"]:
-            assert p.grad is not None and "All parameters must have grads, or none."
-            grad = p.grad
-            if grad.is_sparse:
-                raise RuntimeError(
-                    "PrAdam optimizer does not support sparse gradients"
-                )
-            state = self.state[p]
+        state["step"] = 0
 
-            state["step"] = 0
+        kwargs = {'device':p.device, 'dtype':p.dtype}
 
-            kwargs = {'device':p.device, 'dtype':p.dtype}
+        # 'delta' implements conventional momentum.  There are
+        # several different kinds of update going on, so rather than
+        # compute "exp_avg" like in Adam, we store and decay a
+        # parameter-change "delta", which combines all forms of
+        # update.  this is equivalent to how it's done in Adam,
+        # except for the first few steps.
+        state["delta"] = torch.zeros_like(
+            p, memory_format=torch.preserve_format
+        )
 
-            # 'delta' implements conventional momentum.  There are
-            # several different kinds of update going on, so rather than
-            # compute "exp_avg" like in Adam, we store and decay a
-            # parameter-change "delta", which combines all forms of
-            # update.  this is equivalent to how it's done in Adam,
-            # except for the first few steps.
-            state["delta"] = torch.zeros_like(
-                p, memory_format=torch.preserve_format
-            )
+        batch_size = p.shape[0]
+        numel = p.numel() // batch_size
 
-            if p.numel() > 1:
-                # "param_rms" just periodically records the scalar root-mean-square value of
-                # the parameter tensor.
-                param_rms = (p**2).mean().sqrt().add_(eps)
-                state["param_rms"] = param_rms
+        if numel > 1:
+            # "param_rms" just periodically records the scalar root-mean-square value of
+            # the parameter tensor.
+            param_rms = _mean(p**2, exclude_dims=[0], keepdim=True).sqrt() + eps
+            state["param_rms"] = param_rms
 
-                state["scale_exp_avg_sq"] = torch.zeros((), **kwargs)
-                # scalar exp_avg_sq.  not the same as scale_exp_avg_sq, this is used to
-                # determine the magnitude of the regular step
-                state["scalar_exp_avg_sq"] = torch.zeros((), **kwargs)
-                state["scale_grads"] = torch.zeros(size_update_period,
-                                                   **kwargs)
+            state["scale_exp_avg_sq"] = torch.zeros_like(param_rms)
+            # scalar exp_avg_sq.  not the same as scale_exp_avg_sq, this is used to
+            # determine the magnitude of the regular step
+            state["scalar_exp_avg_sq"] = torch.zeros_like(param_rms)
+            state["scale_grads"] = torch.zeros(size_update_period, *param_rms.shape,
+                                               **kwargs)
 
-                # exp_avg_sq is in the projected space.  It is periodically zeroed, and we
-                # set zero_step.
-                state["exp_avg_sq"] = torch.zeros_like(
-                    p, memory_format=torch.preserve_format
-                )
-                state["zero_step"] = 0
+        # exp_avg_sq is in the projected space.  It is periodically zeroed, and we
+        # set zero_step whenever this happens.
+        state["exp_avg_sq"] = torch.zeros_like(
+            p, memory_format=torch.preserve_format
+        )
 
-                for dim in range(p.ndim):
-                    size = p.shape[dim]
-                    if size == 1 or size == p.numel():
-                        continue
+        ignore_rank1_dims = True # a config value, can change this (TODO: tune)
+
+        trivial_update = True
+        for dim in range(1, p.ndim):
+            size = p.shape[dim]
+            if size == 1 or (size == numel and ignore_rank1_dims):
+                continue
+            trivial_update = False
+
+        state["trivial_update"] = trivial_update  # so we know whether to zero exp_avg_sq stats.
+        if trivial_update:
+            logging.info(f"Shape={p.shape}, trivial update.") # TODO: remove
+            return
+
+        # "zero_step" being a member of state is the sign that this parameter has
+        # at least one dim that has a projection.
+        state["zero_step"] = 0
+
+        for dim in range(1, p.ndim):
+            size = p.shape[dim]
+            if size == 1 or (size == numel and ignore_rank1_dims):
+                continue
+
+            if size <= max_fullcov_size:
+                # Q_{dim} is be the learning-rate matrix for this
+                # dimension, a matrix of indexed [diagonalized_coordinate, canonical_coordinate].
+                # this is used twice in the update step, once transposed and once without transpose.
+                state[f"Q_{dim}"] = torch.eye(size, **kwargs).unsqueeze(0).expand(
+                    batch_size, size, size).contiguous()
+
+                # param_cov_{dim} is the averaged-over-time gradient of parameters on this dimension, treating
+                # all other dims as a batch axis.
+                state[f"param_cov_{dim}"] = torch.zeros(batch_size, size, size, **kwargs)
+
+                # grad_cov_{dim} is the covariance of gradients on this axis (without
+                # any co-ordinate changes), treating all other axes as as a batch axis.
+                # This is needed when we re-diagonalize, and to compute the
+                # grad_rms_{dim}.  We store it as a decaying average, decaying with beta2
+
+                # only for purposes of computing the scalar factor on the
+                # learning rate; and, as a result of this, also contributes something
+                # to the gradient w.r.t. f"Q_{dim}", which is one reason
+                # why we allocate a variable to keep track of its moving average
+                # instead of just using a temporary and smoothing the scalar factor.
+                state[f"grad_cov_{dim}"] = torch.zeros(batch_size, size, size, **kwargs)
+            else:
+                # diagonal-only Q and param_cov, no grad_cov needed because it is only
+                # needed for multiplying Q_{dim} by an orthogonal matrix, which is not
+                # applicable if Q_{dim} is diagonal.
+                state[f"Q_{dim}"] = torch.ones(batch_size, size, **kwargs)
+                state[f"param_cov_{dim}"] = torch.zeros(batch_size, size, **kwargs)
 
 
-                    # Q_{dim} is be the learning-rate matrix for this
-                    # dimension, a matrix of indexed [diagonalized_coordinate, canonical_coordinate].
-                    # this is used twice in the update step, once transposed and once without transpose.
-                    state[f"Q_{dim}"] = torch.eye(size, **kwargs)
-
-                    # param_cov_{dim} is the averaged-over-time gradient of parameters on this dimension, treating
-                    # all other dims as a batch axis.
-                    state[f"param_cov_{dim}"] = torch.zeros(size, size, **kwargs)
-
-                    # grad_cov_{dim} is the covariance of gradients on this axis (without
-                    # any co-ordinate changes), treating all other axes as as a batch axis.
-                    # This is needed when we re-diagonalize, and to compute the
-                    # grad_rms_{dim}.  We store it as a decaying average, decaying with beta2
-
-                    # only for purposes of computing the scalar factor on the
-                    # learning rate; and, as a result of this, also contributes something
-                    # to the gradient w.r.t. f"Q_{dim}", which is one reason
-                    # why we allocate a variable to keep track of its moving average
-                    # instead of just using a temporary and smoothing the scalar factor.
-                    state[f"grad_cov_{dim}"] = torch.zeros(size, size, **kwargs)
-
-
-    def _step_one_param(self,
+    def _step_one_batch(self,
                         group: dict,
                         p: Tensor,
-                        state: dict,
-                        batch: bool):
+                        state: dict):
+        """
+        Do the step for one parameter, which is actually going to be a batch of
+        `real` parameters, with dim 0 as the batch dim.
+        Args:
+                  group:  dict to look up configuration values
+                     p: parameter to update (actually multiple parameters stacked together
+                        as a batch)
+                  state: state-dict for p, to look up the optimizer state
+        """
         lr = group["lr"]
-        size_lr = lr * group["size_lr_scale"]
-        beta1, beta2 = group["betas"]
-        scalar_max = group["scalar_max"]
-        eps = group["eps"]
         size_update_period = group["size_update_period"]
-        param_min_rms = group["param_min_rms"]
-        param_max_rms = group["param_max_rms"]
         lr_update_period = group["lr_update_period"]
+        grad_cov_period = group["grad_cov_period"]
+        param_cov_period = group["param_cov_period"]
+        eps = group["eps"]
+        beta1 = group["betas"][0]
 
         grad = p.grad
         step = state["step"]
         delta = state["delta"]
+
         delta.mul_(beta1)
-        numel = p.numel() // (p.shape[0] if batch else 1)
+        batch_size = p.shape[0]
+        numel = p.numel() // batch_size
         if numel > 1:
             # Update the size/scale of p, and set param_rms
             scale_grads = state["scale_grads"]
             scale_grads[step % size_update_period] = _sum(p * grad,
-                                                          exclude_dims=[0] if batch else [])
+                                                          exclude_dims=[0],
+                                                          keepdim=True)
             if step % size_update_period == size_update_period - 1:
-                # this learns the overall scale on the parameter, by shrinking or
-                # expanding it.
-                param_rms = state["param_rms"]
-                param_rms.copy_(_mean(p ** 2, exclude_dims=[0] if batch else []).sqrt().clamp_(min=eps))
+                param_rms = state["param_rms"]  # shape: (batch_size, 1, 1, ..)
+                param_rms.copy_(_mean(p ** 2, exclude_dims=[0],
+                                      keepdim=True).sqrt().clamp_(min=eps))
                 if step > 0:
-                    self._size_update(p, state,
-                                      scale_grads, param_rms,
-                                      beta1, beta2, step, size_lr,
-                                      param_min_rms, param_max_rms,
-                                      batch)
+                    # self._size_update() learns the overall scale on the
+                    # parameter, by shrinking or expanding it.
+                    self._size_update(group, scale_grads, p, state)
+
 
         if numel == 1:
-            # For parameters with very few elements we just use a form
-            # of Adam with a scale factor to reflect the overall
-            # parameter rms.  Updates delta.
-            self._step_scalar(scalar_max, beta1, beta2,
-                              eps, lr, p, grad, state,
-                              batch)
+            # For parameters with 1 element we just use regular Adam.
+            # Updates delta.
+            self._step_scalar(group, p, state)
         else:
-            if step % lr_update_period == 0 and step > 0:
-                self._accum_param_covs(group, p, state, batch)
-                self._update_lrs(group, p, state, batch)
+            if step % param_cov_period == 0:
+                self._update_param_cov(group, p, state)
+            if step % lr_update_period == 0 and step > 0 and "zero_step" in state:
+                self._update_lrs(group, p, state)
                 self._zero_exp_avg_sq(state)
-            self._step(group, p, grad, state, batch)
-        p.add_(delta)
+            if step % grad_cov_period == 0:
+                self._update_grad_cov(group, p, state)
+            self._step(group, p, state)
+
         state["step"] = step + 1
 
 
     def _size_update(self,
-                     p: Tensor,
-                     state: dict,
+                     group: dict,
                      scale_grads: Tensor,
-                     param_rms: Tensor,
-                     beta1: float,
-                     beta2: float,
-                     step: int,
-                     size_lr: float,
-                     param_min_rms: float,
-                     param_max_rms: float,
-                     batch: bool) -> None:
+                     p: Tensor,
+                     state: dict) -> None:
         """
         Called only where p.numel() > 1, this updates the scale of the parameter.
         If we imagine: p =  underlying_param * scale.exp(), and we are doing
@@ -336,36 +389,30 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         on `scale`.
 
         Args:
+       group: dict to look up configuration values
+ scale_grads: a tensor of shape (size_update_period, batch_size, 1, 1,...) containing
+               grads w.r.t. the scales.
            p:  The parameter to update
         state: The state-dict of p
-   scale_grads: A Tensor containing a list of `size_update_periods` separate copies
-              of (p * grad).sum(), for the most recent iterations.
-     param_rms: A scalar Tensor containing the current rms value of this parameter
-               tensor p (for enforcing param_min_rms and param_max_rms)
-        beta1: Beta value for decaying gradient stats
-        beta2: Beta value for decaying gradient-squared stats
-      size_lr: The learning rate to apply to `scale`
- param_min_rms: User-specified minimum on the rms value of p, we will constrain it to >= this
- param_max_rms: User-specified maximum on the rms value of p, we will constrain it to <= this
-       batch: If true, this is actually a batch of parameters stacked together,
-               and the 1st dim is the batch dim.
         """
-        if batch:
-            batch_size, size_update_period = scale_grads.shape
-        else:
-            # scale_grads is a tensor of shape (size_update_period,) containing a list of
-            # products (p * grad).sum() for the `size_update_period` most recent steps
-            size_update_period, = scale_grads.shape
 
+        param_rms = state["param_rms"]
+        beta1, beta2 = group["betas"]
+        size_lr = group["lr"] * group["size_lr_scale"]
+        param_min_rms = group["param_min_rms"]
+        param_max_rms = group["param_max_rms"]
+        step = state["step"]
+
+        batch_size = p.shape[0]
+        size_update_period = scale_grads.shape[0]
         # correct beta2 for the size update period: we will have
         # faster decay at this level.
         beta2_corr = beta2 ** size_update_period
 
-        scale_exp_avg_sq = state["scale_exp_avg_sq"]
+        scale_exp_avg_sq = state["scale_exp_avg_sq"]  # shape: (batch_size, 1, 1, ..)
         scale_exp_avg_sq.mul_(beta2_corr).add_(
-            _mean(scale_grads ** 2, exclude_dims=[0] if batch else []),
-            alpha=1-beta2_corr)
-
+            (scale_grads ** 2).mean(dim=0),  # mean over dim `size_update_period`
+            alpha=1-beta2_corr)  # shape is (batch_size, 1, 1, ...)
 
         # The 1st time we reach here is when size_step == 1.
         size_step = (step + 1) // size_update_period
@@ -374,11 +421,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # at the start of training.
 
         eps = 1.0e-10  # this value is not critical.
-        denom = scale_exp_avg_sq.sqrt() + eps
+        denom = scale_exp_avg_sq.sqrt() + eps  # shape: (batch_size, 1, 1, ..)
 
-        scale_step = -size_lr * (bias_correction2 ** 0.5) * _sum(scale_grads,
-                                                                 exclude_dims=[0] if batch else [],
-                                                                 keepdim=True) / denom
+        scale_step = -size_lr * (bias_correction2 ** 0.5) * scale_grads.sum(dim=0) / denom
 
         is_too_small = (param_rms < param_min_rms)
         is_too_large = (param_rms > param_max_rms)
@@ -388,15 +433,15 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         delta = state["delta"]
         # the factor of (1-beta1) relates to momentum.
-        delta.add_(p, alpha=(1-beta1) * scale_step)
+        delta.add_(p * scale_step, alpha=(1-beta1))
 
-    def _accum_param_covs(self,
+    def _update_param_cov(self,
                           group: dict,
                           p: Tensor,
-                          state: dict,
-                          batch: bool) -> None:
+                          state: dict) -> None:
         """
-        Updates state[f"param_cov_{dim}"] for each dim of tensor p.
+        Updates state[f"param_cov_{dim}"] for each dim of tensor p
+        (except batch and trivial and rank-1 dims)
         """
         eps = group["eps"]
         lr_update_period = group["lr_update_period"]
@@ -404,28 +449,42 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         this_weight = (group["param_cov_freshness"] * lr_update_period /
                        (step + lr_update_period))
 
-        for dim in range(p.ndim):
+        batch_size = p.shape[0]
+        numel = p.numel() // batch_size
+        for dim in range(1, p.ndim):
             size = p.shape[dim]
-            if size == 1 or size == p.numel() or (batch and dim == 0):
-                continue
+            try:
+                param_cov = state[f"param_cov_{dim}"]
+            except KeyError:
+                continue  # e.g. size == 1 or size == numel
 
-            # M is the parameter matrix, of shape (-1, size) where the -1 covers
-            # all other dimensions of the tensor.
-            M_full = p.transpose(dim, -1)
-            if batch:  # dim 0 is batch dim
-                M = M_full.reshape(p.shape[0], -1, size)
+            if param_cov.ndim == 3:
+                # param_cov shape: (batch_size, size, size)
+
+                # M is the parameter matrix, of shape (-1, size) where the -1 covers
+                # all other dimensions of the tensor.
+                M_full = p.transpose(dim, -1)
+                M = M_full.reshape(batch_size, -1, size)
+
+                # will be batched matrix multiply.  shape of this_param_cov: (batch_size, size, size)
+                this_param_cov = torch.matmul(M.transpose(1,2), M)
+                # normalize scale of this param_cov, in case parameter scale
+                # changes significantly during training, which would cause some
+                # parts of the training timeline to be more highly weighted.
+                # shape of this_param_cov
+                this_param_cov /= _mean(_diag(this_param_cov), # _diag(this_param_cov) has shape (batch_size, size)
+                                        exclude_dims=[0],
+                                        keepdim=True).unsqueeze(-1) + eps  # shape: (batch_size, 1, 1)
             else:
-                M = M_full.reshape(-1, size)
-            # will be batched matrix multiply if batch==True
-            this_param_cov = torch.matmul(M.t(), M)
-            # normalize scale of this param_cov, in case parameter scale
-            # changes significantly during training, which would cause some
-            # parts of the training timeline to be more highly weighted.
-            this_param_cov /= _mean(_diag(this_param_cov),
-                                    exclude_dims=[0] if batch else [],
-                                    keepdim=True) + eps
-            state[f"param_cov_{dim}"].mul_(1-this_weight).add_(this_param_cov,
-                                                               alpha=this_weight)
+                # this_param_cov dim: (batch_size, size)
+                this_param_cov = _mean(p**2,
+                                       exclude_dims=[0,dim])
+                this_param_cov /= _mean(this_param_cov,
+                                        exclude_dims=[0],
+                                        keepdim=True) + eps  # shape: (batch_size, 1)
+
+            param_cov.mul_(1-this_weight).add_(this_param_cov,
+                                               alpha=this_weight)
 
 
     def _zero_exp_avg_sq(self,
@@ -440,8 +499,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
     def _update_lrs(self,
                     group: dict,
                     p: Tensor,
-                    state: dict,
-                    batch: bool) -> None:
+                    state: dict) -> None:
         """
         Computes learning-rate matrices Q for each dim of this tensor.
         Args:
@@ -452,183 +510,243 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
           state: state dict for the current parameter
         """
         ndim = p.ndim
-        numel = p.numel() // (p.shape[0] if batch else 1)
+        batch_size = p.shape[0]
+        numel = p.numel() // batch_size
 
-        if numel in (p[0].shape if batch else p.shape)
+        if numel in p[0].shape:
             return  # Nothing to do for this parameter matrix.  E.g. a bias or a scalar.
 
         scale_arr = [None] * ndim
 
         # the small random part is to ensure there are no exact zeros, e.g.
         # if we initialized some parameters to zero.
+        #
+        # we are going to make "cur_p" a corrected version of the parameter
+        # covariance that is projected with the orthogonal projections U, and that,
+        # on the axes given by these projections, has covariance proportional
+        # to that of state[f"param_cov_{dim}"] on those same axes.  So it's
+        # *slightly* whitened, just to match the stats, but not completely
+        # whitened.
         eps = 1.0e-20
         cur_p = p + eps * torch.randn_like(p)
 
-        for dim in range(ndim):
+        for dim in range(1, ndim):
             size = p.shape[dim]
-            if size == 1 or size == p.numel() or (batch and dim == 0):
-                continue
-            param_cov = state[f"param_cov_{dim}"]
-            # if batch==True, U, S and V have an extra leading dim.
-            U, S, V = _svd(param_cov)
-            Q = state[f"Q_{dim}"]
-            Q[:] = U.transpose(-1,-2)  # 3 dims if batch, else 2.
+            try:
+                Q = state[f"Q_{dim}"]
+                param_cov = state[f"param_cov_{dim}"]
+            except KeyError:
+                assert size == 1 or size == numel, size
+                continue # e.g. size == 1 or size == numel:
 
-            M = cur_p.transpose(dim, -1)
-            if batch:
+            if param_cov.ndim == 2:
+                # size > max_fullcov_size, we do not accumulate full covariance
+                # matrix for this dim and will use a diagonal Q.
+                # param_cov.shape is (batch_size, size).
+                Q[:] = 1.0
+                S = param_cov # (batch_size, size)
+            else:
+                # if batch==True, param_cov.shape == (batch_size, size, size), and
+                # U, S and V have an extra leading dim.
+                U, S, V = _svd(param_cov)
+                Q[:] = U.transpose(1, 2)
+
+                M = cur_p.transpose(dim, -1) # (batch_size, x, y, z, size)
                 while U.ndim < M.ndim:
-                    U = U.unsqueeze(1)
-            N = torch.matmul(M, U)
+                    U = U.unsqueeze(1)  # (batch_size, 1, 1, size, size)
+                M = torch.matmul(M, U)       # (batch_size, x, y, z, size)
+                cur_p = M.transpose(dim, -1) # (batch_size, x, size, y, z)
+
             # cur_param_var is a diagonal parameter variance over dimension `dim`,
-            # will have shape something like [1, size, 1]; or [batch_size, 1, size, 1]
-            # if batch == True.
-            cur_param_var = _mean(N**2,
-                                  exclude_dims=[0,dim] if batch else [dim],
-                                  keepdim=True)
-            S = S.reshape(cur_param_var.shape)
+            # of the current "slightly-whitened" parameter; it
+            # will have shape something like [1, size, 1]; or [batch_size, 1, size, 1].
+            cur_param_var = _mean(cur_p**2,
+                                  exclude_dims=[0,dim],
+                                  keepdim=True)  # (batch_size, 1, size, 1, 1) if dim==2
+            S = S.reshape(cur_param_var.shape)  # (batch_size, 1, size, 1, 1) if dim==2
 
             # OK, cur_param_var would have the values as S if the variance stats
             # param_cov_{dim} were accumulated from this exact parameter matrix,
-            # but actually they contain other versions of the parameter
-            # covariance so they will, in general, be less extreme.  We scale
-            # p so that it matches the accumulated stats, the idea is to
-            # ensure it doesn't have any too-small eigenvalues (where the
-            # stats permit).
+            # but actually they contain older versions of the parameter
+            # covariance so they will, in general, be less extreme ("whiter
+            # spectrum").  We scale p so that it matches the accumulated stats,
+            # the idea is to ensure it doesn't have any too-small eigenvalues
+            # (where the stats permit).
             scale = (S.clamp(min=eps) / cur_param_var.clamp(min=eps)).sqrt()
+            logging.info(f"shape={p.shape}, dim={dim}, scale={scale[0].flatten()[::10]}")
+            # scale: (batch_size, 1, size, 1, 1) if dim==2
 
-            if batch:
-                batch_size = p.shape[0]
-                scale = scale.reshape(batch_size, 1, size)
-            else:
-                scale = scale.reshape(size)
-            N *= scale
-            cur_p = N.transpose(dim, -1)
+            cur_p *= scale
 
-        # OK, at this point we have a matrix cur_p that is multiplied by orthogonal matrices
-        # in each non-trivial dim, that is also multiplied by scalars to match the
-        # accumulated covariance stats (in general this will make a modest difference,
-        # making the eigenvalue distribution a bit flatter).  Now we will work out
-        # the "scaling" part of the learning-rate matrices Q.  We can't do this independenty
-        # for each dim, because there is a risk of "counting things twice".
-        # E.g. for a matrix with 2 dims, if we do SVD M = U S V^T, if we consider the
-        # covariance on the left and the right, S will be reflected in both covariances,
-        # so it doesn't make sense to correct for S twice.  Not all parameter matrices
-        # have exactly 2 dims, and also we're dealing with accumulated parameter stats
-        # which makes things not quite so simple, so we don't want to just take the sqrt of S.
+        # OK, at this point we have a matrix cur_p that is (somewhat)
+        # diagonalized by orthogonal matrices in each non-trivial dim, that is
+        # also multiplied by scalars to match the accumulated covariance stats,
+        # i.e. "slightly whitened" (in general this will make a modest
+        # difference, making the eigenvalue distribution a bit flatter).  Now we
+        # will work out the "scaling" part of the learning-rate matrices Q.  We
+        # can't do this independenty for each dim, because there is a risk of
+        # "counting things twice".  E.g. for a matrix with 2 dims, if we do SVD
+        # M = U S V^T, if we consider the covariance on the left and the right,
+        # S will be reflected in both covariances, so it doesn't make sense to
+        # correct for S twice.  Not all parameter matrices have exactly 2 dims,
+        # and also we're dealing with accumulated parameter stats which makes
+        # things not quite so simple, so we don't want to just take the sqrt of
+        # S.
 
-        # cur_scales[dim] will be a 1-d tensor of shape (size,) = (p.shape[dim],),
+        # cur_scales[dim] will be a 1-d tensor with shapes like (batch_size, 1, 1, size, 1),
         # containing the scales on the learning-rate matrix for this dimension.
         # we apply these scales to the parameter matrix before estimating the
         # cur_scales for the other dims.
         cur_scales = [None] * ndim
 
 
-        #debug = random.random() < 0.1
-        debug = (random.random() < 0.001)
-        for i in range(4):  # for 4 iterations..
-            for dim in range(ndim):
+        debug = True #(random.random() < 0.001)
+        for i in range(4):  # for 4 iterations (this is quite arbitrary)
+            for dim in range(1, ndim):
                 size = p.shape[dim]
-                if size == 1 or size == p.numel() or (batch and dim == 0):
+                if not f"Q_{dim}" in state:
+                    assert size == 1 or size == numel, size
                     continue
-
-                M = cur_p.transpose(dim, -1)
-                # correct for the fact that we have already normalized this dim in cur_p.
                 if cur_scales[dim] is not None:
-                    M *= cur_scales[dim]
-                rms = _mean(M**2,
-                            exclude=[0,dim] if batch else dim).sqrt()
+                    # correct for the fact that we have already normalized this dim in cur_p,
+                    # i.e. remove the scaling for *this* dim, while keeping the scaling for
+                    # all other dims.
+                    cur_p *= cur_scales[dim]  # cur_scales shape: (batch_size, 1, size, 1, 1)
+                # rms shape: (batch_size, 1, size, 1, 1)
+                rms = _mean(cur_p**2, exclude_dims=[0,dim], keepdim=True).sqrt()
                 rank = numel // size
-                smoothed_rms = self._smooth_param_rms(group, rms, rank, batch)
+                smoothed_rms = self._smooth_param_rms(group, rms, rank)
                 cur_scales[dim] = smoothed_rms
-                M /= smoothed_rms # normalize this dim..
+                cur_p /= smoothed_rms # normalize/"whiten" cur_p on this dim..
 
                 if debug:
-                    logging.info(f"i={i} shape={tuple(p.shape)}, dim={dim}, rank={rank}, size={size}, rms={rms[::10]}, smoothed_rms={smoothed_rms[::10]}")
+                    def _summarize(rms):
+                        rms = rms[0] # get rid of batch dim by selecting one example
+                        rms = rms.flatten()
+                        return rms[::10] # subset one every ten items
+                    logging.info(f"i={i} shape={tuple(p.shape)}, dim={dim}, rank={rank}, size={size}, rms={_summarize(rms)}, smoothed_rms={_summarize(smoothed_rms)}")
 
-        # Apply the scales in `cur_scales` to Q for each dim, this reflects the
-        # parameter rms values in the parameter-diagonalized space.
-        for dim in range(ndim):
+        # Apply the scales in `cur_scales` to Q for each dim; this reflects the
+        # parameter rms values in the parameter-diagonalized space, that we have
+        # estimated in the loop above.
+        for dim in range(1, ndim):
             if cur_scales[dim] is not None:
-                # Q is indexed indexed [diagonalized_coordinate, canonical_coordinate],
-                # want to multiply on the diagonalized co-ordinate.
-                state[f"Q_{dim}"] *= cur_scales[dim].unsqueeze(-1)
+                size = p.shape[dim]
+                Q = state[f"Q_{dim}"]
 
-        for dim in range(ndim):
+                scale = cur_scales[dim].reshape(batch_size, size)
+                if Q.ndim == 3:
+                    # Q is indexed [batch_index, diagonalized_coordinate, canonical_coordinate],
+                    # want to multiply on the diagonalized co-ordinate.
+                    scale = scale.unsqueeze(-1)
+                # else: Q is indexed [batch_index, canonical_coordinate].
+                state[f"Q_{dim}"] *= scale
+
+        self._diagonalize_grad_cov(group, p, state)
+
+    def _diagonalize_grad_cov(self,
+                              group: dict,
+                              p: Tensor,
+                              state: dict) -> None:
+        """
+        Called from _update_lrs(), this function diagonalizes the gradient covariance
+        state[f"grad_cov_{dim}"] by modifying the projections state[f"Q_{dim}"]: specifically,
+        by left-multiplying the projections by an orthogonal matrix.
+        """
+        batch_size = p.shape[0]
+        max_fullcov_size = group["max_fullcov_size"]
+        numel = p.numel() // batch_size
+        for dim in range(1, p.ndim):  # dim 0 is batch dim
             size = p.shape[dim]
-            if size == 1 or size == p.numel():
+            try:
+                Q = state[f"Q_{dim}"]
+                grad_cov = state[f"grad_cov_{dim}"]  # grad_cov shape: (batch_size, size_size)
+            except KeyError:
+                assert size == 1 or size == numel or size > max_fullcov_size
                 continue
 
-            Q = state[f"Q_{dim}"]
-            if True:
-                # This block does the diagonalization of the gradient covariance, by
-                # multiplying by an orthogonal matrix (we'll take into account each element's
-                # gradient variance via exp_avg_sq).
-                #
-                # Suppose the actual parameter matrix p is M, of shape (-1, size), where
-                # the -1 represents all other tensor dims treated as a batch dimension.
-                # M_grad is the same shape as M.  We could write a pseudo-loss as
-                #  loss = tr(M_grad^T M)
-                # Because we can decompose M as M == N Q, we can write:
-                # loss = tr(M_grad^T N Q) = tr(Q M_grad^T N),
-                # so we can write this at tr(N_grad^T N),
-                # where N_grad == (Q M_grad^T)^T = M_grad Q^T.
-                # Now,
-                #   grad_cov == M_grad^T M_grad,
-                # decaying-averaged over minibatches; this is of shape (size,size).
-                # Using N_grad = M_grad Q^T, we can write the gradient covariance w.r.t. N
-                # (which is what we want to diagonalize), as::
-                #  N_grad_cov = N_grad^T N_grad
-                #             = Q M_grad^T M_grad Q^T
-                #             = Q grad_cov Q^T
-                # (note: this makes sense because the 1st index of Q is the diagonalized
-                # index).
+            # Suppose the actual parameter matrix p is M, of shape (-1, size), where
+            # the -1 represents all other tensor dims treated as a batch dimension.
+            # M_grad is the same shape as M.  We could write a pseudo-loss as
+            #  loss = tr(M_grad^T M)
+            # Because we can decompose M as M == N Q, we can write:
+            # loss = tr(M_grad^T N Q) = tr(Q M_grad^T N),
+            # so we can write this at tr(N_grad^T N),
+            # where N_grad == (Q M_grad^T)^T = M_grad Q^T.
+            # Now,
+            #   grad_cov == M_grad^T M_grad,
+            # decaying-averaged over minibatches; this is of shape (size,size).
+            # Using N_grad = M_grad Q^T, we can write the gradient covariance w.r.t. N
+            # (which is what we want to diagonalize), as::
+            #  N_grad_cov = N_grad^T N_grad
+            #             = Q M_grad^T M_grad Q^T
+            #             = Q grad_cov Q^T
+            # (note: this makes sense because the 1st index of Q is the diagonalized
+            # index).
 
-                def dispersion(v):
-                    # a ratio that, if the eigenvalues are more dispersed,  it will be larger.
-                    return '%.3e' % ((v**2).mean() / (v.mean() ** 2)).item()
+            def dispersion(v):
+                # a ratio that, if the eigenvalues are more dispersed,  it will be larger.
+                return '%.3e' % ((v**2).mean() / (v.mean() ** 2)).item()
 
-                grad_cov = state[f"grad_cov_{dim}"]
-                N_grad_cov = torch.matmul(Q, torch.matmul(grad_cov, Q.t()))
-                N_grad_cov = N_grad_cov + N_grad_cov.t()  # ensure symmetric
-                U, S, V = _svd(N_grad_cov)
-                if random.random() < 0.001:
-                    logging.info(f"Diagonalizing, shape={tuple(p.shape)}, dim={dim}, dispersion "
-                                 f"changed from {dispersion(N_grad_cov.diag())} to {dispersion(S)}")
+            # N_grad_cov shape: (batch_size, size, size)
+            N_grad_cov = torch.matmul(Q, torch.matmul(grad_cov, Q.transpose(1, 2)))
+            N_grad_cov = N_grad_cov + N_grad_cov.transpose(1, 2)  # ensure symmetric
+            U, S, V = _svd(N_grad_cov)
+            if random.random() < 0.001:
+                logging.info(f"Diagonalizing, shape={tuple(p.shape)}, dim={dim}, dispersion "
+                             f"changed from {dispersion(_diag(N_grad_cov))} to {dispersion(S)}")
 
 
-                # N_grad_cov is SPD, so
-                #       N_grad_cov = U S U^T.
+            # N_grad_cov is SPD, so
+            #       N_grad_cov = U S U^T.
 
-                # Now, we can diagonalize N_grad_cov with:
-                #     U^T N_grad_cov U == S.
-                # N_grad_cov is a sum of N_grad^T N_grad.
-                #   We know U^T N_grad_cov U is diagonal, so U^T N_grad^T N_grad U  is diagonal.
-                # The linearized pseudo-loss can be written as tr(N_grad^T N_grad).
-                # This can be written as tr(U U^T N_grad^T N_grad), since U U^T == I,
-                #
-                # which we can rearrange as tr(U^T N_grad^T N U).  This can be interpreted
-                # as tr(hat_N_grad hat_N), where:
-                #  hat_N_grad = N_grad U
-                #  hat_N      = N U
-                # (hat_N means \hat{N}, or N with a hat on it).
-                # So if we interpret hat_N = N U, the gradient covariance w.r.t.
-                # hat_N will be diagonalized.  We also modify Q to hat_Q when
-                # we modify hat_N, to keep the product M unchanged:
-                #       M = N Q = N U U^T Q = hat_N hat_Q
-                # This can be done by setting
-                #   hat_Q := U^T Q    (eq.10)
-                #
-                # This is the only thing we have to do, as N is implicit
-                # and not materialized at this point.
-                Q[:] = torch.matmul(U.t(), Q)
+            # Now, we can diagonalize N_grad_cov with:
+            #     U^T N_grad_cov U == S.
+            # N_grad_cov is a sum of N_grad^T N_grad.
+            #   We know U^T N_grad_cov U is diagonal, so U^T N_grad^T N_grad U  is diagonal.
+            # The linearized pseudo-loss can be written as tr(N_grad^T N_grad).
+            # This can be written as tr(U U^T N_grad^T N_grad), since U U^T == I,
+            #
+            # which we can rearrange as tr(U^T N_grad^T N U).  This can be interpreted
+            # as tr(hat_N_grad hat_N), where:
+            #  hat_N_grad = N_grad U
+            #  hat_N      = N U
+            # (hat_N means \hat{N}, or N with a hat on it).
+            # So if we interpret hat_N = N U, the gradient covariance w.r.t.
+            # hat_N will be diagonalized.  We also modify Q to hat_Q when
+            # we modify hat_N, to keep the product M unchanged:
+            #       M = N Q = N U U^T Q = hat_N hat_Q
+            # This can be done by setting
+            #   hat_Q := U^T Q    (eq.10)
+            #
+            # This is the only thing we have to do, as N is implicit
+            # and not materialized at this point.
+            Q[:] = torch.matmul(U.transpose(1, 2), Q)
 
+    def _update_grad_cov(self,
+                         group: dict,
+                         p: Tensor,
+                         state: dict):
+        """
+        Updates the gradient covariance state[f"grad_cov_{dim}"] for appropriate
+        dimensions of the tensor.
+        """
+        beta2 = group["betas"][1]
+        grad = p.grad
+        batch_size = p.shape[0]
+        for dim in range(1, grad.ndim):  # dim 0 is batch dim.
+            size = grad.shape[dim]
+            name = f"grad_cov_{dim}"
+            if name not in state:
+                continue  # e.g. size==1, size == numel, size > max_fullcov_size
+            grad_cov = state[name]  # shaped: (batch_size, size, size)
+            this_g = grad.transpose(-1, dim).reshape(batch_size, -1, size)
+            grad_cov.mul_(beta2).add_(torch.matmul(this_g.transpose(1,2), this_g))
 
     def _step(self,
               group: dict,
               p: Tensor,
-              grad: Tensor,
-              state: dict,
-              batch: bool):
+              state: dict):
         """
         This function does the core update of self._step, in the case where the tensor
         has more than 1 elements.  It multiplies the moving-average gradient tensor by a
@@ -645,39 +763,20 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         This function modifies p.
         """
+        grad = p.grad
         lr = group["lr"]
         beta1, beta2 = group["betas"]
         eps = group["eps"]
         grad_cov_period = group["grad_cov_period"]
         step = state["step"]
 
-
-        for dim in range(grad.ndim):
-            # This block accumulates the statistics proj_grad_{dim} and
-            # grad_cov_{dim}, which are for periodically updating the
-            # learning-rate matrices.
-            size = grad.shape[dim]
-            if size == 1 or size == p.numel() or (batch and dim == 0):
-                continue
-            if step % grad_cov_period == 0 or step < grad_cov_period:
-                grad_cov = state[f"grad_cov_{dim}"]  # shaped: (batch, size, size) if batch, else (size, size)
-                if batch:
-                    this_m = p.transpose(-1, dim).reshape(p.shape[0], -1, size)  # parameter matrix M (batch)
-                    this_g = grad.transpose(-1, dim).reshape(p.shape[0], -1, size)  # M_grad (batch)
-                else:
-                    this_m = p.transpose(-1, dim).reshape(-1, size)  # parameter matrix M
-                    this_g = grad.transpose(-1, dim).reshape(-1, size)  # M_grad
-                # could perhaps accumulate grad_cov less frequently; it's only
-                # needed when we rediagonalize which is not that common.
-                grad_cov.mul_(beta2).add_(torch.matmul(this_g.t(), this_g))
-
-        grad = self._project(grad, state, batch, forward=True)
+        grad = self._project(grad, state, forward=True)
 
         exp_avg_sq = state["exp_avg_sq"]
         exp_avg_sq.mul_(beta2).addcmul_(grad, grad,
                                         value=(1-beta2))
 
-        this_step = (state["step"] - state["zero_step"])
+        this_step = state["step"] - (state["zero_step"] if "zero_step" in state else 0)
         bias_correction2 = 1 - beta2 ** (this_step + 1)
         if bias_correction2 < 0.99:
             # note: not in-place.
@@ -687,12 +786,12 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         grad = grad / denom
 
         # and project back..
-        grad = self._project(grad, state, batch, forward=False)
+        grad = self._project(grad, state, forward=False)
 
         scalar_exp_avg_sq = state["scalar_exp_avg_sq"]
         scalar_exp_avg_sq.mul_(beta2).add_(_mean(grad**2,
-                                                 exclude_dims=[0] if batch else [],
-                                                 keepdim=batch),
+                                                 exclude_dims=[0],
+                                                 keepdim=True),
                                            alpha=1-beta2)
 
 
@@ -706,27 +805,25 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         alpha = state["param_rms"] * (1-beta1) * -lr / denom
 
         delta = state["delta"]
-        if batch:
-            delta.add_(grad * alpha)
-        else:
-            delta.add_(grad, alpha=alpha)
+        delta.add_(grad * alpha)
+        p.add_(delta)
 
 
     def _step_scalar(self,
-                     scalar_max: float,
-                     beta1: float,
-                     beta2: float,
-                     eps: float,
-                     lr: float,
+                     group: dict,
                      p: Tensor,
-                     grad: Tensor,
-                     state: dict,
-                     batch: bool):
+                     state: dict):
         """
-        A form of the core update for scalar tensors, where we cannot get a good
-        estimate of the parameter rms.
+        A simplified form of the core update for scalar tensors, where we cannot get a good
+        estimate of the parameter rms.  p will not be a scalar, because it has a batch dim.
         """
-        exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,) if batch else (0
+        beta1, beta2 = group["betas"]
+        scalar_max = group["scalar_max"]
+        eps = group["eps"]
+        lr = group["lr"]
+        grad = p.grad
+
+        exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,)
         exp_avg_sq.mul_(beta2).addcmul_(grad, grad,
                                         value=1-beta2)
 
@@ -737,43 +834,59 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         alpha = -lr * (1-beta1) / denom
 
         delta = state["delta"]
-        delta.add_(grad / denom, alpha=alpha)
+        delta.add_(grad / denom, alpha=-lr*(1-beta1))
         p.clamp_(min=-scalar_max, max=scalar_max)
+        p.add_(delta)
 
     def _project(self,
                  x: Tensor,
                  state: dict,
-                 batch: bool,
                  forward: bool) -> Tensor:
         """
-        Multiply a tensor x by proj_{dim} on each of its dimensions.
+        Multiply a tensor x by proj_{dim} on each of its dimensions for which we have
+            a projection Q.
         If forward == True, converts x from canonical to preconditioned/diagonalized
         co-ordinates; if forward == False, does the reverse.
 
         Args:
-           x: The tensor to project, e.g. a gradient or a parameter change.
-       state: dict to look up the projections
-        batch: if True, the 1st dim of x is a batch dim and is not projected.
-      forward: if True, go in the forward directin (from canonical to diagnonalized
-                co-ordinates); if False, the reverse.  They differ by a transpose,
-                not an inverse, and do not make a round trip.
+            x: The tensor to project, e.g. a gradient or a parameter change.
+        state: dict to look up the projections
+      forward: if True, go in the forward direction (from canonical to diagnonalized
+               co-ordinates); if False, the reverse.  They differ by a transpose,
+               not an inverse, and do not make a round trip.
         """
         numel = x.numel()
-        for dim in range(x.ndim):
-            size = x.shape[dim]
-            if size == 1 or size == numel or (batch and dim == 0):
-                continue
-            Q = state[f"Q_{dim}"]
-            if forward:
-                # Q is indexed [diagonalized_index, canonical_index]; in the forward
-                # direction we want to change canonical to diagonalized index, so have
-                # to transpose.
-                Q = Q.t()
-            # TODO: could possibly somehow force the output memory format to be
-            # unchanged.
-            x = x.transpose(-1, dim)
-            x = torch.matmul(x, Q)
-            x = x.transpose(-1, dim)
+        for dim in range(1, x.ndim):  # dim 0 is batch dim
+            try:
+                Q = state[f"Q_{dim}"]  # shape: (batch_size, size, size)
+            except KeyError:
+                continue  # no projection for this dim
+
+            fullcov = (Q.ndim == 3)  # (batch_index, diagonalized_index, canonical_index), else
+            # (batch_index, canonical_index).
+
+            if fullcov:
+                if forward:
+                    # Q is indexed [batch_index, diagonalized_index, canonical_index]; in the forward
+                    # direction we want to change canonical to diagonalized index, so have
+                    # to transpose.
+                    Q = Q.transpose(1, 2)
+                # TODO: could possibly somehow force the output memory format to be
+                # unchanged.
+                while Q.ndim < x.ndim:
+                    Q = Q.unsqueeze(1)
+                # now x might have shape (batch_size, 3, 4, 5, 6)
+                # and Q might have shape (batch_size, 1, 1, 6, 6)
+                # ... and the output will still have shape (batch_size, 3, 4, 5, 6)
+                x = x.transpose(-1, dim)
+                x = torch.matmul(x, Q)
+                x = x.transpose(-1, dim)
+            else:
+                shape = [1] * x.ndim
+                shape[0] = x.shape[0] # batch_size
+                shape[dim] = x.shape[dim] # size
+                Q = Q.reshape(shape) # e.g. (batch_size, 1, size, 1, 1)
+                x = x * Q
         return x
 
     def _smooth_param_rms(self,
@@ -781,44 +894,46 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                           rms: Tensor,
                           rank: int) -> Tensor:
         """
-        Smooths and normalizes to mean=1 a tensor of diagonalized parameter rms values for one dimension
-        of a tensor, or a batch of such diagonalized rms values.
-         This will be used to construct a learning-rate matrix.
+        Smooths and normalizes to mean=1 a tensor of shape something like (batch_size, 1, size, 1, 1),
+        where for the nontrivial dim `size` it contains dagonalized parameter rms values; this is for
+        one dimension of a multiple-dimensional tensor.
+
+        This will be used to construct a learning-rate matrix.
 
         Args:
-                      group: dict for configuration values
-                       rms: Either a tensor with shape (size,) representing diagonalized parameter
-                          root-mean-square values, or a tensor of shape (batch_size, size).
-                      rank: the assumed rank of the covariance matrix from which rms was derived,
-                           used to decide how much smoothing to apply.  This is actually the
-                           minimal rank, if the parameter matrix were stay fixed during training,
-                           but still relevant to know how robust the parameter covariance estimate is.
+              group: dict for configuration values
+                rms: A tensor of shape (batch_size, [1,1,..], size, [1,1,1,..]), representing
+                    (for each batch element) a list of root-mean-square values, one per
+                    dimension of the space of size `size`.
+               rank: the assumed rank of the covariance matrix from which rms was derived,
+                    used to decide how much smoothing to apply.  This is actually the
+                    minimal rank, if the parameter matrix were stay fixed during training,
+                    but still relevant to know how robust the parameter covariance estimate is.
+          Returns:
+                a Tensor with the same shape as `rms` but with some smoothing applied so there
+                are no values too close to zero.
         """
         smooth0 = group["param_rms_smooth0"]
         smooth1 = group["param_rms_smooth1"]
         param_pow = group["param_pow"]
         eps = group["eps"]
-        size, = rms.shape
+        batch_size = rms.shape[0]
+        size = rms.numel() // batch_size
         rms = rms ** param_pow
         smooth = (smooth0 +
                   (smooth1 - smooth0) * size / (size + rank))
-        batch = (rms.ndim > 1)
-        mean = _mean(rms,
-                     exclude_dim=0 if batch else None,
-                     keepdim=True)
+        mean = _mean(rms, exclude_dims=[0], keepdim=True)
         rms += eps + smooth * mean
-        new_mean = (eps + (smooth + 1) * mean)
+        new_mean = (eps + (smooth + 1) * mean)  # mean of modified rms.
         ans = rms / new_mean
 
         if False:
             # Apply max_rms
             max_rms = 5.0
             ans.clamp_(max=max_rms*2)
-            ans /= _mean(ans, exclude_dim=0 if batch else None,
-                         keepdim=True)
+            ans /= _mean(ans, exclude_dims=[0], keepdim=True)
             ans.clamp_(max=max_rms)
-            ans /= _mean(ans, exclude_dim=0 if batch else None,
-                         keepdim=True)
+            ans /= _mean(ans, exclude_dims=[0], keepdim=True)
         return ans
 
 
@@ -841,28 +956,39 @@ def _sum(x: Tensor,
     """
     Version of torch.sum where you specify dims to exclude, not dims to sum.
     """
-    if len(exclude_dim) == 0:
-        return x.sum(keepdim=keepdim)
+    if len(exclude_dims) == 0:
+        # dim=[] works the same as tuple(range(x.ndim)), which makes
+        # no sense.. supplying the full tuple for clarity and in case
+        # the interface changes in future.
+        return x.sum(dim=tuple(range(x.ndim)), keepdim=keepdim)
     elif x.ndim == 1:
+        assert exclude_dim == [0] or exclude_dim == [-1]
         return x  # if one dim is excluded, there are no dims to sum, and
                   # x.sum(dim=[]) sums all dims so we should not call sum().
-    exclude_dims = [i if i >= 0 else i + x.ndim for i in exclude_dims]
-    dims = [i for i in range(x.ndim) if i not in exclude_dim]
+    exclude_dims_norm = [i if i >= 0 else i + x.ndim for i in exclude_dims]
+    dims = [i for i in range(x.ndim) if i not in exclude_dims_norm]
+    assert (len(dims) + len(exclude_dims) == x.ndim), exclude_dims
     return x.sum(dim=dims, keepdim=keepdim)
 
+
 def _mean(x: Tensor,
-         exclude_dims: List[int] = [],
-         keepdim: bool = False):
+          exclude_dims: List[int] = [],
+          keepdim: bool = False):
     """
     Version of torch.mean where you specify dims to exclude, not dims to mean.
     """
-    if len(exclude_dim) == 0:
-        return x.mean(keepdim=keepdim)
+    if len(exclude_dims) == 0:
+        # dim=[] works the same as tuple(range(x.ndim)), which makes
+        # no sense.. supplying the full tuple for clarity and in case
+        # the interface changes in future.
+        return x.mean(dim=tuple(range(x.ndim)), keepdim=keepdim)
     elif x.ndim == 1:
+        assert exclude_dim == [0] or exclude_dim == [-1]
         return x  # if one dim is excluded, there are no dims to mean, and
-                  # x.mean(dim=[]) averages all dims so we should not call mean().
-    exclude_dims = [i if i >= 0 else i + x.ndim for i in exclude_dims]
-    dims = [i for i in range(x.ndim) if i not in exclude_dim]
+                  # x.mean(dim=[]) means all dims so we should not call mean().
+    exclude_dims_norm = [i if i >= 0 else i + x.ndim for i in exclude_dims]
+    dims = [i for i in range(x.ndim) if i not in exclude_dims_norm]
+    assert (len(dims) + len(exclude_dims) == x.ndim), exclude_dims
     return x.mean(dim=dims, keepdim=keepdim)
 
 
@@ -870,7 +996,8 @@ def _mean(x: Tensor,
 
 
 def _svd(x: Tensor):
-    # Wrapper for torch svd that catches errors and re-tries.
+    # Wrapper for torch svd that catches errors and re-tries (to address bugs in
+    # some versions of torch SVD for CUDA)
     randU = None
     for i in range(4):
         try:
@@ -884,7 +1011,10 @@ def _svd(x: Tensor):
         except:
             logging.warning(f"svd failed: i={i}, x.shape={tuple(x.shape)}, x.sum()={x.sum()}: likely "
                             f"error in SVD.  Will try again after random change.")
-            U, S, V = torch.randn_like(x).svd()
+            this_x = x
+            while this_x.ndim > 2:
+                this_x = this_x[0] # get rid of any batch dims
+            U, S, V = torch.randn_like(this_x).svd()
             x = torch.matmul(U, x)
             if randU is None:
                 randU = U
@@ -1538,7 +1668,7 @@ def _test_eve_cain():
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1: optim = Cain(m.parameters(), lr=0.03)
         elif iter == 2: optim = PrAdam(m.parameters(), lr=0.03)
-        elif iter == 3: optim = PrAdam(m.parameters(), lr=0.03)
+        elif iter == 3: optim = PrAdam(m.parameters(), lr=0.03, max_fullcov_size=150)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
