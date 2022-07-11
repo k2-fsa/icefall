@@ -1,0 +1,72 @@
+## Results
+
+### Aishell2 char-based training results (Pruned Transducer 5)
+
+#### 2022-07-11
+
+Using the codes from this commit https://github.com/k2-fsa/icefall/pull/461.
+
+When training with context size equals to 1, the WERs are
+
+|                                    |  dev-ios  | test-ios | comment                      |
+|------------------------------------|-------|----------|----------------------------------|
+|          greedy search             |   |      | --epoch 10, --avg 2, --max-duration 100  |
+| modified beam search (beam size 4) |   |      | --epoch 10, --avg 2, --max-duration 100  |
+| fast beam search (set as default)  |   |      | --epoch 10, --avg 2, --max-duration 1500 |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless5/train.py \
+  --world-size 4 \
+  --lang-dir data/lang_char \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --exp-dir /result \
+  --max-duration 300 \
+  --use-fp16 0 \
+  --num-encoder-layers 24 \
+  --dim-feedforward 1536 \
+  --nhead 8 \
+  --encoder-dim 384 \
+  --decoder-dim 512 \
+  --joiner-dim 512
+```
+
+The decoding command is:
+```
+for method in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir /result \
+    --max-duration 600 \
+    --decoding-method $method \
+    --max-sym-per-frame 1 \
+    --num-encoder-layers 24 \
+    --dim-feedforward 1536 \
+    --nhead 8 \
+    --encoder-dim 384 \
+    --decoder-dim 512 \
+    --joiner-dim 512 \
+    --context-size 1 \
+    --use-averaged-model True
+done
+```
+The tensorboard training log can be found at
+https:
+
+A pre-trained model and decoding logs can be found at <https:>
+
+When training with context size equals to 2, the WERs are
+
+|                                    |  dev-ios  | test-ios | comment                      |
+|------------------------------------|-------|----------|----------------------------------|
+|          greedy search             | 5.47  |  5.81    | --epoch 25, --avg 5, --max-duration 600  |
+| modified beam search (beam size 4) | 5.38  |  5.61    | --epoch 25, --avg 5, --max-duration 600  |
+| fast beam search (set as default)  | 5.36  |  5.61    | --epoch 25, --avg 5, --max-duration 600  |
+
+The tensorboard training log can be found at
+https://tensorboard.dev/experiment/5AxJ8LHoSre8kDAuLp4L7Q/#scalars

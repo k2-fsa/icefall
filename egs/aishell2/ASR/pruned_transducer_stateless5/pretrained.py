@@ -20,33 +20,24 @@ Usage:
 (1) greedy search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method greedy_search \
     /path/to/foo.wav \
     /path/to/bar.wav
 
-(2) beam search
+(2) modified beam search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --method beam_search \
-    --beam-size 4 \
-    /path/to/foo.wav \
-    /path/to/bar.wav
-
-(3) modified beam search
-./pruned_transducer_stateless5/pretrained.py \
-    --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method modified_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
     /path/to/bar.wav
 
-(4) fast beam search
+(3) fast beam search
 ./pruned_transducer_stateless5/pretrained.py \
     --checkpoint ./pruned_transducer_stateless5/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method fast_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -66,7 +57,6 @@ from typing import List
 
 import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import (
@@ -78,6 +68,8 @@ from beam_search import (
 )
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
+
+from icefall.lexicon import Lexicon
 
 
 def get_parser():
@@ -95,9 +87,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to lang.
+        """,
     )
 
     parser.add_argument(
@@ -165,7 +158,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
@@ -216,13 +209,10 @@ def main():
 
     params.update(vars(args))
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.unk_id = lexicon.token_table["<unk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(f"{params}")
 
@@ -292,8 +282,8 @@ def main():
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -302,16 +292,16 @@ def main():
             beam=params.beam_size,
         )
 
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
         for i in range(num_waves):
             # fmt: off
@@ -332,11 +322,11 @@ def main():
             else:
                 raise ValueError(f"Unsupported method: {params.method}")
 
-            hyps.append(sp.decode(hyp).split())
+            hyps.append([lexicon.token_table[idx] for idx in hyp])
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
+        words = "".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 

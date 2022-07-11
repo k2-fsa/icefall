@@ -20,77 +20,32 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
-
-(2) beam search (not recommended)
+        --epoch 25 \
+        --avg 5 \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+        --lang-dir data/lang_char \
+        --max-duration 100 \
+        --decoding-method greedy_search
+(2) modified beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
+        --epoch 25 \
+        --avg 5 \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+        --lang-dir data/lang_char \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
+(3) fast beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
+        --epoch 25 \
+        --avg 5 \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+        --lang-dir data/lang_char \
+        --max-duration 1500 \
+        --decoding-method fast_beam_search \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8
 """
 
 
@@ -101,15 +56,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AiShell2AsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search_nbest,
-    fast_beam_search_nbest_LG,
-    fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
@@ -185,16 +136,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/lang_char",
         help="The lang dir containing word table and LG graph",
     )
 
@@ -268,7 +212,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
@@ -306,9 +250,8 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    lexicon: Lexicon,
     batch: dict,
-    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -326,8 +269,6 @@ def decode_one_batch(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -367,51 +308,8 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in hyp_tokens:
-            hyps.append([word_table[i] for i in hyp])
-    elif params.decoding_method == "fast_beam_search_nbest":
-        hyp_tokens = fast_beam_search_nbest(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
-        hyp_tokens = fast_beam_search_nbest_oracle(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -421,8 +319,8 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -430,8 +328,8 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
         batch_size = encoder_out.size(0)
 
@@ -455,7 +353,7 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append([lexicon.token_table[idx] for idx in hyp])
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -478,8 +376,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
-    word_table: Optional[k2.SymbolTable] = None,
+    lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -491,10 +388,6 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
-      word_table:
-        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
@@ -525,9 +418,8 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            sp=sp,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
-            word_table=word_table,
             batch=batch,
         )
 
@@ -535,8 +427,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
-                ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -598,7 +489,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AiShell2AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -607,11 +498,7 @@ def main():
 
     assert params.decoding_method in (
         "greedy_search",
-        "beam_search",
         "fast_beam_search",
-        "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
-        "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
@@ -650,13 +537,10 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> and <unk> are defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.unk_id = lexicon.token_table["<unk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
@@ -744,45 +628,31 @@ def main():
     model.eval()
 
     if "fast_beam_search" in params.decoding_method:
-        if params.decoding_method == "fast_beam_search_nbest_LG":
-            lexicon = Lexicon(params.lang_dir)
-            word_table = lexicon.word_table
-            lg_filename = params.lang_dir / "LG.pt"
-            logging.info(f"Loading {lg_filename}")
-            decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
-            )
-            decoding_graph.scores *= params.ngram_lm_scale
-        else:
-            word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
-        word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    aishell2 = AiShell2AsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    valid_cuts = aishell2.valid_cuts()
+    test_cuts = aishell2.test_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    # use ios sets for dev and test
+    dev_dl = aishell2.valid_dataloaders(valid_cuts)
+    test_dl = aishell2.test_dataloaders(test_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
-            sp=sp,
-            word_table=word_table,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
         )
 
