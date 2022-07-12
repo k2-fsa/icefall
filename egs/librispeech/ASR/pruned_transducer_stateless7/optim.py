@@ -592,7 +592,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # (where the stats permit).
             scale = (S.clamp(min=eps) / cur_param_var.clamp(min=eps)).sqrt()
 
-            if random.random() < 0.01:
+            if random.random() < 0.001:
                 logging.info(f"shape={p.shape}, dim={dim}, scale={scale[0].flatten()[::10]}, cur_param_var={cur_param_var[0].flatten()[::10]}, S={S[0].flatten()[::10]}")
 
             # scale shape: (batch_size, 1, size, 1, 1)
@@ -619,7 +619,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # cur_scales for the other dims.
         cur_scales = [None] * ndim
 
-        debug = True #(random.random() < 0.001)
+        debug = (random.random() < 0.001)
         for i in range(4):  # for 4 iterations (this is quite arbitrary)
             for dim in range(1, ndim):
                 size = p.shape[dim]
