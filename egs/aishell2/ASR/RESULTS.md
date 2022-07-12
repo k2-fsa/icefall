@@ -10,9 +10,9 @@ When training with context size equals to 1, the WERs are
 
 |                                    |  dev-ios  | test-ios | comment                      |
 |------------------------------------|-------|----------|----------------------------------|
-|          greedy search             |   |      | --epoch 10, --avg 2, --max-duration 100  |
-| modified beam search (beam size 4) |   |      | --epoch 10, --avg 2, --max-duration 100  |
-| fast beam search (set as default)  |   |      | --epoch 10, --avg 2, --max-duration 1500 |
+|          greedy search             | 5.57  | 5.89     | --epoch 10, --avg 2, --max-duration 100  |
+| modified beam search (beam size 4) | 5.32  | 5.56     | --epoch 10, --avg 2, --max-duration 100  |
+| fast beam search (set as default)  | 5.5  |  5.78     | --epoch 10, --avg 2, --max-duration 1500 |
 
 The training command for reproducing is given below:
 
@@ -51,14 +51,13 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --encoder-dim 384 \
     --decoder-dim 512 \
     --joiner-dim 512 \
-    --context-size 1 \
     --use-averaged-model True
 done
 ```
 The tensorboard training log can be found at
-https:
+https://tensorboard.dev/experiment/RXyX4QjQQVKjBS2eQ2Qajg/#scalars
 
-A pre-trained model and decoding logs can be found at <https:>
+A pre-trained model and decoding logs can be found at <https://huggingface.co/yuekai/icefall-asr-aishell2-pruned-transducer-stateless5-B-2022-07-12>
 
 When training with context size equals to 2, the WERs are
 
