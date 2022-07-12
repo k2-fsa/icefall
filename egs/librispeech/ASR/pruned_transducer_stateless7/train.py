@@ -927,7 +927,8 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank])
 
     optimizer = PrAdam(model.parameters(),
-                       lr=params.initial_lr)
+                       lr=params.initial_lr,
+                       max_block_size=512)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
