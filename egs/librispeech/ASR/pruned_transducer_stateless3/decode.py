@@ -112,6 +112,7 @@ from beam_search import (
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     fast_beam_search_with_nbest_rescoring,
+    fast_beam_search_with_nbest_rnn_rescoring,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
@@ -125,8 +126,10 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
+    load_averaged_model,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -342,6 +345,62 @@ def get_parser():
          """,
     )
 
+    parser.add_argument(
+        "--rnn-lm-exp-dir",
+        type=str,
+        default="rnn_lm/exp",
+        help="""Used only when --method is rnn-lm.
+        It specifies the path to RNN LM exp dir.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-epoch",
+        type=int,
+        default=7,
+        help="""Used only when --method is rnn-lm.
+        It specifies the checkpoint to use.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-avg",
+        type=int,
+        default=2,
+        help="""Used only when --method is rnn-lm.
+        It specifies the number of checkpoints to average.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-num-layers",
+        type=int,
+        default=4,
+        help="Number of RNN layers the model",
+    )
+    parser.add_argument(
+        "--rnn-lm-tie-weights",
+        type=str2bool,
+        default=True,
+        help="""True to share the weights between the input embedding layer and the
+        last output linear layer
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -355,6 +414,7 @@ def decode_one_batch(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     G: Optional[k2.Fsa] = None,
+    rnn_lm_model: torch.nn.Module = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -526,6 +586,29 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
             temperature=params.temperature,
         )
+    elif params.decoding_method == "fast_beam_search_with_nbest_rnn_rescoring":
+        ngram_lm_scale_list = [-0.5, -0.2, -0.1, -0.05, -0.02, 0]
+        ngram_lm_scale_list += [0.01, 0.02, 0.05]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.8]
+        ngram_lm_scale_list += [1.0, 1.5, 2.5, 3]
+        hyp_tokens = fast_beam_search_with_nbest_rnn_rescoring(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_states=params.max_states,
+            max_contexts=params.max_contexts,
+            ngram_lm_scale_list=ngram_lm_scale_list,
+            num_paths=params.num_paths,
+            G=G,
+            sp=sp,
+            word_table=word_table,
+            rnn_lm_model=rnn_lm_model,
+            use_double_scores=True,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
+        )
     else:
         batch_size = encoder_out.size(0)
 
@@ -571,7 +654,10 @@ def decode_one_batch(
                 f"temperature_{params.temperature}"
             ): hyps
         }
-    elif params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+    elif params.decoding_method in [
+        "fast_beam_search_with_nbest_rescoring",
+        "fast_beam_search_with_nbest_rnn_rescoring",
+    ]:
         prefix = (
             f"beam_{params.beam}_"
             f"max_contexts_{params.max_contexts}_"
@@ -612,6 +698,7 @@ def decode_dataset(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     G: Optional[k2.Fsa] = None,
+    rnn_lm_model: torch.nn.Module = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -666,6 +753,7 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             batch=batch,
             G=G,
+            rnn_lm_model=rnn_lm_model,
         )
 
         for name, hyps in hyps_dict.items():
@@ -816,6 +904,7 @@ def main():
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
         "fast_beam_search_with_nbest_rescoring",
+        "fast_beam_search_with_nbest_rnn_rescoring",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -919,7 +1008,10 @@ def main():
                 torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
-        elif params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+        elif params.decoding_method in [
+            "fast_beam_search_with_nbest_rescoring",
+            "fast_beam_search_with_nbest_rnn_rescoring",
+        ]:
             logging.info(f"Loading word symbol table from {params.words_txt}")
             word_table = k2.SymbolTable.from_file(params.words_txt)
 
@@ -932,14 +1024,43 @@ def main():
                 params.vocab_size - 1, device=device
             )
             logging.info(f"G properties_str: {G.properties_str}")
+            rnn_lm_model = None
+            if (
+                params.decoding_method
+                == "fast_beam_search_with_nbest_rnn_rescoring"
+            ):
+                rnn_lm_model = RnnLmModel(
+                    vocab_size=params.vocab_size,
+                    embedding_dim=params.rnn_lm_embedding_dim,
+                    hidden_dim=params.rnn_lm_hidden_dim,
+                    num_layers=params.rnn_lm_num_layers,
+                    tie_weights=params.rnn_lm_tie_weights,
+                )
+                if params.rnn_lm_avg == 1:
+                    load_checkpoint(
+                        f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",
+                        rnn_lm_model,
+                    )
+                    rnn_lm_model.to(device)
+                else:
+                    rnn_lm_model = load_averaged_model(
+                        params.rnn_lm_exp_dir,
+                        rnn_lm_model,
+                        params.rnn_lm_epoch,
+                        params.rnn_lm_avg,
+                        device,
+                    )
+                rnn_lm_model.eval()
         else:
             word_table = None
             decoding_graph = k2.trivial_graph(
                 params.vocab_size - 1, device=device
             )
+            rnn_lm_model = None
     else:
         decoding_graph = None
         word_table = None
+        rnn_lm_model = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -965,6 +1086,7 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
             G=G,
+            rnn_lm_model=rnn_lm_model,
         )
 
         save_results(
