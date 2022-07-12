@@ -10,9 +10,9 @@ When training with context size equals to 1, the WERs are
 
 |                                    |  dev-ios  | test-ios | comment                      |
 |------------------------------------|-------|----------|----------------------------------|
-|          greedy search             | 5.57  | 5.89     | --epoch 10, --avg 2, --max-duration 100  |
-| modified beam search (beam size 4) | 5.32  | 5.56     | --epoch 10, --avg 2, --max-duration 100  |
-| fast beam search (set as default)  | 5.5  |  5.78     | --epoch 10, --avg 2, --max-duration 1500 |
+|          greedy search             | 5.57  | 5.89     | --epoch 25, --avg 5, --max-duration 600  |
+| modified beam search (beam size 4) | 5.32  | 5.56     | --epoch 25, --avg 5, --max-duration 600  |
+| fast beam search (set as default)  | 5.5  |  5.78     | --epoch 25, --avg 5, --max-duration 600 |
 
 The training command for reproducing is given below:
 
