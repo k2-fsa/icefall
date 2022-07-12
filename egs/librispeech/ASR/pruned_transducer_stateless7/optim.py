@@ -452,8 +452,6 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         delta = state["delta"]
         # the factor of (1-beta1) relates to momentum.
-        if random.random() < 0.01:
-            logging.info(f"scale_step ={scale_step}, shape={p.shape}")
         delta.add_(p * scale_step, alpha=(1-beta1))
 
     def _update_param_cov(self,
