@@ -960,9 +960,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         new_mean = (eps + (smooth + 1) * mean)  # mean of modified rms.
         ans = rms / new_mean
 
-        if False:
+        if True:
             # Apply max_rms
-            max_rms = 5.0
+            max_rms = 10.0
             ans.clamp_(max=max_rms*2)
             ans /= _mean(ans, exclude_dims=[0], keepdim=True)
             ans.clamp_(max=max_rms)
