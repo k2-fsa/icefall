@@ -85,7 +85,7 @@ class BatchedOptimizer(Optimizer):
                 yield p_stacked, state  # <-- calling code will do the actual optimization here!
                 # Now un-stack the parameter changes
                 for i,p in enumerate(batch):
-                    p[:] = p_stacked[i]
+                    p.copy_(p_stacked[i])
 
 
 
