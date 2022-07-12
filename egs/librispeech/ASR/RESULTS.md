@@ -169,7 +169,7 @@ The WERs are:
 |                                     | test-clean | test-other | comment              | decoding mode        |
 |-------------------------------------|------------|------------|----------------------|----------------------|
 | greedy search (max sym per frame 1) | 3.3        | 8.71       | --epoch 30 --avg 10  | simulated streaming  |
-| greedy search (max sym per frame 1) | 3.35       | 9.65       | --epoch 30 --avg 10  | streaming            |
+| greedy search (max sym per frame 1) | 3.35       | 8.65       | --epoch 30 --avg 10  | streaming            |
 | fast beam search                    | 3.27       | 8.58       | --epoch 30 --avg 10  | simulated streaming  |
 | fast beam search                    | 3.31       | 8.48       | --epoch 30 --avg 10  | streaming            |
 | modified beam search                | 3.26       | 8.56       | --epoch 30 --avg 10  | simulated streaming  |
