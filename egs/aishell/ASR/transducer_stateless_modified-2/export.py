@@ -182,8 +182,6 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
 def main():
     args = get_parser().parse_args()
 
-    assert args.jit is False, "torchscript support will be added later"
-
     params = get_params()
     params.update(vars(args))
 
@@ -223,6 +221,11 @@ def main():
     model.eval()
 
     if params.jit:
+        # We won't use the forward() method of the model in C++, so just ignore
+        # it here.
+        # Otherwise, one of its arguments is a ragged tensor and is not
+        # torch scriptabe.
+        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
