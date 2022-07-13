@@ -112,9 +112,9 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   fi
 fi
 
+lang_char_dir=data/lang_char
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare char based lang"
-  lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
   # Prepare text.
@@ -150,4 +150,32 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     python3 ./local/prepare_char.py
   fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare G"
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+
+  if [ ! -f ${lang_char_dir}/3-gram.unpruned.arpa ]; then
+    ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text $lang_char_dir/text_words_segmentation \
+      -lm $lang_char_dir/3-gram.unpruned.arpa
+  fi
+
+  mkdir -p data/lm
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+    # It is used in building LG
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_char_dir/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $lang_char_dir/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Compile LG"
+  ./local/compile_lg.py --lang-dir $lang_char_dir
 fi

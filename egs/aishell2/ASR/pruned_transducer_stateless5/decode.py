@@ -123,6 +123,7 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -306,6 +307,7 @@ def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     lexicon: Lexicon,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
@@ -376,7 +378,8 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in hyp_tokens:
-            hyps.append([lexicon.word_table[i] for i in hyp])
+            sentence = "".join([lexicon.word_table[i] for i in hyp])
+            hyps.append(list(sentence))
     elif params.decoding_method == "fast_beam_search_nbest":
         hyp_tokens = fast_beam_search_nbest(
             model=model,
@@ -401,7 +404,7 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=supervisions["text"],
+            ref_texts=graph_compiler.texts_to_ids(supervisions["text"]),
             nbest_scale=params.nbest_scale,
         )
         for i in range(encoder_out.size(0)):
@@ -473,6 +476,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     lexicon: Lexicon,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -515,6 +519,7 @@ def decode_dataset(
             params=params,
             model=model,
             lexicon=lexicon,
+            graph_compiler=graph_compiler,
             decoding_graph=decoding_graph,
             batch=batch,
         )
@@ -642,6 +647,11 @@ def main():
     params.unk_id = lexicon.token_table["<unk>"]
     params.vocab_size = max(lexicon.tokens) + 1
 
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
+
     logging.info(params)
 
     logging.info("About to create model")
@@ -728,7 +738,18 @@ def main():
     model.eval()
 
     if "fast_beam_search" in params.decoding_method:
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        if params.decoding_method == "fast_beam_search_nbest_LG":
+            lexicon = Lexicon(params.lang_dir)
+            lg_filename = params.lang_dir / "LG.pt"
+            logging.info(f"Loading {lg_filename}")
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(lg_filename, map_location=device)
+            )
+            decoding_graph.scores *= params.ngram_lm_scale
+        else:
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
     else:
         decoding_graph = None
 
@@ -753,6 +774,7 @@ def main():
             params=params,
             model=model,
             lexicon=lexicon,
+            graph_compiler=graph_compiler,
             decoding_graph=decoding_graph,
         )
 
