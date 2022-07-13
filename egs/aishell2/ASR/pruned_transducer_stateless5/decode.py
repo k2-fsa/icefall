@@ -24,28 +24,80 @@ Usage:
         --avg 5 \
         --exp-dir ./pruned_transducer_stateless5/exp \
         --lang-dir data/lang_char \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method greedy_search
-(2) modified beam search
+
+(2) beam search (not recommended)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
+
+(3) modified beam search
 ./pruned_transducer_stateless5/decode.py \
         --epoch 25 \
         --avg 5 \
         --exp-dir ./pruned_transducer_stateless5/exp \
         --lang-dir data/lang_char \
-        --max-duration 100 \
+        --max-duration 600 \
         --decoding-method modified_beam_search \
         --beam-size 4
-(3) fast beam search
+
+(4) fast beam search (one best)
 ./pruned_transducer_stateless5/decode.py \
         --epoch 25 \
         --avg 5 \
         --exp-dir ./pruned_transducer_stateless5/exp \
         --lang-dir data/lang_char \
-        --max-duration 1500 \
+        --max-duration 600 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
+
+(5) fast beam search (nbest)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(6) fast beam search (nbest oracle WER)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_oracle \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(7) fast beam search (with LG)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_LG \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
 """
 
 
@@ -61,6 +113,9 @@ import torch.nn as nn
 from asr_datamodule import AiShell2AsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search_nbest,
+    fast_beam_search_nbest_LG,
+    fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
@@ -273,8 +328,6 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      word_table:
-        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
@@ -307,6 +360,49 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+        )
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+    elif params.decoding_method == "fast_beam_search_nbest_LG":
+        hyp_tokens = fast_beam_search_nbest_LG(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
+        )
+        for hyp in hyp_tokens:
+            hyps.append([lexicon.word_table[i] for i in hyp])
+    elif params.decoding_method == "fast_beam_search_nbest":
+        hyp_tokens = fast_beam_search_nbest(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
+        )
+        for i in range(encoder_out.size(0)):
+            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+        hyp_tokens = fast_beam_search_nbest_oracle(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            nbest_scale=params.nbest_scale,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -498,7 +594,11 @@ def main():
 
     assert params.decoding_method in (
         "greedy_search",
+        "beam_search",
         "fast_beam_search",
+        "fast_beam_search_nbest",
+        "fast_beam_search_nbest_LG",
+        "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method

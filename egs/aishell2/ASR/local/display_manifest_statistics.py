@@ -32,7 +32,7 @@ def main():
     paths = [
         "./data/fbank/aishell2_cuts_train.jsonl.gz",
         "./data/fbank/aishell2_cuts_dev.jsonl.gz",
-        "./data/fbank/aishell2_cuts_test.jsonl.gz"
+        "./data/fbank/aishell2_cuts_test.jsonl.gz",
     ]
 
     for path in paths:
@@ -44,7 +44,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-'''
+"""
 Starting display the statistics for ./data/fbank/aishell2_cuts_train.jsonl.gz
 Cuts count: 3026106
 Total duration (hours): 3021.2
@@ -93,4 +93,4 @@ min	1.1
 99.5%	6.6
 99.9%	7.7
 max	8.5
-'''
+"""

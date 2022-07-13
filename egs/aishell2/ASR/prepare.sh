@@ -9,6 +9,7 @@ stop_stage=5
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, you need to apply aishell2 through
 # their official website.
+# https://www.aishelltech.com/aishell_2
 #
 #  - $dl_dir/aishell2
 #

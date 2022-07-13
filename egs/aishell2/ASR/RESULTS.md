@@ -69,3 +69,5 @@ When training with context size equals to 2, the WERs are
 
 The tensorboard training log can be found at
 https://tensorboard.dev/experiment/5AxJ8LHoSre8kDAuLp4L7Q/#scalars
+
+A pre-trained model and decoding logs can be found at <https://huggingface.co/yuekai/icefall-asr-aishell2-pruned-transducer-stateless5-A-2022-07-12>
