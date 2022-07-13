@@ -47,10 +47,19 @@ def get_args():
         """,
     )
 
+    parser.add_argument(
+        "--h-graph",
+        type=str,
+        help="""one of ["H", "Trivial"]
+        H: k2.ctc_topo
+        Trivial: k2.trivial_graph
+        """,
+    )
+
     return parser.parse_args()
 
 
-def compile_HLG(lang_dir: str) -> k2.Fsa:
+def compile_HLG(lang_dir: str, h_graph: str = "H") -> k2.Fsa:
     """
     Args:
       lang_dir:
@@ -62,7 +71,14 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     lexicon = Lexicon(lang_dir)
     max_token_id = max(lexicon.tokens)
     logging.info(f"Building ctc_topo. max_token_id: {max_token_id}")
-    H = k2.ctc_topo(max_token_id)
+
+    if h_graph == "H":
+        H = k2.ctc_topo(max_token_id)
+    elif h_graph == "Trivial":
+        H = k2.trivial_graph(max_token_id - 1)
+    else:
+        raise ValueError(f"Unsupported h_graph: {h_graph}")
+
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
     if Path("data/lm/G_3_gram.pt").is_file():
@@ -138,15 +154,17 @@ def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
 
-    if (lang_dir / "HLG.pt").is_file():
-        logging.info(f"{lang_dir}/HLG.pt already exists - skipping")
+    if (lang_dir / f"{args.h_graph}LG.pt").is_file():
+        logging.info(
+            f"{lang_dir}/{args.h_graph}LG.pt already exists - skipping"
+        )
         return
 
     logging.info(f"Processing {lang_dir}")
 
     HLG = compile_HLG(lang_dir)
-    logging.info(f"Saving HLG.pt to {lang_dir}")
-    torch.save(HLG.as_dict(), f"{lang_dir}/HLG.pt")
+    logging.info(f"Saving {args.h_graph}LG.pt to {lang_dir}")
+    torch.save(HLG.as_dict(), f"{lang_dir}/{args.h_graph}LG.pt")
 
 
 if __name__ == "__main__":
