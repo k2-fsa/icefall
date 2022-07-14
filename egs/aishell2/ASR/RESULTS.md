@@ -4,7 +4,7 @@
 
 #### 2022-07-11
 
-Using the codes from this commit https://github.com/k2-fsa/icefall/pull/461.
+Using the codes from this commit https://github.com/k2-fsa/icefall/pull/465.
 
 When training with context size equals to 1, the WERs are
 
@@ -19,7 +19,7 @@ When training with context size equals to 1, the WERs are
 
 The training command for reproducing is given below:
 
-```
+```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./pruned_transducer_stateless5/train.py \
@@ -35,11 +35,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --nhead 8 \
   --encoder-dim 384 \
   --decoder-dim 512 \
-  --joiner-dim 512
+  --joiner-dim 512 \
+  --context-size 1
 ```
 
 The decoding command is:
-```
+```bash
 for method in greedy_search modified_beam_search \
               fast_beam_search fast_beam_search_nbest \
               fast_beam_search_nbest_oracle fast_beam_search_nbest_LG; do
@@ -62,7 +63,8 @@ for method in greedy_search modified_beam_search \
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5 \
-    --use-averaged-model False
+    --context-size 1 \
+    --use-averaged-model True
 done
 ```
 The tensorboard training log can be found at

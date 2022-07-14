@@ -12,7 +12,7 @@ The following table lists the differences among them.
 
 |                                       | Encoder             | Decoder            | Comment                     |
 |---------------------------------------|---------------------|--------------------|-----------------------------|
-| `pruned_transducer_stateless5`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + more layers + random combiner  |
+| `pruned_transducer_stateless5`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless5 in librispeech recipe  |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
