@@ -594,7 +594,6 @@ def decode_one_batch(
             key += f"nbest_scale_{params.nbest_scale}"
             if "LG" in params.decoding_method:
                 key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
-
         return {key: hyps}
     else:
         return {
@@ -833,6 +832,7 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-temperature-{params.temperature}"
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
@@ -842,9 +842,11 @@ def main():
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
         )
+        params.suffix += f"-temperature-{params.temperature}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+        params.suffix += f"-temperature-{params.temperature}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
