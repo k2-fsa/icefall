@@ -241,6 +241,12 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--gamma-blank",
+        type=int,
+        default=1.0,
+    )
+
     return parser
 
 
@@ -317,6 +323,7 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             decoding_graph=decoding_graph,
             ngram_rescoring=params.ngram_rescoring,
+            gamma_blank=params.gamma_blank,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -525,6 +532,7 @@ def main():
     if params.ngram_rescoring:
         params.suffix += "-ngram-rescoring"
         params.suffix += f"-{params.decoding_graph}"
+        params.suffix += f"-gamma_blank-{params.gamma_blank}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -636,8 +644,7 @@ def main():
     if params.ngram_rescoring and params.decoding_method == "greedy_search":
         assert params.decoding_graph in [
             "trivial_graph",
-            "HLG",
-            "Trivial_LG",
+            "L",
         ], f"Unsupported decoding graph {params.decoding_graph}"
         if params.decoding_graph == "trivial_graph":
             decoding_graph = k2.trivial_graph(
@@ -650,6 +657,7 @@ def main():
                     map_location=device,
                 )
             )
+            decoding_graph = k2.add_epsilon_self_loops(decoding_graph)
 
         decoding_graph.lm_scores = decoding_graph.scores.clone()
 

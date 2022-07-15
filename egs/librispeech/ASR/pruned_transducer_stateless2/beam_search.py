@@ -538,6 +538,7 @@ def greedy_search_batch(
     encoder_out_lens: torch.Tensor,
     decoding_graph: Optional[k2.Fsa] = None,
     ngram_rescoring: bool = False,
+    gamma_blank: float = 1.0,
 ) -> List[List[int]]:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
     Args:
@@ -624,27 +625,12 @@ def greedy_search_batch(
             logits_argmax = logits.argmax(dim=1)
             logits_softmax = logits.softmax(dim=1)
 
-            # detailed in below fuction verify_non_blank_logits.
-            selection_verification = True
 
             # 0 for blank frame and 1 for non-blank frame.
             non_blank_flag[start:end] = torch.where(
-                logits_argmax == blank_id, 0, 1
+                logits_softmax[:, 0] >= gamma_blank, 0, 1
             )
 
-            if False:
-                # In paper: https://arxiv.org/pdf/2101.06856.pdf
-                # A gama_blank threshold value is used to determinze blank frame.
-                # Currently, results are worse than baseline greedy_search
-                #  and also very sensitive to gama_blank.
-                # (TODO): debug this later.
-                gama_blank = 0.50
-                non_blank_flag[start:end] = torch.where(
-                    logits_softmax[:, 0] >= gama_blank, 0, 1
-                )
-
-                # function verify_non_blank_logits only works with logits_argmax == blank_id.
-                selection_verification = False
 
         y = logits.argmax(dim=1).tolist()
         emitted = False
@@ -710,21 +696,10 @@ def greedy_search_batch(
             all_logits_unpacked[i, :], 0, cur_non_blank_index
         )
 
-    def verify_non_blank_logits():
-        # A way to verify non_blank_logits are selected correctly from all_logits.
-        hyps_before_rescore = non_blank_logits.argmax(dim=2)
-        for i in range(N):
-            usi = unsorted_indices[i]
-            hyp_to_verify = hyps_before_rescore[usi][
-                : int(non_blank_logits_lens[usi])
-            ].tolist()
-            assert ans[i] == hyp_to_verify
-        logging.info("Verified non-blank logits.")
 
-    # TODO: skip verification after we finally get a workable rescoring method.
-    if selection_verification:
-        verify_non_blank_logits()
 
+    number_selected_frames = non_blank_flag.sum()
+    logging.info(f"{number_selected_frames} are selected out of {total_t} frames")
     # Split log_softmax into two seperate steps,
     # so we cound do blank deweight in probability domain if needed.
     logits_to_rescore_softmax = non_blank_logits.softmax(dim=2)
@@ -736,7 +711,7 @@ def greedy_search_batch(
     # So just put this blank deweight before ngram rescoring.
     # (TODO): debug this blank deweight issue.
 
-    blank_deweight = 100
+    blank_deweight = 0.0
     logits_to_rescore[:, :, 0] -= blank_deweight
 
     supervision_segments = torch.zeros([N, 3], dtype=torch.int32)
@@ -754,7 +729,7 @@ def greedy_search_batch(
         subsampling_factor=1,
     )
 
-    lm_weight = 0.3  # (TODO): tuning this.
+    lm_weight = 0.5  # (TODO): tuning this.
     lattice.scores = lattice.scores - lattice.lm_scores * (1 - lm_weight)
 
     best_path = one_best_decoding(
@@ -762,7 +737,7 @@ def greedy_search_batch(
         use_double_scores=True,
     )
 
-    token_ids = get_alignments(best_path, "labels")
+    token_ids = get_alignments(best_path, "labels", remove_zero_blank=True)
 
     ans = []
     for i in range(N):
