@@ -513,7 +513,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
     def _is_lr_update_step(self,
                            group: dict,
-                           state: dict) -> False:
+                           state: dict) -> bool:
         """
         Returns True if on this step we need to update the learning-rate matrices for this tensor
         and False if not.  The periodicity with which we update them increases from
@@ -532,7 +532,6 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                              ((period_final - period_initial) * step /
                              (step + 4 * period_final)))
         return (step >= zero_step + cur_update_period)
-
 
 
     def _update_lrs(self,
