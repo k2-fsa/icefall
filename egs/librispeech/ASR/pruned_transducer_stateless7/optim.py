@@ -469,7 +469,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         param_cov_period = group["param_cov_period"]
         step = state["step"]
 
-        this_weight = (group["param_cov_freshness"] * param_cov_period /
+        this_weight = (group["param_cov_freshness"] * step /
                        (step + param_cov_period))
 
         batch_size = p.shape[0]
