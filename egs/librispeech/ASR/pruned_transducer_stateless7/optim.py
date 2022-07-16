@@ -619,8 +619,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # (where the stats permit).
             scale = (S.clamp(min=eps) / cur_param_var.clamp(min=eps)).sqrt()
 
-            if random.random() < 0.001:
-                logging.info(f"shape={p.shape}, dim={dim}, scale={scale[0].flatten()[::10]}, cur_param_var={cur_param_var[0].flatten()[::10]}, S={S[0].flatten()[::10]}")
+            if random.random() < 0.01:
+                skip = 10 if size < 20 else 1
+                logging.info(f"shape={p.shape}, dim={dim}, scale={scale[0].flatten()[::skip]}, cur_param_var={cur_param_var[0].flatten()[::skip]}, S={S[0].flatten()[::skip]}")
 
             # scale shape: (batch_size, 1, size, 1, 1)
             cur_p *= scale
@@ -755,7 +756,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             N_grad_cov = torch.matmul(Q, torch.matmul(grad_cov, Q.transpose(2, 3)))
             N_grad_cov = N_grad_cov + N_grad_cov.transpose(2, 3)  # ensure symmetric
             U, S, V = _svd(N_grad_cov)
-            if random.random() < 0.001:
+            if random.random() < 0.01:
                 logging.info(f"Diagonalizing, shape={tuple(p.shape)}, dim={dim}, dispersion "
                              f"changed from {dispersion(_diag(N_grad_cov))} to {dispersion(S)}")
 
@@ -1820,16 +1821,6 @@ def _test_eve_cain():
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
-        def stddev(x):
-            return ((x-x.mean())**2).mean().sqrt()
-        logging.info(f"Un-normalized input col magnitudes log-stddev: {stddev((m[0].weight**2).sum(dim=0).sqrt().log())}")
-        logging.info(f"Normalized input col magnitudes log-stddev: {stddev(((m[0].weight**2).sum(dim=0).sqrt() * input_magnitudes).log())}")
-
-        logging.info(f"Un-normalized 0-output row magnitudes log-stddev: {stddev((m[0].weight**2).sum(dim=1).sqrt().log())}")
-        logging.info("Un-normalized 2-input col magnitudes log-stddev: {stddev((m[2].weight**2).sum(dim=0).sqrt().log())}")
-        logging.info("Un-normalized 2-output row magnitudes log-stddev: {stddev((m[2].weight**2).sum(dim=1).sqrt().log())}")
-
-        logging.info("Normalized output row magnitudes log-stddev: {stddev(((m[2].weight**2).sum(dim=1).sqrt() / output_magnitudes).log())}")
 
 def _test_svd():
     device = 'cuda'

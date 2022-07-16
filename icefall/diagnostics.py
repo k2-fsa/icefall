@@ -105,12 +105,14 @@ class TensorDiagnostic(object):
       opts:
         Options object.
       name:
-        The tensor name.
+        The name associated with this diagnostics object, will probably be {module_name}.X
+           where X is "output" or "grad", or {parameter_name}.Y where Y is param_value or param_grad.
     """
 
     def __init__(self, opts: TensorDiagnosticOptions, name: str):
-        self.name = name
         self.opts = opts
+        self.name = name
+        self.class_name = None  # will assign in accumulate()
 
         self.stats = None  # we'll later assign a list to this data member.  It's a list of dict.
 
@@ -124,8 +126,13 @@ class TensorDiagnostic(object):
         # only adding a new element to the list if there was a different dim.
         # if the string in the key is "eigs", if we detect a length mismatch we put None as the value.
 
-    def accumulate(self, x):
-        """Accumulate tensors."""
+
+    def accumulate(self, x, class_name: Optional[str] = None):
+        """
+        Accumulate tensors.
+        """
+        if class_name is not None:
+            self.class_name = class_name
         if isinstance(x, Tuple):
             x = x[0]
         if not isinstance(x, Tensor):
@@ -240,7 +247,7 @@ class TensorDiagnostic(object):
                     ans += f", norm={norm:.2g}"
                 mean = stats.mean().item()
                 rms = (stats ** 2).mean().sqrt().item()
-                ans += f", mean={mean:.2g}, rms={rms:.2g}"
+                ans += f", mean={mean:.3g}, rms={rms:.3g}"
 
                 # OK, "ans" contains the actual stats, e.g.
                 # ans = "percentiles: [0.43 0.46 0.48 0.49 0.49 0.5 0.51 0.52 0.53 0.54 0.59], mean=0.5, rms=0.5"
@@ -251,8 +258,9 @@ class TensorDiagnostic(object):
                     if len(sizes) == 1
                     else f"{min(sizes)}..{max(sizes)}"
                 )
+                maybe_class_name = f" type={self.class_name}," if self.class_name is not None else ""
                 print(
-                    f"module={self.name}, dim={dim}, size={size_str}, {stats_type} {ans}"
+                    f"module={self.name},{maybe_class_name} dim={dim}, size={size_str}, {stats_type} {ans}"
                 )
 
 
@@ -316,20 +324,25 @@ def attach_diagnostics(
         def forward_hook(
             _module, _input, _output, _model_diagnostic=ans, _name=name
         ):
+
             if isinstance(_output, Tensor):
-                _model_diagnostic[f"{_name}.output"].accumulate(_output)
+                _model_diagnostic[f"{_name}.output"].accumulate(_output,
+                                                                class_name=type(_module).__name__)
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    _model_diagnostic[f"{_name}.output[{i}]"].accumulate(o)
+                    _model_diagnostic[f"{_name}.output[{i}]"].accumulate(o,
+                                                                         class_name=type(_module).__name__)
 
         def backward_hook(
             _module, _input, _output, _model_diagnostic=ans, _name=name
         ):
             if isinstance(_output, Tensor):
-                _model_diagnostic[f"{_name}.grad"].accumulate(_output)
+                _model_diagnostic[f"{_name}.grad"].accumulate(_output,
+                                                              class_name=type(_module).__name__)
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    _model_diagnostic[f"{_name}.grad[{i}]"].accumulate(o)
+                    _model_diagnostic[f"{_name}.grad[{i}]"].accumulate(o,
+                                                                       class_name=type(_module).__name__)
 
         module.register_forward_hook(forward_hook)
         module.register_backward_hook(backward_hook)
