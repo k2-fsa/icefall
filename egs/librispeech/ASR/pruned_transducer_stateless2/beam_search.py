@@ -614,15 +614,14 @@ def greedy_search_batch(
         logits = model.joiner(
             current_encoder_out, decoder_out.unsqueeze(1), project_input=False
         )
-        # logits'shape (batch_size, 1, 1, vocab_size)
 
+        # logits'shape (batch_size, 1, 1, vocab_size)
         logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
 
         if ngram_rescoring:
             all_logits[start:end] = logits
 
             assert logits.ndim == 2, logits.shape
-            logits_argmax = logits.argmax(dim=1)
             logits_softmax = logits.softmax(dim=1)
 
 
@@ -728,9 +727,6 @@ def greedy_search_batch(
         max_active_states=1000,
         subsampling_factor=1,
     )
-
-    lm_weight = 0.5  # (TODO): tuning this.
-    lattice.scores = lattice.scores - lattice.lm_scores * (1 - lm_weight)
 
     best_path = one_best_decoding(
         lattice=lattice,

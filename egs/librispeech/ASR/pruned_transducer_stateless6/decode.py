@@ -659,8 +659,6 @@ def main():
             )
             decoding_graph = k2.add_epsilon_self_loops(decoding_graph)
 
-        decoding_graph.lm_scores = decoding_graph.scores.clone()
-
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
