@@ -77,9 +77,7 @@ from beam_search import (
     modified_beam_search,
 )
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
-
-from icefall.utils import str2bool
+from train import get_params, get_transducer_model
 
 
 def get_parser():
@@ -180,30 +178,6 @@ def get_parser():
         """,
     )
 
-    parser.add_argument(
-        "--simulate-streaming",
-        type=str2bool,
-        default=False,
-        help="""Whether to simulate streaming in decoding, this is a good way to
-        test a streaming model.
-        """,
-    )
-
-    parser.add_argument(
-        "--decode-chunk-size",
-        type=int,
-        default=16,
-        help="The chunk size for decoding (in frames after subsampling)",
-    )
-    parser.add_argument(
-        "--left-context",
-        type=int,
-        default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
-    )
-
-    add_model_arguments(parser)
-
     return parser
 
 
@@ -247,11 +221,6 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
 
     logging.info(f"{params}")
 
@@ -299,18 +268,9 @@ def main():
 
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
-    if params.simulate_streaming:
-        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
-            x=features,
-            x_lens=feature_lengths,
-            chunk_size=params.decode_chunk_size,
-            left_context=params.left_context,
-            simulate_streaming=True,
-        )
-    else:
-        encoder_out, encoder_out_lens = model.encoder(
-            x=features, x_lens=feature_lengths
-        )
+    encoder_out, encoder_out_lens = model.encoder(
+        x=features, x_lens=feature_lengths
+    )
 
     num_waves = encoder_out.size(0)
     hyps = []

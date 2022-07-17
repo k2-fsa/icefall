@@ -21,37 +21,24 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless2/train.py \
+./lstm_transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir lstm_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless2/train.py \
+./lstm_transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir lstm_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 550
-
-# train a streaming model
-./pruned_transducer_stateless2/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless/exp \
-  --full-libri 1 \
-  --dynamic-chunk-training 1 \
-  --causal-convolution 1 \
-  --short-chunk-size 25 \
-  --num-left-chunks 4 \
-  --max-duration 300
 """
 
 
@@ -69,7 +56,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from lstm import RNN
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -93,42 +80,6 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
-
-
-def add_model_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        """,
-    )
-
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
-        type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
-    )
-
-    parser.add_argument(
-        "--num-left-chunks",
-        type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
-    )
 
 
 def get_parser():
@@ -311,8 +262,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    add_model_arguments(parser)
-
     return parser
 
 
@@ -374,7 +323,6 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "encoder_dim": 512,
-            "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             # parameters for decoder
@@ -392,17 +340,12 @@ def get_params() -> AttributeDict:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = RNN(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
-        nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        dynamic_chunk_training=params.dynamic_chunk_training,
-        short_chunk_size=params.short_chunk_size,
-        num_left_chunks=params.num_left_chunks,
-        causal=params.causal_convolution,
     )
     return encoder
 
