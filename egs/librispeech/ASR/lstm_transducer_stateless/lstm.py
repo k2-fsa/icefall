@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import copy
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from encoder_interface import EncoderInterface
@@ -73,7 +73,7 @@ class RNN(EncoderInterface):
         #   (2) embedding: num_features -> d_model
         self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
-        self.encoder_layers = num_encoder_layers
+        self.num_encoder_layers = num_encoder_layers
         self.d_model = d_model
 
         encoder_layer = RNNEncoderLayer(
@@ -119,8 +119,8 @@ class RNN(EncoderInterface):
         return x, lengths
 
     @torch.jit.export
-    def get_init_state(self, device: torch.device) -> torch.Tensor:
-        """Get model initial state."""
+    def get_init_states(self, device: torch.device) -> torch.Tensor:
+        """Get model initial states."""
         init_states = torch.zeros(
             (2, self.num_encoder_layers, self.d_model), device=device
         )
@@ -283,7 +283,7 @@ class RNNEncoderLayer(nn.Module):
 
         # lstm module
         # The required shapes of h_0 and c_0 are both (1, N, E).
-        src_lstm, new_states = self.lstm(src, states.unbind(dim=0))
+        src_lstm, new_states = self.lstm(src, (states[0], states[1]))
         new_states = torch.stack(new_states, dim=0)
         src = src + self.dropout(src_lstm)
 
