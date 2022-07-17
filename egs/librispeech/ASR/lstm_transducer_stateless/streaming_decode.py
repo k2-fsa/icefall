@@ -18,12 +18,12 @@
 """
 Usage:
 ./lstm_transducer_stateless/streaming_decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
-    --decoding_method greedy_search \
-    --decode-chunk-size 1 \
-    --num-decode-streams 1000
+        --epoch 28 \
+        --avg 15 \
+        --decode-chunk-size 1 \
+        --exp-dir ./lstm_transducer_stateless/exp \
+        --decoding_method greedy_search \
+        --num-decode-streams 200
 """
 
 import argparse
@@ -46,6 +46,7 @@ from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
+    average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
@@ -55,6 +56,7 @@ from icefall.utils import (
     get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
 
@@ -92,6 +94,17 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
+    )
+
+    parser.add_argument(
+        "--use-averaged-model",
+        type=str2bool,
+        default=True,
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
     )
 
     parser.add_argument(
@@ -163,6 +176,8 @@ def get_parser():
         default=2000,
         help="The number of streams that can be decoded parallel.",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -421,8 +436,8 @@ def decode_dataset(
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    initial_states = model.encoder.get_init_states(
-        device=device
+    initial_states = model.encoder.get_init_state(
+        params.left_context, device=device
     )
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
@@ -507,8 +522,6 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        # sort results so we can easily compare the difference between two
-        # recognition results
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
@@ -570,6 +583,9 @@ def main():
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
 
+    if params.use_averaged_model:
+        params.suffix += "-use-averaged-model"
+
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
 
@@ -587,39 +603,90 @@ def main():
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
+    # Decoding in streaming requires causal convolution
+    params.causal_convolution = True
+
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    if not params.use_averaged_model:
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
+        elif params.avg == 1:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        else:
+            start = params.epoch - params.avg + 1
+            filenames = []
+            for i in range(start, params.epoch + 1):
+                if start >= 0:
+                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg + 1:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            filename_start = filenames[-1]
+            filename_end = filenames[0]
+            logging.info(
+                "Calculating the averaged model over iteration checkpoints"
+                f" from {filename_start} (excluded) to {filename_end}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+        else:
+            assert params.avg > 0, params.avg
+            start = params.epoch - params.avg
+            assert start >= 1, start
+            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+            logging.info(
+                f"Calculating the averaged model over epoch range from "
+                f"{start} (excluded) to {params.epoch}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
 
     model.to(device)
     model.eval()
