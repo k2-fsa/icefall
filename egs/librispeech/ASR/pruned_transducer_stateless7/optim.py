@@ -152,7 +152,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             param_max_rms=2.0,
             scalar_max=2.0,
             size_update_period=4,
-            lr_update_period=(200, 2000),
+            lr_update_period=(200, 1000),
             grad_cov_period=3,
             param_cov_period=100,
             max_block_size=1024,
