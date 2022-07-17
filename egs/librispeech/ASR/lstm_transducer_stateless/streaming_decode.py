@@ -177,8 +177,6 @@ def get_parser():
         help="The number of streams that can be decoded parallel.",
     )
 
-    add_model_arguments(parser)
-
     return parser
 
 
