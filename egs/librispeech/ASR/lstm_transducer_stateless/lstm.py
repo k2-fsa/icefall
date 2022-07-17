@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import copy
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 from encoder_interface import EncoderInterface
