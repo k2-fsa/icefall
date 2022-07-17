@@ -388,9 +388,9 @@ class ScaledLSTM(nn.LSTM):
         initial_speed: float = 1.0,
         **kwargs
     ):
-        # Hardcode num_layers=1 and proj_size=0 here
+        # Hardcode num_layers=1, bidirectional=False, proj_size=0 here
         super(ScaledLSTM, self).__init__(
-            *args, num_layers=1, proj_size=0, **kwargs
+            *args, num_layers=1, bidirectional=False, proj_size=0, **kwargs
         )
         initial_scale = torch.tensor(initial_scale).log()
         self._scales_names = []

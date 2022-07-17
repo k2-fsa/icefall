@@ -36,7 +36,7 @@ class RNN(EncoderInterface):
       num_features (int):
         Number of input features.
       subsampling_factor (int):
-        Subsampling factor of encoder (convolution layers before lstm layers).
+        Subsampling factor of encoder (convolution layers before lstm layers) (default=4).  # noqa
       d_model (int):
         Hidden dimension for lstm layers, also output dimension (default=512).
       dim_feedforward (int):
@@ -52,7 +52,7 @@ class RNN(EncoderInterface):
     def __init__(
         self,
         num_features: int,
-        subsampling_factor: int,
+        subsampling_factor: int = 4,
         d_model: int = 512,
         dim_feedforward: int = 2048,
         num_encoder_layers: int = 12,
@@ -457,3 +457,16 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_norm(x)
         x = self.out_balancer(x)
         return x
+
+
+if __name__ == "__main__":
+    feature_dim = 50
+    m = RNN(num_features=feature_dim, d_model=128)
+    batch_size = 5
+    seq_len = 20
+    # Just make sure the forward pass runs.
+    f = m(
+        torch.randn(batch_size, seq_len, feature_dim),
+        torch.full((batch_size,), seq_len, dtype=torch.int64),
+        warmup=0.5,
+    )
