@@ -42,7 +42,7 @@ from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -176,6 +176,8 @@ def get_parser():
         default=2000,
         help="The number of streams that can be decoded parallel.",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -434,9 +436,7 @@ def decode_dataset(
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    initial_states = model.encoder.get_init_state(
-        params.left_context, device=device
-    )
+    initial_states = model.encoder.get_init_states(device=device)
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(

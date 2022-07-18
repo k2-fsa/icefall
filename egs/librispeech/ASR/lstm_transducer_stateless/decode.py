@@ -116,7 +116,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -302,6 +302,8 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -353,13 +355,6 @@ def decode_one_batch(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
-
-    # feature_lens += params.left_context
-    # feature = torch.nn.functional.pad(
-    #     feature,
-    #     pad=(0, 0, 0, params.left_context),
-    #     value=LOG_EPS,
-    # )
 
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens

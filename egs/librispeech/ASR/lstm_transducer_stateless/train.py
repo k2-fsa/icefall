@@ -57,12 +57,12 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from lstm import RNN
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -84,6 +84,24 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
+
+
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=int,
+        default=20,
+        help="Number of RNN encoder layers..",
+    )
+
+    parser.add_argument(
+        "--aux-layer-period",
+        type=int,
+        default=3,
+        help="""Peroid of auxiliary layers used for randomly combined during training.
+        If not larger than 0, will not use the random combiner.
+        """,
+    )
 
 
 def get_parser():
@@ -279,6 +297,8 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -341,7 +361,6 @@ def get_params() -> AttributeDict:
             "subsampling_factor": 4,
             "encoder_dim": 512,
             "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
@@ -363,6 +382,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         d_model=params.encoder_dim,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        aux_layer_period=params.aux_layer_period,
     )
     return encoder
 
