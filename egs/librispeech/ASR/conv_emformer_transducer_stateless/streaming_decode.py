@@ -683,6 +683,8 @@ def decode_dataset(
             LOG_EPS=LOG_EPSILON,
         )
 
+        stream.set_states(model.encoder.init_states(device))
+
         audio: np.ndarray = cut.load_audio()
         # audio.shape: (1, num_samples)
         assert len(audio.shape) == 2
