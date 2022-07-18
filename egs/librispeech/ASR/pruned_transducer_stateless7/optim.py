@@ -142,7 +142,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            param_pow=0.6,
+            param_pow=0.7,
             param_rms_smooth0=0.75,
             param_rms_smooth1=0.25,
             max_lr_factor=3.0,
