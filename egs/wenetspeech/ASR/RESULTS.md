@@ -62,7 +62,7 @@ avg=2
         --decoding-method modified_beam_search \
         --beam-size 4
 
-## fast beam search
+## fast beam search (1best)
 ./pruned_transducer_stateless2/decode.py \
         --epoch $epoch \
         --avg $avg \
