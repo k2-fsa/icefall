@@ -23,8 +23,8 @@ The following table lists the differences among them.
 | `pruned_transducer_stateless5`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + more layers + random combiner|
 | `pruned_transducer_stateless6`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + distillation with hubert|
 | `pruned_stateless_emformer_rnnt2`     | Emformer(from torchaudio) | Embedding + Conv1d | Using Emformer from torchaudio for streaming ASR|
-| `conv_emformer_transducer_stateless`  | Emformer | Embedding + Conv1d | Using Emformer augmented with convolution for streaming ASR + mechanisms in reworked model |
-
+| `conv_emformer_transducer_stateless`  | ConvEmformer | Embedding + Conv1d | Using ConvEmformer for streaming ASR + mechanisms in reworked model |
+| `conv_emformer_transducer_stateless2` | ConvEmformer | Embedding + Conv1d | Using ConvEmformer with simplified memory for streaming ASR + mechanisms in reworked model |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).

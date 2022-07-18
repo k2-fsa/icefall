@@ -22,11 +22,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./conv_emformer_transducer_stateless/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir conv_emformer_transducer_stateless/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 280 \
   --master-port 12321 \
@@ -38,12 +38,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --memory-size 32
 
 # For mix precision training:
-./conv_emformer_transducer_stateless/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir conv_emformer_transducer_stateless/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300 \
   --master-port 12321 \
@@ -1018,7 +1018,6 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
-            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1079,7 +1078,6 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
-    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1090,6 +1088,9 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
+            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
+            # (i.e. are not remembered by the decaying-average in adam), because
+            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
@@ -1097,7 +1098,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=warmup,
+                    warmup=0.0,
                 )
             loss.backward()
             optimizer.step()
