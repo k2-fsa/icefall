@@ -23,7 +23,7 @@ from scaling import ScaledLinear
 
 from icefall.utils import add_sos
 
-from quantization.prediction import JointCodebookLoss
+from multi_quantization.prediction import JointCodebookLoss
 
 
 class Transducer(nn.Module):
@@ -75,7 +75,9 @@ class Transducer(nn.Module):
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
         if num_codebooks > 0:
             self.codebook_loss_net = JointCodebookLoss(
-                predictor_channels=encoder_dim, num_codebooks=num_codebooks
+                predictor_channels=encoder_dim,
+                num_codebooks=num_codebooks,
+                is_joint=False,
             )
 
     def forward(

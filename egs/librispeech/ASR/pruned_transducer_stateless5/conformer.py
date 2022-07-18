@@ -1064,10 +1064,6 @@ class RandomCombine(nn.Module):
     is a random combination of all the inputs; but which in test time
     will be just the last input.
 
-    All but the last input will have a linear transform before we
-    randomly combine them; these linear transforms will be initialized
-    to the identity transform.
-
     The idea is that the list of Tensors will be a list of outputs of multiple
     conformer layers.  This has a similar effect as iterated loss. (See:
     DEJA-VU: DOUBLE FEATURE PRESENTATION AND ITERATED LOSS IN DEEP TRANSFORMER
@@ -1267,7 +1263,6 @@ def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
     num_channels = 50
     m = RandomCombine(
         num_inputs=num_inputs,
-        num_channels=num_channels,
         final_weight=final_weight,
         pure_prob=pure_prob,
         stddev=stddev,
@@ -1289,9 +1284,7 @@ def _test_random_combine_main():
     _test_random_combine(0.5, 0.5, 0.3)
 
     feature_dim = 50
-    c = Conformer(
-        num_features=feature_dim, output_dim=256, d_model=128, nhead=4
-    )
+    c = Conformer(num_features=feature_dim, d_model=128, nhead=4)
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
