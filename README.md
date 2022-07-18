@@ -253,8 +253,11 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
 |    greedy search     | 7.80  |  8.75    |  13.49       |
+| modified beam search| 7.76  |  8.71    |  13.41       |
 |   fast beam search   | 7.94  |  8.74    |  13.80       |
-| modified beam search | 7.76  |  8.71    |  13.41       |
+| fast beam search (nbest)  | 9.82  | 10.98    |     16.37  |
+| fast beam search (nbest oracle)  | 6.88 | 7.18    |     11.77 |
+| fast beam search (nbest LG)  | 14.94 | 16.14    |   22.93  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
