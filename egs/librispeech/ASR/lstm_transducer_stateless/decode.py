@@ -354,12 +354,12 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.left_context
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
-    )
+    # feature_lens += params.left_context
+    # feature = torch.nn.functional.pad(
+    #     feature,
+    #     pad=(0, 0, 0, params.left_context),
+    #     value=LOG_EPS,
+    # )
 
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
@@ -667,11 +667,6 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 

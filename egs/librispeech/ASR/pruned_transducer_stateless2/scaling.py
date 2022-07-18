@@ -409,8 +409,7 @@ class ScaledLSTM(nn.LSTM):
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
         a = (3 ** 0.5) * std
-        fan_in = self.input_size
-        scale = fan_in ** -0.5
+        scale = self.hidden_size ** -0.5
         v = scale / std
         for idx, name in enumerate(self._flat_weights_names):
             if "weight" in name:
