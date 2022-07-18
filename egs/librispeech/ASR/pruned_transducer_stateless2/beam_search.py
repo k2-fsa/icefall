@@ -46,7 +46,7 @@ def fast_beam_search_one_best(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -106,7 +106,7 @@ def fast_beam_search_nbest_LG(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -226,7 +226,7 @@ def fast_beam_search_nbest(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -311,7 +311,7 @@ def fast_beam_search_nbest_oracle(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -397,7 +397,7 @@ def fast_beam_search(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -1227,7 +1227,7 @@ def fast_beam_search_with_nbest_rescoring(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
@@ -1383,7 +1383,7 @@ def fast_beam_search_with_nbest_rnn_rescoring(
       model:
         An instance of `Transducer`.
       decoding_graph:
-        Decoding graph used for decoding, may be a TrivialGraph or a HLG.
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
         A tensor of shape (N, T, C) from the encoder.
       encoder_out_lens:
