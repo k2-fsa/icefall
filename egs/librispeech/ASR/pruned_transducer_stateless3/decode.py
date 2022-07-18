@@ -605,6 +605,7 @@ def decode_one_batch(
             sp=sp,
             word_table=word_table,
             rnn_lm_model=rnn_lm_model,
+            rnn_lm_scale_list=ngram_lm_scale_list,
             use_double_scores=True,
             nbest_scale=params.nbest_scale,
             temperature=params.temperature,
