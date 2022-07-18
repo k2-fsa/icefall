@@ -109,6 +109,7 @@ class PrAdam(BatchedOptimizer):
                   is the scaling factor on the learning rate of p_scale.
        param_pow: Power on the parameter covariance matrix, 1.0 means learn proportional
                   to parameter rms (1.0 will be too  much, should be between 0 and 1.)
+                  This is one of the most important tunable factors, along with max_lr_factor.
 param_rms_smooth0: Limiting value of smoothing proportion for parameter matrix, as
                    assumed rank of param covariance [==product of sizes on the other
                    tensor dims] approaches 0.
@@ -116,6 +117,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                    param covariance equals the dimension of the covaraince matrix.
                    param_rms_smooth{0,1} determine the smoothing proportions for other
                    conditions.
+    max_lr_factor: How much faster we allow any direction in parameter space to learn faster
+                   than the mean... this is a relatively important thing to tune,
+                    along with param_pow.
             eps:  An epsilon to prevent division by zero
    param_min_rms: Minimum root-mean-square value of parameter tensor, for purposes of
                   learning the scale on the parameters (we'll keep it >= this size)
@@ -138,10 +142,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            param_pow=0.4,
+            param_pow=0.6,
             param_rms_smooth0=0.75,
             param_rms_smooth1=0.25,
-            param_cov_freshness=1.0,
+            max_lr_factor=3.0,
             eps=1.0e-08,
             param_min_rms=1.0e-05,
             param_max_rms=2.0,
@@ -161,7 +165,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             param_pow=param_pow,
             param_rms_smooth0=param_rms_smooth0,
             param_rms_smooth1=param_rms_smooth1,
-            param_cov_freshness=param_cov_freshness,
+            max_lr_factor=max_lr_factor,
             betas=betas,
             eps=eps,
             param_min_rms=param_min_rms,
@@ -992,6 +996,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         """
         smooth0 = group["param_rms_smooth0"]
         smooth1 = group["param_rms_smooth1"]
+        max_lr_factor = group["max_lr_factor"]
         param_pow = group["param_pow"]
         eps = group["eps"]
         batch_size = rms.shape[0]
@@ -1011,13 +1016,13 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         ans = rms / new_mean
 
 
-        if True:
-            # Apply max_rms
-            max_rms = 4.0
-            ans.clamp_(max=max_rms*2)
-            ans /= _mean(ans, exclude_dims=[0], keepdim=True)
-            ans.clamp_(max=max_rms)
-            ans /= _mean(ans, exclude_dims=[0], keepdim=True)
+        # Apply max_lr_factor; approach the constraint in 2 steps because it
+        # changes the mean, and it's relative to the mean.
+        ans.clamp_(max=max_lr_factor * 2)
+        ans /= _mean(ans, exclude_dims=[0], keepdim=True)
+        ans.clamp_(max=max_lr_factor)
+        ans /= _mean(ans, exclude_dims=[0], keepdim=True)
+
         return ans
 
 
