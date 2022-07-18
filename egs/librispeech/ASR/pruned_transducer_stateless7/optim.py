@@ -145,7 +145,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             param_pow=0.75,
             param_rms_smooth0=0.75,
             param_rms_smooth1=0.25,
-            max_lr_factor=2.5,
+            max_lr_factor=3.0,
             eps=1.0e-08,
             param_min_rms=1.0e-05,
             param_max_rms=2.0,
@@ -1016,11 +1016,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         ans = rms / new_mean
 
 
-        # Apply max_lr_factor; approach the constraint in 2 steps because it
-        # changes the mean, and it's relative to the mean.
-        ans.clamp_(max=max_lr_factor * 2)
-        ans /= _mean(ans, exclude_dims=[0], keepdim=True)
-        ans.clamp_(max=max_lr_factor)
+        # Apply a `soft min` of max_lr_factor via the formula
+        # softmin(x,y) = 1/(1/x + 1/y).
+        ans = 1. / (1. / ans + 1. / max_lr_factor)
+        # and renormalize to mean=1.
         ans /= _mean(ans, exclude_dims=[0], keepdim=True)
 
         return ans
