@@ -145,7 +145,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             param_pow=0.7,
             param_rms_smooth0=0.75,
             param_rms_smooth1=0.25,
-            max_lr_factor=3.0,
+            max_lr_factor=2.5,
             eps=1.0e-08,
             param_min_rms=1.0e-05,
             param_max_rms=2.0,
