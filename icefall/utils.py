@@ -236,7 +236,9 @@ def get_texts(
         return aux_labels.tolist()
 
 
-def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
+def get_alignments(
+    best_paths: k2.Fsa, kind: str, remove_zero_blank: bool = False
+) -> List[List[int]]:
     """Extract labels or aux_labels from the best-path FSAs.
 
     Args:
@@ -272,6 +274,8 @@ def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
         token_shape, getattr(best_paths, kind).contiguous()
     )
     tokens = tokens.remove_values_eq(-1)
+    if remove_zero_blank:
+        tokens = tokens.remove_values_eq(0)
     return tokens.tolist()
 
 

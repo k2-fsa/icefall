@@ -137,6 +137,28 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ngram-rescoring",
+        type=str2bool,
+        default=False,
+        help="Whether to use ngram_rescoring.",
+    )
+
+    parser.add_argument(
+        "--decoding-graph",
+        type=str,
+        default="trivial_graph",
+        help="one of [trivial_grpah, HLG, Trival_LG, LG]"
+        "used by greedy_search_batch with ngram-rescoring=True.",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="./data/lang_bpe_500/",
+        help="Path to decoding graphs",
+    )
+
+    parser.add_argument(
         "--exp-dir",
         type=str,
         default="pruned_transducer_stateless6/exp",
@@ -219,6 +241,12 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--gamma-blank",
+        type=int,
+        default=1.0,
+    )
+
     return parser
 
 
@@ -293,6 +321,9 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            decoding_graph=decoding_graph,
+            ngram_rescoring=params.ngram_rescoring,
+            gamma_blank=params.gamma_blank,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -498,6 +529,11 @@ def main():
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
 
+    if params.ngram_rescoring:
+        params.suffix += "-ngram-rescoring"
+        params.suffix += f"-{params.decoding_graph}"
+        params.suffix += f"-gamma_blank-{params.gamma_blank}"
+
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
 
@@ -604,6 +640,24 @@ def main():
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
+
+    if params.ngram_rescoring and params.decoding_method == "greedy_search":
+        assert params.decoding_graph in [
+            "trivial_graph",
+            "L",
+        ], f"Unsupported decoding graph {params.decoding_graph}"
+        if params.decoding_graph == "trivial_graph":
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
+        else:
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(
+                    f"data/lang_bpe_500/{params.decoding_graph}.pt",
+                    map_location=device,
+                )
+            )
+            decoding_graph = k2.add_epsilon_self_loops(decoding_graph)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
