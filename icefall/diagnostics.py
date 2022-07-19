@@ -178,6 +178,9 @@ class TensorDiagnostic(object):
 
     def print_diagnostics(self):
         """Print diagnostics for each dimension of the tensor."""
+        if self.stats is None:
+            print(f"Warning: the stats of {self.name} is None.")
+            return
         for dim, this_dim_stats in enumerate(self.stats):
             for stats_type, stats_list in this_dim_stats.items():
                 # stats_type could be "rms", "value", "abs", "eigs", "positive".
