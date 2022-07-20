@@ -528,7 +528,11 @@ class MetricsTracker(collections.defaultdict):
             if "utt_" not in k:
                 ans_frames += str(k) + "=" + str(norm_value) + ", "
             else:
-                ans_utterances += str(k) + "=" + str(norm_value) + ", "
+                ans_utterances += str(k) + "=" + str(norm_value)
+                if k == "utt_duration":
+                    ans_utterances += " frames, "
+                else:
+                    ans_utterances += ", "
         frames = "%.2f" % self["frames"]
         ans_frames += "over " + str(frames) + " frames; "
         utterances = "%.2f" % self["utterances"]
