@@ -2045,11 +2045,11 @@ For other decoding method, the average WER of the two test sets with the two mod
 Except for the 1best and nbest method, the overall performance of reworked model is better than the baseline model.
 
 
-To reproduce the above result, use the following commands for training:
+To reproduce the above result, use the following commands:
 
 The training commands are
 
-``bash
+```bash
     WORLD_SIZE=8
     export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
     ./conformer_ctc2/train.py \
@@ -2068,7 +2068,7 @@ The training commands are
 
 And the following commands are for decoding:
 
-``bash
+```bash
 
 
 for method in ctc-greedy-search ctc-decoding 1best nbest-oracle; do
