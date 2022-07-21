@@ -183,13 +183,13 @@ class MultiheadAttention(nn.Module):
 
         if not self._qkv_same_embed_dim:
             q_proj_weight = (
-                self.q_proj_weight.get_weight() if self.q_proj_weight else None
+                self.q_proj_weight.get_weight() if self.q_proj_weight is not None else None
             )
             k_proj_weight = (
-                self.k_proj_weight.get_weight() if self.k_proj_weight else None
+                self.k_proj_weight.get_weight() if self.k_proj_weight is not None else None
             )
             v_proj_weight = (
-                self.v_proj_weight.get_weight() if self.v_proj_weight else None
+                self.v_proj_weight.get_weight() if self.v_proj_weight is not None else None
             )
             (
                 attn_output,
