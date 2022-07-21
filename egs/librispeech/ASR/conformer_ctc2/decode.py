@@ -201,8 +201,8 @@ def get_params() -> AttributeDict:
             "encoder_dim": 512,
             "num_encoder_layers": 12,
             # parameters for decoding
-            "search_beam": 4,
-            "output_beam": 4,
+            "search_beam": 20,
+            "output_beam": 8,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
@@ -671,6 +671,10 @@ def main():
     )
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
+
+    params.num_classes = num_classes
+    params.sos_id = sos_id
+    params.eos_id = eos_id
 
     if params.method == "ctc-decoding" or params.method == "ctc-greedy-search":
         HLG = None
