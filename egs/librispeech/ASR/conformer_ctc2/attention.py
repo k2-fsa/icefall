@@ -62,6 +62,7 @@ class MultiheadAttention(nn.Module):
         embed_dim,
         num_heads,
         dropout=0.0,
+        bias=True,
         add_bias_kv=False,
         add_zero_attn=False,
         kdim=None,
@@ -78,8 +79,6 @@ class MultiheadAttention(nn.Module):
         self._qkv_same_embed_dim = (
             self.kdim == embed_dim and self.vdim == embed_dim
         )
-        self.bias = True
-        bias = self.bias
 
         self.num_heads = num_heads
         self.dropout = dropout
