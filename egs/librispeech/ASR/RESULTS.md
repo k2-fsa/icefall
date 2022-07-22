@@ -2042,7 +2042,7 @@ The decoding configuration for the reworked model is --epoch 30, --avg 8, --use-
 
 conformer_ctc2 also implements the CTC greedy search decoding, it has the identical WERs with the CTC-decoding method.
 For other decoding methods, the average WER of the two test sets with the two models is similar.
-Except for the 1best and nbest method, the overall performance of reworked model is better than the baseline model.
+Except for the 1best and nbest methods, the overall performance of reworked model is better than the baseline model.
 
 
 To reproduce the above result, use the following commands.
