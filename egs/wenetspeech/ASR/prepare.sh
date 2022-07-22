@@ -225,3 +225,34 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
       --lang-dir data/lang_char
   fi
 fi
+
+# If you don't want to use LG for decoding, the following steps are not necessary.
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Prepare G"
+  # It will take about 20 minutes.
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+  lang_char_dir=data/lang_char
+  if [ ! -f $lang_char_dir/3-gram.unpruned.arpa ]; then
+    python ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text $lang_char_dir/text_words_segmentation \
+      -lm $lang_char_dir/3-gram.unpruned.arpa
+  fi
+
+  mkdir -p data/lm
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+    # It is used in building LG
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_char_dir/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $lang_char_dir/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+  log "Stage 18: Compile LG"
+  lang_char_dir=data/lang_char
+  python ./local/compile_lg.py --lang-dir $lang_char_dir
+fi
