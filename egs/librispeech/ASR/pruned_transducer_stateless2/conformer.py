@@ -1098,7 +1098,7 @@ class RelPositionMultiheadAttention(nn.Module):
             head_dim * num_heads == embed_dim
         ), "embed_dim must be divisible by num_heads"
 
-        scaling = torch.ones((1),  dtype=torch.float32) * float(head_dim) ** -0.5
+        scaling = torch.ones((1), dtype=torch.float32) * float(head_dim) ** -0.5
 
         if torch.equal(query, key) and torch.equal(key, value):
             # self-attention
