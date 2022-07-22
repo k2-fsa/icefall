@@ -1040,14 +1040,15 @@ def run(rank, world_size, args):
     # It's time consuming to include `giga_train_dl` here
     #  for dl in [train_dl, giga_train_dl]:
     for dl in [train_dl]:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-            warmup=0.0 if params.start_epoch == 0 else 1.0,
-        )
+        if params.start_batch <= 0:
+            scan_pessimistic_batches_for_oom(
+                model=model,
+                train_dl=dl,
+                optimizer=optimizer,
+                sp=sp,
+                params=params,
+                warmup=0.0 if params.start_epoch == 0 else 1.0,
+            )
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
