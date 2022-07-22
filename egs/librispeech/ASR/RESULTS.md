@@ -1,6 +1,6 @@
 ## Results
 
-### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T 2)
+#### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T 2)
 
 [conv_emformer_transducer_stateless2](./conv_emformer_transducer_stateless2)
 
@@ -1998,10 +1998,9 @@ avg=11
 You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3xqTpyVmWi5FnWjrA>
 
 
-
 ### LibriSpeech BPE training results (Conformer-CTC 2)
 
-[conformer_ctc2](./conformer_ctc2)
+#### [conformer_ctc2](./conformer_ctc2)
 
 #### 2022-07-21
 
@@ -2037,7 +2036,7 @@ The decoding configuration for the reworked model is --epoch 30, --avg 8, --use-
 | whole-lattice-rescoring| 2.66% | 5.76%| 4.21%| 2.56%| 6.04%| 4.30%|
 | attention-decoder      | 2.59% | 5.54%| 4.07%| 2.41%| 5.77%| 4.09%|
 | nbest-oracle           | 1.53% | 3.47%| 2.50%| 1.69%| 4.02%| 2.86%|
-|rnn-lm                  | 2.37% | 4.98%| 3.68%| 2.31%| 5.35%| 3.83%|
+| rnn-lm                 | 2.37% | 4.98%| 3.68%| 2.31%| 5.35%| 3.83%|
 
 
 
