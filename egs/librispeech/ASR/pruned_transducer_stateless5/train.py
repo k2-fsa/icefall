@@ -134,6 +134,40 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -408,6 +442,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -891,6 +929,11 @@ def run(rank, world_size, args):
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.dynamic_chunk_training:
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
 
     logging.info(params)
 
