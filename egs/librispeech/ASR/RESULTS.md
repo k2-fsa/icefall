@@ -2037,6 +2037,7 @@ The decoding configuration for the reworked model is --epoch 30, --avg 8, --use-
 | whole-lattice-rescoring| 2.66% | 5.76%| 4.21%| 2.56%| 6.04%| 4.30%|
 | attention-decoder      | 2.59% | 5.54%| 4.07%| 2.41%| 5.77%| 4.09%|
 | nbest-oracle           | 1.53% | 3.47%| 2.50%| 1.69%| 4.02%| 2.86%|
+|rnn-lm                  | 2.37% | 4.98%| 3.68%| 2.31%| 5.35%| 3.83%|
 
 
 
@@ -2045,9 +2046,9 @@ For other decoding method, the average WER of the two test sets with the two mod
 Except for the 1best and nbest method, the overall performance of reworked model is better than the baseline model.
 
 
-To reproduce the above result, use the following commands:
+To reproduce the above result, use the following commands.
 
-The training commands are
+The training commands are:
 
 ```bash
     WORLD_SIZE=8
