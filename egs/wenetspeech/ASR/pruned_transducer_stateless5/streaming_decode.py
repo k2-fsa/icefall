@@ -227,7 +227,6 @@ def greedy_search(
     for t in range(T):
         # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
         current_encoder_out = encoder_out[:, t : t + 1, :]  # noqa
-        # print("encoder_out shape: ", current_encoder_out.shape, "decoder_out shape: ", decoder_out.shape)
         logits = model.joiner(
             current_encoder_out.unsqueeze(2),
             decoder_out.unsqueeze(1),
@@ -278,6 +277,7 @@ def fast_beam_search(
         contexts = contexts.to(torch.int64)
         # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
         decoder_out = model.decoder(contexts, need_pad=False)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
         # current_encoder_out is of shape
         # (shape.NumElements(), 1, joiner_dim)
         # fmt: off
@@ -288,6 +288,7 @@ def fast_beam_search(
         logits = model.joiner(
             current_encoder_out.unsqueeze(2),
             decoder_out.unsqueeze(1),
+            project_input=False,
         )
         logits = logits.squeeze(1).squeeze(1)
         log_probs = logits.log_softmax(dim=-1)
