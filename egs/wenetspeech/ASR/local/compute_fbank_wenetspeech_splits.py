@@ -128,8 +128,12 @@ def compute_fbank_wenetspeech_splits(args):
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
 
-        logging.info("Computing features")
+        logging.info("Splitting cuts into smaller chunks.")
+        cut_set = cut_set.trim_to_supervisions(
+            keep_overlapping=False, min_duration=None
+        )
 
+        logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
             storage_path=f"{output_dir}/feats_{subset}_{idx}",
@@ -138,14 +142,8 @@ def compute_fbank_wenetspeech_splits(args):
             storage_type=LilcomChunkyWriter,
         )
 
-        logging.info("About to split cuts into smaller chunks.")
-        cut_set = cut_set.trim_to_supervisions(
-            keep_overlapping=False, min_duration=None
-        )
-
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
-        logging.info(f"Saved to {cuts_path}")
 
 
 def main():

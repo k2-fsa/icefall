@@ -277,10 +277,10 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.right_context_length
+    feature_lens += params.chunk_length
     feature = torch.nn.functional.pad(
         feature,
-        pad=(0, 0, 0, params.right_context_length),
+        pad=(0, 0, 0, params.chunk_length),
         value=LOG_EPS,
     )
 
