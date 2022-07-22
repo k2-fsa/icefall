@@ -156,7 +156,7 @@ class BasicNorm(torch.nn.Module):
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
-        ) ** (-0.5 * torch.ones((1), dtype=torch.float32))
+        ) ** (-0.5 * torch.ones((1), device=x.device, dtype=torch.float32))
         return x * scales
 
 
@@ -473,7 +473,7 @@ class DoubleSwish(torch.nn.Module):
         that we approximate closely with x * sigmoid(x-1).
         """
         if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
-            return x * torch.sigmoid(x - torch.ones((1), dtype=torch.float32))
+            return x * torch.sigmoid(x - torch.ones((1), device=x.device, dtype=torch.float32))
         else:
             return DoubleSwishFunction.apply(x)
 
