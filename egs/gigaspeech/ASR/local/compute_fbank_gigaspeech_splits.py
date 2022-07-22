@@ -22,11 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from lhotse import (
-    CutSet,
-    KaldifeatFbank,
-    KaldifeatFbankConfig,
-)
+from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -120,6 +116,7 @@ def compute_fbank_gigaspeech_splits(args):
             storage_path=f"{output_dir}/feats_XL_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
+            overwrite=True,
         )
 
         logging.info("About to split cuts into smaller chunks.")

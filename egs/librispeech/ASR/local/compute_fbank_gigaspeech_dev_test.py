@@ -68,6 +68,7 @@ def compute_fbank_gigaspeech_dev_test():
             storage_path=f"{in_out_dir}/{prefix}_feats_{partition}",
             num_workers=num_workers,
             batch_duration=batch_duration,
+            overwrite=True,
         )
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
