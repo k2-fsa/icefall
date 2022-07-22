@@ -156,7 +156,7 @@ class BasicNorm(torch.nn.Module):
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
-        ) ** -0.5
+        ) ** (-0.5 * torch.ones((1), device=x.device, dtype=torch.float32))
         return x * scales
 
 
@@ -423,7 +423,7 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
             return x
         else:
             return ActivationBalancerFunction.apply(
@@ -472,8 +472,10 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
-            return x * torch.sigmoid(x - 1.0)
+        if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
+            return x * torch.sigmoid(
+                x - torch.ones((1), device=x.device, dtype=torch.float32)
+            )
         else:
             return DoubleSwishFunction.apply(x)
 
