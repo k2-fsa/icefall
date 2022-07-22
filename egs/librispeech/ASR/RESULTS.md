@@ -2040,7 +2040,7 @@ The decoding configuration for the reworked model is --epoch 30, --avg 8, --use-
 
 
 
-conformer_ctc2 also implemented the CTC greedy search decoding, it has the indentical WERs with the CTC-decoding method.
+conformer_ctc2 also implements the CTC greedy search decoding, it has the identical WERs with the CTC-decoding method.
 For other decoding method, the average WER of the two test sets with the two model is similar.
 Except for the 1best and nbest method, the overall performance of reworked model is better than the baseline model.
 
