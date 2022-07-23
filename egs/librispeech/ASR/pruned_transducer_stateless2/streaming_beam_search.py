@@ -55,7 +55,7 @@ def greedy_search(
         device=device,
         dtype=torch.int64,
     )
-    # decoder_out is of shape (N, decoder_out_dim)
+    # decoder_out is of shape (N, 1, decoder_out_dim)
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
 
@@ -96,7 +96,7 @@ def modified_beam_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
     streams: List[DecodeStream],
-    beam: int = 4,
+    num_active_paths: int = 4,
 ) -> None:
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
 
@@ -108,7 +108,7 @@ def modified_beam_search(
         the encoder model.
       streams:
         A list of stream objects.
-      beam:
+      num_active_paths:
         Number of active paths during the beam search.
     """
     assert encoder_out.ndim == 3, encoder_out.shape
@@ -177,7 +177,9 @@ def modified_beam_search(
         )
 
         for i in range(batch_size):
-            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(
+                num_active_paths
+            )
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")

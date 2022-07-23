@@ -125,7 +125,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--beam-size",
+        "--num_active_paths",
         type=int,
         default=4,
         help="""An interger indicating how many candidates we will keep for each
@@ -290,7 +290,7 @@ def decode_one_chunk(
             model=model,
             streams=decode_streams,
             encoder_out=encoder_out,
-            beam=params.beam_size,
+            num_active_paths=params.num_active_paths,
         )
     else:
         raise ValueError(
@@ -420,7 +420,7 @@ def decode_dataset(
             f"max_states_{params.max_states}"
         )
     elif params.decoding_method == "modified_beam_search":
-        key = f"beam_size_{params.beam_size}"
+        key = f"num_active_paths_{params.num_active_paths}"
     else:
         raise ValueError(
             f"Unsupported decoding method: {params.decoding_method}"
