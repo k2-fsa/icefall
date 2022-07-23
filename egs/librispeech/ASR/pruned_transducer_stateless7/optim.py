@@ -142,8 +142,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            min_lr_factor=(0.05, 0.005, 0.01),  # making the middle one large is worst.
-            max_lr_factor=(10.0, 5.0, 10.0),  # making the middle one large is the best
+            min_lr_factor=(0.05, 0.01, 0.01),  # making the middle one large is worst.
+            max_lr_factor=(10.0, 40.0, 10.0),  # making the middle one large is the best
             #param_pow=(0.99999, 0.99999, 0.99999),
             param_pow=(1.0, 1.0, 1.0),
             param_rms_smooth0=0.75,
