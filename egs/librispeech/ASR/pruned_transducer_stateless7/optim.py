@@ -2251,6 +2251,9 @@ if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     logging.getLogger().setLevel(logging.INFO)
+    import subprocess
+    s = subprocess.check_output("git status -uno .; git log -1", shell=True)
+    logging.info(s)
     #_test_svd()
     _test_eve_cain()
     #_test_eden()
