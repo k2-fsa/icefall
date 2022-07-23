@@ -757,6 +757,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 (batch_size, num_blocks, block_size, block_size) = Q.shape
 
                 scale = cur_scales[dim].reshape(batch_size, num_blocks, block_size, 1)
+
+                # Geometrically interpolate scale with P_proj[dim].sqrt()
+                scale = (scale * P_proj[dim].reshape(batch_size, num_blocks, block_size, 1).sqrt()).sqrt()
+
                 # The following normalization step will ensure the Frobenius
                 # norm is unchanged, from applying this scale: at least,
                 # assuming "grad / denom" gives uncorrelated outputs so that
@@ -2163,7 +2167,7 @@ def _test_eve_cain():
 
         start = timeit.default_timer()
         avg_loss = 0.0
-        for epoch in range(150):
+        for epoch in range(180):
             scheduler.step_epoch()
             #if epoch == 100 and iter in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
