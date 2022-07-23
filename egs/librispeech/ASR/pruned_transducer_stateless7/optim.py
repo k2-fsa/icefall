@@ -142,8 +142,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            min_lr_factor=(0.05, 0.01, 0.01),  # making the middle one large is worst.
-            max_lr_factor=(10.0, 10.0, 10.0),
+            min_lr_factor=(0.05, 0.00001, 0.01),  # making the middle one large is worst.
+            max_lr_factor=(10.0, 100000.0, 10.0),  # making the middle one large is the best
             #param_pow=(0.99999, 0.99999, 0.99999),
             param_pow=(1.0, 1.0, 1.0),
             param_rms_smooth0=0.75,
@@ -967,16 +967,16 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                    (G_prime_mean * (1+G_prime_smooth)  +  eps))
         G_prime_rms = G_prime.sqrt()
         G_prime_scale = G_prime_rms.unsqueeze(-1) * G_prime_rms.unsqueeze(-2)
-        # P_gnorm is a version of P_prime that is scaled relative to G, i.e.
-        # scaled in a way that would make G the unit matrix.
-        P_gnorm = P_prime / G_prime_scale
+        # P_gnorm is a version of P_prime that is multiplied by G, so that
+        # it reflects the amount of loss-function change in each dimension.
+        P_gnorm = P_prime * G_prime_scale
         # Apply another round of smoothing "relative to G"
         P_gnorm = self._smooth_cov(P_gnorm,
                                    group["min_lr_factor"][1],
                                    group["max_lr_factor"][1],
                                    group["param_pow"][1])
         # Undo the scaling relative to G, so we have stage-2-smoothed version of P_prime.
-        P_prime = P_gnorm * G_prime_scale
+        P_prime = P_gnorm / G_prime_scale
 
         # Apply a 3rd round of smoothing
         P_prime = self._smooth_cov(P_prime,
