@@ -142,12 +142,12 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            min_lr_factor=(0.05, 0.01, 0.01),  # making the middle one large is worst.
-            max_lr_factor=(10.0, 40.0, 10.0),  # making the middle one large is the best
+            min_lr_factor=(0.05, 0.01, 0.01),
+            max_lr_factor=(10.0, 40.0, 10.0),
             #param_pow=(0.99999, 0.99999, 0.99999),
             param_pow=(1.0, 1.0, 1.0),
-            param_rms_smooth0=0.75,
-            param_rms_smooth1=0.25,
+            param_rms_smooth0=0.4,
+            param_rms_smooth1=0.2,
             eps=1.0e-08,
             param_min_rms=1.0e-05,
             param_max_rms=2.0,
@@ -944,7 +944,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # from setting rank==size, we get smooth1 = alpha * size / (beta*size * size) = alpha/(1+beta),
         # so smooth1 == smooth0 / (1+beta), so (1+beta) = smooth0/smooth1, so beta=smooth0/smooth1 - 1
         smooth = smooth0 * block_size / ((smooth0/smooth1 - 1) * rank + block_size)
-
+        if True:
+            logging.info(f"block size={block_size}, rank={rank}, smooth={smooth}")
         # add rank-dependent smoothing amount to diagonal of P_prime.  _diag() returns an aliased tensor.
         # we don't need to multiply `smooth` by anything, because at this point, P_prime should have
         # diagonal elements close to 1.
@@ -967,8 +968,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                    (G_prime_mean * (1+G_prime_smooth)  +  eps))
         G_prime_rms = G_prime.sqrt()
         G_prime_scale = G_prime_rms.unsqueeze(-1) * G_prime_rms.unsqueeze(-2)
-        # P_gnorm is a version of P_prime that is multiplied by G, so that
-        # it reflects the amount of loss-function change in each dimension.
+        # P_gnorm is a version of P_prime that is multiplied by G (actually
+        # G^{0.5} P_prime G^{0.5}), so that it reflects the amount of
+        # loss-function change in each dimension.  We also tried smoothing
+        # a version of P_prime divided by G, but it seemed not to be helpful.
         P_gnorm = P_prime * G_prime_scale
         # Apply another round of smoothing "relative to G"
         P_gnorm = self._smooth_cov(P_gnorm,
@@ -978,7 +981,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # Undo the scaling relative to G, so we have stage-2-smoothed version of P_prime.
         P_prime = P_gnorm / G_prime_scale
 
-        # Apply a 3rd round of smoothing
+        # Apply a 3rd round of smoothing in the canonical basis.
         P_prime = self._smooth_cov(P_prime,
                                    group["min_lr_factor"][2],
                                    group["max_lr_factor"][2],
