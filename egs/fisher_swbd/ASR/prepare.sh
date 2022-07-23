@@ -91,10 +91,10 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare SWBD manifests"
   mkdir -p data/manifests/swbd
   lhotse prepare switchboard --absolute-paths 1 --omit-silence $dl_dir/LDC97S62 data/manifests/swbd
-  gzip -d data/manifests/swbd/swbd_supervisions.jsonl > data/manifests/swbd/swbd_supervisions.jsonl.gz
-  python3 local/normalize_and_filter_supervisions.py  data/manifests/swbd/swbd_supervisions.jsonl.gz  data/manifests/supervisions_swbd.jsonl.gz
+  python3 local/normalize_and_filter_supervisions.py data/manifests/swbd/swbd_supervisions_all.jsonl.gz data/manifests/supervisions_swbd.jsonl.gz
+  cp data/manifests/swbd/swbd_recordings_all.jsonl.gz data/manifests/recordings_swbd.jsonl.gz
   gzip -d data/manifests/supervisions_swbd.jsonl.gz
-  cp data/manifests/swbd/swbd_recordings.jsonl data/manifests/recordings_swbd.jsonl
+  gzip -d data/manifests/recordings_swbd.jsonl.gz
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
