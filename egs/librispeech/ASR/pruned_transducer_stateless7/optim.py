@@ -952,6 +952,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         """
         This function returns a modified/smoothed version of the parameter covariance
         P_prime.
+
         Args:
            group: dict to look up config values
           p_shape: The shape of the parameter we are optimizing
@@ -1020,10 +1021,14 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # Make sure G_prime has unit mean and no eigenvalue is super small.  Note, G_prime
         # is already diagonalized, the variable G_prime is just the tensor of eigenvalues.
         G_prime_mean = _mean(G_prime, exclude_dims=[0], keepdim=True)
-        G_prime_smooth = 0.001
+        G_prime_smooth = 0.0001
         # make sure G_prime has no zero eigs, and is unit mean.
         G_prime = ((G_prime + eps + G_prime_smooth * G_prime_mean) /
                    (G_prime_mean * (1+G_prime_smooth)  +  eps))
+        # it now has unit mean..
+        G_prime_max = 400.0
+        G_prime = 1. / (1./G_prime  + 1./G_prime_max)  # apply max
+
         G_prime_rms = G_prime.sqrt()
         G_prime_scale = G_prime_rms.unsqueeze(-1) * G_prime_rms.unsqueeze(-2)
         # P_gnorm is a version of P_prime that is multiplied by G (actually
