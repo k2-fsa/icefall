@@ -1,6 +1,6 @@
 ## Results
 
-### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T 2)
+#### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T 2)
 
 [conv_emformer_transducer_stateless2](./conv_emformer_transducer_stateless2)
 
@@ -1996,6 +1996,118 @@ avg=11
 ```
 
 You can find the tensorboard log at: <https://tensorboard.dev/experiment/D7NQc3xqTpyVmWi5FnWjrA>
+
+
+### LibriSpeech BPE training results (Conformer-CTC 2)
+
+#### [conformer_ctc2](./conformer_ctc2)
+
+#### 2022-07-21
+
+It implements a 'reworked' version of CTC attention model.
+As demenstrated by pruned_transducer_stateless2, reworked Conformer model has superior performance compared to the original Conformer.
+So in this modified version of CTC attention model, it has the reworked Conformer as the encoder and the reworked Transformer as the decoder.
+conformer_ctc2 also integrates with the idea of the 'averaging models' in pruned_transducer_stateless4.
+
+The WERs on comparisons with a baseline model, for the librispeech test dataset, are listed as below.
+
+The baseline model is the original conformer CTC attention model trained with icefall/egs/librispeech/ASR/conformer_ctc.
+The model is downloaded from  <https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09>.
+This model has 12 layers of Conformer encoder layers and 6 Transformer decoder layers.
+Number of model parameters is 109,226,120.
+It has been trained with 90 epochs with full Librispeech dataset.
+
+For this reworked CTC attention model, it has 12 layers of reworked Conformer encoder layers and 6 reworked Transformer decoder layers.
+Number of model parameters is 103,071,035.
+With full Librispeech data set, it was trained for **only** 30 epochs because the reworked model would converge much faster.
+Please refer to <https://tensorboard.dev/experiment/GR1s6VrJRTW5rtB50jakew/#scalars> to see the loss convergence curve.
+Please find the above trained model at <https://huggingface.co/WayneWiser/icefall-asr-librispeech-conformer-ctc2-jit-bpe-500-2022-07-21> in huggingface.
+
+The decoding configuration for the reworked model is --epoch 30, --avg 8, --use-averaged-model True, which is the best after searching.
+
+| WER | reworked ctc attention | with --epoch 30 --avg 8 --use-averaged-model True | | ctc attention| with --epoch 77 --avg 55 | |
+|------------------------|-------|------|------|------|------|-----|
+| test sets | test-clean | test-other | Avg | test-clean | test-other | Avg |
+| ctc-greedy-search      | 2.98% | 7.14%| 5.06%| 2.90%| 7.47%| 5.19%|
+| ctc-decoding           | 2.98% | 7.14%| 5.06%| 2.90%| 7.47%| 5.19%|
+| 1best                  | 2.93% | 6.37%| 4.65%| 2.70%| 6.49%| 4.60%|
+| nbest                  | 2.94% | 6.39%| 4.67%| 2.70%| 6.48%| 4.59%|
+| nbest-rescoring        | 2.68% | 5.77%| 4.23%| 2.55%| 6.07%| 4.31%|
+| whole-lattice-rescoring| 2.66% | 5.76%| 4.21%| 2.56%| 6.04%| 4.30%|
+| attention-decoder      | 2.59% | 5.54%| 4.07%| 2.41%| 5.77%| 4.09%|
+| nbest-oracle           | 1.53% | 3.47%| 2.50%| 1.69%| 4.02%| 2.86%|
+| rnn-lm                 | 2.37% | 4.98%| 3.68%| 2.31%| 5.35%| 3.83%|
+
+
+
+conformer_ctc2 also implements the CTC greedy search decoding, it has the identical WERs with the CTC-decoding method.
+For other decoding methods, the average WER of the two test sets with the two models is similar.
+Except for the 1best and nbest methods, the overall performance of reworked model is better than the baseline model.
+
+
+To reproduce the above result, use the following commands.
+
+The training commands are:
+
+```bash
+    WORLD_SIZE=8
+    export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+    ./conformer_ctc2/train.py \
+    --manifest-dir data/fbank \
+    --exp-dir conformer_ctc2/exp \
+    --full-libri 1 \
+    --spec-aug-time-warp-factor 80 \
+    --max-duration 300 \
+    --world-size ${WORLD_SIZE} \
+    --start-epoch 1 \
+    --num-epochs 30 \
+    --att-rate 0.7 \
+    --num-decoder-layers 6
+```
+
+
+And the following commands are for decoding:
+
+```bash
+
+
+for method in ctc-greedy-search ctc-decoding 1best nbest-oracle; do
+  python3 ./conformer_ctc2/decode.py \
+  --exp-dir conformer_ctc2/exp \
+  --use-averaged-model True --epoch 30 --avg 8 --max-duration 200 --method $method
+done
+
+for method in nbest nbest-rescoring whole-lattice-rescoring attention-decoder ; do
+  python3 ./conformer_ctc2/decode.py \
+  --exp-dir conformer_ctc2/exp \
+  --use-averaged-model True --epoch 30 --avg 8 --max-duration 20 --method $method
+done
+
+rnn_dir=$(git rev-parse --show-toplevel)/icefall/rnn_lm
+./conformer_ctc2/decode.py \
+  --exp-dir conformer_ctc2/exp \
+  --lang-dir data/lang_bpe_500 \
+  --lm-dir data/lm \
+  --max-duration 30 \
+  --concatenate-cuts 0 \
+  --bucketing-sampler 1 \
+  --num-paths 1000 \
+  --use-averaged-model True \
+  --epoch 30 \
+  --avg 8 \
+  --nbest-scale 0.5 \
+  --rnn-lm-exp-dir ${rnn_dir}/exp \
+  --rnn-lm-epoch 29 \
+  --rnn-lm-avg 3 \
+  --rnn-lm-embedding-dim 2048 \
+  --rnn-lm-hidden-dim 2048 \
+  --rnn-lm-num-layers 3 \
+  --rnn-lm-tie-weights true \
+  --method rnn-lm
+```
+
+You can find the RNN-LM pre-trained model at
+<https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
 
 
 ### LibriSpeech BPE training results (Conformer-CTC)
