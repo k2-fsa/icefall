@@ -159,8 +159,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            param_cov_min=(0.05, 0.01, 0.01),
-            param_cov_max=(10.0, 40.0, 10.0),
+            param_cov_min=(0.05, 0.01, 0.04),
+            param_cov_max=(10.0, 40.0, 5.0),
             param_pow=(1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
             param_rms_smooth1=0.2,
@@ -418,7 +418,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 # Only update the parameter-dependent part of the learning
                 # rate matrices at most every other time we reach here, and
                 # less frequently than that later in training.
-                self._update_param_scales(group, p, state, P_proj)
+                #self._update_param_scales(group, p, state, P_proj)
+                self._update_param_scales_simple(group, p, state, P_proj)
 
                 # We won't be doing this any more.
                 #self._diagonalize_grad_cov(group, p, state)
@@ -599,6 +600,13 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # individual tensor dims
             this_P_proj /= _mean(this_P_proj, exclude_dims=[0], keepdim=True)
 
+            if True:
+                # debug info.
+                scale = this_P_proj.sqrt()
+                step = state["step"]
+                scale_min, scale_max, scale_mean = scale.min().item(), scale.max().item(), scale.mean().item()
+                logging.info(f"step={step}, dim={dim}, size={size}, scale min,max,mean={scale_min,scale_max,scale_mean}")
+
             Q *= this_P_proj.sqrt()
 
     def _update_param_scales(self,
@@ -775,7 +783,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 scale = cur_scales[dim].reshape(batch_size, num_blocks, block_size, 1)
 
                 # Geometrically interpolate scale with P_proj[dim].sqrt()
-                scale = (scale * P_proj[dim].reshape(batch_size, num_blocks, block_size, 1).sqrt()).sqrt()
+                P_proj_weight = 0.5
+                scale = ((scale ** (1-P_proj_weight)) *
+                         (P_proj[dim].reshape(batch_size, num_blocks, block_size, 1) ** (P_proj_weight * 0.5)))
 
                 # The following normalization step will ensure the Frobenius
                 # norm is unchanged, from applying this scale: at least,
@@ -787,9 +797,15 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 # individual tensor dims
                 scale /= _mean(scale**2, exclude_dims=[0], keepdim=True).sqrt()
 
+
+                if True:
+                    # debug info.
+                    step = state["step"]
+                    scale_min, scale_max, scale_mean = scale.min().item(), scale.max().item(), scale.mean().item()
+                    logging.info(f"step={step}, dim={dim}, size={size}, scale min,max,mean={scale_min,scale_max,scale_mean}")
+
                 # Q is indexed [batch_index, block_index, diagonalized_coordinate, canonical_coordinate],
                 # want to multiply on the diagonalized co-ordinate.
-                # else: Q is indexed [batch_index, canonical_coordinate].
                 state[f"Q_{dim}"] *= scale
         state["last_param_scale_update"] = state["step"]
 
@@ -2163,11 +2179,13 @@ def _test_eve_cain():
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
         # TODO: find out why this is not converging...
-        m = torch.nn.Sequential(Linear(E, 200),
+
+        hidden_dim = 512
+        m = torch.nn.Sequential(Linear(E, hidden_dim),
                                 torch.nn.PReLU(),
-                                Linear(200, 200),
+                                Linear(hidden_dim, hidden_dim),
                                 torch.nn.PReLU(),
-                                Linear(200, E),
+                                Linear(hidden_dim, E),
                                 ).to(device)
 
         train_pairs = [ (100.0 * torch.randn(B, T, E, device=device, dtype=dtype) * input_magnitudes,
@@ -2176,7 +2194,7 @@ def _test_eve_cain():
         if iter == 0: optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1: optim = Cain(m.parameters(), lr=0.03)
         elif iter == 2: optim = PrAdam(m.parameters(), lr=0.03)
-        elif iter == 3: optim = PrAdam(m.parameters(), lr=0.03, max_block_size=100)
+        elif iter == 3: optim = PrAdam(m.parameters(), lr=0.03, max_block_size=256)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         #TEMP
