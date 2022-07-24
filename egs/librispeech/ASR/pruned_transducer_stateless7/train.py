@@ -928,7 +928,8 @@ def run(rank, world_size, args):
 
     optimizer = PrAdam(model.parameters(),
                        lr=params.initial_lr,
-                       max_block_size=512)
+                       max_block_size=512,
+                       lr_update_period=(200, 4000))
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
