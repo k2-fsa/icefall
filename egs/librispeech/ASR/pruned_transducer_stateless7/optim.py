@@ -1091,7 +1091,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             G_prime_min = group["cov_min"][3]
             # make sure G_prime has no zero eigs, and is unit mean.
             #G_prime = _soft_floor(G_prime, G_prime_min * G_prime_mean, depth=3)
-            G_prime += G_prime_min * G_prime_mean
+            G_prime = G_prime + G_prime_min * G_prime_mean + 1.0e-20
             G_prime /= _mean(G_prime, exclude_dims=[0], keepdim=True)
             # it now has unit mean..
             G_prime_max = group["cov_max"][3]
