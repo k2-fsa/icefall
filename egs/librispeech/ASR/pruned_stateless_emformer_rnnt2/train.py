@@ -603,6 +603,14 @@ def compute_loss(
             (feature_lens // params.subsampling_factor).sum().item()
         )
 
+    info["utterances"] = feature.size(0)
+    # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    info["utt_duration"] = feature_lens.sum().item()
+    # padding proportion of each utterance
+    info["utt_pad_proportion"] = (
+        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    )
+
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
