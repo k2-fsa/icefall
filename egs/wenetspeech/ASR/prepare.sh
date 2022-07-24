@@ -54,7 +54,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   # ln -sfv /path/to/WenetSpeech $dl_dir/WenetSpeech
   #
   if [ ! -d $dl_dir/WenetSpeech/wenet_speech ] && [ ! -f $dl_dir/WenetSpeech/metadata/v1.list ]; then
-    log "Stage 0: should download WenetSpeech first"
+    log "Stage 0: You should download WenetSpeech first"
     exit 1;
   fi
 
@@ -191,7 +191,9 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
 
   # Prepare text.
   # Note: in Linux, you can install jq with the following command:
-  # wget -O jq https://github.com/stedolan/jq/release/download/jq-1.6/jq-linux64
+  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+  # 2. chmod +x ./jq
+  # 3. cp jq /usr/bin
   if [ ! -f $lang_char_dir/text ]; then
     gunzip -c data/manifests/supervisions_L.jsonl.gz \
       | jq 'text' | sed 's/"//g' \

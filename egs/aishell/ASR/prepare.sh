@@ -18,7 +18,7 @@ stop_stage=10
 #      This directory contains the language model downloaded from
 #        https://huggingface.co/pkufool/aishell_lm
 #
-#        - 3-gram.unpruned.apra
+#        - 3-gram.unpruned.arpa
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from

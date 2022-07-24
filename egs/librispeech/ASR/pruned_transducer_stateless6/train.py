@@ -41,7 +41,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --full-libri 1 \
   --max-duration 550
 
-# For distiallation with codebook_indexes:
+# For distillation with codebook_indexes:
 
 ./pruned_transducer_stateless6/train.py \
   --manifest-dir ./data/vq_fbank \
@@ -74,9 +74,9 @@ from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut, MonoCut
+from lhotse.dataset.collation import collate_custom_field
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from lhotse.dataset.collation import collate_custom_field
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -300,6 +300,13 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--enable-distillation",
+        type=str2bool,
+        default=True,
+        help="Whether to eanble distillation.",
+    )
+
     return parser
 
 
@@ -372,11 +379,10 @@ def get_params() -> AttributeDict:
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
             # parameters for distillation with codebook indexes.
-            "enable_distiallation": True,
             "distillation_layer": 5,  # 0-based index
             # Since output rate of hubert is 50, while that of encoder is 8,
             # two successive codebook_index are concatenated together.
-            # Detailed in function Transducer::concat_sucessive_codebook_indexes.
+            # Detailed in function Transducer::concat_sucessive_codebook_indexes
             "num_codebooks": 16,  # used to construct distillation loss
         }
     )
@@ -394,7 +400,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         middle_output_layer=params.distillation_layer
-        if params.enable_distiallation
+        if params.enable_distillation
         else None,
     )
     return encoder
@@ -433,9 +439,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
-        num_codebooks=params.num_codebooks
-        if params.enable_distiallation
-        else 0,
+        num_codebooks=params.num_codebooks if params.enable_distillation else 0,
     )
     return model
 
@@ -615,7 +619,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     info = MetricsTracker()
-    if is_training and params.enable_distiallation:
+    if is_training and params.enable_distillation:
         codebook_indexes, _ = extract_codebook_indexes(batch)
         codebook_indexes = codebook_indexes.to(device)
     else:
@@ -645,7 +649,7 @@ def compute_loss(
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
         )
-        if is_training and params.enable_distiallation:
+        if is_training and params.enable_distillation:
             assert codebook_loss is not None
             loss += params.codebook_loss_scale * codebook_loss
 
@@ -669,7 +673,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
-    if is_training and params.enable_distiallation:
+    if is_training and params.enable_distillation:
         info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     return loss, info
@@ -883,6 +887,11 @@ def run(rank, world_size, args):
         The return value of get_parser().parse_args()
     """
     params = get_params()
+
+    # Note: it's better to set --spec-aug-time-warpi-factor=-1
+    # when doing distillation with vq.
+    assert args.spec_aug_time_warp_factor < 1
+
     params.update(vars(args))
     if params.full_libri is False:
         params.valid_interval = 1600
@@ -996,6 +1005,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1056,6 +1066,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1066,9 +1077,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
@@ -1076,7 +1084,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=warmup,
                 )
             loss.backward()
             optimizer.step()
