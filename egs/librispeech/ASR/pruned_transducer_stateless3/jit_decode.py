@@ -90,7 +90,7 @@ def main():
     model = torch.jit.load(params.nn_model_filename)
 
     device = torch.device("cpu")
-    if torch.cuda.is_available() and hasattr(
+    if torch.cuda.is_available() and not hasattr(
         model.simple_lm_proj, "_packed_params"
     ):
         device = torch.device("cuda", 0)
@@ -104,6 +104,8 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
+
+    params.suffix = "jit"
 
     model.to(device)
     model.device = device
