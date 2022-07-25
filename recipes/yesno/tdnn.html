@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TDNN-CTC &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Contributing" href="../../contributing/index.html" />
+    <link rel="prev" title="YesNo" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../aishell/index.html">aishell</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">YesNo</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">TDNN-CTC</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pre-trained-model">Pre-trained Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#colab-notebook">Colab notebook</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Recipes</a> &raquo;</li>
+          <li><a href="index.html">YesNo</a> &raquo;</li>
+      <li>TDNN-CTC</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/recipes/yesno/tdnn.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="tdnn-ctc">
+<h1>TDNN-CTC<a class="headerlink" href="#tdnn-ctc" title="Permalink to this heading"></a></h1>
+<p>This page shows you how to run the <a class="reference external" href="https://www.openslr.org/1">yesno</a> recipe. It contains:</p>
+<blockquote>
+<div><ul>
+<li><ol class="arabic simple">
+<li><p>Prepare data for training</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="2">
+<li><p>Train a TDNN model</p></li>
+</ol>
+<ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>View text format logs and visualize TensorBoard logs</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>Select device type, i.e., CPU and GPU, for training</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="3">
+<li><p>Change training options</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="4">
+<li><p>Resume training from a checkpoint</p></li>
+</ol>
+</li>
+</ul>
+</li>
+<li><ol class="arabic simple" start="3">
+<li><p>Decode with a trained model</p></li>
+</ol>
+<ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>Select a checkpoint for decoding</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>Model averaging</p></li>
+</ol>
+</li>
+</ul>
+</li>
+<li><ol class="arabic simple" start="4">
+<li><p>Colab notebook</p></li>
+</ol>
+<ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>It shows you step by step how to setup the environment, how to do training,
+and how to do decoding</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>How to use a pre-trained model</p></li>
+</ol>
+</li>
+</ul>
+</li>
+<li><ol class="arabic simple" start="5">
+<li><p>Inference with a pre-trained model</p></li>
+</ol>
+<ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>Download a pre-trained model, provided by us</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>Decode a single sound file with a pre-trained model</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="3">
+<li><p>Decode multiple sound files at the same time</p></li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+</div></blockquote>
+<p>It does <strong>NOT</strong> show you:</p>
+<blockquote>
+<div><ul>
+<li><ol class="arabic simple">
+<li><p>How to train with multiple GPUs</p></li>
+</ol>
+<p>The <code class="docutils literal notranslate"><span class="pre">yesno</span></code> dataset is so small that CPU is more than enough
+for training as well as for decoding.</p>
+</li>
+<li><ol class="arabic simple" start="2">
+<li><p>How to use LM rescoring for decoding</p></li>
+</ol>
+<p>The dataset does not have an LM for rescoring.</p>
+</li>
+</ul>
+</div></blockquote>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We assume you have read the page <a class="reference internal" href="../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You <strong>don’t</strong> need a <strong>GPU</strong> to run this recipe. It can be run on a <strong>CPU</strong>.
+The training part takes less than 30 <strong>seconds</strong> on a CPU and you will get
+the following WER at the end:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">test_set</span><span class="p">]</span> <span class="o">%</span><span class="n">WER</span> <span class="mf">0.42</span><span class="o">%</span> <span class="p">[</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">240</span><span class="p">,</span> <span class="mi">0</span> <span class="n">ins</span><span class="p">,</span> <span class="mi">1</span> <span class="k">del</span><span class="p">,</span> <span class="mi">0</span> <span class="n">sub</span> <span class="p">]</span>
+</pre></div>
+</div>
+</div>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ ./prepare.sh
+</pre></div>
+</div>
+<p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
+All you need to do is to run it.</p>
+<p>The data preparation contains several stages, you can use the following two
+options:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>to control which stage(s) should be run. By default, all stages are executed.</p>
+<p>For example,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+</pre></div>
+</div>
+<p>means to run only stage 0.</p>
+<p>To run stage 2 to stage 5, use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+</pre></div>
+</div>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<p>We provide only a TDNN model, contained in
+the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR/tdnn">tdnn</a>
+folder, for <code class="docutils literal notranslate"><span class="pre">yesno</span></code>.</p>
+<p>The command to run the training part is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+$ ./tdnn/train.py
+</pre></div>
+</div>
+<p>By default, it will run <code class="docutils literal notranslate"><span class="pre">15</span></code> epochs. Training logs and checkpoints are saved
+in <code class="docutils literal notranslate"><span class="pre">tdnn/exp</span></code>.</p>
+<p>In <code class="docutils literal notranslate"><span class="pre">tdnn/exp</span></code>, you will find the following files:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">epoch-0.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, …</p>
+<p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
+To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/train.py --start-epoch <span class="m">11</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tensorboard/</span></code></p>
+<p>This folder contains TensorBoard logs. Training loss, validation loss, learning
+rate, etc, are recorded in these logs. You can visualize them by:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> tdnn/exp/tensorboard
+$ tensorboard dev upload --logdir . --description <span class="s2">&quot;TDNN training for yesno with icefall&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>It will print something like below:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
+<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
+
+<span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
+
+<span class="n">New</span> <span class="n">experiment</span> <span class="n">created</span><span class="o">.</span> <span class="n">View</span> <span class="n">your</span> <span class="n">TensorBoard</span> <span class="n">at</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">tensorboard</span><span class="o">.</span><span class="n">dev</span><span class="o">/</span><span class="n">experiment</span><span class="o">/</span><span class="n">yKUbhb5wRmOSXYkId1z9eg</span><span class="o">/</span>
+
+<span class="p">[</span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">23</span><span class="n">T23</span><span class="p">:</span><span class="mi">49</span><span class="p">:</span><span class="mi">41</span><span class="p">]</span> <span class="n">Started</span> <span class="n">scanning</span> <span class="n">logdir</span><span class="o">.</span>
+<span class="p">[</span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">23</span><span class="n">T23</span><span class="p">:</span><span class="mi">49</span><span class="p">:</span><span class="mi">42</span><span class="p">]</span> <span class="n">Total</span> <span class="n">uploaded</span><span class="p">:</span> <span class="mi">135</span> <span class="n">scalars</span><span class="p">,</span> <span class="mi">0</span> <span class="n">tensors</span><span class="p">,</span> <span class="mi">0</span> <span class="n">binary</span> <span class="n">objects</span>
+<span class="n">Listening</span> <span class="k">for</span> <span class="n">new</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">logdir</span><span class="o">...</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Note there is a URL in the above output, click it and you will see
+the following screenshot:</p>
+<blockquote>
+<div><figure class="align-center" id="id1">
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/yKUbhb5wRmOSXYkId1z9eg/"><img alt="TensorBoard screenshot" src="../../_images/tdnn-tensorboard-log.png" style="width: 600px;" /></a>
+<figcaption>
+<p><span class="caption-number">Fig. 5 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id1" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log/log-train-xxxx</span></code></p>
+<p>It is the detailed training log in text format, same as the one
+you saw printed to the console during training.</p>
+</li>
+</ul>
+</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">./tdnn/train.py</span></code> uses GPU 0 for training if GPUs are available.
+If you have two GPUs, say, GPU 0 and GPU 1, and you want to use GPU 1 for
+training, you can run:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;1&quot;</span>
+$ ./tdnn/train.py
+</pre></div>
+</div>
+</div></blockquote>
+<p>Since the <code class="docutils literal notranslate"><span class="pre">yesno</span></code> dataset is very small, containing only 30 sound files
+for training, and the model in use is also very small, we use:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>so that <code class="docutils literal notranslate"><span class="pre">./tdnn/train.py</span></code> uses CPU during training.</p>
+<p>If you don’t have GPUs, then you don’t need to
+run <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">CUDA_VISIBLE_DEVICES=&quot;&quot;</span></code>.</p>
+</div>
+<p>To see available training options, you can use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/train.py --help
+</pre></div>
+</div>
+<p>Other training options, e.g., learning rate, results dir, etc., are
+pre-configured in the function <code class="docutils literal notranslate"><span class="pre">get_params()</span></code>
+in <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/tdnn/train.py">tdnn/train.py</a>.
+Normally, you don’t need to change them. You can change them by modifying the code, if
+you want.</p>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>The decoding part uses checkpoints saved by the training part, so you have
+to run the training part first.</p>
+<p>The command for decoding is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+$ ./tdnn/decode.py
+</pre></div>
+</div>
+<p>You will see the WER in the output log.</p>
+<p>Decoded results are saved in <code class="docutils literal notranslate"><span class="pre">tdnn/exp</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/decode.py --help
+</pre></div>
+</div>
+<p>shows you the available decoding options.</p>
+<p>Some commonly used options are:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--epoch</span></code></p>
+<p>You can select which checkpoint to be used for decoding.
+For instance, <code class="docutils literal notranslate"><span class="pre">./tdnn/decode.py</span> <span class="pre">--epoch</span> <span class="pre">10</span></code> means to use
+<code class="docutils literal notranslate"><span class="pre">./tdnn/exp/epoch-10.pt</span></code> for decoding.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--avg</span></code></p>
+<p>It’s related to model averaging. It specifies number of checkpoints
+to be averaged. The averaged model is used for decoding.
+For example, the following command:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/decode.py --epoch <span class="m">10</span> --avg <span class="m">3</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>uses the average of <code class="docutils literal notranslate"><span class="pre">epoch-8.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-9.pt</span></code> and <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>
+for decoding.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--export</span></code></p>
+<p>If it is <code class="docutils literal notranslate"><span class="pre">True</span></code>, i.e., <code class="docutils literal notranslate"><span class="pre">./tdnn/decode.py</span> <span class="pre">--export</span> <span class="pre">1</span></code>, the code
+will save the averaged model to <code class="docutils literal notranslate"><span class="pre">tdnn/exp/pretrained.pt</span></code>.
+See <a class="reference internal" href="#yesno-use-a-pre-trained-model"><span class="std std-ref">Pre-trained Model</span></a> for how to use it.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="pre-trained-model">
+<span id="yesno-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<p>We have uploaded the pre-trained model to
+<a class="reference external" href="https://huggingface.co/csukuangfj/icefall_asr_yesno_tdnn">https://huggingface.co/csukuangfj/icefall_asr_yesno_tdnn</a>.</p>
+<p>The following shows you how to use the pre-trained model.</p>
+<section id="download-the-pre-trained-model">
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ mkdir tmp
+$ <span class="nb">cd</span> tmp
+$ git lfs install
+$ git clone https://huggingface.co/csukuangfj/icefall_asr_yesno_tdnn
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>You have to use <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code> to download the pre-trained model.</p>
+</div>
+<p>After downloading, you will have the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ tree tmp
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/
+<span class="sb">`</span>-- icefall_asr_yesno_tdnn
+    <span class="p">|</span>-- README.md
+    <span class="p">|</span>-- lang_phone
+    <span class="p">|</span>   <span class="p">|</span>-- HLG.pt
+    <span class="p">|</span>   <span class="p">|</span>-- L.pt
+    <span class="p">|</span>   <span class="p">|</span>-- L_disambig.pt
+    <span class="p">|</span>   <span class="p">|</span>-- Linv.pt
+    <span class="p">|</span>   <span class="p">|</span>-- lexicon.txt
+    <span class="p">|</span>   <span class="p">|</span>-- lexicon_disambig.txt
+    <span class="p">|</span>   <span class="p">|</span>-- tokens.txt
+    <span class="p">|</span>   <span class="sb">`</span>-- words.txt
+    <span class="p">|</span>-- lm
+    <span class="p">|</span>   <span class="p">|</span>-- G.arpa
+    <span class="p">|</span>   <span class="sb">`</span>-- G.fst.txt
+    <span class="p">|</span>-- pretrained.pt
+    <span class="sb">`</span>-- test_waves
+        <span class="p">|</span>-- 0_0_0_1_0_0_0_1.wav
+        <span class="p">|</span>-- 0_0_1_0_0_0_1_0.wav
+        <span class="p">|</span>-- 0_0_1_0_0_1_1_1.wav
+        <span class="p">|</span>-- 0_0_1_0_1_0_0_1.wav
+        <span class="p">|</span>-- 0_0_1_1_0_0_0_1.wav
+        <span class="p">|</span>-- 0_0_1_1_0_1_1_0.wav
+        <span class="p">|</span>-- 0_0_1_1_1_0_0_0.wav
+        <span class="p">|</span>-- 0_0_1_1_1_1_0_0.wav
+        <span class="p">|</span>-- 0_1_0_0_0_1_0_0.wav
+        <span class="p">|</span>-- 0_1_0_0_1_0_1_0.wav
+        <span class="p">|</span>-- 0_1_0_1_0_0_0_0.wav
+        <span class="p">|</span>-- 0_1_0_1_1_1_0_0.wav
+        <span class="p">|</span>-- 0_1_1_0_0_1_1_1.wav
+        <span class="p">|</span>-- 0_1_1_1_0_0_1_0.wav
+        <span class="p">|</span>-- 0_1_1_1_1_0_1_0.wav
+        <span class="p">|</span>-- 1_0_0_0_0_0_0_0.wav
+        <span class="p">|</span>-- 1_0_0_0_0_0_1_1.wav
+        <span class="p">|</span>-- 1_0_0_1_0_1_1_1.wav
+        <span class="p">|</span>-- 1_0_1_1_0_1_1_1.wav
+        <span class="p">|</span>-- 1_0_1_1_1_1_0_1.wav
+        <span class="p">|</span>-- 1_1_0_0_0_1_1_1.wav
+        <span class="p">|</span>-- 1_1_0_0_1_0_1_1.wav
+        <span class="p">|</span>-- 1_1_0_1_0_1_0_0.wav
+        <span class="p">|</span>-- 1_1_0_1_1_0_0_1.wav
+        <span class="p">|</span>-- 1_1_0_1_1_1_1_0.wav
+        <span class="p">|</span>-- 1_1_1_0_0_1_0_1.wav
+        <span class="p">|</span>-- 1_1_1_0_1_0_1_0.wav
+        <span class="p">|</span>-- 1_1_1_1_0_0_1_0.wav
+        <span class="p">|</span>-- 1_1_1_1_1_0_0_0.wav
+        <span class="sb">`</span>-- 1_1_1_1_1_1_1_1.wav
+
+<span class="m">4</span> directories, <span class="m">42</span> files
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav
+
+Input File     : <span class="s1">&#39;tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">8000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:06.76 <span class="o">=</span> <span class="m">54080</span> samples ~ <span class="m">507</span> CDDA sectors
+File Size      : 108k
+Bit Rate       : 128k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+</pre></div>
+</div>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">0_0_1_0_1_0_0_1.wav</span></code></p>
+<blockquote>
+<div><p>0 means No; 1 means Yes. No and Yes are not in English,
+but in <a class="reference external" href="https://en.wikipedia.org/wiki/Hebrew_language">Hebrew</a>.
+So this file contains <code class="docutils literal notranslate"><span class="pre">NO</span> <span class="pre">NO</span> <span class="pre">YES</span> <span class="pre">NO</span> <span class="pre">YES</span> <span class="pre">NO</span> <span class="pre">NO</span> <span class="pre">YES</span></code>.</p>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="download-kaldifeat">
+<h3>Download kaldifeat<a class="headerlink" href="#download-kaldifeat" title="Permalink to this heading"></a></h3>
+<p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used for extracting
+features from a single or multiple sound files. Please refer to
+<a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> to install <code class="docutils literal notranslate"><span class="pre">kaldifeat</span></code> first.</p>
+</section>
+<section id="inference-with-a-pre-trained-model">
+<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/yesno/ASR
+$ ./tdnn/pretrained.py --help
+</pre></div>
+</div>
+<p>shows the usage information of <code class="docutils literal notranslate"><span class="pre">./tdnn/pretrained.py</span></code>.</p>
+<p>To decode a single file, we can use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn/pretrained.py <span class="se">\</span>
+  --checkpoint ./tmp/icefall_asr_yesno_tdnn/pretrained.pt <span class="se">\</span>
+  --words-file ./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt <span class="se">\</span>
+  --HLG ./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt <span class="se">\</span>
+  ./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav
+</pre></div>
+</div>
+<p>The output is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">621</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">&#39;num_classes&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">&#39;search_beam&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;output_beam&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;min_active_states&#39;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">&#39;max_active_states&#39;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">&#39;use_double_scores&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;words_file&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;HLG&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">]}</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">645</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">125</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">645</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">127</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">650</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">139</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span> <span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">651</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">143</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">652</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">684</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">159</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">198</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="mf">0_0_1_0_1_0_0_1.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">NO</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">NO</span> <span class="n">NO</span> <span class="n">YES</span>
+
+
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">200</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+<p>You can see that for the sound file <code class="docutils literal notranslate"><span class="pre">0_0_1_0_1_0_0_1.wav</span></code>, the decoding result is
+<code class="docutils literal notranslate"><span class="pre">NO</span> <span class="pre">NO</span> <span class="pre">YES</span> <span class="pre">NO</span> <span class="pre">YES</span> <span class="pre">NO</span> <span class="pre">NO</span> <span class="pre">YES</span></code>.</p>
+<p>To decode <strong>multiple</strong> files at the same time, you can use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn/pretrained.py <span class="se">\</span>
+  --checkpoint ./tmp/icefall_asr_yesno_tdnn/pretrained.pt <span class="se">\</span>
+  --words-file ./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt <span class="se">\</span>
+  --HLG ./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt <span class="se">\</span>
+  ./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav <span class="se">\</span>
+  ./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav
+</pre></div>
+</div>
+<p>The decoding output is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">159</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">&#39;num_classes&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">&#39;search_beam&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;output_beam&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;min_active_states&#39;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">&#39;max_active_states&#39;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">&#39;use_double_scores&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;words_file&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;HLG&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav&#39;</span><span class="p">]}</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">181</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">125</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">181</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">127</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">185</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">139</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span> <span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">186</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">143</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">187</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">,</span>
+<span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">213</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">159</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">287</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">198</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="mf">0_0_1_0_1_0_0_1.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">NO</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">NO</span> <span class="n">NO</span> <span class="n">YES</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="mf">1_0_1_1_0_1_1_1.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">YES</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">YES</span> <span class="n">NO</span> <span class="n">YES</span> <span class="n">YES</span> <span class="n">YES</span>
+
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">287</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">200</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+<p>You can see again that it decodes correctly.</p>
+</section>
+</section>
+<section id="colab-notebook">
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<p>We do provide a colab notebook for this recipe.</p>
+<p><a class="reference external" href="https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing"><img alt="yesno colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+<p><strong>Congratulations!</strong> You have finished the simplest speech recognition recipe in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="YesNo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

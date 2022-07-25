@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Recipes" href="../recipes/index.html" />
+    <link rel="prev" title="Icefall" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install-pytorch-and-torchaudio">(0) Install PyTorch and torchaudio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-k2">(1) Install k2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-lhotse">(2) Install lhotse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-icefall">(3) Download icefall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation-example">Installation example</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#create-a-virtual-environment">(1) Create a virtual environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#activate-your-virtual-environment">(2) Activate your virtual environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">(3) Install k2</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">(4) Install lhotse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">(5) Download icefall</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#test-your-installation">Test Your Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decoding">Decoding</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#youtube-video">YouTube Video</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Installation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/installation/index.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation">
+<span id="install-icefall"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><img alt="Supported operating systems" src="../_images/os-Linux_macOS-ff69b4.svg" /></p></li>
+<li><p><img alt="Supported devices" src="../_images/device-CPU_CUDA-orange.svg" /></p></li>
+<li><p><img alt="Supported python versions" src="../_images/python-gt-v3.6-blue.svg" /></p></li>
+<li><p><img alt="Supported PyTorch versions" src="../_images/torch-gt-v1.6.0-green.svg" /></p></li>
+<li><p><img alt="Supported k2 versions" src="../_images/k2-gt-v1.9-blueviolet.svg" /></p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> depends on <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> and
+<a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
+<p>We recommend you to use the following steps to install the dependencies.</p>
+<ul class="simple">
+<li><ol class="arabic simple" start="0">
+<li><p>Install PyTorch and torchaudio</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple">
+<li><p>Install k2</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="2">
+<li><p>Install lhotse</p></li>
+</ol>
+</li>
+</ul>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Installation order matters.</p>
+</div>
+<section id="install-pytorch-and-torchaudio">
+<h2>(0) Install PyTorch and torchaudio<a class="headerlink" href="#install-pytorch-and-torchaudio" title="Permalink to this heading"></a></h2>
+<p>Please refer <a class="reference external" href="https://pytorch.org/">https://pytorch.org/</a> to install PyTorch
+and torchaudio.</p>
+</section>
+<section id="install-k2">
+<h2>(1) Install k2<a class="headerlink" href="#install-k2" title="Permalink to this heading"></a></h2>
+<p>Please refer to <a class="reference external" href="https://k2-fsa.github.io/k2/installation/index.html">https://k2-fsa.github.io/k2/installation/index.html</a>
+to install <code class="docutils literal notranslate"><span class="pre">k2</span></code>.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>You need to install <code class="docutils literal notranslate"><span class="pre">k2</span></code> with a version at least <strong>v1.9</strong>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you have already installed PyTorch and don’t want to replace it,
+please install a version of <code class="docutils literal notranslate"><span class="pre">k2</span></code> that is compiled against the version
+of PyTorch you are using.</p>
+</div>
+</section>
+<section id="install-lhotse">
+<h2>(2) Install lhotse<a class="headerlink" href="#install-lhotse" title="Permalink to this heading"></a></h2>
+<p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/getting-started.html#installation">https://lhotse.readthedocs.io/en/latest/getting-started.html#installation</a>
+to install <code class="docutils literal notranslate"><span class="pre">lhotse</span></code>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We strongly recommend you to use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">lhotse</span><span class="o">-</span><span class="n">speech</span><span class="o">/</span><span class="n">lhotse</span>
+</pre></div>
+</div>
+<p>to install the latest version of lhotse.</p>
+</div>
+</section>
+<section id="download-icefall">
+<h2>(3) Download icefall<a class="headerlink" href="#download-icefall" title="Permalink to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> is a collection of Python scripts; what you need is to download it
+and set the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to point to it.</p>
+<p>Assume you want to place <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
+following commands show you how to setup <code class="docutils literal notranslate"><span class="pre">icefall</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /tmp
+git clone https://github.com/k2-fsa/icefall
+<span class="nb">cd</span> icefall
+pip install -r requirements.txt
+<span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can put several versions of <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the same virtual environment.
+To switch among different versions of <code class="docutils literal notranslate"><span class="pre">icefall</span></code>, just set <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>
+to point to the version you want.</p>
+</div>
+</section>
+<section id="installation-example">
+<h2>Installation example<a class="headerlink" href="#installation-example" title="Permalink to this heading"></a></h2>
+<p>The following shows an example about setting up the environment.</p>
+<section id="create-a-virtual-environment">
+<h3>(1) Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ virtualenv -p python3.8  test-icefall
+
+created virtual environment CPython3.8.6.final.0-64 <span class="k">in</span> 1540ms
+  creator CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/ceph-fj/fangjun/test-icefall, <span class="nv">clear</span><span class="o">=</span>False, <span class="nv">no_vcs_ignore</span><span class="o">=</span>False, <span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
+  seeder FromAppData<span class="o">(</span><span class="nv">download</span><span class="o">=</span>False, <span class="nv">pip</span><span class="o">=</span>bundle, <span class="nv">setuptools</span><span class="o">=</span>bundle, <span class="nv">wheel</span><span class="o">=</span>bundle, <span class="nv">via</span><span class="o">=</span>copy, <span class="nv">app_data_dir</span><span class="o">=</span>/root/fangjun/.local/share/v
+irtualenv<span class="o">)</span>
+    added seed packages: <span class="nv">pip</span><span class="o">==</span><span class="m">21</span>.1.3, <span class="nv">setuptools</span><span class="o">==</span><span class="m">57</span>.4.0, <span class="nv">wheel</span><span class="o">==</span><span class="m">0</span>.36.2
+  activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
+</pre></div>
+</div>
+</section>
+<section id="activate-your-virtual-environment">
+<h3>(2) Activate your virtual environment<a class="headerlink" href="#activate-your-virtual-environment" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">source</span> test-icefall/bin/activate
+</pre></div>
+</div>
+</section>
+<section id="id1">
+<h3>(3) Install k2<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ pip install <span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0 -f https://k2-fsa.org/nightly/index.html
+
+Looking <span class="k">in</span> links: https://k2-fsa.org/nightly/index.html
+Collecting <span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0
+  Downloading https://k2-fsa.org/nightly/whl/k2-1.4.dev20210822%2Bcpu.torch1.9.0-cp38-cp38-linux_x86_64.whl <span class="o">(</span><span class="m">1</span>.6 MB<span class="o">)</span>
+     <span class="p">|</span>________________________________<span class="p">|</span> <span class="m">1</span>.6 MB <span class="m">185</span> kB/s
+Collecting graphviz
+  Downloading graphviz-0.17-py3-none-any.whl <span class="o">(</span><span class="m">18</span> kB<span class="o">)</span>
+Collecting <span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.9.0
+  Using cached torch-1.9.0-cp38-cp38-manylinux1_x86_64.whl <span class="o">(</span><span class="m">831</span>.4 MB<span class="o">)</span>
+Collecting typing-extensions
+  Using cached typing_extensions-3.10.0.0-py3-none-any.whl <span class="o">(</span><span class="m">26</span> kB<span class="o">)</span>
+Installing collected packages: typing-extensions, torch, graphviz, k2
+Successfully installed graphviz-0.17 k2-1.4.dev20210822+cpu.torch1.9.0 torch-1.9.0 typing-extensions-3.10.0.0
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>We choose to install a CPU version of k2 for testing. You would probably want to install
+a CUDA version of k2.</p>
+</div>
+</section>
+<section id="id2">
+<h3>(4) Install lhotse<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ pip install git+https://github.com/lhotse-speech/lhotse
+
+Collecting git+https://github.com/lhotse-speech/lhotse
+  Cloning https://github.com/lhotse-speech/lhotse to /tmp/pip-req-build-7b1b76ge
+  Running command git clone -q https://github.com/lhotse-speech/lhotse /tmp/pip-req-build-7b1b76ge
+Collecting audioread&gt;=2.1.9
+  Using cached audioread-2.1.9-py3-none-any.whl
+Collecting SoundFile&gt;=0.10
+  Using cached SoundFile-0.10.3.post1-py2.py3-none-any.whl (21 kB)
+Collecting click&gt;=7.1.1
+  Using cached click-8.0.1-py3-none-any.whl (97 kB)
+Collecting cytoolz&gt;=0.10.1
+  Using cached cytoolz-0.11.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.9 MB)
+Collecting dataclasses
+  Using cached dataclasses-0.6-py3-none-any.whl (14 kB)
+Collecting h5py&gt;=2.10.0
+  Downloading h5py-3.4.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (4.5 MB)
+     |________________________________| 4.5 MB 684 kB/s
+Collecting intervaltree&gt;=3.1.0
+  Using cached intervaltree-3.1.0-py2.py3-none-any.whl
+Collecting lilcom&gt;=1.1.0
+  Using cached lilcom-1.1.1-cp38-cp38-linux_x86_64.whl
+Collecting numpy&gt;=1.18.1
+  Using cached numpy-1.21.2-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (15.8 MB)
+Collecting packaging
+  Using cached packaging-21.0-py3-none-any.whl (40 kB)
+Collecting pyyaml&gt;=5.3.1
+  Using cached PyYAML-5.4.1-cp38-cp38-manylinux1_x86_64.whl (662 kB)
+Collecting tqdm
+  Downloading tqdm-4.62.1-py2.py3-none-any.whl (76 kB)
+     |________________________________| 76 kB 2.7 MB/s
+Collecting torchaudio==0.9.0
+  Downloading torchaudio-0.9.0-cp38-cp38-manylinux1_x86_64.whl (1.9 MB)
+     |________________________________| 1.9 MB 73.1 MB/s
+Requirement already satisfied: torch==1.9.0 in ./test-icefall/lib/python3.8/site-packages (from torchaudio==0.9.0-&gt;lhotse===0.8.0.dev
+-2a1410b-clean) (1.9.0)
+Requirement already satisfied: typing-extensions in ./test-icefall/lib/python3.8/site-packages (from torch==1.9.0-&gt;torchaudio==0.9.0-
+&gt;lhotse===0.8.0.dev-2a1410b-clean) (3.10.0.0)
+Collecting toolz&gt;=0.8.0
+  Using cached toolz-0.11.1-py3-none-any.whl (55 kB)
+Collecting sortedcontainers&lt;3.0,&gt;=2.0
+  Using cached sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+Collecting cffi&gt;=1.0
+  Using cached cffi-1.14.6-cp38-cp38-manylinux1_x86_64.whl (411 kB)
+Collecting pycparser
+  Using cached pycparser-2.20-py2.py3-none-any.whl (112 kB)
+Collecting pyparsing&gt;=2.0.2
+  Using cached pyparsing-2.4.7-py2.py3-none-any.whl (67 kB)
+Building wheels for collected packages: lhotse
+  Building wheel for lhotse (setup.py) ... done
+  Created wheel for lhotse: filename=lhotse-0.8.0.dev_2a1410b_clean-py3-none-any.whl size=342242 sha256=f683444afa4dc0881133206b4646a
+9d0f774224cc84000f55d0a67f6e4a37997
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ftu0qysz/wheels/7f/7a/8e/a0bf241336e2e3cb573e1e21e5600952d49f5162454f2e612f
+  WARNING: Built wheel for lhotse is invalid: Metadata 1.2 mandates PEP 440 version, but &#39;0.8.0.dev-2a1410b-clean&#39; is not
+Failed to build lhotse
+Installing collected packages: pycparser, toolz, sortedcontainers, pyparsing, numpy, cffi, tqdm, torchaudio, SoundFile, pyyaml, packa
+ging, lilcom, intervaltree, h5py, dataclasses, cytoolz, click, audioread, lhotse
+    Running setup.py install for lhotse ... done
+  DEPRECATION: lhotse was installed using the legacy &#39;setup.py install&#39; method, because a wheel could not be built for it. A possible
+ replacement is to fix the wheel build issue reported above. You can find discussion regarding this at https://github.com/pypa/pip/is
+sues/8368.
+Successfully installed SoundFile-0.10.3.post1 audioread-2.1.9 cffi-1.14.6 click-8.0.1 cytoolz-0.11.0 dataclasses-0.6 h5py-3.4.0 inter
+valtree-3.1.0 lhotse-0.8.0.dev-2a1410b-clean lilcom-1.1.1 numpy-1.21.2 packaging-21.0 pycparser-2.20 pyparsing-2.4.7 pyyaml-5.4.1 sor
+tedcontainers-2.4.0 toolz-0.11.1 torchaudio-0.9.0 tqdm-4.62.1
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h3>(5) Download icefall<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd /tmp
+$ git clone https://github.com/k2-fsa/icefall
+
+Cloning into &#39;icefall&#39;...
+remote: Enumerating objects: 500, done.
+remote: Counting objects: 100% (500/500), done.
+remote: Compressing objects: 100% (308/308), done.
+remote: Total 500 (delta 263), reused 307 (delta 102), pack-reused 0
+Receiving objects: 100% (500/500), 172.49 KiB | 385.00 KiB/s, done.
+Resolving deltas: 100% (263/263), done.
+
+$ cd icefall
+$ pip install -r requirements.txt
+
+Collecting kaldilm
+  Downloading kaldilm-1.8.tar.gz (48 kB)
+     |________________________________| 48 kB 574 kB/s
+Collecting kaldialign
+  Using cached kaldialign-0.2-cp38-cp38-linux_x86_64.whl
+Collecting sentencepiece&gt;=0.1.96
+  Using cached sentencepiece-0.1.96-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.2 MB)
+Collecting tensorboard
+  Using cached tensorboard-2.6.0-py3-none-any.whl (5.6 MB)
+Requirement already satisfied: setuptools&gt;=41.0.0 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r
+requirements.txt (line 4)) (57.4.0)
+Collecting absl-py&gt;=0.4
+  Using cached absl_py-0.13.0-py3-none-any.whl (132 kB)
+Collecting google-auth-oauthlib&lt;0.5,&gt;=0.4.1
+  Using cached google_auth_oauthlib-0.4.5-py2.py3-none-any.whl (18 kB)
+Collecting grpcio&gt;=1.24.3
+  Using cached grpcio-1.39.0-cp38-cp38-manylinux2014_x86_64.whl (4.3 MB)
+Requirement already satisfied: wheel&gt;=0.26 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r require
+ments.txt (line 4)) (0.36.2)
+Requirement already satisfied: numpy&gt;=1.12.0 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r requi
+rements.txt (line 4)) (1.21.2)
+Collecting protobuf&gt;=3.6.0
+  Using cached protobuf-3.17.3-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl (1.0 MB)
+Collecting werkzeug&gt;=0.11.15
+  Using cached Werkzeug-2.0.1-py3-none-any.whl (288 kB)
+Collecting tensorboard-data-server&lt;0.7.0,&gt;=0.6.0
+  Using cached tensorboard_data_server-0.6.1-py3-none-manylinux2010_x86_64.whl (4.9 MB)
+Collecting google-auth&lt;2,&gt;=1.6.3
+  Downloading google_auth-1.35.0-py2.py3-none-any.whl (152 kB)
+     |________________________________| 152 kB 1.4 MB/s
+Collecting requests&lt;3,&gt;=2.21.0
+  Using cached requests-2.26.0-py2.py3-none-any.whl (62 kB)
+Collecting tensorboard-plugin-wit&gt;=1.6.0
+  Using cached tensorboard_plugin_wit-1.8.0-py3-none-any.whl (781 kB)
+Collecting markdown&gt;=2.6.8
+  Using cached Markdown-3.3.4-py3-none-any.whl (97 kB)
+Collecting six
+  Using cached six-1.16.0-py2.py3-none-any.whl (11 kB)
+Collecting cachetools&lt;5.0,&gt;=2.0.0
+  Using cached cachetools-4.2.2-py3-none-any.whl (11 kB)
+Collecting rsa&lt;5,&gt;=3.1.4
+  Using cached rsa-4.7.2-py3-none-any.whl (34 kB)
+Collecting pyasn1-modules&gt;=0.2.1
+  Using cached pyasn1_modules-0.2.8-py2.py3-none-any.whl (155 kB)
+Collecting requests-oauthlib&gt;=0.7.0
+  Using cached requests_oauthlib-1.3.0-py2.py3-none-any.whl (23 kB)
+Collecting pyasn1&lt;0.5.0,&gt;=0.4.6
+  Using cached pyasn1-0.4.8-py2.py3-none-any.whl (77 kB)
+Collecting urllib3&lt;1.27,&gt;=1.21.1
+  Using cached urllib3-1.26.6-py2.py3-none-any.whl (138 kB)
+Collecting certifi&gt;=2017.4.17
+  Using cached certifi-2021.5.30-py2.py3-none-any.whl (145 kB)
+Collecting charset-normalizer~=2.0.0
+  Using cached charset_normalizer-2.0.4-py3-none-any.whl (36 kB)
+Collecting idna&lt;4,&gt;=2.5
+  Using cached idna-3.2-py3-none-any.whl (59 kB)
+Collecting oauthlib&gt;=3.0.0
+  Using cached oauthlib-3.1.1-py2.py3-none-any.whl (146 kB)
+Building wheels for collected packages: kaldilm
+  Building wheel for kaldilm (setup.py) ... done
+  Created wheel for kaldilm: filename=kaldilm-1.8-cp38-cp38-linux_x86_64.whl size=897233 sha256=eccb906cafcd45bf9a7e1a1718e4534254bfb
+f4c0d0cbc66eee6c88d68a63862
+  Stored in directory: /root/fangjun/.cache/pip/wheels/85/7d/63/f2dd586369b8797cb36d213bf3a84a789eeb92db93d2e723c9
+Successfully built kaldilm
+Installing collected packages: urllib3, pyasn1, idna, charset-normalizer, certifi, six, rsa, requests, pyasn1-modules, oauthlib, cach
+etools, requests-oauthlib, google-auth, werkzeug, tensorboard-plugin-wit, tensorboard-data-server, protobuf, markdown, grpcio, google
+-auth-oauthlib, absl-py, tensorboard, sentencepiece, kaldilm, kaldialign
+Successfully installed absl-py-0.13.0 cachetools-4.2.2 certifi-2021.5.30 charset-normalizer-2.0.4 google-auth-1.35.0 google-auth-oaut
+hlib-0.4.5 grpcio-1.39.0 idna-3.2 kaldialign-0.2 kaldilm-1.8 markdown-3.3.4 oauthlib-3.1.1 protobuf-3.17.3 pyasn1-0.4.8 pyasn1-module
+s-0.2.8 requests-2.26.0 requests-oauthlib-1.3.0 rsa-4.7.2 sentencepiece-0.1.96 six-1.16.0 tensorboard-2.6.0 tensorboard-data-server-0
+.6.1 tensorboard-plugin-wit-1.8.0 urllib3-1.26.6 werkzeug-2.0.1
+</pre></div>
+</div>
+</section>
+</section>
+<section id="test-your-installation">
+<h2>Test Your Installation<a class="headerlink" href="#test-your-installation" title="Permalink to this heading"></a></h2>
+<p>To test that your installation is successful, let us run
+the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR">yesno recipe</a>
+on CPU.</p>
+<section id="data-preparation">
+<h3>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+$ <span class="nb">cd</span> /tmp/icefall
+$ <span class="nb">cd</span> egs/yesno/ASR
+$ ./prepare.sh
+</pre></div>
+</div>
+<p>The log of running <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2021-08-23 19:27:26 (prepare.sh:24:main) dl_dir: /tmp/icefall/egs/yesno/ASR/download
+2021-08-23 19:27:26 (prepare.sh:27:main) stage 0: Download data
+Downloading waves_yesno.tar.gz: 4.49MB [00:03, 1.39MB/s]
+2021-08-23 19:27:30 (prepare.sh:36:main) Stage 1: Prepare yesno manifest
+2021-08-23 19:27:31 (prepare.sh:42:main) Stage 2: Compute fbank for yesno
+2021-08-23 19:27:32,803 INFO [compute_fbank_yesno.py:52] Processing train
+Extracting and storing features: 100%|_______________________________________________________________| 90/90 [00:01&lt;00:00, 80.57it/s]
+2021-08-23 19:27:34,085 INFO [compute_fbank_yesno.py:52] Processing test
+Extracting and storing features: 100%|______________________________________________________________| 30/30 [00:00&lt;00:00, 248.21it/s]
+2021-08-23 19:27:34 (prepare.sh:48:main) Stage 3: Prepare lang
+2021-08-23 19:27:35 (prepare.sh:63:main) Stage 4: Prepare G
+/tmp/pip-install-fcordre9/kaldilm_6899d26f2d684ad48f21025950cd2866/kaldilm/csrc/arpa_file_parser.cc:void kaldilm::ArpaFileParser::Rea
+d(std::istream&amp;):79
+[I] Reading \data\ section.
+/tmp/pip-install-fcordre9/kaldilm_6899d26f2d684ad48f21025950cd2866/kaldilm/csrc/arpa_file_parser.cc:void kaldilm::ArpaFileParser::Rea
+d(std::istream&amp;):140
+[I] Reading \1-grams: section.
+2021-08-23 19:27:35 (prepare.sh:89:main) Stage 5: Compile HLG
+2021-08-23 19:27:35,928 INFO [compile_hlg.py:120] Processing data/lang_phone
+2021-08-23 19:27:35,929 INFO [lexicon.py:116] Converting L.pt to Linv.pt
+2021-08-23 19:27:35,931 INFO [compile_hlg.py:48] Building ctc_topo. max_token_id: 3
+2021-08-23 19:27:35,932 INFO [compile_hlg.py:52] Loading G.fst.txt
+2021-08-23 19:27:35,932 INFO [compile_hlg.py:62] Intersecting L and G
+2021-08-23 19:27:35,933 INFO [compile_hlg.py:64] LG shape: (4, None)
+2021-08-23 19:27:35,933 INFO [compile_hlg.py:66] Connecting LG
+2021-08-23 19:27:35,933 INFO [compile_hlg.py:68] LG shape after k2.connect: (4, None)
+2021-08-23 19:27:35,933 INFO [compile_hlg.py:70] &lt;class &#39;torch.Tensor&#39;&gt;
+2021-08-23 19:27:35,933 INFO [compile_hlg.py:71] Determinizing LG
+2021-08-23 19:27:35,934 INFO [compile_hlg.py:74] &lt;class &#39;_k2.RaggedInt&#39;&gt;
+2021-08-23 19:27:35,934 INFO [compile_hlg.py:76] Connecting LG after k2.determinize
+2021-08-23 19:27:35,934 INFO [compile_hlg.py:79] Removing disambiguation symbols on LG
+2021-08-23 19:27:35,934 INFO [compile_hlg.py:87] LG shape after k2.remove_epsilon: (6, None)
+2021-08-23 19:27:35,935 INFO [compile_hlg.py:92] Arc sorting LG
+2021-08-23 19:27:35,935 INFO [compile_hlg.py:95] Composing H and LG
+2021-08-23 19:27:35,935 INFO [compile_hlg.py:102] Connecting LG
+2021-08-23 19:27:35,935 INFO [compile_hlg.py:105] Arc sorting LG
+2021-08-23 19:27:35,936 INFO [compile_hlg.py:107] HLG.shape: (8, None)
+2021-08-23 19:27:35,936 INFO [compile_hlg.py:123] Saving HLG.pt to data/lang_phone
+</pre></div>
+</div>
+</section>
+<section id="training">
+<h3>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h3>
+<p>Now let us run the training part:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ export CUDA_VISIBLE_DEVICES=&quot;&quot;
+$ ./tdnn/train.py
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>We use <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">CUDA_VISIBLE_DEVICES=&quot;&quot;</span></code> so that <code class="docutils literal notranslate"><span class="pre">icefall</span></code> uses CPU
+even if there are GPUs available.</p>
+</div>
+<p>The training log is given below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2021-08-23 19:30:31,072 INFO [train.py:465] Training started
+2021-08-23 19:30:31,072 INFO [train.py:466] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lr&#39;: 0.01,
+&#39;feature_dim&#39;: 23, &#39;weight_decay&#39;: 1e-06, &#39;start_epoch&#39;: 0, &#39;best_train_loss&#39;: inf, &#39;best_valid_loss&#39;: inf, &#39;best_train_epoch&#39;: -1, &#39;
+best_valid_epoch&#39;: -1, &#39;batch_idx_train&#39;: 0, &#39;log_interval&#39;: 10, &#39;valid_interval&#39;: 10, &#39;beam_size&#39;: 10, &#39;reduction&#39;: &#39;sum&#39;, &#39;use_doub
+le_scores&#39;: True, &#39;world_size&#39;: 1, &#39;master_port&#39;: 12354, &#39;tensorboard&#39;: True, &#39;num_epochs&#39;: 15, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;
+), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0
+, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: True, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2}
+2021-08-23 19:30:31,074 INFO [lexicon.py:113] Loading pre-compiled data/lang_phone/Linv.pt
+2021-08-23 19:30:31,098 INFO [asr_datamodule.py:146] About to get train cuts
+2021-08-23 19:30:31,098 INFO [asr_datamodule.py:240] About to get train cuts
+2021-08-23 19:30:31,102 INFO [asr_datamodule.py:149] About to create train dataset
+2021-08-23 19:30:31,102 INFO [asr_datamodule.py:200] Using SingleCutSampler.
+2021-08-23 19:30:31,102 INFO [asr_datamodule.py:206] About to create train dataloader
+2021-08-23 19:30:31,102 INFO [asr_datamodule.py:219] About to get test cuts
+2021-08-23 19:30:31,102 INFO [asr_datamodule.py:246] About to get test cuts
+2021-08-23 19:30:31,357 INFO [train.py:416] Epoch 0, batch 0, batch avg loss 1.0789, total avg loss: 1.0789, batch size: 4
+2021-08-23 19:30:31,848 INFO [train.py:416] Epoch 0, batch 10, batch avg loss 0.5356, total avg loss: 0.7556, batch size: 4
+2021-08-23 19:30:32,301 INFO [train.py:432] Epoch 0, valid loss 0.9972, best valid loss: 0.9972 best valid epoch: 0
+2021-08-23 19:30:32,805 INFO [train.py:416] Epoch 0, batch 20, batch avg loss 0.2436, total avg loss: 0.5717, batch size: 3
+2021-08-23 19:30:33,109 INFO [train.py:432] Epoch 0, valid loss 0.4167, best valid loss: 0.4167 best valid epoch: 0
+2021-08-23 19:30:33,121 INFO [checkpoint.py:62] Saving checkpoint to tdnn/exp/epoch-0.pt
+2021-08-23 19:30:33,325 INFO [train.py:416] Epoch 1, batch 0, batch avg loss 0.2214, total avg loss: 0.2214, batch size: 5
+2021-08-23 19:30:33,798 INFO [train.py:416] Epoch 1, batch 10, batch avg loss 0.0781, total avg loss: 0.1343, batch size: 5
+2021-08-23 19:30:34,065 INFO [train.py:432] Epoch 1, valid loss 0.0859, best valid loss: 0.0859 best valid epoch: 1
+2021-08-23 19:30:34,556 INFO [train.py:416] Epoch 1, batch 20, batch avg loss 0.0421, total avg loss: 0.0975, batch size: 3
+2021-08-23 19:30:34,810 INFO [train.py:432] Epoch 1, valid loss 0.0431, best valid loss: 0.0431 best valid epoch: 1
+2021-08-23 19:30:34,824 INFO [checkpoint.py:62] Saving checkpoint to tdnn/exp/epoch-1.pt
+
+... ...
+
+2021-08-23 19:30:49,657 INFO [train.py:416] Epoch 13, batch 0, batch avg loss 0.0109, total avg loss: 0.0109, batch size: 5
+2021-08-23 19:30:49,984 INFO [train.py:416] Epoch 13, batch 10, batch avg loss 0.0093, total avg loss: 0.0096, batch size: 4
+2021-08-23 19:30:50,239 INFO [train.py:432] Epoch 13, valid loss 0.0104, best valid loss: 0.0101 best valid epoch: 12
+2021-08-23 19:30:50,569 INFO [train.py:416] Epoch 13, batch 20, batch avg loss 0.0092, total avg loss: 0.0096, batch size: 2
+2021-08-23 19:30:50,819 INFO [train.py:432] Epoch 13, valid loss 0.0101, best valid loss: 0.0101 best valid epoch: 13
+2021-08-23 19:30:50,835 INFO [checkpoint.py:62] Saving checkpoint to tdnn/exp/epoch-13.pt
+2021-08-23 19:30:51,024 INFO [train.py:416] Epoch 14, batch 0, batch avg loss 0.0105, total avg loss: 0.0105, batch size: 5
+2021-08-23 19:30:51,317 INFO [train.py:416] Epoch 14, batch 10, batch avg loss 0.0099, total avg loss: 0.0097, batch size: 4
+2021-08-23 19:30:51,552 INFO [train.py:432] Epoch 14, valid loss 0.0108, best valid loss: 0.0101 best valid epoch: 13
+2021-08-23 19:30:51,869 INFO [train.py:416] Epoch 14, batch 20, batch avg loss 0.0096, total avg loss: 0.0097, batch size: 5
+2021-08-23 19:30:52,107 INFO [train.py:432] Epoch 14, valid loss 0.0102, best valid loss: 0.0101 best valid epoch: 13
+2021-08-23 19:30:52,126 INFO [checkpoint.py:62] Saving checkpoint to tdnn/exp/epoch-14.pt
+2021-08-23 19:30:52,128 INFO [train.py:537] Done!
+</pre></div>
+</div>
+</section>
+<section id="decoding">
+<h3>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h3>
+<p>Let us use the trained model to decode the test set:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/decode.py
+</pre></div>
+</div>
+<p>The decoding log is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2021-08-23 19:35:30,192 INFO [decode.py:249] Decoding started
+2021-08-23 19:35:30,192 INFO [decode.py:250] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lm_dir&#39;: PosixPath(&#39;data/lm&#39;), &#39;feature_dim&#39;: 23, &#39;search_beam&#39;: 20, &#39;output_beam&#39;: 8, &#39;min_active_states&#39;: 30, &#39;max_active_states&#39;: 10000, &#39;use_double_scores&#39;: True, &#39;epoch&#39;: 14, &#39;avg&#39;: 2, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: True, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2}
+2021-08-23 19:35:30,193 INFO [lexicon.py:113] Loading pre-compiled data/lang_phone/Linv.pt
+2021-08-23 19:35:30,213 INFO [decode.py:259] device: cpu
+2021-08-23 19:35:30,217 INFO [decode.py:279] averaging [&#39;tdnn/exp/epoch-13.pt&#39;, &#39;tdnn/exp/epoch-14.pt&#39;]
+/tmp/icefall/icefall/checkpoint.py:146: UserWarning: floor_divide is deprecated, and will be removed in a future version of pytorch.
+It currently rounds toward 0 (like the &#39;trunc&#39; function NOT &#39;floor&#39;). This results in incorrect rounding for negative values.
+To keep the current behavior, use torch.div(a, b, rounding_mode=&#39;trunc&#39;), or for actual floor division, use torch.div(a, b, rounding_mode=&#39;floor&#39;). (Triggered internally at  /pytorch/aten/src/ATen/native/BinaryOps.cpp:450.)
+  avg[k] //= n
+2021-08-23 19:35:30,220 INFO [asr_datamodule.py:219] About to get test cuts
+2021-08-23 19:35:30,220 INFO [asr_datamodule.py:246] About to get test cuts
+2021-08-23 19:35:30,409 INFO [decode.py:190] batch 0/8, cuts processed until now is 4
+2021-08-23 19:35:30,571 INFO [decode.py:228] The transcripts are stored in tdnn/exp/recogs-test_set.txt
+2021-08-23 19:35:30,572 INFO [utils.py:317] [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
+2021-08-23 19:35:30,573 INFO [decode.py:236] Wrote detailed error stats to tdnn/exp/errs-test_set.txt
+2021-08-23 19:35:30,573 INFO [decode.py:299] Done!
+</pre></div>
+</div>
+<p><strong>Congratulations!</strong> You have successfully setup the environment and have run the first recipe in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+<p>Have fun with <code class="docutils literal notranslate"><span class="pre">icefall</span></code>!</p>
+</section>
+</section>
+<section id="youtube-video">
+<h2>YouTube Video<a class="headerlink" href="#youtube-video" title="Permalink to this heading"></a></h2>
+<p>We provide the following YouTube video showing how to install <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.
+It also shows how to debug various problems that you may encounter while
+using <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To get the latest news of <a class="reference external" href="https://github.com/k2-fsa">next-gen Kaldi</a>, please subscribe
+the following YouTube channel by <a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">Nadira Povey</a>:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw</a></p>
+</div></blockquote>
+</div>
+<div class="video_wrapper" style="">
+<iframe allowfullscreen="true" src="https://www.youtube.com/embed/LVmrBD0tLfE" style="border: 0; height: 345px; width: 560px">
+</iframe></div></section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Icefall" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../recipes/index.html" class="btn btn-neutral float-right" title="Recipes" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

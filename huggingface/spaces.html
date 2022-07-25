@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Huggingface spaces &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Pre-trained models" href="pretrained-models.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Huggingface</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="pretrained-models.html">Pre-trained models</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Huggingface spaces</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#youtube-video">YouTube Video</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Huggingface</a> &raquo;</li>
+      <li>Huggingface spaces</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/huggingface/spaces.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="huggingface-spaces">
+<h1>Huggingface spaces<a class="headerlink" href="#huggingface-spaces" title="Permalink to this heading"></a></h1>
+<p>We have integrated the server framework
+<a class="reference external" href="http://github.com/k2-fsa/sherpa">sherpa</a>
+with <a class="reference external" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition">Huggingface spaces</a>
+so that you can try pre-trained models from within your browser
+without the need to download or install anything.</p>
+<p>All you need is a browser, which can be run on Windows, macOS, Linux, or even on your
+iPad and your phone.</p>
+<p>Start your browser and visit the following address:</p>
+<p><a class="reference external" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition">https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition</a></p>
+<p>and you will see a page like the following screenshot:</p>
+<a class="reference external image-reference" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition"><img alt="screenshot of `&lt;https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition&gt;`_" src="../_images/hugging-face-sherpa.png" /></a>
+<p>You can:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Select a language for recognition. Currently, we provide pre-trained models
+from <code class="docutils literal notranslate"><span class="pre">icefall</span></code> for the following languages: <code class="docutils literal notranslate"><span class="pre">Chinese</span></code>, <code class="docutils literal notranslate"><span class="pre">English</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">Chinese+English</span></code>.</p></li>
+<li><p>After selecting the target language, you can select a pre-trained model
+corresponding to the language.</p></li>
+<li><p>Select the decoding method. Currently, it provides <code class="docutils literal notranslate"><span class="pre">greedy</span> <span class="pre">search</span></code>
+and <code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code>.</p></li>
+<li><p>If you selected <code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code>, you can choose the number of
+active paths during the search.</p></li>
+<li><p>Either upload a file or record your speech for recognition.</p></li>
+<li><p>Click the button <code class="docutils literal notranslate"><span class="pre">Submit</span> <span class="pre">for</span> <span class="pre">recognition</span></code>.</p></li>
+<li><p>Wait for a moment and you will get the recognition results.</p></li>
+</ol>
+</div></blockquote>
+<p>The following screenshot shows an example when selecting <code class="docutils literal notranslate"><span class="pre">Chinese+English</span></code>:</p>
+<a class="reference external image-reference" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition"><img alt="screenshot of `&lt;https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition&gt;`_" src="../_images/hugging-face-sherpa-3.png" /></a>
+<p>In the bottom part of the page, you can find a table of examples. You can click
+one of them and then click <code class="docutils literal notranslate"><span class="pre">Submit</span> <span class="pre">for</span> <span class="pre">recognition</span></code>.</p>
+<a class="reference external image-reference" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition"><img alt="screenshot of `&lt;https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition&gt;`_" src="../_images/hugging-face-sherpa-2.png" /></a>
+<section id="youtube-video">
+<h2>YouTube Video<a class="headerlink" href="#youtube-video" title="Permalink to this heading"></a></h2>
+<p>We provide the following YouTube video demonstrating how to use
+<a class="reference external" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition">https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To get the latest news of <a class="reference external" href="https://github.com/k2-fsa">next-gen Kaldi</a>, please subscribe
+the following YouTube channel by <a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">Nadira Povey</a>:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw</a></p>
+</div></blockquote>
+</div>
+<div class="video_wrapper" style="">
+<iframe allowfullscreen="true" src="https://www.youtube.com/embed/ElN3r9dkKE4" style="border: 0; height: 345px; width: 560px">
+</iframe></div></section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pretrained-models.html" class="btn btn-neutral float-left" title="Pre-trained models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

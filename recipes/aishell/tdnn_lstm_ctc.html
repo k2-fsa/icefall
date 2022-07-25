@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TDNN-LSTM CTC &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Conformer CTC" href="conformer_ctc.html" />
+    <link rel="prev" title="aishell" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">aishell</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">TDNN-LSTM CTC</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pre-trained-model">Pre-trained Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#colab-notebook">Colab notebook</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stateless_transducer.html">Stateless Transducer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Recipes</a> &raquo;</li>
+          <li><a href="index.html">aishell</a> &raquo;</li>
+      <li>TDNN-LSTM CTC</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/recipes/aishell/tdnn_lstm_ctc.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="tdnn-lstm-ctc">
+<h1>TDNN-LSTM CTC<a class="headerlink" href="#tdnn-lstm-ctc" title="Permalink to this heading"></a></h1>
+<p>This tutorial shows you how to run a tdnn-lstm ctc model
+with the <a class="reference external" href="https://www.openslr.org/33">Aishell</a> dataset.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We assume you have read the page <a class="reference internal" href="../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We recommend you to use a GPU or several GPUs to run this recipe.</p>
+</div>
+<p>In this tutorial, you will learn:</p>
+<blockquote>
+<div><ul class="simple">
+<li><ol class="arabic simple">
+<li><p>How to prepare data for training and decoding</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="2">
+<li><p>How to start the training, either with a single GPU or multiple GPUs</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="3">
+<li><p>How to do decoding after training.</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="4">
+<li><p>How to use a pre-trained model, provided by us</p></li>
+</ol>
+</li>
+</ul>
+</div></blockquote>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./prepare.sh
+</pre></div>
+</div>
+<p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
+All you need to do is to run it.</p>
+<p>The data preparation contains several stages, you can use the following two
+options:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>to control which stage(s) should be run. By default, all stages are executed.</p>
+<p>For example,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+</pre></div>
+</div>
+<p>means to run only stage 0.</p>
+<p>To run stage 2 to stage 5, use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you have pre-downloaded the <a class="reference external" href="https://www.openslr.org/33">Aishell</a>
+dataset and the <a class="reference external" href="http://www.openslr.org/17/">musan</a> dataset, say,
+they are saved in <code class="docutils literal notranslate"><span class="pre">/tmp/aishell</span></code> and <code class="docutils literal notranslate"><span class="pre">/tmp/musan</span></code>, you can modify
+the <code class="docutils literal notranslate"><span class="pre">dl_dir</span></code> variable in <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> to point to <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> so that
+<code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> won’t re-download them.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>A 3-gram language model will be downloaded from huggingface, we assume you have
+intalled and initialized <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code>. If not, you could install <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code> by</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ sudo apt-get install git-lfs
+$ git-lfs install
+</pre></div>
+</div>
+<p>If you don’t have the <code class="docutils literal notranslate"><span class="pre">sudo</span></code> permission, you could download the
+<a class="reference external" href="https://github.com/git-lfs/git-lfs/releases">git-lfs binary</a> here, then add it to you <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All generated files by <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code>, e.g., features, lexicon, etc,
+are saved in <code class="docutils literal notranslate"><span class="pre">./data</span></code> directory.</p>
+</div>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<section id="configurable-options">
+<h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./tdnn_lstm_ctc/train.py --help
+</pre></div>
+</div>
+<p>shows you the training options that can be passed from the commandline.
+The following options are used quite often:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--num-epochs</span></code></p>
+<p>It is the number of epochs to train. For instance,
+<code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30 epochs
+and generates <code class="docutils literal notranslate"><span class="pre">epoch-0.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, …, <code class="docutils literal notranslate"><span class="pre">epoch-29.pt</span></code>
+in the folder <code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/exp</span></code>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--start-epoch</span></code></p>
+<p>It’s used to resume training.
+<code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
+checkpoint <code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/exp/epoch-9.pt</span></code> and starts
+training from epoch 10, based on the state from epoch 9.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--world-size</span></code></p>
+<p>It is used for multi-GPU single-machine DDP training.</p>
+<blockquote>
+<div><ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>If it is 1, then no DDP training is used.</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>If it is 2, then GPU 0 and GPU 1 are used for DDP training.</p></li>
+</ol>
+</li>
+</ul>
+</div></blockquote>
+<p>The following shows some use cases with it.</p>
+<blockquote>
+<div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
+GPU 2 for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">2</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
+for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">4</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
+for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">1</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Only multi-GPU single-machine DDP training is implemented at present.
+Multi-GPU multi-machine DDP training will be added later.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-duration</span></code></p>
+<p>It specifies the number of seconds over all utterances in a
+batch, before <strong>padding</strong>.
+If you encounter CUDA OOM, please reduce it. For instance, if
+your are using V100 NVIDIA GPU, we recommend you to set it to <code class="docutils literal notranslate"><span class="pre">2000</span></code>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Due to padding, the number of seconds of all utterances in a
+batch will usually be larger than <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code>.</p>
+<p>A larger value for <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> may cause OOM during training,
+while a smaller value may increase the training time. You have to
+tune it.</p>
+</div>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="pre-configured-options">
+<h3>Pre-configured options<a class="headerlink" href="#pre-configured-options" title="Permalink to this heading"></a></h3>
+<p>There are some training options, e.g., weight decay,
+number of warmup steps, results dir, etc,
+that are not passed from the commandline.
+They are pre-configured by the function <code class="docutils literal notranslate"><span class="pre">get_params()</span></code> in
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/aishell/ASR/tdnn_lstm_ctc/train.py">tdnn_lstm_ctc/train.py</a></p>
+<p>You don’t need to change these pre-configured parameters. If you really need to change
+them, please modify <code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/train.py</span></code> directly.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The training set is perturbed by speed with two factors: 0.9 and 1.1.
+Each epoch actually processes <code class="docutils literal notranslate"><span class="pre">3x150</span> <span class="pre">==</span> <span class="pre">450</span></code> hours of data.</p>
+</div>
+</section>
+<section id="training-logs">
+<h3>Training logs<a class="headerlink" href="#training-logs" title="Permalink to this heading"></a></h3>
+<p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">tdnn_lstm_ctc/exp</span></code>.
+You will find the following files in that directory:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">epoch-0.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, …</p>
+<p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
+To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_lstm_ctc/train.py --start-epoch <span class="m">11</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tensorboard/</span></code></p>
+<p>This folder contains TensorBoard logs. Training loss, validation loss, learning
+rate, etc, are recorded in these logs. You can visualize them by:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> tdnn_lstm_ctc/exp/tensorboard
+$ tensorboard dev upload --logdir . --description <span class="s2">&quot;TDNN-LSTM CTC training for Aishell with icefall&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>It will print something like below:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
+<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
+
+<span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
+
+<span class="n">New</span> <span class="n">experiment</span> <span class="n">created</span><span class="o">.</span> <span class="n">View</span> <span class="n">your</span> <span class="n">TensorBoard</span> <span class="n">at</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">tensorboard</span><span class="o">.</span><span class="n">dev</span><span class="o">/</span><span class="n">experiment</span><span class="o">/</span><span class="n">LJI9MWUORLOw3jkdhxwk8A</span><span class="o">/</span>
+
+<span class="p">[</span><span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span><span class="n">T11</span><span class="p">:</span><span class="mi">59</span><span class="p">:</span><span class="mi">23</span><span class="p">]</span> <span class="n">Started</span> <span class="n">scanning</span> <span class="n">logdir</span><span class="o">.</span>
+<span class="p">[</span><span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span><span class="n">T11</span><span class="p">:</span><span class="mi">59</span><span class="p">:</span><span class="mi">24</span><span class="p">]</span> <span class="n">Total</span> <span class="n">uploaded</span><span class="p">:</span> <span class="mi">4454</span> <span class="n">scalars</span><span class="p">,</span> <span class="mi">0</span> <span class="n">tensors</span><span class="p">,</span> <span class="mi">0</span> <span class="n">binary</span> <span class="n">objects</span>
+<span class="n">Listening</span> <span class="k">for</span> <span class="n">new</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">logdir</span><span class="o">...</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Note there is a URL in the above output, click it and you will see
+the following screenshot:</p>
+<blockquote>
+<div><figure class="align-center" id="id2">
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/LJI9MWUORLOw3jkdhxwk8A/"><img alt="TensorBoard screenshot" src="../../_images/aishell-tdnn-lstm-ctc-tensorboard-log.jpg" style="width: 600px;" /></a>
+<figcaption>
+<p><span class="caption-number">Fig. 1 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log/log-train-xxxx</span></code></p>
+<p>It is the detailed training log in text format, same as the one
+you saw printed to the console during training.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="usage-examples">
+<h3>Usage examples<a class="headerlink" href="#usage-examples" title="Permalink to this heading"></a></h3>
+<p>The following shows typical use cases:</p>
+<section id="case-1">
+<h4><strong>Case 1</strong><a class="headerlink" href="#case-1" title="Permalink to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
+$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">2</span>
+</pre></div>
+</div>
+<p>It uses GPU 0 and GPU 3 for DDP training.</p>
+</section>
+<section id="case-2">
+<h4><strong>Case 2</strong><a class="headerlink" href="#case-2" title="Permalink to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./tdnn_lstm_ctc/train.py --num-epochs <span class="m">10</span> --start-epoch <span class="m">3</span>
+</pre></div>
+</div>
+<p>It loads checkpoint <code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/exp/epoch-2.pt</span></code> and starts
+training from epoch 3. Also, it trains for 10 epochs.</p>
+</section>
+</section>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>The decoding part uses checkpoints saved by the training part, so you have
+to run the training part first.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./tdnn_lstm_ctc/decode.py --help
+</pre></div>
+</div>
+<p>shows the options for decoding.</p>
+<p>The commonly used options are:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--method</span></code></p>
+<p>This specifies the decoding method.</p>
+<p>The following command uses attention decoder for rescoring:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./tdnn_lstm_ctc/decode.py --method 1best --max-duration 100
+</pre></div>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-duration</span></code></p>
+<p>It has the same meaning as the one during training. A larger
+value may cause OOM.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="pre-trained-model">
+<h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<p>We have uploaded a pre-trained model to
+<a class="reference external" href="https://huggingface.co/pkufool/icefall_asr_aishell_tdnn_lstm_ctc">https://huggingface.co/pkufool/icefall_asr_aishell_tdnn_lstm_ctc</a>.</p>
+<p>We describe how to use the pre-trained model to transcribe a sound file or
+multiple sound files in the following.</p>
+<section id="install-kaldifeat">
+<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Permalink to this heading"></a></h3>
+<p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used to
+extract features for a single sound file or multiple sound files
+at the same time.</p>
+<p>Please refer to <a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> for installation.</p>
+</section>
+<section id="download-the-pre-trained-model">
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<p>The following commands describe how to download the pre-trained model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ mkdir tmp
+$ cd tmp
+$ git lfs install
+$ git clone https://huggingface.co/pkufool/icefall_asr_aishell_tdnn_lstm_ctc
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>You have to use <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code> to download the pre-trained model.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>In order to use this pre-trained model, your k2 version has to be v1.7 or later.</p>
+</div>
+<p>After downloading, you will have the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ tree tmp
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/
+<span class="sb">`</span>-- icefall_asr_aishell_tdnn_lstm_ctc
+    <span class="p">|</span>-- README.md
+    <span class="p">|</span>-- data
+    <span class="p">|</span>   <span class="sb">`</span>-- lang_phone
+    <span class="p">|</span>       <span class="p">|</span>-- HLG.pt
+    <span class="p">|</span>       <span class="p">|</span>-- tokens.txt
+    <span class="p">|</span>       <span class="sb">`</span>-- words.txt
+    <span class="p">|</span>-- exp
+    <span class="p">|</span>   <span class="sb">`</span>-- pretrained.pt
+    <span class="sb">`</span>-- test_waves
+        <span class="p">|</span>-- BAC009S0764W0121.wav
+        <span class="p">|</span>-- BAC009S0764W0122.wav
+        <span class="p">|</span>-- BAC009S0764W0123.wav
+        <span class="sb">`</span>-- trans.txt
+
+<span class="m">5</span> directories, <span class="m">9</span> files
+</pre></div>
+</div>
+<p><strong>File descriptions</strong>:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">data/lang_phone/HLG.pt</span></code></p>
+<blockquote>
+<div><p>It is the decoding graph.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">data/lang_phone/tokens.txt</span></code></p>
+<blockquote>
+<div><p>It contains tokens and their IDs.
+Provided only for convenience so that you can look up the SOS/EOS ID easily.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">data/lang_phone/words.txt</span></code></p>
+<blockquote>
+<div><p>It contains words and their IDs.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exp/pretrained.pt</span></code></p>
+<blockquote>
+<div><p>It contains pre-trained model parameters, obtained by averaging
+checkpoints from <code class="docutils literal notranslate"><span class="pre">epoch-18.pt</span></code> to <code class="docutils literal notranslate"><span class="pre">epoch-40.pt</span></code>.
+Note: We have removed optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> to reduce file size.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_waves/*.wav</span></code></p>
+<blockquote>
+<div><p>It contains some test sound files from Aishell <code class="docutils literal notranslate"><span class="pre">test</span></code> dataset.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_waves/trans.txt</span></code></p>
+<blockquote>
+<div><p>It contains the reference transcripts for the sound files in <cite>test_waves/</cite>.</p>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+<p>The information of the test sound files is listed below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/*.wav
+
+Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.20 <span class="o">=</span> <span class="m">67263</span> samples ~ <span class="m">315</span>.295 CDDA sectors
+File Size      : 135k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+
+Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.12 <span class="o">=</span> <span class="m">65840</span> samples ~ <span class="m">308</span>.625 CDDA sectors
+File Size      : 132k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+
+Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.00 <span class="o">=</span> <span class="m">64000</span> samples ~ <span class="m">300</span> CDDA sectors
+File Size      : 128k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+Total Duration of <span class="m">3</span> files: <span class="m">00</span>:00:12.32
+</pre></div>
+</div>
+</section>
+<section id="usage">
+<h3>Usage<a class="headerlink" href="#usage" title="Permalink to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./tdnn_lstm_ctc/pretrained.py --help
+</pre></div>
+</div>
+<p>displays the help information.</p>
+<section id="hlg-decoding">
+<h4>HLG decoding<a class="headerlink" href="#hlg-decoding" title="Permalink to this heading"></a></h4>
+<p>HLG decoding uses the best path of the decoding lattice as the decoding result.</p>
+<p>The command to run HLG decoding is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./tdnn_lstm_ctc/pretrained.py <span class="se">\</span>
+  --checkpoint ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/exp/pretrained.pt <span class="se">\</span>
+  --words-file ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/words.txt <span class="se">\</span>
+  --HLG ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/HLG.pt <span class="se">\</span>
+  --method 1best <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0123.wav
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mi">55</span><span class="p">,</span><span class="mi">858</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">140</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cuda</span><span class="p">:</span><span class="mi">0</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mi">55</span><span class="p">,</span><span class="mi">858</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">142</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">05</span><span class="p">,</span><span class="mi">389</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">154</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span> <span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_aishell_tdnn_lstm_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">531</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">161</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">536</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">171</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">539</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">177</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">917</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">207</span><span class="p">]</span> <span class="n">Use</span> <span class="n">HLG</span> <span class="n">decoding</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">07</span><span class="p">,</span><span class="mi">129</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">220</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_aishell_tdnn_lstm_ctc</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="n">BAC009S0764W0121</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">甚至</span> <span class="n">出现</span> <span class="n">交易</span> <span class="n">几乎</span> <span class="n">停滞</span> <span class="n">的</span> <span class="n">情况</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_aishell_tdnn_lstm_ctc</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="n">BAC009S0764W0122</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">一二</span> <span class="n">线</span> <span class="n">城市</span> <span class="n">虽然</span> <span class="n">也</span> <span class="n">处于</span> <span class="n">调整</span> <span class="n">中</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_aishell_tdnn_lstm_ctc</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="n">BAC009S0764W0123</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">但</span> <span class="n">因为</span> <span class="n">聚集</span> <span class="n">了</span> <span class="n">过多</span> <span class="n">公共</span> <span class="n">资源</span>
+
+
+<span class="mi">2021</span><span class="o">-</span><span class="mi">09</span><span class="o">-</span><span class="mi">13</span> <span class="mi">15</span><span class="p">:</span><span class="mi">01</span><span class="p">:</span><span class="mi">07</span><span class="p">,</span><span class="mi">129</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">222</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="colab-notebook">
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<p>We do provide a colab notebook for this recipe showing how to use a pre-trained model.</p>
+<p><a class="reference external" href="https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z"><img alt="aishell asr conformer ctc colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+<p><strong>Congratulations!</strong> You have finished the aishell ASR recipe with
+TDNN-LSTM CTC models in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="aishell" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="conformer_ctc.html" class="btn btn-neutral float-right" title="Conformer CTC" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

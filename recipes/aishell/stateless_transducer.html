@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stateless Transducer &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="LibriSpeech" href="../librispeech/index.html" />
+    <link rel="prev" title="Conformer CTC" href="conformer_ctc.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">aishell</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM CTC</a></li>
+<li class="toctree-l3"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Stateless Transducer</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#the-model">The Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#the-loss">The Loss</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data Preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pre-trained-model">Pre-trained Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#colab-notebook">Colab notebook</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Recipes</a> &raquo;</li>
+          <li><a href="index.html">aishell</a> &raquo;</li>
+      <li>Stateless Transducer</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/recipes/aishell/stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="stateless-transducer">
+<h1>Stateless Transducer<a class="headerlink" href="#stateless-transducer" title="Permalink to this heading"></a></h1>
+<p>This tutorial shows you how to do transducer training in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Instead of using RNN-T or RNN transducer, we only use transducer
+here. As you will see, there are no RNNs in the model.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We assume you have read the page <a class="reference internal" href="../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We recommend you to use a GPU or several GPUs to run this recipe.</p>
+</div>
+<p>In this tutorial, you will learn:</p>
+<blockquote>
+<div><ul class="simple">
+<li><ol class="arabic simple">
+<li><p>What does the transducer model look like</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="2">
+<li><p>How to prepare data for training and decoding</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="3">
+<li><p>How to start the training, either with a single GPU or with multiple GPUs</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="4">
+<li><p>How to do decoding after training, with greedy search, beam search and, <strong>modified beam search</strong></p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="5">
+<li><p>How to use a pre-trained model provided by us to transcribe sound files</p></li>
+</ol>
+</li>
+</ul>
+</div></blockquote>
+<section id="the-model">
+<h2>The Model<a class="headerlink" href="#the-model" title="Permalink to this heading"></a></h2>
+<p>The transducer model consists of 3 parts:</p>
+<ul>
+<li><p><strong>Encoder</strong>: It is a conformer encoder with the following parameters</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Number of heads: 8</p></li>
+<li><p>Attention dim: 512</p></li>
+<li><p>Number of layers: 12</p></li>
+<li><p>Feedforward dim: 2048</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>Decoder</strong>: We use a stateless model consisting of:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>An embedding layer with embedding dim 512</p></li>
+<li><p>A Conv1d layer with a default kernel size 2 (i.e. it sees 2
+symbols of left-context by default)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>Joiner</strong>: It consists of a <code class="docutils literal notranslate"><span class="pre">nn.tanh()</span></code> and a <code class="docutils literal notranslate"><span class="pre">nn.Linear()</span></code>.</p></li>
+</ul>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The decoder is stateless and very simple. It is borrowed from
+<a class="reference external" href="https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419">https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9054419</a>
+(Rnn-Transducer with Stateless Prediction Network)</p>
+<p>We make one modification to it: Place a Conv1d layer right after
+the embedding layer.</p>
+</div>
+<p>When using Chinese characters as modelling unit, whose vocabulary size
+is 4336 in this specific dataset,
+the number of parameters of the model is <code class="docutils literal notranslate"><span class="pre">87939824</span></code>, i.e., about <code class="docutils literal notranslate"><span class="pre">88</span> <span class="pre">M</span></code>.</p>
+</section>
+<section id="the-loss">
+<h2>The Loss<a class="headerlink" href="#the-loss" title="Permalink to this heading"></a></h2>
+<p>We are using <a class="reference external" href="https://github.com/csukuangfj/optimized_transducer">https://github.com/csukuangfj/optimized_transducer</a>
+to compute the transducer loss, which removes extra paddings
+in loss computation to save memory.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><code class="docutils literal notranslate"><span class="pre">optimized_transducer</span></code> implements the technqiues proposed
+in <a class="reference external" href="https://arxiv.org/abs/1909.12415">Improving RNN Transducer Modeling for End-to-End Speech Recognition</a> to save memory.</p>
+<p>Furthermore, it supports <code class="docutils literal notranslate"><span class="pre">modified</span> <span class="pre">transducer</span></code>, limiting the maximum
+number of symbols that can be emitted per frame to 1, which simplifies
+the decoding process significantly. Also, the experiment results
+show that it does not degrade the performance.</p>
+<p>See <a class="reference external" href="https://github.com/csukuangfj/optimized_transducer#modified-transducer">https://github.com/csukuangfj/optimized_transducer#modified-transducer</a>
+for what exactly modified transducer is.</p>
+<p><a class="reference external" href="https://github.com/csukuangfj/transducer-loss-benchmarking">https://github.com/csukuangfj/transducer-loss-benchmarking</a> shows that
+in the unpruned case <code class="docutils literal notranslate"><span class="pre">optimized_transducer</span></code> has the advantage about minimizing
+memory usage.</p>
+</div>
+<div class="admonition-todo admonition" id="id1">
+<p class="admonition-title">Todo</p>
+<p>Add tutorial about <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless</span></code> that uses k2
+pruned transducer loss.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">optimized_transducer</span>
+</pre></div>
+</div>
+<p>to install <code class="docutils literal notranslate"><span class="pre">optimized_transducer</span></code>. Refer to
+<a class="reference external" href="https://github.com/csukuangfj/optimized_transducer">https://github.com/csukuangfj/optimized_transducer</a> for other
+alternatives.</p>
+</div>
+</section>
+<section id="data-preparation">
+<h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<p>To prepare the data for training, please use the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/aishell/ASR
+./prepare.sh --stop-stage <span class="m">4</span>
+./prepare.sh --stage <span class="m">6</span> --stop-stage <span class="m">6</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can use <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code>, though it will generate FSTs that
+are not used in transducer training.</p>
+</div>
+<p>When you finish running the script, you will get the following two folders:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">data/fbank</span></code>: It saves the pre-computed features</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">data/lang_char</span></code>: It contains tokens that will be used in the training</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/aishell/ASR
+./transducer_stateless_modified/train.py --help
+</pre></div>
+</div>
+<p>shows you the training options that can be passed from the commandline.
+The following options are used quite often:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--exp-dir</span></code></p>
+<p>The experiment folder to save logs and model checkpoints,
+defaults to <code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/exp</span></code>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--num-epochs</span></code></p>
+<p>It is the number of epochs to train. For instance,
+<code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30
+epochs and generates <code class="docutils literal notranslate"><span class="pre">epoch-0.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, …, <code class="docutils literal notranslate"><span class="pre">epoch-29.pt</span></code>
+in the folder set by <code class="docutils literal notranslate"><span class="pre">--exp-dir</span></code>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--start-epoch</span></code></p>
+<p>It’s used to resume training.
+<code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
+checkpoint from <code class="docutils literal notranslate"><span class="pre">exp_dir/epoch-9.pt</span></code> and starts
+training from epoch 10, based on the state from epoch 9.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--world-size</span></code></p>
+<p>It is used for single-machine multi-GPU DDP training.</p>
+<blockquote>
+<div><ul class="simple">
+<li><ol class="loweralpha simple">
+<li><p>If it is 1, then no DDP training is used.</p></li>
+</ol>
+</li>
+<li><ol class="loweralpha simple" start="2">
+<li><p>If it is 2, then GPU 0 and GPU 1 are used for DDP training.</p></li>
+</ol>
+</li>
+</ul>
+</div></blockquote>
+<p>The following shows some use cases with it.</p>
+<blockquote>
+<div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
+GPU 2 for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$ ./transducer_stateless_modified/train.py --world-size <span class="m">2</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
+for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./transducer_stateless_modified/train.py --world-size <span class="m">4</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
+for training. You can do the following:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$ ./transducer_stateless_modified/train.py --world-size <span class="m">1</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Only single-machine multi-GPU DDP training is implemented at present.
+There is an on-going PR <a class="reference external" href="https://github.com/k2-fsa/icefall/pull/63">https://github.com/k2-fsa/icefall/pull/63</a>
+that adds support for multi-machine multi-GPU DDP training.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-duration</span></code></p>
+<p>It specifies the number of seconds over all utterances in a
+batch <strong>before padding</strong>.
+If you encounter CUDA OOM, please reduce it. For instance, if
+your are using V100 NVIDIA GPU with 32 GB RAM, we recommend you
+to set it to <code class="docutils literal notranslate"><span class="pre">300</span></code> when the vocabulary size is 500.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Due to padding, the number of seconds of all utterances in a
+batch will usually be larger than <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code>.</p>
+<p>A larger value for <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> may cause OOM during training,
+while a smaller value may increase the training time. You have to
+tune it.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--lr-factor</span></code></p>
+<p>It controls the learning rate. If you use a single GPU for training, you
+may want to use a small value for it. If you use multiple GPUs for training,
+you may increase it.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--context-size</span></code></p>
+<p>It specifies the kernel size in the decoder. The default value 2 means it
+functions as a tri-gram LM.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--modified-transducer-prob</span></code></p>
+<p>It specifies the probability to use modified transducer loss.
+If it is 0, then no modified transducer is used; if it is 1,
+then it uses modified transducer loss for all batches. If it is
+<code class="docutils literal notranslate"><span class="pre">p</span></code>, it applies modified transducer with probability <code class="docutils literal notranslate"><span class="pre">p</span></code>.</p>
+</li>
+</ul>
+</div></blockquote>
+<p>There are some training options, e.g.,
+number of warmup steps,
+that are not passed from the commandline.
+They are pre-configured by the function <code class="docutils literal notranslate"><span class="pre">get_params()</span></code> in
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/aishell/ASR/transducer_stateless_modified/train.py#L162">transducer_stateless_modified/train.py</a></p>
+<p>If you need to change them, please modify <code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/train.py</span></code> directly.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The training set is perturbed by speed with two factors: 0.9 and 1.1.
+Each epoch actually processes <code class="docutils literal notranslate"><span class="pre">3x150</span> <span class="pre">==</span> <span class="pre">450</span></code> hours of data.</p>
+</div>
+<section id="training-logs">
+<h3>Training logs<a class="headerlink" href="#training-logs" title="Permalink to this heading"></a></h3>
+<p>Training logs and checkpoints are saved in the folder set by <code class="docutils literal notranslate"><span class="pre">--exp-dir</span></code>
+(defaults to <code class="docutils literal notranslate"><span class="pre">transducer_stateless_modified/exp</span></code>). You will find the following files in that directory:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">epoch-0.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, …</p>
+<p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
+To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./transducer_stateless_modified/train.py --start-epoch <span class="m">11</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tensorboard/</span></code></p>
+<p>This folder contains TensorBoard logs. Training loss, validation loss, learning
+rate, etc, are recorded in these logs. You can visualize them by:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> transducer_stateless_modified/exp/tensorboard
+$ tensorboard dev upload --logdir . --name <span class="s2">&quot;Aishell transducer training with icefall&quot;</span> --description <span class="s2">&quot;Training modified transducer, see https://github.com/k2-fsa/icefall/pull/219&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>It will print something like below:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
+<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
+
+<span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
+
+<span class="n">New</span> <span class="n">experiment</span> <span class="n">created</span><span class="o">.</span> <span class="n">View</span> <span class="n">your</span> <span class="n">TensorBoard</span> <span class="n">at</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">tensorboard</span><span class="o">.</span><span class="n">dev</span><span class="o">/</span><span class="n">experiment</span><span class="o">/</span><span class="n">laGZ6HrcQxOigbFD5E0Y3Q</span><span class="o">/</span>
+
+<span class="p">[</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span><span class="n">T14</span><span class="p">:</span><span class="mi">29</span><span class="p">:</span><span class="mi">45</span><span class="p">]</span> <span class="n">Started</span> <span class="n">scanning</span> <span class="n">logdir</span><span class="o">.</span>
+<span class="p">[</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span><span class="n">T14</span><span class="p">:</span><span class="mi">29</span><span class="p">:</span><span class="mi">48</span><span class="p">]</span> <span class="n">Total</span> <span class="n">uploaded</span><span class="p">:</span> <span class="mi">8477</span> <span class="n">scalars</span><span class="p">,</span> <span class="mi">0</span> <span class="n">tensors</span><span class="p">,</span> <span class="mi">0</span> <span class="n">binary</span> <span class="n">objects</span>
+<span class="n">Listening</span> <span class="k">for</span> <span class="n">new</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">logdir</span><span class="o">...</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Note there is a <a class="reference external" href="https://tensorboard.dev/experiment/laGZ6HrcQxOigbFD5E0Y3Q/">URL</a> in the
+above output, click it and you will see the following screenshot:</p>
+<blockquote>
+<div><figure class="align-center" id="id3">
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/laGZ6HrcQxOigbFD5E0Y3Q"><img alt="TensorBoard screenshot" src="../../_images/aishell-transducer_stateless_modified-tensorboard-log.png" style="width: 600px;" /></a>
+<figcaption>
+<p><span class="caption-number">Fig. 3 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log/log-train-xxxx</span></code></p>
+<p>It is the detailed training log in text format, same as the one
+you saw printed to the console during training.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="usage-examples">
+<h3>Usage examples<a class="headerlink" href="#usage-examples" title="Permalink to this heading"></a></h3>
+<p>The following shows typical use cases:</p>
+<section id="case-1">
+<h4><strong>Case 1</strong><a class="headerlink" href="#case-1" title="Permalink to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./transducer_stateless_modified/train.py --max-duration <span class="m">250</span>
+</pre></div>
+</div>
+<p>It uses <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> of 250 to avoid OOM.</p>
+</section>
+<section id="case-2">
+<h4><strong>Case 2</strong><a class="headerlink" href="#case-2" title="Permalink to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
+$ ./transducer_stateless_modified/train.py --world-size <span class="m">2</span>
+</pre></div>
+</div>
+<p>It uses GPU 0 and GPU 3 for DDP training.</p>
+</section>
+<section id="case-3">
+<h4><strong>Case 3</strong><a class="headerlink" href="#case-3" title="Permalink to this heading"></a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./transducer_stateless_modified/train.py --num-epochs <span class="m">10</span> --start-epoch <span class="m">3</span>
+</pre></div>
+</div>
+<p>It loads checkpoint <code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/exp/epoch-2.pt</span></code> and starts
+training from epoch 3. Also, it trains for 10 epochs.</p>
+</section>
+</section>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>The decoding part uses checkpoints saved by the training part, so you have
+to run the training part first.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./transducer_stateless_modified/decode.py --help
+</pre></div>
+</div>
+<p>shows the options for decoding.</p>
+<p>The commonly used options are:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--method</span></code></p>
+<p>This specifies the decoding method. Currently, it supports:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>greedy_search</strong>. You can provide the commandline option <code class="docutils literal notranslate"><span class="pre">--max-sym-per-frame</span></code>
+to limit the maximum number of symbols that can be emitted per frame.</p></li>
+<li><p><strong>beam_search</strong>. You can provide the commandline option <code class="docutils literal notranslate"><span class="pre">--beam-size</span></code>.</p></li>
+<li><p><strong>modified_beam_search</strong>. You can also provide the commandline option <code class="docutils literal notranslate"><span class="pre">--beam-size</span></code>.
+To use this method, we assume that you have trained your model with modified transducer,
+i.e., used the option <code class="docutils literal notranslate"><span class="pre">--modified-transducer-prob</span></code> in the training.</p></li>
+</ul>
+</div></blockquote>
+<p>The following command uses greedy search for decoding</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./transducer_stateless_modified/decode.py \
+        --epoch 64 \
+        --avg 33 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method greedy_search \
+        --max-sym-per-frame 1
+</pre></div>
+</div>
+<p>The following command uses beam search for decoding</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./transducer_stateless_modified/decode.py \
+        --epoch 64 \
+        --avg 33 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method beam_search \
+        --beam-size 4
+</pre></div>
+</div>
+<p>The following command uses <code class="docutils literal notranslate"><span class="pre">modified</span></code> beam search for decoding</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./transducer_stateless_modified/decode.py \
+        --epoch 64 \
+        --avg 33 \
+        --exp-dir ./transducer_stateless_modified/exp \
+        --max-duration 100 \
+        --decoding-method modified_beam_search \
+        --beam-size 4
+</pre></div>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-duration</span></code></p>
+<p>It has the same meaning as the one used in training. A larger
+value may cause OOM.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--epoch</span></code></p>
+<p>It specifies the checkpoint from which epoch that should be used for decoding.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--avg</span></code></p>
+<p>It specifies the number of models to average. For instance, if it is 3 and if
+<code class="docutils literal notranslate"><span class="pre">--epoch=10</span></code>, then it averages the checkpoints <code class="docutils literal notranslate"><span class="pre">epoch-8.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-9.pt</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code> and the averaged checkpoint is used for decoding.</p>
+</li>
+</ul>
+</div></blockquote>
+<p>After decoding, you can find the decoding logs and results in <cite>exp_dir/log/&lt;decoding_method&gt;</cite>, e.g.,
+<code class="docutils literal notranslate"><span class="pre">exp_dir/log/greedy_search</span></code>.</p>
+</section>
+<section id="pre-trained-model">
+<h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<p>We have uploaded a pre-trained model to
+<a class="reference external" href="https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01">https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01</a></p>
+<p>We describe how to use the pre-trained model to transcribe a sound file or
+multiple sound files in the following.</p>
+<section id="install-kaldifeat">
+<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Permalink to this heading"></a></h3>
+<p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used to
+extract features for a single sound file or multiple sound files
+at the same time.</p>
+<p>Please refer to <a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> for installation.</p>
+</section>
+<section id="download-the-pre-trained-model">
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<p>The following commands describe how to download the pre-trained model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ mkdir tmp
+$ cd tmp
+$ git lfs install
+$ git clone https://huggingface.co/csukuangfj/icefall-aishell-transducer-stateless-modified-2022-03-01
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>You have to use <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code> to download the pre-trained model.</p>
+</div>
+<p>After downloading, you will have the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ tree tmp/icefall-aishell-transducer-stateless-modified-2022-03-01
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/
+<span class="p">|</span>-- README.md
+<span class="p">|</span>-- data
+<span class="p">|</span>   <span class="sb">`</span>-- lang_char
+<span class="p">|</span>       <span class="p">|</span>-- L.pt
+<span class="p">|</span>       <span class="p">|</span>-- lexicon.txt
+<span class="p">|</span>       <span class="p">|</span>-- tokens.txt
+<span class="p">|</span>       <span class="sb">`</span>-- words.txt
+<span class="p">|</span>-- exp
+<span class="p">|</span>   <span class="sb">`</span>-- pretrained.pt
+<span class="p">|</span>-- log
+<span class="p">|</span>   <span class="p">|</span>-- errs-test-beam_4-epoch-64-avg-33-beam-4.txt
+<span class="p">|</span>   <span class="p">|</span>-- errs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
+<span class="p">|</span>   <span class="p">|</span>-- log-decode-epoch-64-avg-33-beam-4-2022-03-02-12-05-03
+<span class="p">|</span>   <span class="p">|</span>-- log-decode-epoch-64-avg-33-context-2-max-sym-per-frame-1-2022-02-28-18-13-07
+<span class="p">|</span>   <span class="p">|</span>-- recogs-test-beam_4-epoch-64-avg-33-beam-4.txt
+<span class="p">|</span>   <span class="sb">`</span>-- recogs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
+<span class="sb">`</span>-- test_wavs
+    <span class="p">|</span>-- BAC009S0764W0121.wav
+    <span class="p">|</span>-- BAC009S0764W0122.wav
+    <span class="p">|</span>-- BAC009S0764W0123.wav
+    <span class="sb">`</span>-- transcript.txt
+
+<span class="m">5</span> directories, <span class="m">16</span> files
+</pre></div>
+</div>
+<p><strong>File descriptions</strong>:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">data/lang_char</span></code></p>
+<p>It contains language related files. You can find the vocabulary size in <code class="docutils literal notranslate"><span class="pre">tokens.txt</span></code>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exp/pretrained.pt</span></code></p>
+<blockquote>
+<div><p>It contains pre-trained model parameters, obtained by averaging
+checkpoints from <code class="docutils literal notranslate"><span class="pre">epoch-32.pt</span></code> to <code class="docutils literal notranslate"><span class="pre">epoch-64.pt</span></code>.
+Note: We have removed optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> to reduce file size.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log</span></code></p>
+<blockquote>
+<div><p>It contains decoding logs and decoded results.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_wavs</span></code></p>
+<blockquote>
+<div><p>It contains some test sound files from Aishell <code class="docutils literal notranslate"><span class="pre">test</span></code> dataset.</p>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+<p>The information of the test sound files is listed below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
+
+Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.20 <span class="o">=</span> <span class="m">67263</span> samples ~ <span class="m">315</span>.295 CDDA sectors
+File Size      : 135k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+
+Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.12 <span class="o">=</span> <span class="m">65840</span> samples ~ <span class="m">308</span>.625 CDDA sectors
+File Size      : 132k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+
+Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span>
+Channels       : <span class="m">1</span>
+Sample Rate    : <span class="m">16000</span>
+Precision      : <span class="m">16</span>-bit
+Duration       : <span class="m">00</span>:00:04.00 <span class="o">=</span> <span class="m">64000</span> samples ~ <span class="m">300</span> CDDA sectors
+File Size      : 128k
+Bit Rate       : 256k
+Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+
+Total Duration of <span class="m">3</span> files: <span class="m">00</span>:00:12.32
+</pre></div>
+</div>
+</section>
+<section id="usage">
+<h3>Usage<a class="headerlink" href="#usage" title="Permalink to this heading"></a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/aishell/ASR
+$ ./transducer_stateless_modified/pretrained.py --help
+</pre></div>
+</div>
+<p>displays the help information.</p>
+<p>It supports three decoding methods:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>greedy search</p></li>
+<li><p>beam search</p></li>
+<li><p>modified beam search</p></li>
+</ul>
+</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In modified beam search, it limits the maximum number of symbols that can be
+emitted per frame to 1. To use this method, you have to ensure that your model
+has been trained with the option <code class="docutils literal notranslate"><span class="pre">--modified-transducer-prob</span></code>. Otherwise,
+it may give you poor results.</p>
+</div>
+<section id="greedy-search">
+<h4>Greedy search<a class="headerlink" href="#greedy-search" title="Permalink to this heading"></a></h4>
+<p>The command to run greedy search is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
+    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
+    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
+    --method greedy_search <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+</pre></div>
+</div>
+<p>The output is as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">26</span><span class="p">,</span><span class="mi">531</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">239</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cuda</span><span class="p">:</span><span class="mi">0</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">26</span><span class="p">,</span><span class="mi">994</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">lexicon</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">176</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">pre</span><span class="o">-</span><span class="n">compiled</span> <span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_char</span><span class="o">/</span><span class="n">Linv</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">027</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">246</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;encoder_out_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;subsampling_factor&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;attention_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;vgg_frontend&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;env_info&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;k2-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.13&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-build-type&#39;</span><span class="p">:</span> <span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;f4fefe4882bc0ae59af951da3f47335d5495ef71&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Thu Feb 10 15:16:02 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.0.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-version&#39;</span><span class="p">:</span> <span class="s1">&#39;10.2&#39;</span><span class="p">,</span> <span class="s1">&#39;python-version&#39;</span><span class="p">:</span> <span class="s1">&#39;3.8&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-branch&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;50d2281-clean&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Wed Mar 2 16:02:38 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/icefall-aishell&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;hostname&#39;</span><span class="p">:</span> <span class="s1">&#39;de-74279-k2-train-2-0815224919-75d558775b-mmnv8&#39;</span><span class="p">,</span> <span class="s1">&#39;IP address&#39;</span><span class="p">:</span> <span class="s1">&#39;10.177.72.138&#39;</span><span class="p">},</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">16000</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;lang_dir&#39;</span><span class="p">:</span> <span class="n">PosixPath</span><span class="p">(</span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char&#39;</span><span class="p">),</span> <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="s1">&#39;greedy_search&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">],</span> <span class="s1">&#39;beam_size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;context_size&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;max_sym_per_frame&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">4336</span><span class="p">}</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">027</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">248</span><span class="p">]</span> <span class="n">About</span> <span class="n">to</span> <span class="n">create</span> <span class="n">model</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">36</span><span class="p">,</span><span class="mi">878</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">257</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">36</span><span class="p">,</span><span class="mi">880</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">267</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">36</span><span class="p">,</span><span class="mi">891</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">273</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="o">/</span><span class="n">ceph</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">-</span><span class="mi">2</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">/</span><span class="n">egs</span><span class="o">/</span><span class="n">aishell</span><span class="o">/</span><span class="n">ASR</span><span class="o">/</span><span class="n">transducer_stateless_modified</span><span class="o">/</span><span class="n">conformer</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">113</span><span class="p">:</span> <span class="ne">UserWarning</span><span class="p">:</span> <span class="fm">__floordiv__</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="p">,</span> <span class="ow">and</span> <span class="n">its</span> <span class="n">behavior</span> <span class="n">will</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">a</span> <span class="n">future</span> <span class="n">version</span> <span class="n">of</span> <span class="n">pytorch</span><span class="o">.</span> <span class="n">It</span> <span class="n">currently</span> <span class="n">rounds</span> <span class="n">toward</span> <span class="mi">0</span> <span class="p">(</span><span class="n">like</span> <span class="n">the</span> <span class="s1">&#39;trunc&#39;</span> <span class="n">function</span> <span class="n">NOT</span> <span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">incorrect</span> <span class="n">rounding</span> <span class="k">for</span> <span class="n">negative</span> <span class="n">values</span><span class="o">.</span> <span class="n">To</span> <span class="n">keep</span> <span class="n">the</span> <span class="n">current</span> <span class="n">behavior</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;trunc&#39;</span><span class="p">),</span> <span class="ow">or</span> <span class="k">for</span> <span class="n">actual</span> <span class="n">floor</span> <span class="n">division</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">lengths</span> <span class="o">=</span> <span class="p">((</span><span class="n">x_lens</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">37</span><span class="p">,</span><span class="mi">163</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0121</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">甚</span> <span class="n">至</span> <span class="n">出</span> <span class="n">现</span> <span class="n">交</span> <span class="n">易</span> <span class="n">几</span> <span class="n">乎</span> <span class="n">停</span> <span class="n">滞</span> <span class="n">的</span> <span class="n">情</span> <span class="n">况</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0122</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">一</span> <span class="n">二</span> <span class="n">线</span> <span class="n">城</span> <span class="n">市</span> <span class="n">虽</span> <span class="n">然</span> <span class="n">也</span> <span class="n">处</span> <span class="n">于</span> <span class="n">调</span> <span class="n">整</span> <span class="n">中</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0123</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">但</span> <span class="n">因</span> <span class="n">为</span> <span class="n">聚</span> <span class="n">集</span> <span class="n">了</span> <span class="n">过</span> <span class="n">多</span> <span class="n">公</span> <span class="n">共</span> <span class="n">资</span> <span class="n">源</span>
+
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">35</span><span class="p">:</span><span class="mi">37</span><span class="p">,</span><span class="mi">163</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">322</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+</section>
+<section id="beam-search">
+<h4>Beam search<a class="headerlink" href="#beam-search" title="Permalink to this heading"></a></h4>
+<p>The command to run beam search is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+
+$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
+    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
+    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
+    --method beam_search <span class="se">\</span>
+    --beam-size <span class="m">4</span> <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+</pre></div>
+</div>
+<p>The output is as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">09</span><span class="p">,</span><span class="mi">285</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">239</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cuda</span><span class="p">:</span><span class="mi">0</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">09</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">lexicon</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">176</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">pre</span><span class="o">-</span><span class="n">compiled</span> <span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_char</span><span class="o">/</span><span class="n">Linv</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">09</span><span class="p">,</span><span class="mi">759</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">246</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;encoder_out_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;subsampling_factor&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;attention_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;vgg_frontend&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;env_info&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;k2-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.13&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-build-type&#39;</span><span class="p">:</span> <span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;f4fefe4882bc0ae59af951da3f47335d5495ef71&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Thu Feb 10 15:16:02 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.0.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-version&#39;</span><span class="p">:</span> <span class="s1">&#39;10.2&#39;</span><span class="p">,</span> <span class="s1">&#39;python-version&#39;</span><span class="p">:</span> <span class="s1">&#39;3.8&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-branch&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;50d2281-clean&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Wed Mar 2 16:02:38 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/icefall-aishell&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;hostname&#39;</span><span class="p">:</span> <span class="s1">&#39;de-74279-k2-train-2-0815224919-75d558775b-mmnv8&#39;</span><span class="p">,</span> <span class="s1">&#39;IP address&#39;</span><span class="p">:</span> <span class="s1">&#39;10.177.72.138&#39;</span><span class="p">},</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">16000</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;lang_dir&#39;</span><span class="p">:</span> <span class="n">PosixPath</span><span class="p">(</span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char&#39;</span><span class="p">),</span> <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="s1">&#39;beam_search&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">],</span> <span class="s1">&#39;beam_size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;context_size&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;max_sym_per_frame&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">4336</span><span class="p">}</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">09</span><span class="p">,</span><span class="mi">760</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">248</span><span class="p">]</span> <span class="n">About</span> <span class="n">to</span> <span class="n">create</span> <span class="n">model</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">18</span><span class="p">,</span><span class="mi">919</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">257</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">18</span><span class="p">,</span><span class="mi">922</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">267</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">18</span><span class="p">,</span><span class="mi">929</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">273</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="o">/</span><span class="n">ceph</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">-</span><span class="mi">2</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">/</span><span class="n">egs</span><span class="o">/</span><span class="n">aishell</span><span class="o">/</span><span class="n">ASR</span><span class="o">/</span><span class="n">transducer_stateless_modified</span><span class="o">/</span><span class="n">conformer</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">113</span><span class="p">:</span> <span class="ne">UserWarning</span><span class="p">:</span> <span class="fm">__floordiv__</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="p">,</span> <span class="ow">and</span> <span class="n">its</span> <span class="n">behavior</span> <span class="n">will</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">a</span> <span class="n">future</span> <span class="n">version</span> <span class="n">of</span> <span class="n">pytorch</span><span class="o">.</span> <span class="n">It</span> <span class="n">currently</span> <span class="n">rounds</span> <span class="n">toward</span> <span class="mi">0</span> <span class="p">(</span><span class="n">like</span> <span class="n">the</span> <span class="s1">&#39;trunc&#39;</span> <span class="n">function</span> <span class="n">NOT</span> <span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">incorrect</span> <span class="n">rounding</span> <span class="k">for</span> <span class="n">negative</span> <span class="n">values</span><span class="o">.</span> <span class="n">To</span> <span class="n">keep</span> <span class="n">the</span> <span class="n">current</span> <span class="n">behavior</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;trunc&#39;</span><span class="p">),</span> <span class="ow">or</span> <span class="k">for</span> <span class="n">actual</span> <span class="n">floor</span> <span class="n">division</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">lengths</span> <span class="o">=</span> <span class="p">((</span><span class="n">x_lens</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">21</span><span class="p">,</span><span class="mi">046</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0121</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">甚</span> <span class="n">至</span> <span class="n">出</span> <span class="n">现</span> <span class="n">交</span> <span class="n">易</span> <span class="n">几</span> <span class="n">乎</span> <span class="n">停</span> <span class="n">滞</span> <span class="n">的</span> <span class="n">情</span> <span class="n">况</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0122</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">一</span> <span class="n">二</span> <span class="n">线</span> <span class="n">城</span> <span class="n">市</span> <span class="n">虽</span> <span class="n">然</span> <span class="n">也</span> <span class="n">处</span> <span class="n">于</span> <span class="n">调</span> <span class="n">整</span> <span class="n">中</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0123</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">但</span> <span class="n">因</span> <span class="n">为</span> <span class="n">聚</span> <span class="n">集</span> <span class="n">了</span> <span class="n">过</span> <span class="n">多</span> <span class="n">公</span> <span class="n">共</span> <span class="n">资</span> <span class="n">源</span>
+
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">21</span><span class="p">,</span><span class="mi">047</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">322</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+</section>
+<section id="modified-beam-search">
+<h4>Modified Beam search<a class="headerlink" href="#modified-beam-search" title="Permalink to this heading"></a></h4>
+<p>The command to run modified beam search is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+
+$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
+    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
+    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
+    --method modified_beam_search <span class="se">\</span>
+    --beam-size <span class="m">4</span> <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
+    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+</pre></div>
+</div>
+<p>The output is as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">23</span><span class="p">,</span><span class="mi">319</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">239</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cuda</span><span class="p">:</span><span class="mi">0</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">23</span><span class="p">,</span><span class="mi">798</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">lexicon</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">176</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">pre</span><span class="o">-</span><span class="n">compiled</span> <span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_char</span><span class="o">/</span><span class="n">Linv</span><span class="o">.</span><span class="n">pt</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">23</span><span class="p">,</span><span class="mi">831</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">246</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;encoder_out_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;subsampling_factor&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;attention_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;vgg_frontend&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;env_info&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;k2-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.13&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-build-type&#39;</span><span class="p">:</span> <span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;f4fefe4882bc0ae59af951da3f47335d5495ef71&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Thu Feb 10 15:16:02 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.0.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-version&#39;</span><span class="p">:</span> <span class="s1">&#39;10.2&#39;</span><span class="p">,</span> <span class="s1">&#39;python-version&#39;</span><span class="p">:</span> <span class="s1">&#39;3.8&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-branch&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;50d2281-clean&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Wed Mar 2 16:02:38 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/icefall-aishell&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;hostname&#39;</span><span class="p">:</span> <span class="s1">&#39;de-74279-k2-train-2-0815224919-75d558775b-mmnv8&#39;</span><span class="p">,</span> <span class="s1">&#39;IP address&#39;</span><span class="p">:</span> <span class="s1">&#39;10.177.72.138&#39;</span><span class="p">},</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">16000</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;lang_dir&#39;</span><span class="p">:</span> <span class="n">PosixPath</span><span class="p">(</span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char&#39;</span><span class="p">),</span> <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="s1">&#39;modified_beam_search&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">],</span> <span class="s1">&#39;beam_size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;context_size&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;max_sym_per_frame&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">4336</span><span class="p">}</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">23</span><span class="p">,</span><span class="mi">831</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">248</span><span class="p">]</span> <span class="n">About</span> <span class="n">to</span> <span class="n">create</span> <span class="n">model</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">214</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">257</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">215</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">267</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">220</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">273</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="o">/</span><span class="n">ceph</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">-</span><span class="mi">2</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">/</span><span class="n">egs</span><span class="o">/</span><span class="n">aishell</span><span class="o">/</span><span class="n">ASR</span><span class="o">/</span><span class="n">transducer_stateless_modified</span><span class="o">/</span><span class="n">conformer</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">113</span><span class="p">:</span> <span class="ne">UserWarning</span><span class="p">:</span> <span class="fm">__floordiv__</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="p">,</span> <span class="ow">and</span> <span class="n">its</span> <span class="n">behavior</span> <span class="n">will</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">a</span> <span class="n">future</span> <span class="n">version</span> <span class="n">of</span> <span class="n">pytorch</span><span class="o">.</span> <span class="n">It</span> <span class="n">currently</span> <span class="n">rounds</span> <span class="n">toward</span> <span class="mi">0</span> <span class="p">(</span><span class="n">like</span> <span class="n">the</span> <span class="s1">&#39;trunc&#39;</span> <span class="n">function</span> <span class="n">NOT</span> <span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">incorrect</span> <span class="n">rounding</span> <span class="k">for</span> <span class="n">negative</span> <span class="n">values</span><span class="o">.</span> <span class="n">To</span> <span class="n">keep</span> <span class="n">the</span> <span class="n">current</span> <span class="n">behavior</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;trunc&#39;</span><span class="p">),</span> <span class="ow">or</span> <span class="k">for</span> <span class="n">actual</span> <span class="n">floor</span> <span class="n">division</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">lengths</span> <span class="o">=</span> <span class="p">((</span><span class="n">x_lens</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+<span class="o">/</span><span class="n">ceph</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">-</span><span class="mi">2</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">/</span><span class="n">egs</span><span class="o">/</span><span class="n">aishell</span><span class="o">/</span><span class="n">ASR</span><span class="o">/</span><span class="n">transducer_stateless_modified</span><span class="o">/</span><span class="n">beam_search</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">402</span><span class="p">:</span> <span class="ne">UserWarning</span><span class="p">:</span> <span class="fm">__floordiv__</span> <span class="ow">is</span> <span class="n">deprecated</span><span class="p">,</span> <span class="ow">and</span> <span class="n">its</span> <span class="n">behavior</span> <span class="n">will</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">a</span> <span class="n">future</span> <span class="n">version</span> <span class="n">of</span> <span class="n">pytorch</span><span class="o">.</span> <span class="n">It</span> <span class="n">currently</span> <span class="n">rounds</span> <span class="n">toward</span> <span class="mi">0</span> <span class="p">(</span><span class="n">like</span> <span class="n">the</span> <span class="s1">&#39;trunc&#39;</span> <span class="n">function</span> <span class="n">NOT</span> <span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span> <span class="n">This</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">incorrect</span> <span class="n">rounding</span> <span class="k">for</span> <span class="n">negative</span> <span class="n">values</span><span class="o">.</span> <span class="n">To</span> <span class="n">keep</span> <span class="n">the</span> <span class="n">current</span> <span class="n">behavior</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;trunc&#39;</span><span class="p">),</span> <span class="ow">or</span> <span class="k">for</span> <span class="n">actual</span> <span class="n">floor</span> <span class="n">division</span><span class="p">,</span> <span class="n">use</span> <span class="n">torch</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rounding_mode</span><span class="o">=</span><span class="s1">&#39;floor&#39;</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">topk_hyp_indexes</span> <span class="o">=</span> <span class="n">topk_indexes</span> <span class="o">//</span> <span class="n">logits</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">583</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span>
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0121</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">甚</span> <span class="n">至</span> <span class="n">出</span> <span class="n">现</span> <span class="n">交</span> <span class="n">易</span> <span class="n">几</span> <span class="n">乎</span> <span class="n">停</span> <span class="n">滞</span> <span class="n">的</span> <span class="n">情</span> <span class="n">况</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0122</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">一</span> <span class="n">二</span> <span class="n">线</span> <span class="n">城</span> <span class="n">市</span> <span class="n">虽</span> <span class="n">然</span> <span class="n">也</span> <span class="n">处</span> <span class="n">于</span> <span class="n">调</span> <span class="n">整</span> <span class="n">中</span>
+
+<span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall</span><span class="o">-</span><span class="n">aishell</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless</span><span class="o">-</span><span class="n">modified</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="n">BAC009S0764W0123</span><span class="o">.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">但</span> <span class="n">因</span> <span class="n">为</span> <span class="n">聚</span> <span class="n">集</span> <span class="n">了</span> <span class="n">过</span> <span class="n">多</span> <span class="n">公</span> <span class="n">共</span> <span class="n">资</span> <span class="n">源</span>
+
+<span class="mi">2022</span><span class="o">-</span><span class="mi">03</span><span class="o">-</span><span class="mi">03</span> <span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">583</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">322</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="colab-notebook">
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<p>We provide a colab notebook for this recipe showing how to use a pre-trained model to
+transcribe sound files.</p>
+<p><a class="reference external" href="https://colab.research.google.com/drive/12jpTxJB44vzwtcmJl2DTdznW0OawPb9H?usp=sharing"><img alt="aishell asr stateless modified transducer colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="conformer_ctc.html" class="btn btn-neutral float-left" title="Conformer CTC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../librispeech/index.html" class="btn btn-neutral float-right" title="LibriSpeech" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

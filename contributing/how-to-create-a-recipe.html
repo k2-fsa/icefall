@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to create a recipe &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Huggingface" href="../huggingface/index.html" />
+    <link rel="prev" title="Follow the code style" href="code-style.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Contributing</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="doc.html">Contributing to Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="code-style.html">Follow the code style</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">How to create a recipe</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data-preparation">Data Preparation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decoding">Decoding</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pre-trained-model">Pre-trained model</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Contributing</a> &raquo;</li>
+      <li>How to create a recipe</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/contributing/how-to-create-a-recipe.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="how-to-create-a-recipe">
+<h1>How to create a recipe<a class="headerlink" href="#how-to-create-a-recipe" title="Permalink to this heading"></a></h1>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Please read <a class="reference internal" href="code-style.html#follow-the-code-style"><span class="std std-ref">Follow the code style</span></a> to adjust your code sytle.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> is designed to be as Pythonic as possible. Please use
+Python in your recipe if possible.</p>
+</div>
+<section id="data-preparation">
+<h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<p>We recommend you to prepare your training/test/validate dataset
+with <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
+<p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/index.html">https://lhotse.readthedocs.io/en/latest/index.html</a>
+for how to create a recipe in <code class="docutils literal notranslate"><span class="pre">lhotse</span></code>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">yesno</span></code> recipe in <code class="docutils literal notranslate"><span class="pre">lhotse</span></code> is a very good example.</p>
+<p>Please refer to <a class="reference external" href="https://github.com/lhotse-speech/lhotse/pull/380">https://github.com/lhotse-speech/lhotse/pull/380</a>,
+which shows how to add a new recipe to <code class="docutils literal notranslate"><span class="pre">lhotse</span></code>.</p>
+</div>
+<p>Suppose you would like to add a recipe for a dataset named <code class="docutils literal notranslate"><span class="pre">foo</span></code>.
+You can do the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs
+$ mkdir -p foo/ASR
+$ cd foo/ASR
+$ touch prepare.sh
+$ chmod +x prepare.sh
+</pre></div>
+</div>
+<p>If your dataset is very simple, please follow
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/prepare.sh">egs/yesno/ASR/prepare.sh</a>
+to write your own <code class="docutils literal notranslate"><span class="pre">prepare.sh</span></code>.
+Otherwise, please refer to
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/prepare.sh">egs/librispeech/ASR/prepare.sh</a>
+to prepare your data.</p>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<p>Assume you have a fancy model, called <code class="docutils literal notranslate"><span class="pre">bar</span></code> for the <code class="docutils literal notranslate"><span class="pre">foo</span></code> recipe, you can
+organize your files in the following way:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/foo/ASR
+$ mkdir bar
+$ cd bar
+$ touch README.md model.py train.py decode.py asr_datamodule.py pretrained.py
+</pre></div>
+</div>
+<p>For instance , the <code class="docutils literal notranslate"><span class="pre">yesno</span></code> recipe has a <code class="docutils literal notranslate"><span class="pre">tdnn</span></code> model and its directory structure
+looks like the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>egs/yesno/ASR/tdnn/
+<span class="p">|</span>-- README.md
+<span class="p">|</span>-- asr_datamodule.py
+<span class="p">|</span>-- decode.py
+<span class="p">|</span>-- model.py
+<span class="p">|</span>-- pretrained.py
+<span class="sb">`</span>-- train.py
+</pre></div>
+</div>
+<p><strong>File description</strong>:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">README.md</span></code></p>
+<p>It contains information of this recipe, e.g., how to run it, what the WER is, etc.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">asr_datamodule.py</span></code></p>
+<p>It provides code to create PyTorch dataloaders with train/test/validation dataset.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">decode.py</span></code></p>
+<p>It takes as inputs the checkpoints saved during the training stage to decode the test
+dataset(s).</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model.py</span></code></p>
+<p>It contains the definition of your fancy neural network model.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pretrained.py</span></code></p>
+<p>We can use this script to do inference with a pre-trained model.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">train.py</span></code></p>
+<p>It contains training code.</p>
+</li>
+</ul>
+</div></blockquote>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Please take a look at</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR/tdnn">egs/yesno/tdnn</a></p></li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/tdnn_lstm_ctc">egs/librispeech/tdnn_lstm_ctc</a></p></li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/conformer_ctc">egs/librispeech/conformer_ctc</a></p></li>
+</ul>
+</div></blockquote>
+<p>to get a feel what the resulting files look like.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Every model in a recipe is kept to be as self-contained as possible.
+We tolerate duplicate code among different recipes.</p>
+</div>
+<p>The training stage should be invocable by:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/foo/ASR
+$ ./bar/train.py
+$ ./bar/train.py --help
+</pre></div>
+</div>
+</div></blockquote>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>Please refer to</p>
+<blockquote>
+<div><ul>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/conformer_ctc/decode.py">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/conformer_ctc/decode.py</a></p>
+<p>If your model is transformer/conformer based.</p>
+</li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/tdnn_lstm_ctc/decode.py">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/tdnn_lstm_ctc/decode.py</a></p>
+<p>If your model is TDNN/LSTM based, i.e., there is no attention decoder.</p>
+</li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/tdnn/decode.py">https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/tdnn/decode.py</a></p>
+<p>If there is no LM rescoring.</p>
+</li>
+</ul>
+</div></blockquote>
+<p>The decoding stage should be invocable by:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/foo/ASR
+$ ./bar/decode.py
+$ ./bar/decode.py --help
+</pre></div>
+</div>
+</div></blockquote>
+</section>
+<section id="pre-trained-model">
+<h2>Pre-trained model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<p>Please demonstrate how to use your model for inference in <code class="docutils literal notranslate"><span class="pre">egs/foo/ASR/bar/pretrained.py</span></code>.
+If possible, please consider creating a Colab notebook to show that.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="code-style.html" class="btn btn-neutral float-left" title="Follow the code style" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../huggingface/index.html" class="btn btn-neutral float-right" title="Huggingface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
