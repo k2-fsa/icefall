@@ -88,6 +88,7 @@ def main():
     logging.info("Decoding started")
 
     model = torch.jit.load(params.nn_model_filename)
+    model.eval()
 
     device = torch.device("cpu")
     if torch.cuda.is_available() and not hasattr(
