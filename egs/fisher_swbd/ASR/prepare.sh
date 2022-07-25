@@ -100,12 +100,11 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     mkdir -p  data/manifests/eval2000
     lhotse prepare eval2000 --absolute-paths 1 $dl_dir data/manifests/eval2000
-    gzip -c data/manifests/eval2000/supervisions_unnorm_eval2000.jsonl > data/manifests/eval2000/supervisions_unnorm_eval2000.jsonl.gz
-    python3 local/normalize_eval2000.py data/manifests/eval2000/supervisions_unnorm_eval2000.jsonl.gz data/manifests/eval2000/supervisions_eval2000.jsonl.gz
-    gzip -c data/manifests/eval2000/recordings_eval2000.jsonl >data/manifests/eval2000/recordings_eval2000.jsonl.gz
-    lhotse fix data/manifests/eval2000/recordings_eval2000.jsonl.gz data/manifests/eval2000/supervisions_eval2000.jsonl.gz data/manifests/
+    python3 local/normalize_eval2000.py data/manifests/eval2000/eval2000_supervisions_unnorm.jsonl.gz data/manifests/eval2000/supervisions_eval2000.jsonl.gz
+    lhotse fix data/manifests/eval2000/eval2000_recordings_all.jsonl.gz data/manifests/eval2000/supervisions_eval2000.jsonl.gz data/manifests
+    mv data/manifests/eval2000_recordings_all.jsonl.gz data/manifests/recordings_eval2000.jsonl.gz
     gzip -d  data/manifests/recordings_eval2000.jsonl.gz
-    gzip -d  data/manifests/supervisions_eval2000.jsonl.gz  
+    gzip -d  data/manifests/supervisions_eval2000.jsonl.gz
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
