@@ -48,17 +48,10 @@ def compute_fbank_fisher_swbd_eval2000():
     num_mel_bins = 80
     sampling_rate = 8000
     dataset_parts = (
-        "swbd",
-    )
-
-    """
-    dataset_parts = (
         "eval2000",
         "fisher",
         "swbd",
-    )
-    """
-    
+    )    
     test_dataset=("eval2000",)
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts, output_dir=src_dir, lazy=True, suffix="jsonl"
