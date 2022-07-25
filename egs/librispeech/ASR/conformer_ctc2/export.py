@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                            Quandong Wang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,28 +21,25 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless5/export.py \
-  --exp-dir ./pruned_transducer_stateless5/exp \
-  --lang-dir data/lang_char \
+./conformer_ctc2/export.py \
+  --exp-dir ./conformer_ctc2/exp \
   --epoch 20 \
   --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless5/decode.py`,
+To use the generated file with `conformer_ctc2/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/aishell4/ASR
-    ./pruned_transducer_stateless5/decode.py \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+    cd /path/to/egs/librispeech/ASR
+    ./conformer_ctc2/decode.py \
+        --exp-dir ./conformer_ctc2/exp \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 600 \
-        --decoding-method greedy_search \
-        --lang-dir data/lang_char
+        --max-duration 100
 """
 
 import argparse
@@ -49,7 +47,7 @@ import logging
 from pathlib import Path
 
 import torch
-from train import add_model_arguments, get_params, get_transducer_model
+from decode import get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -57,8 +55,10 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
+from conformer import Conformer
+
 from icefall.utils import str2bool
+from icefall.lexicon import Lexicon
 
 
 def get_parser():
@@ -71,7 +71,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for averaging.
-        Note: Epoch counts from 1.
+        Note: Epoch counts from 0.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -97,7 +97,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -106,9 +106,18 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-decoder-layers",
+        type=int,
+        default=6,
+        help="""Number of decoder layer of transformer decoder.
+        Setting this to 0 will not create the decoder at all (pure CTC model)
+        """,
+    )
+
+    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="conformer_ctc2/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -117,30 +126,17 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        default="data/lang_bpe_500",
+        help="The lang dir",
     )
 
     parser.add_argument(
         "--jit",
         type=str2bool,
-        default=False,
+        default=True,
         help="""True to save a model after applying torch.jit.script.
         """,
     )
-
-    parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
-    )
-
-    add_model_arguments(parser)
 
     return parser
 
@@ -148,9 +144,14 @@ def get_parser():
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
+
+    lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
+    num_classes = max_token_id + 1  # +1 for the blank
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -158,14 +159,21 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    params.blank_id = lexicon.token_table["<blk>"]
-    params.vocab_size = max(lexicon.tokens) + 1
-
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+
+    model = Conformer(
+        num_features=params.feature_dim,
+        nhead=params.nhead,
+        d_model=params.encoder_dim,
+        num_classes=num_classes,
+        subsampling_factor=params.subsampling_factor,
+        num_encoder_layers=params.num_encoder_layers,
+        num_decoder_layers=params.num_decoder_layers,
+    )
+
+    model.to(device)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -184,9 +192,7 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -197,9 +203,7 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
             filenames = find_checkpoints(
@@ -227,8 +231,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
         else:
             assert params.avg > 0, params.avg
@@ -246,8 +249,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
 
     model.eval()
@@ -256,11 +258,6 @@ def main():
     model.eval()
 
     if params.jit:
-        # We won't use the forward() method of the model in C++, so just ignore
-        # it here.
-        # Otherwise, one of its arguments is a ragged tensor and is not
-        # torch scriptabe.
-        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"

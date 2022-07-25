@@ -1006,6 +1006,8 @@ def rescore_with_rnn_lm(
         An FsaVec with axes [utt][state][arc].
       num_paths:
         Number of paths to extract from the given lattice for rescoring.
+      rnn_lm_model:
+        A rnn-lm model used for LM rescoring
       model:
         A transformer model. See the class "Transformer" in
         conformer_ctc/transformer.py for its interface.
