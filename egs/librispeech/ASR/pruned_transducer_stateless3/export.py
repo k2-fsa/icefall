@@ -50,6 +50,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+from quantize import dynamic_quantize
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -114,6 +115,18 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""True to save a model after applying torch.jit.script.
+        """,
+    )
+
+    parser.add_argument(
+        "--quantize",
+        type=str2bool,
+        default=False,
+        help="""True to quantize the model before applying jit.
+        Used only when --jit is True.
+        It uses post training dynamic quantization. Only
+        ScaledLinear and Linear layers are quantized. Theire weights
+        are quantized to torch.qint8 tensors.
         """,
     )
 
@@ -185,7 +198,9 @@ def main():
             )
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
     elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
@@ -209,9 +224,19 @@ def main():
         # Otherwise, one of its arguments is a ragged tensor and is not
         # torch scriptabe.
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+        if params.quantize:
+            logging.info("Quantization enabled")
+            model = dynamic_quantize(model)
+            filename = "quantized_cpu_jit.pt"
+        else:
+            logging.info("Quantization disabled")
+            filename = "cpu_jit.pt"
+
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
-        filename = params.exp_dir / "cpu_jit.pt"
+
+        filename = params.exp_dir / filename
+
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
