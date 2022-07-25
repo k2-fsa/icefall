@@ -7,7 +7,7 @@ with `Huggingface spaces <https://huggingface.co/spaces/k2-fsa/automatic-speech-
 so that you can try pre-trained models from within your browser
 without the need to download or install anything.
 
-All you need is a browser, which can be run on Windows, macOS, Linux, or even your
+All you need is a browser, which can be run on Windows, macOS, Linux, or even on your
 iPad and your phone.
 
 Start your browser and visit the following address:
