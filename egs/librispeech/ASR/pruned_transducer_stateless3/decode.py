@@ -139,60 +139,7 @@ from icefall.utils import (
 LOG_EPS = math.log(1e-10)
 
 
-def get_parser():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    parser.add_argument(
-        "--epoch",
-        type=int,
-        default=28,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
-        You can specify --avg to use more checkpoints for model averaging.""",
-    )
-
-    parser.add_argument(
-        "--iter",
-        type=int,
-        default=0,
-        help="""If positive, --epoch is ignored and it
-        will use the checkpoint exp_dir/checkpoint-iter.pt.
-        You can specify --avg to use more checkpoints for model averaging.
-        """,
-    )
-
-    parser.add_argument(
-        "--avg",
-        type=int,
-        default=15,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
-    )
-
-    parser.add_argument(
-        "--exp-dir",
-        type=str,
-        default="pruned_transducer_stateless3/exp",
-        help="The experiment dir",
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
-        "--lang-dir",
-        type=Path,
-        default="data/lang_bpe_500",
-        help="The lang dir containing word table and LG graph",
-    )
-
+def add_decoding_arguments(parser):
     parser.add_argument(
         "--decoding-method",
         type=str,
@@ -401,6 +348,62 @@ def get_parser():
         """,
     )
 
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=28,
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 0.
+        You can specify --avg to use more checkpoints for model averaging.""",
+    )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
+    )
+
+    parser.add_argument(
+        "--avg",
+        type=int,
+        default=15,
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch' and '--iter'",
+    )
+
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="pruned_transducer_stateless3/exp",
+        help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=Path,
+        default="data/lang_bpe_500",
+        help="The lang dir containing word table and LG graph",
+    )
+
+    add_decoding_arguments(parser)
     add_model_arguments(parser)
 
     return parser

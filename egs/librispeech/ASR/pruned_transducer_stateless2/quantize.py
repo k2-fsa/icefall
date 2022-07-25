@@ -112,7 +112,7 @@ def dynamic_quantize(
     """Apply post-training dynamic quantization to a given model.
 
     It is also known as post-training weight-only quantization.
-    Weight are quantized to tensors of dtype torch.qint8.
+    Weights are quantized to tensors of dtype torch.qint8.
 
     Only nn.Linear layers are quantized at present.
 
