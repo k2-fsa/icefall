@@ -10,6 +10,10 @@ using <https://github.com/k2-fsa/k2>.
 You can use <https://github.com/k2-fsa/sherpa> to deploy models
 trained with icefall.
 
+You can try pre-trained models from within your browser without the need
+to download or install anything by visiting <https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition>
+See <https://k2-fsa.github.io/icefall/huggingface/spaces.html> for more details.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
