@@ -45,6 +45,16 @@ To run stage 2 to stage 5, use:
 
   $ ./prepare.sh --stage 2 --stop-stage 5
 
+We provide the following YouTube video showing how to run ``./prepare.sh``.
+
+.. note::
+
+   To get the latest news of `next-gen Kaldi <https://github.com/k2-fsa>`_, please subscribe
+   the following YouTube channel by `Nadira Povey <https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_:
+
+      `<https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_
+
+..  youtube:: ofEIoJL-mGM
 
 Training
 --------
