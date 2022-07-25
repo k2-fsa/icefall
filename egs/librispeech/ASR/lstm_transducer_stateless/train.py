@@ -90,8 +90,22 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
-        default=20,
+        default=12,
         help="Number of RNN encoder layers..",
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=512,
+        help="Encoder output dimesion.",
+    )
+
+    parser.add_argument(
+        "--rnn-hidden-size",
+        type=int,
+        default=1024,
+        help="Hidden dim for LSTM layers.",
     )
 
     parser.add_argument(
@@ -99,7 +113,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=3,
         help="""Peroid of auxiliary layers used for randomly combined during training.
-        If not larger than 0, will not use the random combiner.
+        If not larger than 0 (e.g., -1), will not use the random combiner.
         """,
     )
 
@@ -340,8 +354,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - encoder_dim: Hidden dim for multi-head attention model.
-
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
         - warm_step: The warm_step for Noam optimizer.
@@ -359,7 +371,6 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
             "dim_feedforward": 2048,
             # parameters for decoder
             "decoder_dim": 512,
@@ -380,6 +391,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
+        rnn_hidden_size=params.rnn_hidden_size,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
@@ -837,7 +849,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
     if params.full_libri is False:
-        params.valid_interval = 1600
+        params.valid_interval = 800
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -902,6 +914,10 @@ def run(rank, world_size, args):
     ):
         logging.info("Loading scheduler state dict")
         scheduler.load_state_dict(checkpoints["scheduler"])
+
+    # # overwrite it
+    # scheduler.base_lrs = [params.initial_lr for _ in scheduler.base_lrs]
+    # print(scheduler.base_lrs)
 
     if params.print_diagnostics:
         diagnostic = diagnostics.attach_diagnostics(model)

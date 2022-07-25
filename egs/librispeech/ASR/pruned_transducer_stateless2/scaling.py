@@ -379,7 +379,7 @@ class ScaledConv2d(nn.Conv2d):
 
 class ScaledLSTM(nn.LSTM):
     # See docs for ScaledLinear.
-    # This class implements single-layer LSTM with scaling mechanism, using `torch._VF.lstm`
+    # This class implements LSTM with scaling mechanism, using `torch._VF.lstm`
     # Please refer to https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py
     def __init__(
         self,
@@ -388,10 +388,8 @@ class ScaledLSTM(nn.LSTM):
         initial_speed: float = 1.0,
         **kwargs
     ):
-        # Hardcode num_layers=1, bidirectional=False, proj_size=0 here
-        super(ScaledLSTM, self).__init__(
-            *args, num_layers=1, bidirectional=False, proj_size=0, **kwargs
-        )
+        # Hardcode bidirectional=False
+        super(ScaledLSTM, self).__init__(*args, bidirectional=False, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
         self._scales_names = []
         self._scales = []
@@ -495,14 +493,14 @@ class ScaledLSTM(nn.LSTM):
         # self._flat_weights -> self._get_flat_weights()
         if hx is None:
             h_zeros = torch.zeros(
-                1,
+                self.num_layers,
                 input.size(1),
-                self.hidden_size,
+                self.proj_size if self.proj_size > 0 else self.hidden_size,
                 dtype=input.dtype,
                 device=input.device,
             )
             c_zeros = torch.zeros(
-                1,
+                self.num_layers,
                 input.size(1),
                 self.hidden_size,
                 dtype=input.dtype,
