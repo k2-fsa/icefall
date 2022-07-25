@@ -391,21 +391,13 @@ def decode_dataset(
         decode_stream.ground_truth = cut.supervisions[0].text
 
         decode_streams.append(decode_stream)
-        print(len(decode_streams), params.num_decode_streams)
 
         while len(decode_streams) >= params.num_decode_streams:
             finished_streams = decode_one_chunk(
                 params=params, model=model, decode_streams=decode_streams
             )
-            print("abcdefg...")
             for i in sorted(finished_streams, reverse=True):
                 hyp = decode_streams[i].decoding_result()
-                print("ref: ", list(decode_streams[i].ground_truth))
-                print(
-                    "hyp: ",
-                    [lexicon.token_table[idx] for idx in hyp],
-                    [idx for idx in hyp],
-                )
                 decode_results.append(
                     (
                         list(decode_streams[i].ground_truth),
@@ -424,8 +416,6 @@ def decode_dataset(
         )
         for i in sorted(finished_streams, reverse=True):
             hyp = decode_streams[i].decoding_result()
-            print("ref: ", list(decode_streams[i].ground_truth))
-            print("hyp: ", [lexicon.token_table[idx] for idx in hyp])
             decode_results.append(
                 (
                     list(decode_streams[i].ground_truth),
