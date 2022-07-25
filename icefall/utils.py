@@ -539,8 +539,10 @@ class MetricsTracker(collections.defaultdict):
                 ans_utterances += str(k) + "=" + str(norm_value)
                 if k == "utt_duration":
                     ans_utterances += " frames, "
-                else:
+                elif k == "utt_pad_proportion":
                     ans_utterances += ", "
+                else:
+                    raise ValueError(f"Unexpected key: {k}")
         frames = "%.2f" % self["frames"]
         ans_frames += "over " + str(frames) + " frames; "
         utterances = "%.2f" % self["utterances"]
