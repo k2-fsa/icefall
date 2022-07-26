@@ -183,12 +183,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   # We assume that you have downloaded the musan corpus                                                                                      
   # to data/musan                                                                                                                            
   mkdir -p data/manifests/musan
-  lhotse prepare musan $dl_dir/musan data/manifests/musan
-  
-  for name in music noise speech ; do
-      jq -c '.[]' data/manifests/musan/recordings_${name}.json > data/manifests/recordings_${name}.jsonl
-      gzip -c data/manifests/recordings_${name}.jsonl > data/manifests/recordings_${name}.jsonl.gz
-  done
+  lhotse prepare musan $dl_dir/musan data/manifests/musan  
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
