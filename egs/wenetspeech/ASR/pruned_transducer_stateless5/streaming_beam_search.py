@@ -152,8 +152,6 @@ def modified_beam_search(
             index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, encoder_out_dim)
 
-        print(decoder_out.shape)
-        print(current_encoder_out.shape)
         logits = model.joiner(
             current_encoder_out,
             decoder_out.unsqueeze(1),
