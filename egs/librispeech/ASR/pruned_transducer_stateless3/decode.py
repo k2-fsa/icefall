@@ -1002,6 +1002,7 @@ def main():
     model.device = device
     model.unk_id = params.unk_id
 
+    G = None
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
