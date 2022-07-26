@@ -25,6 +25,7 @@ import argparse
 import logging
 from pathlib import Path
 
+import k2
 import sentencepiece as spm
 import torch
 from asr_datamodule import AsrDataModule
@@ -72,10 +73,29 @@ def main():
     args = parser.parse_args()
 
     # We add only greedy_search for simplicity
-    assert args.decoding_method == "greedy_search"
+    assert args.decoding_method in (
+        "greedy_search",
+        "modified_beam_search",
+        "fast_beam_search",
+    ), args.decoding_method
 
     params = get_params()
     params.update(vars(args))
+
+    params.suffix = "jit"
+    if "fast_beam_search" in params.decoding_method:
+        params.suffix += f"-beam-{params.beam}"
+        params.suffix += f"-max-contexts-{params.max_contexts}"
+        params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-temperature-{params.temperature}"
+    elif "beam_search" in params.decoding_method:
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
+    else:
+        params.suffix += f"-context-{params.context_size}"
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+        params.suffix += f"-temperature-{params.temperature}"
 
     params.nn_model_filename = Path(args.nn_model_filename)
     assert params.nn_model_filename.is_file(), params.nn_model_filename
@@ -83,7 +103,7 @@ def main():
     params.res_dir = Path(params.exp_dir) / Path(params.nn_model_filename).stem
     params.res_dir = params.res_dir / params.decoding_method
 
-    setup_logger(f"{params.res_dir}/log-decode")
+    setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
 
     logging.info("Decoding started")
 
@@ -106,8 +126,6 @@ def main():
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
-    params.suffix = "jit"
-
     model.to(device)
     model.device = device
     model.unk_id = params.unk_id
@@ -116,6 +134,11 @@ def main():
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+
+    if "fast_beam_search" in params.decoding_method:
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    else:
+        decoding_graph = None
 
     asr_datamodule = AsrDataModule(args)
     librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
@@ -136,7 +159,7 @@ def main():
             model=model,
             sp=sp,
             word_table=None,
-            decoding_graph=None,
+            decoding_graph=decoding_graph,
             G=None,
             rnn_lm_model=None,
         )
