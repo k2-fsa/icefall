@@ -461,8 +461,12 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_datatang = get_decoder_model(params)
-    joiner_datatang = get_joiner_model(params)
+    if params.datatang_prob > 0:
+        decoder_datatang = get_decoder_model(params)
+        joiner_datatang = get_joiner_model(params)
+    else:
+        decoder_datatang = None
+        joiner_datatang = None
 
     model = Transducer(
         encoder=encoder,
@@ -816,7 +820,11 @@ def train_one_epoch(
                     warmup=(params.batch_idx_train / params.model_warm_step),
                 )
             # summary stats
-            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+            if datatang_train_dl is not None:
+                tot_loss = (
+                    tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+
             if aishell:
                 aishell_tot_loss = (
                     aishell_tot_loss * (1 - 1 / params.reset_interval)
@@ -879,12 +887,21 @@ def train_one_epoch(
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
+            if datatang_train_dl is not None:
+                datatang_str = f"datatang_tot_loss[{datatang_tot_loss}], "
+                tot_loss_str = (
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                )
+            else:
+                tot_loss_str = ""
+                datatang_str = ""
+
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, {prefix}_loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"{tot_loss_str}"
                 f"aishell_tot_loss[{aishell_tot_loss}], "
-                f"datatang_tot_loss[{datatang_tot_loss}], "
+                f"{datatang_str}"
                 f"batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}"
             )
@@ -899,15 +916,18 @@ def train_one_epoch(
                     f"train/current_{prefix}_",
                     params.batch_idx_train,
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                if datatang_train_dl is not None:
+                    # If it is None, tot_loss is the same as aishell_tot_loss.
+                    tot_loss.write_summary(
+                        tb_writer, "train/tot_", params.batch_idx_train
+                    )
                 aishell_tot_loss.write_summary(
                     tb_writer, "train/aishell_tot_", params.batch_idx_train
                 )
-                datatang_tot_loss.write_summary(
-                    tb_writer, "train/datatang_tot_", params.batch_idx_train
-                )
+                if datatang_train_dl is not None:
+                    datatang_tot_loss.write_summary(
+                        tb_writer, "train/datatang_tot_", params.batch_idx_train
+                    )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
