@@ -405,7 +405,7 @@ class RelPositionalEncoding(torch.nn.Module):
 
 
 class RelPositionMultiheadAttention(nn.Module):
-    r"""Multi-Head Attention layer with relative position encoding
+    r"""Multi-Head Attention layer with simplified relative position encoding
 
     See reference: "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
 
