@@ -730,7 +730,7 @@ def train_one_epoch(
     scheduler: LRSchedulerType,
     graph_compiler: CharCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
-    datatang_train_dl: torch.utils.data.DataLoader,
+    datatang_train_dl: Optional[torch.utils.data.DataLoader],
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
     scaler: GradScaler,
