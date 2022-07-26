@@ -225,7 +225,7 @@ def get_parser():
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.01,
+        default=0.07,
         help="""
         Used only when --decoding_method is fast_beam_search_nbest_LG.
         It specifies the scale for n-gram LM scores.
@@ -590,6 +590,8 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        if params.decoding_method == "fast_beam_search_nbest_LG":
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:

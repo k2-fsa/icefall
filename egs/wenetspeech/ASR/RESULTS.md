@@ -15,7 +15,7 @@ When training with the L subset, the WERs are
 | fast beam search (1best)  | 7.94  | 8.74     | 13.80        | --epoch 10, --avg 2, --max-duration 1500 |
 | fast beam search (nbest)  | 9.82  | 10.98    |     16.37   | --epoch 10, --avg 2, --max-duration 600 |
 | fast beam search (nbest oracle)  | 6.88 | 7.18    |     11.77   | --epoch 10, --avg 2, --max-duration 600 |
-| fast beam search (nbest LG)  | 14.94 | 16.14    |   22.93  | --epoch 10, --avg 2, --max-duration 600 |
+| fast beam search (nbest LG, ngram_lm_scale=0.35)  | 8.83 | 9.88    |   15.47  | --epoch 10, --avg 2, --max-duration 600 |
 
 The training command for reproducing is given below:
 
@@ -110,6 +110,7 @@ avg=2
         --lang-dir data/lang_char \
         --max-duration 600 \
         --decoding-method fast_beam_search_nbest_LG \
+        --ngram-lm-scale 0.35 \
         --beam 20.0 \
         --max-contexts 8 \
         --max-states 64
