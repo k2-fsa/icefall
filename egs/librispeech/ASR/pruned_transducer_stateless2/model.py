@@ -78,6 +78,8 @@ class Transducer(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         warmup: float = 1.0,
+        delay_penalty: float = 0.0,
+        return_sym_delay: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -155,9 +157,30 @@ class Transducer(nn.Module):
                 lm_only_scale=lm_scale,
                 am_only_scale=am_scale,
                 boundary=boundary,
+                delay_penalty=delay_penalty,
                 reduction="sum",
                 return_grad=True,
             )
+
+        sym_delay = None
+        if return_sym_delay:
+            B, S, T0 = px_grad.shape
+            T = T0 - 1
+            if boundary is None:
+                offset = torch.tensor(
+                    (T - 1) / 2,
+                    dtype=px_grad.dtype,
+                    device=px_grad.device,
+                ).expand(B, 1, 1)
+                total_syms = S * B
+            else:
+                offset = (boundary[:, 3] - 1) / 2
+                total_syms = torch.sum(boundary[:, 2])
+            offset = torch.arange(
+                T0, device=px_grad.device
+            ).reshape(1, 1, T0) - offset.reshape(B, 1, 1)
+            sym_delay = px_grad * offset
+            sym_delay = torch.sum(sym_delay) / total_syms
 
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
@@ -188,7 +211,8 @@ class Transducer(nn.Module):
                 ranges=ranges,
                 termination_symbol=blank_id,
                 boundary=boundary,
+                delay_penalty=delay_penalty,
                 reduction="sum",
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, sym_delay)

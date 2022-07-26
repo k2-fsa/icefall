@@ -323,6 +323,25 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value to penalize symbol delay, this may be
+         needed when training with time masking, to avoid the time masking
+         encouraging the network to delay symbols.
+         """,
+    )
+
+    parser.add_argument(
+        "--return-sym-delay",
+        type=str2bool,
+        default=False,
+        help="""Whether to return `sym_delay` during training, this is a stat
+        to measure symbols emission delay, especially for time masking training.
+        """,
+    )
+
+    parser.add_argument(
         "--use-fp16",
         type=str2bool,
         default=False,
@@ -625,7 +644,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, sym_delay = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -633,6 +652,8 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            delay_penalty=params.delay_penalty,
+            return_sym_delay=params.return_sym_delay,
         )
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
@@ -661,6 +682,9 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+
+    if params.return_sym_delay:
+        info["sym_delay"] = sym_delay.detach().cpu().item()
 
     return loss, info
 
@@ -905,6 +929,10 @@ def run(rank, world_size, args):
         assert (
             params.causal_convolution
         ), "dynamic_chunk_training requires causal convolution"
+    else:
+        assert (
+                params.delay_penalty == 0.0
+            ), "delay_penalty is intended for dynamic_chunk_training"
 
     logging.info(params)
 
