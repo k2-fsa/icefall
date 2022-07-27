@@ -19,29 +19,29 @@
 """
 When training with the L subset, usage:
 (1) greedy search
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+./pruned_transducer_stateless5/decode.py \
+        --epoch 4 \
+        --avg 1 \
+        --exp-dir ./pruned_transducer_stateless5/exp_L_offline \
         --lang-dir data/lang_char \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) modified beam search
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+./pruned_transducer_stateless5/decode.py \
+        --epoch 4 \
+        --avg 1 \
+        --exp-dir ./pruned_transducer_stateless5/exp_L_offline \
         --lang-dir data/lang_char \
         --max-duration 100 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
 (3) fast beam search
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+./pruned_transducer_stateless5/decode.py \
+        --epoch 4 \
+        --avg 1 \
+        --exp-dir ./pruned_transducer_stateless5/exp_L_offline \
         --lang-dir data/lang_char \
         --max-duration 1500 \
         --decoding-method fast_beam_search \

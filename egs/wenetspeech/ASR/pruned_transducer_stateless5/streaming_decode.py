@@ -18,12 +18,12 @@
 """
 Usage:
 python pruned_transducer_stateless5/streaming_decode.py \
-        --epoch 5 \
+        --epoch 7 \
         --avg 1 \
         --decode-chunk-size 16 \
         --left-context 64 \
         --right-context 0 \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+        --exp-dir ./pruned_transducer_stateless5/exp_L_streaming \
         --decoding-method greedy_search \
         --num-decode-streams 2000
 """
