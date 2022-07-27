@@ -118,6 +118,19 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--onnx",
+        type=str2bool,
+        default=False,
+        help="""If True, --jit is ignored and it exports the model
+        to onnx format. Three files will be generated:
+
+            - encoder.onnx
+            - decoder.onnx
+            - joiner.onnx
+        """,
+    )
+
+    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
@@ -139,6 +152,7 @@ def get_parser():
     return parser
 
 
+@torch.no_grad()
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -165,7 +179,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_transducer_model(params, enable_giga=False)
 
     model.to(device)
 
@@ -185,7 +199,9 @@ def main():
             )
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
     elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
@@ -196,12 +212,83 @@ def main():
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-
-    model.eval()
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.to("cpu")
     model.eval()
+    opset_version = 11
+
+    if params.onnx:
+        logging.info("Exporting to onnx format")
+        if True:
+            x = torch.zeros(1, 100, 80, dtype=torch.float32)
+            x_lens = torch.tensor([100], dtype=torch.int64)
+            warmup = 1.0
+            encoder_filename = params.exp_dir / "encoder.onnx"
+            #  encoder_model = torch.jit.script(model.encoder)
+            encoder_model = model.encoder
+            torch.onnx.export(
+                encoder_model,
+                (x, x_lens, warmup),
+                encoder_filename,
+                verbose=False,
+                opset_version=opset_version,
+                input_names=["x", "x_lens", "warmup"],
+                output_names=["encoder_out", "encoder_out_lens"],
+                dynamic_axes={
+                    "x": {0: "N", 1: "T"},
+                    "x_lens": {0: "N"},
+                    "encoder_out": {0: "N", 1: "T"},
+                    "encoder_out_lens": {0: "N"},
+                },
+            )
+            logging.info(f"Saved to {encoder_filename}")
+
+        if True:
+            y = torch.zeros(10, 2, dtype=torch.int64)
+            need_pad = False
+            decoder_filename = params.exp_dir / "decoder.onnx"
+            decoder_model = torch.jit.script(model.decoder)
+            torch.onnx.export(
+                decoder_model,
+                (y, need_pad),
+                decoder_filename,
+                verbose=False,
+                opset_version=opset_version,
+                input_names=["y", "need_pad"],
+                output_names=["decoder_out"],
+                dynamic_axes={
+                    "y": {0: "N", 1: "U"},
+                    "decoder_out": {0: "N", 1: "U"},
+                },
+            )
+            logging.info(f"Saved to {decoder_filename}")
+
+        if True:
+            encoder_out = torch.rand(1, 1, 3, 512, dtype=torch.float32)
+            decoder_out = torch.rand(1, 1, 3, 512, dtype=torch.float32)
+            project_input = False
+            joiner_filename = params.exp_dir / "joiner.onnx"
+            joiner_model = torch.jit.script(model.joiner)
+            torch.onnx.export(
+                joiner_model,
+                (encoder_out, decoder_out, project_input),
+                joiner_filename,
+                verbose=False,
+                opset_version=opset_version,
+                input_names=["encoder_out", "decoder_out", "project_input"],
+                output_names=["logit"],
+                dynamic_axes={
+                    "encoder_out": {0: "N", 1: "T", 2: "s_range"},
+                    "decoder_out": {0: "N", 1: "T", 2: "s_range"},
+                    "logit": {0: "N", 1: "T", 2: "s_range"},
+                },
+            )
+            logging.info(f"Saved to {joiner_filename}")
+
+        return
 
     if params.jit:
         # We won't use the forward() method of the model in C++, so just ignore

@@ -1010,16 +1010,42 @@ class RelPositionMultiheadAttention(nn.Module):
             n == left_context + 2 * time1 - 1
         ), f"{n} == {left_context} + 2 * {time1} - 1"
 
-        # Note: TorchScript requires explicit arg for stride()
-        batch_stride = x.stride(0)
-        head_stride = x.stride(1)
-        time1_stride = x.stride(2)
-        n_stride = x.stride(3)
-        return x.as_strided(
-            (batch_size, num_heads, time1, time2),
-            (batch_stride, head_stride, time1_stride - n_stride, n_stride),
-            storage_offset=n_stride * (time1 - 1),
-        )
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            x = x.contiguous()
+            b = x.size(0)
+            h = x.size(1)
+            t = x.size(2)
+            c = x.size(3)
+
+            bh = b * h
+
+            if False:
+                rows = torch.arange(start=t - 1, end=-1, step=-1).unsqueeze(-1)
+                cols = torch.arange(t)
+                indexes = rows + cols
+                # onnx does not support torch.tile
+                indexes = torch.tile(indexes, (bh, 1))
+            else:
+                rows = torch.arange(start=t - 1, end=-1, step=-1)
+                cols = torch.arange(t)
+                rows = torch.cat([rows] * bh).unsqueeze(-1)
+                indexes = rows + cols
+
+            x = x.reshape(-1, c)
+            x = torch.gather(x, dim=1, index=indexes)
+            x = x.reshape(b, h, t, t)
+            return x
+        else:
+            # Note: TorchScript requires explicit arg for stride()
+            batch_stride = x.stride(0)
+            head_stride = x.stride(1)
+            time1_stride = x.stride(2)
+            n_stride = x.stride(3)
+            return x.as_strided(
+                (batch_size, num_heads, time1, time2),
+                (batch_stride, head_stride, time1_stride - n_stride, n_stride),
+                storage_offset=n_stride * (time1 - 1),
+            )
 
     def multi_head_attention_forward(
         self,
