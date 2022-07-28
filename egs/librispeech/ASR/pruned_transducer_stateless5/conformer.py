@@ -124,7 +124,7 @@ class Conformer(EncoderInterface):
         # aux_layers from 1/3
         self.encoder = ConformerEncoder(
             encoder_layer=encoder_layer,
-            num_encoder_layers=num_encoder_layers,
+            num_layers=num_encoder_layers,
             aux_layers=list(
                 range(
                     num_encoder_layers // 3,
