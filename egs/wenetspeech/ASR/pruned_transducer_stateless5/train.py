@@ -18,67 +18,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
-
-For training with the L subset:
+Usage for offline ASR:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
-./pruned_transducer_stateles5/train.py \
+./pruned_transducer_stateless5/train.py \
   --lang-dir data/lang_char \
-  --exp-dir pruned_transducer_stateless5/exp \
+  --exp-dir pruned_transducer_stateless5/exp_L_offline \
   --world-size 8 \
   --num-epochs 15 \
-  --start-epoch 0 \
-  --max-duration 180 \
+  --start-epoch 2 \
+  --max-duration 120 \
   --valid-interval 3000 \
   --model-warm-step 3000 \
   --save-every-n 8000 \
+  --average-period 1000 \
   --training-subset L
 
-# For mix precision training:
+Usage for streaming ASR:
 
-./pruned_transducer_stateles/train.py \
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless5/train.py \
   --lang-dir data/lang_char \
-  --exp-dir pruned_transducer_stateless5/exp \
+  --exp-dir pruned_transducer_stateless5/exp_L_streaming \
   --world-size 8 \
-  --num-epochs 10 \
-  --start-epoch 0 \
-  --max-duration 180 \
+  --num-epochs 15 \
+  --start-epoch 1 \
+  --max-duration 140 \
   --valid-interval 3000 \
   --model-warm-step 3000 \
   --save-every-n 8000 \
-  --use-fp16 True \
-  --training-subset L
-
-For training with the M subset:
-
-./pruned_transducer_stateles/train.py \
-  --lang-dir data/lang_char \
-  --exp-dir pruned_transducer_stateless5/exp \
-  --world-size 8 \
-  --num-epochs 29 \
-  --start-epoch 0 \
-  --max-duration 180 \
-  --valid-interval 1000 \
-  --model-warm-step 500 \
-  --save-every-n 1000 \
-  --training-subset M
-
-For training with the S subset:
-
-./pruned_transducer_stateles/train.py \
-  --lang-dir data/lang_char \
-  --exp-dir pruned_transducer_stateless5/exp \
-  --world-size 8 \
-  --num-epochs 29 \
-  --start-epoch 0 \
-  --max-duration 180 \
-  --valid-interval 400 \
-  --model-warm-step 100 \
-  --save-every-n 1000 \
-  --training-subset S
-
+  --average-period 1000 \
+  --training-subset L \
+  --dynamic-chunk-training True \
+  --causal-convolution True \
+  --short-chunk-size 25 \
+  --num-left-chunks 4
 """
 
 
@@ -1183,7 +1159,6 @@ def scan_pessimistic_batches_for_oom(
     params: AttributeDict,
     warmup: float,
 ):
-    return
     from lhotse.dataset import find_pessimistic_batches
 
     logging.info(

@@ -17,7 +17,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-When training with the L subset, usage:
+When training with the L subset, the offline usage:
 (1) greedy search
 ./pruned_transducer_stateless5/decode.py \
         --epoch 4 \
@@ -48,6 +48,49 @@ When training with the L subset, usage:
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
+
+When training with the L subset, the streaming usage:
+(1) greedy search
+./pruned_transducer_stateless5/decode.py \
+        --lang-dir data/lang_char \
+        --exp-dir pruned_transducer_stateless5/exp_L_streaming \
+        --use-averaged-model True \
+        --max-duration 600 \
+        --epoch 7 \
+        --avg 1 \
+        --decoding-method greedy_search \
+        --simulate-streaming 1 \
+        --causal-convolution 1 \
+        --decode-chunk-size 16 \
+        --left-context 64
+
+(2) modified beam search
+./pruned_transducer_stateless5/decode.py \
+        --lang-dir data/lang_char \
+        --exp-dir pruned_transducer_stateless5/exp_L_streaming \
+        --use-averaged-model True \
+        --max-duration 600 \
+        --epoch 7 \
+        --avg 1 \
+        --decoding-method modified_beam_search \
+        --simulate-streaming 1 \
+        --causal-convolution 1 \
+        --decode-chunk-size 16 \
+        --left-context 64
+
+(3) fast beam search
+./pruned_transducer_stateless5/decode.py \
+        --lang-dir data/lang_char \
+        --exp-dir pruned_transducer_stateless5/exp_L_streaming \
+        --use-averaged-model True \
+        --max-duration 600 \
+        --epoch 7 \
+        --avg 1 \
+        --decoding-method fast_beam_search \
+        --simulate-streaming 1 \
+        --causal-convolution 1 \
+        --decode-chunk-size 16 \
+        --left-context 64
 """
 
 
