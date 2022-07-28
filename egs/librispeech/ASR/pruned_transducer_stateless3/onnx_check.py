@@ -76,8 +76,8 @@ def test_encoder(
     assert encoder_inputs[0].shape == ["N", "T", 80]
     assert encoder_inputs[1].shape == ["N"]
 
-    x = torch.rand(1, 100, 80, dtype=torch.float32)
-    x_lens = torch.tensor([100])
+    x = torch.rand(5, 50, 80, dtype=torch.float32)
+    x_lens = torch.tensor([50, 50, 20, 30, 10])
 
     encoder_inputs = {"x": x.numpy(), "x_lens": x_lens.numpy()}
     encoder_out, encoder_out_lens = encoder_session.run(

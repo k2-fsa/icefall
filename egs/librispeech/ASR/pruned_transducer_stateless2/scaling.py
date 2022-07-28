@@ -152,7 +152,8 @@ class BasicNorm(torch.nn.Module):
             self.register_buffer("eps", torch.tensor(eps).log().detach())
 
     def forward(self, x: Tensor) -> Tensor:
-        assert x.shape[self.channel_dim] == self.num_channels
+        if not torch.jit.is_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()

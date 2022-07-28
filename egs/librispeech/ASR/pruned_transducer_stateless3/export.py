@@ -228,7 +228,18 @@ def main():
             warmup = 1.0
             encoder_filename = params.exp_dir / "encoder.onnx"
             #  encoder_model = torch.jit.script(model.encoder)
+            # It throws the following error for the above statement
+            #
+            # RuntimeError: Exporting the operator __is_ to ONNX opset version
+            # 11 is not supported. Please feel free to request support or
+            # submit a pull request on PyTorch GitHub.
+            #
+            # I cannot find which statement causes the above error.
+            # torch.onnx.export() will use torch.jit.trace() internally, which
+            # works well for the current reworked model
+
             encoder_model = model.encoder
+
             torch.onnx.export(
                 encoder_model,
                 (x, x_lens, warmup),
