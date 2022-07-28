@@ -1,6 +1,6 @@
 # Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
-# 
+#
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -356,13 +356,10 @@ class FisherSwbdSpeechAsrDataModule:
             )
         else:
             validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                return_cuts=self.args.return_cuts,
+                cut_transforms=transforms, return_cuts=self.args.return_cuts
             )
         valid_sampler = DynamicBucketingSampler(
-            cuts_valid,
-            max_duration=self.args.max_duration,
-            shuffle=False,
+            cuts_valid, max_duration=self.args.max_duration, shuffle=False
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -384,9 +381,7 @@ class FisherSwbdSpeechAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
-            cuts,
-            max_duration=self.args.max_duration,
-            shuffle=False,
+            cuts, max_duration=self.args.max_duration, shuffle=False
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -396,41 +391,52 @@ class FisherSwbdSpeechAsrDataModule:
             num_workers=self.args.num_workers,
         )
         return test_dl
-    
+
     @lru_cache()
     def train_fisher_cuts(self) -> CutSet:
         logging.info("About to get fisher cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "train_cuts_fisher.jsonl.gz"
         )
+
     @lru_cache()
     def train_swbd_cuts(self) -> CutSet:
         logging.info("About to get train swbd cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "train_cuts_swbd.jsonl.gz"
         )
+
     @lru_cache()
     def dev_fisher_cuts(self) -> CutSet:
         logging.info("About to get dev fisher cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "dev_cuts_fisher.jsonl.gz"
+        return load_manifest_lazy(
+            self.args.manifest_dir / "dev_cuts_fisher.jsonl.gz"
         )
+
     @lru_cache()
     def dev_swbd_cuts(self) -> CutSet:
         logging.info("About to get dev swbd cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "dev_cuts_swbd.jsonl.gz"
+        return load_manifest_lazy(
+            self.args.manifest_dir / "dev_cuts_swbd.jsonl.gz"
         )
+
     @lru_cache()
     def test_eval2000_cuts(self) -> CutSet:
         logging.info("About to get test eval2000 cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_eval2000.jsonl.gz"
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_eval2000.jsonl.gz"
         )
+
     @lru_cache()
     def test_swbd_cuts(self) -> CutSet:
         logging.info("About to get test eval2000 swbd cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_eval2000_swbd.jsonl.gz"
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_eval2000_swbd.jsonl.gz"
         )
+
     @lru_cache()
     def test_callhome_cuts(self) -> CutSet:
         logging.info("About to get test eval2000 callhome cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_eval2000_callhome.jsonl.gz"
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_eval2000_callhome.jsonl.gz"
         )

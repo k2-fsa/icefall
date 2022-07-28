@@ -47,11 +47,7 @@ def compute_fbank_musan():
     num_jobs = min(15, os.cpu_count())
     num_mel_bins = 80
     sampling_rate = 8000
-    dataset_parts = (
-        "music",
-        "speech",
-        "noise",
-    )
+    dataset_parts = ("music", "speech", "noise")
     prefix = "musan"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
@@ -75,7 +71,9 @@ def compute_fbank_musan():
 
     logging.info("Extracting features for Musan")
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=sampling_rate)
+    extractor = Fbank(
+        FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=sampling_rate)
+    )
 
     with get_executor() as ex:  # Initialize the executor only once.
         # create chunks of Musan with duration 5 - 10 seconds

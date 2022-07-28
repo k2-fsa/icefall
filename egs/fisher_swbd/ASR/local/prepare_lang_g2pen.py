@@ -68,12 +68,7 @@ def get_args():
 def get_g2p_sym2int():
 
     # These symbols are removed from from g2p_en's vocabulary
-    excluded_symbols = [
-        "<pad>",
-        "<s>",
-        "</s>",
-        "<unk>",
-    ]
+    excluded_symbols = ["<pad>", "<s>", "</s>", "<unk>"]
 
     symbols = [p for p in sorted(G2p().phonemes) if p not in excluded_symbols]
     # reserve 0 and 1 for blank and sos/eos/pad tokens
@@ -345,9 +340,7 @@ def lexicon_to_fst(
         disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs,
-            disambig_token=disambig_token,
-            disambig_word=disambig_word,
+            arcs, disambig_token=disambig_token, disambig_word=disambig_word
         )
 
     final_state = next_state
@@ -396,9 +389,7 @@ def main():
     print(vocab[:10])
 
     if not lexicon_filename.is_file():
-        lexicon = [
-            ("!SIL", [sil_token]),
-        ]
+        lexicon = [("!SIL", [sil_token])]
         for symbol in special_symbols:
             lexicon.append((symbol, [symbol[1:-1]]))
         lexicon += [

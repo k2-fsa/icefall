@@ -108,9 +108,7 @@ def lexicon_to_fst_no_sil(
         disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs,
-            disambig_token=disambig_token,
-            disambig_word=disambig_word,
+            arcs, disambig_token=disambig_token, disambig_word=disambig_word
         )
 
     final_state = next_state
@@ -223,9 +221,7 @@ def main():
     write_lexicon(lang_dir / "lexicon_disambig.txt", lexicon_disambig)
 
     L = lexicon_to_fst_no_sil(
-        lexicon,
-        token2id=token_sym_table,
-        word2id=word_sym_table,
+        lexicon, token2id=token_sym_table, word2id=word_sym_table
     )
 
     L_disambig = lexicon_to_fst_no_sil(

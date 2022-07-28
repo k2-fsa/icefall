@@ -16,67 +16,72 @@ def get_args():
     parser.add_argument("output_sups")
     return parser.parse_args()
 
-def remove_punctutation_and_other_symbol(text:str) -> str:
-    text = text.replace("--"," ")
-    text = text.replace("//"," ")
-    text = text.replace("."," ")
-    text = text.replace("?"," ")
-    text = text.replace("~"," ")
-    text = text.replace(","," ")
-    text = text.replace(";"," ")
-    text = text.replace("("," ")
-    text = text.replace(")"," ")
-    text = text.replace("&"," ")
-    text = text.replace("%"," ")
-    text = text.replace("*"," ")
-    text = text.replace("{"," ")
-    text = text.replace("}"," ")
+
+def remove_punctutation_and_other_symbol(text: str) -> str:
+    text = text.replace("--", " ")
+    text = text.replace("//", " ")
+    text = text.replace(".", " ")
+    text = text.replace("?", " ")
+    text = text.replace("~", " ")
+    text = text.replace(",", " ")
+    text = text.replace(";", " ")
+    text = text.replace("(", " ")
+    text = text.replace(")", " ")
+    text = text.replace("&", " ")
+    text = text.replace("%", " ")
+    text = text.replace("*", " ")
+    text = text.replace("{", " ")
+    text = text.replace("}", " ")
     return text
+
 
 def eval2000_clean_eform(text: str, eform_count) -> str:
     string_to_remove = []
-    piece=text.split("\">")
-    for i in range(0,len(piece)):
-        s=piece[i]+"\">"
-        res = re.search(r'<contraction e_form(.*?)\">', s)
+    piece = text.split('">')
+    for i in range(0, len(piece)):
+        s = piece[i] + '">'
+        res = re.search(r"<contraction e_form(.*?)\">", s)
         if res is not None:
-            res_rm= res.group(1)
+            res_rm = res.group(1)
             string_to_remove.append(res_rm)
     for p in string_to_remove:
         eform_string = p
         text = text.replace(eform_string, " ")
     eform_1 = "<contraction e_form"
     text = text.replace(eform_1, " ")
-    eform_2="\">"
-    text = text.replace(eform_2," ")
-    #print("TEXT final: ", text)
+    eform_2 = '">'
+    text = text.replace(eform_2, " ")
+    # print("TEXT final: ", text)
     return text
-    
-def replace_silphone(text: str) -> str:    
+
+
+def replace_silphone(text: str) -> str:
     text = text.replace("[/BABY CRYING]", " ")
-    text = text.replace("[/CHILD]" , " ")
-    text = text.replace("[[DISTORTED]]" , " ")
-    text = text.replace("[/DISTORTION]" , " ")
-    text = text.replace("[[DRAWN OUT]]" , " ")
-    text = text.replace("[[DRAWN-OUT]]" , " ")
-    text = text.replace("[[FAINT]]" , " ")
-    text = text.replace("[SMACK]" , " ")
-    text = text.replace("[[MUMBLES]]" , " ")
-    text = text.replace("[[HIGH PITCHED SQUEAKY VOICE]]" , " ")
-    text = text.replace("[[IN THE LAUGH]]" , "[LAUGHTER]")
-    text = text.replace("[[LAST WORD SPOKEN WITH A LAUGH]]" , "[LAUGHTER]")
-    text = text.replace("[[PART OF FIRST SYLLABLE OF PREVIOUS WORD CUT OFF]]" , " ")
-    text = text.replace("[[PREVIOUS WORD SPOKEN WITH A LAUGH]]" , " ")
-    text = text.replace("[[PREVIOUS TWO WORDS SPOKEN WHILE LAUGHING]]" , " ")
-    text = text.replace("[[PROLONGED]]" , " ")
-    text = text.replace("[/RUNNING WATER]" , " ")
-    text = text.replace("[[SAYS LAUGHING]]" , "[LAUGHTER]")
-    text = text.replace("[[SINGING]]" , " ")
-    text = text.replace("[[SPOKEN WHILE LAUGHING]]" , "[LAUGHTER]")
-    text = text.replace("[/STATIC]" , " ")
-    text = text.replace("['THIRTIETH' DRAWN OUT]" , " ")
-    text = text.replace("[/VOICES]" , " ")
-    text = text.replace("[[WHISPERED]]" , " ")
+    text = text.replace("[/CHILD]", " ")
+    text = text.replace("[[DISTORTED]]", " ")
+    text = text.replace("[/DISTORTION]", " ")
+    text = text.replace("[[DRAWN OUT]]", " ")
+    text = text.replace("[[DRAWN-OUT]]", " ")
+    text = text.replace("[[FAINT]]", " ")
+    text = text.replace("[SMACK]", " ")
+    text = text.replace("[[MUMBLES]]", " ")
+    text = text.replace("[[HIGH PITCHED SQUEAKY VOICE]]", " ")
+    text = text.replace("[[IN THE LAUGH]]", "[LAUGHTER]")
+    text = text.replace("[[LAST WORD SPOKEN WITH A LAUGH]]", "[LAUGHTER]")
+    text = text.replace(
+        "[[PART OF FIRST SYLLABLE OF PREVIOUS WORD CUT OFF]]", " "
+    )
+    text = text.replace("[[PREVIOUS WORD SPOKEN WITH A LAUGH]]", " ")
+    text = text.replace("[[PREVIOUS TWO WORDS SPOKEN WHILE LAUGHING]]", " ")
+    text = text.replace("[[PROLONGED]]", " ")
+    text = text.replace("[/RUNNING WATER]", " ")
+    text = text.replace("[[SAYS LAUGHING]]", "[LAUGHTER]")
+    text = text.replace("[[SINGING]]", " ")
+    text = text.replace("[[SPOKEN WHILE LAUGHING]]", "[LAUGHTER]")
+    text = text.replace("[/STATIC]", " ")
+    text = text.replace("['THIRTIETH' DRAWN OUT]", " ")
+    text = text.replace("[/VOICES]", " ")
+    text = text.replace("[[WHISPERED]]", " ")
     text = text.replace("[DISTORTION]", " ")
     text = text.replace("[DISTORTION, HIGH VOLUME ON WAVES]", " ")
     text = text.replace("[BACKGROUND LAUGHTER]", "[LAUGHTER]")
@@ -95,24 +100,24 @@ def replace_silphone(text: str) -> str:
     text = text.replace("[BABY CRYING]", " ")
     text = text.replace("[METALLIC KNOCKING SOUND]", " ")
     text = text.replace("[METALLIC SOUND]", " ")
- 
+
     text = text.replace("[PHONE JIGGLING]", " ")
     text = text.replace("[BACKGROUND SOUND]", " ")
     text = text.replace("[BACKGROUND VOICE]", " ")
-    text = text.replace("[BACKGROUND VOICES]", " ")  
+    text = text.replace("[BACKGROUND VOICES]", " ")
     text = text.replace("[BACKGROUND NOISE]", " ")
     text = text.replace("[CAR HORNS IN BACKGROUND]", " ")
     text = text.replace("[CAR HORNS]", " ")
-    text = text.replace("[CARNATING]", " ") 
+    text = text.replace("[CARNATING]", " ")
     text = text.replace("[CRYING CHILD]", " ")
     text = text.replace("[CHOPPING SOUND]", " ")
     text = text.replace("[BANGING]", " ")
     text = text.replace("[CLICKING NOISE]", " ")
-    text = text.replace("[CLATTERING]", " ") 
+    text = text.replace("[CLATTERING]", " ")
     text = text.replace("[ECHO]", " ")
-    text = text.replace("[KNOCK]", " ") 
-    text = text.replace("[NOISE-GOOD]", "[NOISE]") 
-    text = text.replace("[RIGHT]", " ") 
+    text = text.replace("[KNOCK]", " ")
+    text = text.replace("[NOISE-GOOD]", "[NOISE]")
+    text = text.replace("[RIGHT]", " ")
     text = text.replace("[SOUND]", " ")
     text = text.replace("[SQUEAK]", " ")
     text = text.replace("[STATIC]", " ")
@@ -131,62 +136,63 @@ def replace_silphone(text: str) -> str:
     text = text.replace("Y[OU]I-", "YOU I")
     text = text.replace("-[A]ND", "AND")
     text = text.replace("JU[ST]", "JUST")
-    text = text.replace("{BREATH}" , " ")
-    text = text.replace("{BREATHY}" , " ")
-    text = text.replace("{CHANNEL NOISE}" , " ")
-    text = text.replace("{CLEAR THROAT}" , " ")
+    text = text.replace("{BREATH}", " ")
+    text = text.replace("{BREATHY}", " ")
+    text = text.replace("{CHANNEL NOISE}", " ")
+    text = text.replace("{CLEAR THROAT}", " ")
 
-    text = text.replace("{CLEARING THROAT}" , " ")
-    text = text.replace("{CLEARS THROAT}" , " ")
-    text = text.replace("{COUGH}" , " ")
-    text = text.replace("{DRAWN OUT}" , " ")
-    text = text.replace("{EXHALATION}" , " ")
-    text = text.replace("{EXHALE}" , " ")
-    text = text.replace("{GASP}" , " ")
-    text = text.replace("{HIGH SQUEAL}" , " ")
-    text = text.replace("{INHALE}" , " ")
-    text = text.replace("{LAUGH}" , "[LAUGHTER]")
-    text = text.replace("{LAUGH}" , "[LAUGHTER]")
-    text = text.replace("{LAUGH}" , "[LAUGHTER]")
-    text = text.replace("{LIPSMACK}" , " ")
-    text = text.replace("{LIPSMACK}" , " ")
+    text = text.replace("{CLEARING THROAT}", " ")
+    text = text.replace("{CLEARS THROAT}", " ")
+    text = text.replace("{COUGH}", " ")
+    text = text.replace("{DRAWN OUT}", " ")
+    text = text.replace("{EXHALATION}", " ")
+    text = text.replace("{EXHALE}", " ")
+    text = text.replace("{GASP}", " ")
+    text = text.replace("{HIGH SQUEAL}", " ")
+    text = text.replace("{INHALE}", " ")
+    text = text.replace("{LAUGH}", "[LAUGHTER]")
+    text = text.replace("{LAUGH}", "[LAUGHTER]")
+    text = text.replace("{LAUGH}", "[LAUGHTER]")
+    text = text.replace("{LIPSMACK}", " ")
+    text = text.replace("{LIPSMACK}", " ")
 
-    text = text.replace("{NOISE OF DISGUST}" , " ")
-    text = text.replace("{SIGH}" , " ")
-    text = text.replace("{SNIFF}" , " ")
-    text = text.replace("{SNORT}" , " ")
-    text = text.replace("{SHARP EXHALATION}" , " ")
-    text = text.replace("{BREATH LAUGH}" , " ")    
+    text = text.replace("{NOISE OF DISGUST}", " ")
+    text = text.replace("{SIGH}", " ")
+    text = text.replace("{SNIFF}", " ")
+    text = text.replace("{SNORT}", " ")
+    text = text.replace("{SHARP EXHALATION}", " ")
+    text = text.replace("{BREATH LAUGH}", " ")
     return text
 
-def remove_languagetag(text:str) -> str:
-    langtag = re.findall(r'<(.*?)>', text)
+
+def remove_languagetag(text: str) -> str:
+    langtag = re.findall(r"<(.*?)>", text)
     for t in langtag:
         text = text.replace(t, " ")
-    text = text.replace("<"," ")
-    text = text.replace(">"," ")
+    text = text.replace("<", " ")
+    text = text.replace(">", " ")
     return text
-    
+
+
 def eval2000_normalizer(text: str) -> str:
-    #print("TEXT original: ",text)
-    eform_count=text.count("contraction e_form")
-    #print("eform corunt:", eform_count)
-    if eform_count>0:
-       text = eval2000_clean_eform(text,eform_count) 
+    # print("TEXT original: ",text)
+    eform_count = text.count("contraction e_form")
+    # print("eform corunt:", eform_count)
+    if eform_count > 0:
+        text = eval2000_clean_eform(text, eform_count)
     text = text.upper()
     text = remove_languagetag(text)
     text = replace_silphone(text)
     text = remove_punctutation_and_other_symbol(text)
     text = text.replace("IGNORE_TIME_SEGMENT_IN_SCORING", " ")
     text = text.replace("IGNORE_TIME_SEGMENT_SCORING", " ")
-    spaces = re.findall(r'\s+', text)
+    spaces = re.findall(r"\s+", text)
     for sp in spaces:
-        text = text.replace(sp," ")
-    text =  text.strip()
-    #text = self.whitespace_regexp.sub(" ", text).strip()
-    #print(text)
+        text = text.replace(sp, " ")
+    text = text.strip()
+    # text = self.whitespace_regexp.sub(" ", text).strip()
+    # print(text)
     return text
-
 
 
 def main():
@@ -203,6 +209,7 @@ def main():
                 skip += 1
                 continue
             writer.write(sup)
-    
+
+
 if __name__ == "__main__":
     main()

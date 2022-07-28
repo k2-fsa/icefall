@@ -92,10 +92,7 @@ class DecodeStream(object):
         """Return True if all the features are processed."""
         return self._done
 
-    def set_features(
-        self,
-        features: torch.Tensor,
-    ) -> None:
+    def set_features(self, features: torch.Tensor) -> None:
         """Set features tensor of current utterance."""
         assert features.dim() == 2, features.dim()
         self.features = torch.nn.functional.pad(

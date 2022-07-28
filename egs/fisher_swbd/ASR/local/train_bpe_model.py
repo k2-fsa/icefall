@@ -43,16 +43,10 @@ def get_args():
         """,
     )
 
-    parser.add_argument(
-        "--transcript",
-        type=str,
-        help="Training transcript.",
-    )
+    parser.add_argument("--transcript", type=str, help="Training transcript.")
 
     parser.add_argument(
-        "--vocab-size",
-        type=int,
-        help="Vocabulary size for BPE training",
+        "--vocab-size", type=int, help="Vocabulary size for BPE training"
     )
 
     return parser.parse_args()

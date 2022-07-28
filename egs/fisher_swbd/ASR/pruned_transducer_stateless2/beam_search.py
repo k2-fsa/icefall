@@ -550,9 +550,7 @@ def greedy_search(
 
 
 def greedy_search_batch(
-    model: Transducer,
-    encoder_out: torch.Tensor,
-    encoder_out_lens: torch.Tensor,
+    model: Transducer, encoder_out: torch.Tensor, encoder_out_lens: torch.Tensor
 ) -> List[List[int]]:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
     Args:
@@ -591,9 +589,7 @@ def greedy_search_batch(
     hyps = [[blank_id] * context_size for _ in range(N)]
 
     decoder_input = torch.tensor(
-        hyps,
-        device=device,
-        dtype=torch.int64,
+        hyps, device=device, dtype=torch.int64
     )  # (N, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -630,9 +626,7 @@ def greedy_search_batch(
             # update decoder output
             decoder_input = [h[-context_size:] for h in hyps[:batch_size]]
             decoder_input = torch.tensor(
-                decoder_input,
-                device=device,
-                dtype=torch.int64,
+                decoder_input, device=device, dtype=torch.int64
             )
             decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -894,9 +888,7 @@ def modified_beam_search(
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out,
-            decoder_out,
-            project_input=False,
+            current_encoder_out, decoder_out, project_input=False
         )  # (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
@@ -953,9 +945,7 @@ def modified_beam_search(
 
 
 def _deprecated_modified_beam_search(
-    model: Transducer,
-    encoder_out: torch.Tensor,
-    beam: int = 4,
+    model: Transducer, encoder_out: torch.Tensor, beam: int = 4
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -1023,9 +1013,7 @@ def _deprecated_modified_beam_search(
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out,
-            decoder_out,
-            project_input=False,
+            current_encoder_out, decoder_out, project_input=False
         )
         # logits is of shape (num_hyps, 1, 1, vocab_size)
         logits = logits.squeeze(1).squeeze(1)
@@ -1097,9 +1085,7 @@ def beam_search(
     device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size,
-        device=device,
-        dtype=torch.int64,
+        [blank_id] * context_size, device=device, dtype=torch.int64
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -1318,9 +1304,7 @@ def fast_beam_search_with_nbest_rescoring(
     num_unique_paths = len(word_ids_list)
 
     b_to_a_map = torch.zeros(
-        num_unique_paths,
-        dtype=torch.int32,
-        device=lattice.device,
+        num_unique_paths, dtype=torch.int32, device=lattice.device
     )
 
     rescored_word_fsas = k2.intersect_device(
@@ -1334,8 +1318,7 @@ def fast_beam_search_with_nbest_rescoring(
     rescored_word_fsas = k2.remove_epsilon_self_loops(rescored_word_fsas)
     rescored_word_fsas = k2.top_sort(k2.connect(rescored_word_fsas))
     ngram_lm_scores = rescored_word_fsas.get_tot_scores(
-        use_double_scores=True,
-        log_semiring=False,
+        use_double_scores=True, log_semiring=False
     )
 
     ans: Dict[str, List[List[int]]] = {}

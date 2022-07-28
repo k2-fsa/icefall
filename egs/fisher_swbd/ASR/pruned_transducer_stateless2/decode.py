@@ -384,9 +384,7 @@ def decode_one_batch(
 
     feature_lens += params.left_context
     feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
+        feature, pad=(0, 0, 0, params.left_context), value=LOG_EPS
     )
 
     if params.simulate_streaming:
@@ -778,7 +776,7 @@ def main():
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
-   
+
     fisherswbd = FisherSwbdSpeechAsrDataModule(args)
 
     test_eval2000_cuts = fisherswbd.test_eval2000_cuts()
@@ -803,9 +801,7 @@ def main():
         )
 
         save_results(
-            params=params,
-            test_set_name=test_set,
-            results_dict=results_dict,
+            params=params, test_set_name=test_set, results_dict=results_dict
         )
 
     logging.info("Done!")

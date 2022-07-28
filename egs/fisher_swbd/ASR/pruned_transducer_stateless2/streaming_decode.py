@@ -39,7 +39,8 @@ import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-#from asr_datamodule import LibriSpeechAsrDataModule
+
+# from asr_datamodule import LibriSpeechAsrDataModule
 from asr_datamodule import FisherSwbdSpeechAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
@@ -187,9 +188,7 @@ def get_parser():
 
 
 def greedy_search(
-    model: nn.Module,
-    encoder_out: torch.Tensor,
-    streams: List[DecodeStream],
+    model: nn.Module, encoder_out: torch.Tensor, streams: List[DecodeStream]
 ) -> List[List[int]]:
 
     assert len(streams) == encoder_out.size(0)
@@ -236,10 +235,7 @@ def greedy_search(
                 device=device,
                 dtype=torch.int64,
             )
-            decoder_out = model.decoder(
-                decoder_input,
-                need_pad=False,
-            )
+            decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
     hyp_tokens = []
@@ -290,9 +286,7 @@ def fast_beam_search(
 
 
 def decode_one_chunk(
-    params: AttributeDict,
-    model: nn.Module,
-    decode_streams: List[DecodeStream],
+    params: AttributeDict, model: nn.Module, decode_streams: List[DecodeStream]
 ) -> List[int]:
     """Decode one chunk frames of features for each decode_streams and
     return the indexes of finished streams in a List.
@@ -502,10 +496,7 @@ def decode_dataset(
             if params.decoding_method == "greedy_search":
                 hyp = hyp[params.context_size :]  # noqa
             decode_results.append(
-                (
-                    decode_streams[i].ground_truth.split(),
-                    sp.decode(hyp).split(),
-                )
+                (decode_streams[i].ground_truth.split(), sp.decode(hyp).split())
             )
             del decode_streams[i]
 
@@ -661,7 +652,7 @@ def main():
     fisherswbd = FisherSwbdSpeechAsrDataModule(args)
 
     test_eval2000_cuts = fisherswbd.test_eval2000_cuts()
-    test_swbd_cuts = fisherswbd.test_swbd_cuts ()
+    test_swbd_cuts = fisherswbd.test_swbd_cuts()
     test_callhome_cuts = fisherswbd.test_callhome_cuts()
 
     test_eval2000_dl = fisherswbd.test_dataloaders(test_eval2000_cuts)
@@ -681,9 +672,7 @@ def main():
         )
 
         save_results(
-            params=params,
-            test_set_name=test_set,
-            results_dict=results_dict,
+            params=params, test_set_name=test_set, results_dict=results_dict
         )
 
     logging.info("Done!")

@@ -155,10 +155,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
-        type=int,
-        default=30,
-        help="Number of epochs to train.",
+        "--num-epochs", type=int, default=30, help="Number of epochs to train."
     )
 
     parser.add_argument(
@@ -480,10 +477,7 @@ def load_checkpoint_if_available(
     assert filename.is_file(), f"{filename} does not exist!"
 
     saved_params = load_checkpoint(
-        filename,
-        model=model,
-        optimizer=optimizer,
-        scheduler=scheduler,
+        filename, model=model, optimizer=optimizer, scheduler=scheduler
     )
 
     keys = [
@@ -646,11 +640,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            batch=batch,
-            is_training=False,
+            params=params, model=model, sp=sp, batch=batch, is_training=False
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -767,9 +757,7 @@ def train_one_epoch(
             )
             del params.cur_batch_idx
             remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
+                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank
             )
 
         if batch_idx % params.log_interval == 0:
@@ -830,8 +818,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 1600
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -897,11 +883,11 @@ def run(rank, world_size, args):
     if params.print_diagnostics:
         diagnostic = diagnostics.attach_diagnostics(model)
 
-    librispeech = FisherSwbdSpeechAsrDataModule(args)
+    fisherswbd = FisherSwbdSpeechAsrDataModule(args)
 
     train_cuts = fisherswbd.train_fisher_cuts()
     train_cuts += fisherswbd.train_swbd_cuts()
- 
+
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -991,9 +977,7 @@ def run(rank, world_size, args):
 
 
 def display_and_save_batch(
-    batch: dict,
-    params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    batch: dict, params: AttributeDict, sp: spm.SentencePieceProcessor
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 

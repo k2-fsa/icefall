@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+
+
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -47,18 +48,19 @@ def compute_fbank_fisher_swbd_eval2000():
     num_jobs = min(25, os.cpu_count())
     num_mel_bins = 80
     sampling_rate = 8000
-    dataset_parts = (
-        "eval2000",
-        "fisher",
-        "swbd",
-    )    
-    test_dataset=("eval2000",)
+    dataset_parts = ("eval2000", "fisher", "swbd")
+    test_dataset = ("eval2000",)
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir, lazy=True, suffix="jsonl"
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        lazy=True,
+        suffix="jsonl",
     )
     assert manifests is not None
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=sampling_rate))
+    extractor = Fbank(
+        FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=sampling_rate)
+    )
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
@@ -67,10 +69,9 @@ def compute_fbank_fisher_swbd_eval2000():
                 continue
             logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
-                recordings=m["recordings"],
-                supervisions=m["supervisions"],
+                recordings=m["recordings"], supervisions=m["supervisions"]
             )
-            #if "train" in partition:
+            # if "train" in partition:
             if partition not in test_dataset:
                 logging.info(f"Adding speed perturbations to : {partition}")
                 cut_set = (

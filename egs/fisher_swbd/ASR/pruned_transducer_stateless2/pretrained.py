@@ -96,11 +96,7 @@ def get_parser():
         "icefall.checkpoint.save_checkpoint().",
     )
 
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        help="""Path to bpe.model.""",
-    )
+    parser.add_argument("--bpe-model", type=str, help="""Path to bpe.model.""")
 
     parser.add_argument(
         "--method",

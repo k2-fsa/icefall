@@ -223,19 +223,10 @@ class Conformer(EncoderInterface):
 
         init_states: List[torch.Tensor] = [
             torch.zeros(
-                (
-                    self.encoder_layers,
-                    left_context,
-                    self.d_model,
-                ),
-                device=device,
+                (self.encoder_layers, left_context, self.d_model), device=device
             ),
             torch.zeros(
-                (
-                    self.encoder_layers,
-                    self.cnn_module_kernel - 1,
-                    self.d_model,
-                ),
+                (self.encoder_layers, self.cnn_module_kernel - 1, self.d_model),
                 device=device,
             ),
         ]
@@ -330,7 +321,9 @@ class Conformer(EncoderInterface):
              {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
              given {states[1].shape}."""
 
-            lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
+            lengths -= (
+                2
+            )  # we will cut off 1 frame on each side of encoder_embed output
 
             src_key_padding_mask = make_pad_mask(lengths)
 
@@ -829,9 +822,7 @@ class RelPositionalEncoding(torch.nn.Module):
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        left_context: int = 0,
+        self, x: torch.Tensor, left_context: int = 0
     ) -> Tuple[Tensor, Tensor]:
         """Add positional encoding.
 
@@ -875,10 +866,7 @@ class RelPositionMultiheadAttention(nn.Module):
     """
 
     def __init__(
-        self,
-        embed_dim: int,
-        num_heads: int,
-        dropout: float = 0.0,
+        self, embed_dim: int, num_heads: int, dropout: float = 0.0
     ) -> None:
         super(RelPositionMultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -1272,8 +1260,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz, num_heads, tgt_len, src_len
             )
             attn_output_weights = attn_output_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float("-inf"),
+                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf")
             )
             attn_output_weights = attn_output_weights.view(
                 bsz * num_heads, tgt_len, src_len
@@ -1420,10 +1407,7 @@ class ConvolutionModule(nn.Module):
         )
 
     def forward(
-        self,
-        x: Tensor,
-        cache: Optional[Tensor] = None,
-        right_context: int = 0,
+        self, x: Tensor, cache: Optional[Tensor] = None, right_context: int = 0
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
