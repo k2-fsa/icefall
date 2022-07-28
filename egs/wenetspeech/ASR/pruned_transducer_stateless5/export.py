@@ -17,26 +17,54 @@
 # This script converts several saved checkpoints
 # to a single one using model averaging.
 """
-Usage:
-./pruned_transducer_stateless2/export.py \
-  --exp-dir ./pruned_transducer_stateless2/exp \
+Usage for offline:
+./pruned_transducer_stateless5/export.py \
+  --exp-dir ./pruned_transducer_stateless5/exp_L_offline \
   --lang-dir data/lang_char \
-  --epoch 10 \
-  --avg 2
+  --epoch 4 \
+  --avg 1
 
-It will generate a file exp_dir/pretrained.pt
+It will generate a file exp_dir/pretrained.pt for offline ASR.
 
-To use the generated file with `pruned_transducer_stateless2/decode.py`,
+./pruned_transducer_stateless5/export.py \
+  --exp-dir ./pruned_transducer_stateless5/exp_L_offline \
+  --lang-dir data/lang_char \
+  --epoch 4 \
+  --avg 1 \
+  --jit True
+
+It will generate a file exp_dir/cpu_jit.pt for offline ASR.
+
+Usage for streaming:
+./pruned_transducer_stateless5/export.py \
+  --exp-dir ./pruned_transducer_stateless5/exp_L_streaming \
+  --lang-dir data/lang_char \
+  --epoch 7 \
+  --avg 1
+
+It will generate a file exp_dir/pretrained.pt for streaming ASR.
+
+./pruned_transducer_stateless5/export.py \
+  --exp-dir ./pruned_transducer_stateless5/exp_L_streaming \
+  --lang-dir data/lang_char \
+  --epoch 7 \
+  --avg 1 \
+  --jit True
+
+It will generate a file exp_dir/cpu_jit.pt for streaming ASR.
+
+To use the generated file with `pruned_transducer_stateless5/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/wenetspeech/ASR
-    ./pruned_transducer_stateless2/decode.py \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --epoch 10 \
-        --avg 2 \
+    ./pruned_transducer_stateless5/decode.py \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+        --epoch 4 \
+        --avg 1 \
+        --decoding-method greedy_search \
         --max-duration 100 \
         --lang-dir data/lang_char
 """
