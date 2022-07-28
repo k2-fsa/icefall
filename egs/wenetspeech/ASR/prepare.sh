@@ -99,7 +99,7 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split S subset into ${num_splits} pieces"
-  split_dir=data/fbank/S_split_${num_splits}_test
+  split_dir=data/fbank/S_split_${num_splits}
   if [ ! -f $split_dir/.split_completed ]; then
     lhotse split $num_splits ./data/fbank/cuts_S_raw.jsonl.gz $split_dir
     touch $split_dir/.split_completed
