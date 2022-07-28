@@ -29,20 +29,10 @@ import torch
 
 
 def get_git_sha1():
-    git_commit = (
-        subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            check=True,
-            stdout=subprocess.PIPE,
-        )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
-    dirty_commit = (
-        len(
+    try:
+        git_commit = (
             subprocess.run(
-                ["git", "diff", "--shortstat"],
+                ["git", "rev-parse", "--short", "HEAD"],
                 check=True,
                 stdout=subprocess.PIPE,
             )
@@ -50,39 +40,61 @@ def get_git_sha1():
             .rstrip("\n")
             .strip()
         )
-        > 0
-    )
-    git_commit = (
-        git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
-    )
+        dirty_commit = (
+            len(
+                subprocess.run(
+                    ["git", "diff", "--shortstat"],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                )
+                .stdout.decode()
+                .rstrip("\n")
+                .strip()
+            )
+            > 0
+        )
+        git_commit = (
+            git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
+        )
+    except:  # noqa
+        return None
+
     return git_commit
 
 
 def get_git_date():
-    git_date = (
-        subprocess.run(
-            ["git", "log", "-1", "--format=%ad", "--date=local"],
-            check=True,
-            stdout=subprocess.PIPE,
+    try:
+        git_date = (
+            subprocess.run(
+                ["git", "log", "-1", "--format=%ad", "--date=local"],
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            .stdout.decode()
+            .rstrip("\n")
+            .strip()
         )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
+    except:  # noqa
+        return None
+
     return git_date
 
 
 def get_git_branch_name():
-    git_date = (
-        subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            check=True,
-            stdout=subprocess.PIPE,
+    try:
+        git_date = (
+            subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            .stdout.decode()
+            .rstrip("\n")
+            .strip()
         )
-        .stdout.decode()
-        .rstrip("\n")
-        .strip()
-    )
+    except:  # noqa
+        return None
+
     return git_date
 
 
@@ -95,6 +107,7 @@ def get_env_info() -> Dict[str, Any]:
         "k2-git-sha1": k2.version.__git_sha1__,
         "k2-git-date": k2.version.__git_date__,
         "lhotse-version": lhotse.__version__,
+        "torch-version": str(torch.__version__),
         "torch-cuda-available": torch.cuda.is_available(),
         "torch-cuda-version": torch.version.cuda,
         "python-version": sys.version[:3],

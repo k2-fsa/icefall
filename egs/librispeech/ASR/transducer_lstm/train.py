@@ -35,6 +35,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -129,6 +130,13 @@ def get_parser():
         type=float,
         default=3.0,
         help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
     )
 
     return parser
@@ -356,7 +364,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -390,7 +398,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -548,7 +560,7 @@ def run(rank, world_size, args):
         params.valid_interval = 800
         params.warm_step = 8000
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -639,6 +651,7 @@ def run(rank, world_size, args):
     )
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate

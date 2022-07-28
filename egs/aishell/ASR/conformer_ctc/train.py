@@ -121,6 +121,13 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
     return parser
 
 
@@ -188,9 +195,9 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 10,
+            "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
+            "valid_interval": 2000,
             # parameters for k2.ctc_loss
             "beam_size": 10,
             "reduction": "sum",
@@ -555,7 +562,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -618,6 +625,7 @@ def run(rank, world_size, args):
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate

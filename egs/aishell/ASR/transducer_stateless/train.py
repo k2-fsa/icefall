@@ -21,6 +21,7 @@
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -129,6 +130,13 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
     return parser
 
 
@@ -204,7 +212,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
@@ -219,7 +227,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -229,7 +237,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -237,7 +245,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -379,7 +387,11 @@ def compute_loss(
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -534,7 +546,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -558,7 +570,7 @@ def run(rank, world_size, args):
         oov="<unk>",
     )
 
-    params.blank_id = graph_compiler.texts_to_ids("<blk>")[0][0]
+    params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
@@ -592,25 +604,23 @@ def run(rank, world_size, args):
     train_cuts = aishell.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        return 1.0 <= c.duration <= 20.0
-
-    num_in_total = len(train_cuts)
+        # Keep only utterances with duration between 1 second and 12 seconds
+        #
+        # Caution: There is a reason to select 12.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 12.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
-
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
     train_dl = aishell.train_dataloaders(train_cuts)
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate

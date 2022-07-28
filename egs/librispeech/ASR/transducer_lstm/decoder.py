@@ -93,9 +93,9 @@ class Decoder(nn.Module):
             - (h, c), containing the state information for LSTM layers.
               Both are of shape (num_layers, N, C)
         """
-        embeding_out = self.embedding(y)
-        embeding_out = self.embedding_dropout(embeding_out)
-        rnn_out, (h, c) = self.rnn(embeding_out, states)
+        embedding_out = self.embedding(y)
+        embedding_out = self.embedding_dropout(embedding_out)
+        rnn_out, (h, c) = self.rnn(embedding_out, states)
         out = self.output_linear(rnn_out)
 
         return out, (h, c)

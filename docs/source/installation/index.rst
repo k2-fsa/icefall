@@ -15,21 +15,33 @@ Installation
 .. |device| image:: ./images/device-CPU_CUDA-orange.svg
   :alt: Supported devices
 
-.. |python_versions| image:: ./images/python-3.6_3.7_3.8_3.9-blue.svg
+.. |python_versions| image:: ./images/python-gt-v3.6-blue.svg
   :alt: Supported python versions
 
-.. |torch_versions| image:: ./images/torch-1.6.0_1.7.0_1.7.1_1.8.0_1.8.1_1.9.0-green.svg
+.. |torch_versions| image:: ./images/torch-gt-v1.6.0-green.svg
   :alt: Supported PyTorch versions
 
-.. |k2_versions| image:: ./images/k2-v1.9-blueviolet.svg
+.. |k2_versions| image:: ./images/k2-gt-v1.9-blueviolet.svg
   :alt: Supported k2 versions
 
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
-We recommend you to install ``k2`` first, as ``k2`` is bound to
-a specific version of PyTorch after compilation. Install ``k2`` also
-installs its dependency PyTorch, which can be reused by ``lhotse``.
+We recommend you to use the following steps to install the dependencies.
+
+- (0) Install PyTorch and torchaudio
+- (1) Install k2
+- (2) Install lhotse
+
+.. caution::
+
+  Installation order matters.
+
+(0) Install PyTorch and torchaudio
+----------------------------------
+
+Please refer `<https://pytorch.org/>`_ to install PyTorch
+and torchaudio.
 
 
 (1) Install k2
@@ -54,14 +66,15 @@ to install ``k2``.
 Please refer to `<https://lhotse.readthedocs.io/en/latest/getting-started.html#installation>`_
 to install ``lhotse``.
 
-.. HINT::
 
-  Install ``lhotse`` also installs its dependency `torchaudio <https://github.com/pytorch/audio>`_.
+.. hint::
 
-.. CAUTION::
+    We strongly recommend you to use::
 
-  If you have installed ``torchaudio``, please consider uninstalling it before
-  installing ``lhotse``. Otherwise, it may update your already installed PyTorch.
+      pip install git+https://github.com/lhotse-speech/lhotse
+
+    to install the latest version of lhotse.
+
 
 (3) Download icefall
 --------------------
@@ -461,3 +474,19 @@ The decoding log is:
 **Congratulations!** You have successfully setup the environment and have run the first recipe in ``icefall``.
 
 Have fun with ``icefall``!
+
+YouTube Video
+-------------
+
+We provide the following YouTube video showing how to install ``icefall``.
+It also shows how to debug various problems that you may encounter while
+using ``icefall``.
+
+.. note::
+
+   To get the latest news of `next-gen Kaldi <https://github.com/k2-fsa>`_, please subscribe
+   the following YouTube channel by `Nadira Povey <https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_:
+
+      `<https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_
+
+..  youtube:: LVmrBD0tLfE

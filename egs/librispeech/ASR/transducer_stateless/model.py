@@ -14,15 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Note we use `rnnt_loss` from torchaudio, which exists only in
-torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
-"""
+import random
+
 import k2
 import torch
 import torch.nn as nn
-import torchaudio
-import torchaudio.functional
 from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
@@ -68,6 +64,7 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        modified_transducer_prob: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -79,6 +76,8 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          modified_transducer_prob:
+            The probability to use modified transducer loss.
         Returns:
           Return the transducer loss.
         """
@@ -99,27 +98,46 @@ class Transducer(nn.Module):
         sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+        sos_y_padded = sos_y_padded.to(torch.int64)
 
         decoder_out = self.decoder(sos_y_padded)
 
-        logits = self.joiner(encoder_out, decoder_out)
+        # +1 here since a blank is prepended to each utterance.
+        logits = self.joiner(
+            encoder_out=encoder_out,
+            decoder_out=decoder_out,
+            encoder_out_len=x_lens,
+            decoder_out_len=y_lens + 1,
+        )
 
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        assert hasattr(torchaudio.functional, "rnnt_loss"), (
-            f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0"
-        )
+        # We don't put this `import` at the beginning of the file
+        # as it is required only in the training, not during the
+        # reference stage
+        import optimized_transducer
 
-        loss = torchaudio.functional.rnnt_loss(
+        assert 0 <= modified_transducer_prob <= 1
+
+        if modified_transducer_prob == 0:
+            one_sym_per_frame = False
+        elif random.random() < modified_transducer_prob:
+            # random.random() returns a float in the range [0, 1)
+            one_sym_per_frame = True
+        else:
+            one_sym_per_frame = False
+
+        loss = optimized_transducer.transducer_loss(
             logits=logits,
             targets=y_padded,
             logit_lengths=x_lens,
             target_lengths=y_lens,
             blank=blank_id,
             reduction="sum",
+            one_sym_per_frame=one_sym_per_frame,
+            from_log_softmax=False,
         )
 
         return loss

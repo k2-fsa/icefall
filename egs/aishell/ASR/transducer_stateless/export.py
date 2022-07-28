@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+#           2022 Xiaomi Corporation (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,7 +23,7 @@
 Usage:
 ./transducer_stateless/export.py \
   --exp-dir ./transducer_stateless/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 20 \
   --avg 10
 
@@ -33,21 +34,21 @@ To use the generated file with `transducer_stateless/decode.py`, you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/aishell/ASR
     ./transducer_stateless/decode.py \
         --exp-dir ./transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 1 \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --lang-dir data/lang_char
 """
 
 import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
 import torch
+import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -55,6 +56,7 @@ from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
+from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, str2bool
 
 
@@ -90,10 +92,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -133,7 +135,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.encoder_out_dim,
@@ -147,7 +149,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -157,7 +159,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -165,7 +167,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -182,8 +184,6 @@ def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    assert args.jit is False, "Support torchscript will be added later"
-
     params = get_params()
     params.update(vars(args))
 
@@ -193,12 +193,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    lexicon = Lexicon(params.lang_dir)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
@@ -225,6 +223,11 @@ def main():
     model.eval()
 
     if params.jit:
+        # We won't use the forward() method of the model in C++, so just ignore
+        # it here.
+        # Otherwise, one of its arguments is a ragged tensor and is not
+        # torch scriptabe.
+        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"

@@ -20,6 +20,7 @@ import argparse
 import collections
 import logging
 import os
+import re
 import subprocess
 from collections import defaultdict
 from contextlib import contextmanager
@@ -30,9 +31,13 @@ from typing import Dict, Iterable, List, TextIO, Tuple, Union
 import k2
 import k2.version
 import kaldialign
+import sentencepiece as spm
 import torch
 import torch.distributed as dist
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+
+from icefall.checkpoint import average_checkpoints
 
 Pathlike = Union[str, Path]
 
@@ -89,7 +94,9 @@ def str2bool(v):
 
 
 def setup_logger(
-    log_filename: Pathlike, log_level: str = "info", use_console: bool = True
+    log_filename: Pathlike,
+    log_level: str = "info",
+    use_console: bool = True,
 ) -> None:
     """Setup log level.
 
@@ -99,6 +106,8 @@ def setup_logger(
       log_level:
         The log level to use, e.g., "debug", "info", "warning", "error",
         "critical"
+      use_console:
+        True to also print logs to console.
     """
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
@@ -126,7 +135,10 @@ def setup_logger(
         level = logging.CRITICAL
 
     logging.basicConfig(
-        filename=log_filename, format=formatter, level=level, filemode="w"
+        filename=log_filename,
+        format=formatter,
+        level=level,
+        filemode="w",
     )
     if use_console:
         console = logging.StreamHandler()
@@ -517,13 +529,26 @@ class MetricsTracker(collections.defaultdict):
         return ans
 
     def __str__(self) -> str:
-        ans = ""
+        ans_frames = ""
+        ans_utterances = ""
         for k, v in self.norm_items():
             norm_value = "%.4g" % v
-            ans += str(k) + "=" + str(norm_value) + ", "
-        frames = str(self["frames"])
-        ans += "over " + frames + " frames."
-        return ans
+            if "utt_" not in k:
+                ans_frames += str(k) + "=" + str(norm_value) + ", "
+            else:
+                ans_utterances += str(k) + "=" + str(norm_value)
+                if k == "utt_duration":
+                    ans_utterances += " frames, "
+                elif k == "utt_pad_proportion":
+                    ans_utterances += ", "
+                else:
+                    raise ValueError(f"Unexpected key: {k}")
+        frames = "%.2f" % self["frames"]
+        ans_frames += "over " + str(frames) + " frames; "
+        utterances = "%.2f" % self["utterances"]
+        ans_utterances += "over " + str(utterances) + " utterances."
+
+        return ans_frames + ans_utterances
 
     def norm_items(self) -> List[Tuple[str, float]]:
         """
@@ -531,11 +556,17 @@ class MetricsTracker(collections.defaultdict):
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
         num_frames = self["frames"] if "frames" in self else 1
+        num_utterances = self["utterances"] if "utterances" in self else 1
         ans = []
         for k, v in self.items():
-            if k != "frames":
-                norm_value = float(v) / num_frames
-                ans.append((k, norm_value))
+            if k == "frames" or k == "utterances":
+                continue
+            norm_value = (
+                float(v) / num_frames
+                if "utt_" not in k
+                else float(v) / num_utterances
+            )
+            ans.append((k, norm_value))
         return ans
 
     def reduce(self, device):
@@ -690,3 +721,212 @@ def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
     expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
 
     return expaned_lengths >= lengths.unsqueeze(1)
+
+
+# Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
+def subsequent_chunk_mask(
+    size: int,
+    chunk_size: int,
+    num_left_chunks: int = -1,
+    device: torch.device = torch.device("cpu"),
+) -> torch.Tensor:
+    """Create mask for subsequent steps (size, size) with chunk size,
+       this is for streaming encoder
+    Args:
+        size (int): size of mask
+        chunk_size (int): size of chunk
+        num_left_chunks (int): number of left chunks
+            <0: use full chunk
+            >=0: use num_left_chunks
+        device (torch.device): "cpu" or "cuda" or torch.Tensor.device
+    Returns:
+        torch.Tensor: mask
+    Examples:
+        >>> subsequent_chunk_mask(4, 2)
+        [[1, 1, 0, 0],
+         [1, 1, 0, 0],
+         [1, 1, 1, 1],
+         [1, 1, 1, 1]]
+    """
+    ret = torch.zeros(size, size, device=device, dtype=torch.bool)
+    for i in range(size):
+        if num_left_chunks < 0:
+            start = 0
+        else:
+            start = max((i // chunk_size - num_left_chunks) * chunk_size, 0)
+        ending = min((i // chunk_size + 1) * chunk_size, size)
+        ret[i, start:ending] = True
+    return ret
+
+
+def l1_norm(x):
+    return torch.sum(torch.abs(x))
+
+
+def l2_norm(x):
+    return torch.sum(torch.pow(x, 2))
+
+
+def linf_norm(x):
+    return torch.max(torch.abs(x))
+
+
+def measure_weight_norms(
+    model: nn.Module, norm: str = "l2"
+) -> Dict[str, float]:
+    """
+    Compute the norms of the model's parameters.
+
+    :param model: a torch.nn.Module instance
+    :param norm: how to compute the norm. Available values: 'l1', 'l2', 'linf'
+    :return: a dict mapping from parameter's name to its norm.
+    """
+    with torch.no_grad():
+        norms = {}
+        for name, param in model.named_parameters():
+            if norm == "l1":
+                val = l1_norm(param)
+            elif norm == "l2":
+                val = l2_norm(param)
+            elif norm == "linf":
+                val = linf_norm(param)
+            else:
+                raise ValueError(f"Unknown norm type: {norm}")
+            norms[name] = val.item()
+        return norms
+
+
+def measure_gradient_norms(
+    model: nn.Module, norm: str = "l1"
+) -> Dict[str, float]:
+    """
+    Compute the norms of the gradients for each of model's parameters.
+
+    :param model: a torch.nn.Module instance
+    :param norm: how to compute the norm. Available values: 'l1', 'l2', 'linf'
+    :return: a dict mapping from parameter's name to its gradient's norm.
+    """
+    with torch.no_grad():
+        norms = {}
+        for name, param in model.named_parameters():
+            if norm == "l1":
+                val = l1_norm(param.grad)
+            elif norm == "l2":
+                val = l2_norm(param.grad)
+            elif norm == "linf":
+                val = linf_norm(param.grad)
+            else:
+                raise ValueError(f"Unknown norm type: {norm}")
+            norms[name] = val.item()
+        return norms
+
+
+def optim_step_and_measure_param_change(
+    model: nn.Module,
+    old_parameters: Dict[str, nn.parameter.Parameter],
+) -> Dict[str, float]:
+    """
+    Measure the "relative change in parameters per minibatch."
+    It is understood as a ratio between the L2 norm of the difference between original and updates parameters,
+    and the L2 norm of the original parameter. It is given by the formula:
+
+        .. math::
+            \begin{aligned}
+                \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
+            \end{aligned}
+
+    This function is supposed to be used as follows:
+
+      .. code-block:: python
+
+        old_parameters = {
+            n: p.detach().clone() for n, p in model.named_parameters()
+        }
+
+        optimizer.step()
+
+        deltas = optim_step_and_measure_param_change(old_parameters)
+
+    Args:
+      model: A torch.nn.Module instance.
+      old_parameters:
+        A Dict of named_parameters before optimizer.step().
+
+    Return:
+      A Dict containing the relative change for each parameter.
+    """
+    relative_change = {}
+    with torch.no_grad():
+        for n, p_new in model.named_parameters():
+            p_orig = old_parameters[n]
+            delta = l2_norm(p_orig - p_new) / l2_norm(p_orig)
+            relative_change[n] = delta.item()
+    return relative_change
+
+
+def load_averaged_model(
+    model_dir: str,
+    model: torch.nn.Module,
+    epoch: int,
+    avg: int,
+    device: torch.device,
+):
+    """
+    Load a model which is the average of all checkpoints
+
+    :param model_dir: a str of the experiment directory
+    :param model: a torch.nn.Module instance
+
+    :param epoch: the last epoch to load from
+    :param avg: how many models to average from
+    :param device: move model to this device
+
+    :return: A model averaged
+    """
+
+    # start cannot be negative
+    start = max(epoch - avg + 1, 0)
+    filenames = [f"{model_dir}/epoch-{i}.pt" for i in range(start, epoch + 1)]
+
+    logging.info(f"averaging {filenames}")
+    model.to(device)
+    model.load_state_dict(average_checkpoints(filenames, device=device))
+
+    return model
+
+
+def tokenize_by_bpe_model(
+    sp: spm.SentencePieceProcessor,
+    txt: str,
+) -> str:
+    """
+    Tokenize text with bpe model. This function is from
+    https://github1s.com/wenet-e2e/wenet/blob/main/wenet/dataset/processor.py#L322-L342.
+    Args:
+      sp: spm.SentencePieceProcessor.
+      txt: str
+
+    Return:
+      A new string which includes chars and bpes.
+    """
+    tokens = []
+    # CJK(China Japan Korea) unicode range is [U+4E00, U+9FFF], ref:
+    # https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
+    pattern = re.compile(r"([\u4e00-\u9fff])")
+    # Example:
+    #   txt   = "你好 ITS'S OKAY 的"
+    #   chars = ["你", "好", " ITS'S OKAY ", "的"]
+    chars = pattern.split(txt.upper())
+    mix_chars = [w for w in chars if len(w.strip()) > 0]
+    for ch_or_w in mix_chars:
+        # ch_or_w is a single CJK charater(i.e., "你"), do nothing.
+        if pattern.fullmatch(ch_or_w) is not None:
+            tokens.append(ch_or_w)
+        # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
+        # encode ch_or_w using bpe_model.
+        else:
+            for p in sp.encode_as_pieces(ch_or_w):
+                tokens.append(p)
+    txt_with_bpe = "/".join(tokens)
+
+    return txt_with_bpe

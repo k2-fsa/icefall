@@ -34,6 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
@@ -56,6 +57,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
+from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
@@ -138,6 +140,31 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--modified-transducer-prob",
+        type=float,
+        default=0.25,
+        help="""The probability to use modified transducer loss.
+        In modified transduer, it limits the maximum number of symbols
+        per frame to 1. See also the option --max-sym-per-frame in
+        transducer_stateless/decode.py
+        """,
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
+    parser.add_argument(
+        "--print-diagnostics",
+        type=str2bool,
+        default=False,
+        help="Accumulate stats on activations, print them and exit.",
+    )
+
     return parser
 
 
@@ -213,7 +240,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
         num_features=params.feature_dim,
@@ -228,7 +255,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -238,7 +265,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -246,7 +273,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -354,7 +381,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
 
     Args:
       params:
@@ -383,12 +410,21 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        loss = model(x=feature, x_lens=feature_lens, y=y)
+        loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            modified_transducer_prob=params.modified_transducer_prob,
+        )
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -487,6 +523,8 @@ def train_one_epoch(
         loss.backward()
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
+        if params.print_diagnostics and batch_idx == 30:
+            return
 
         if batch_idx % params.log_interval == 0:
             logging.info(
@@ -494,9 +532,6 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
-
-        if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
@@ -546,7 +581,7 @@ def run(rank, world_size, args):
         params.valid_interval = 800
         params.warm_step = 8000
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -599,6 +634,9 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
+    if params.print_diagnostics:
+        diagnostic = diagnostics.attach_diagnostics(model)
+
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
@@ -612,13 +650,23 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
+    try:
+        num_left = len(train_cuts)
+        num_removed = num_in_total - num_left
+        removed_percent = num_removed / num_in_total * 100
 
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
+        logging.info(
+            f"Before removing short and long utterances: {num_in_total}"
+        )
+        logging.info(f"After removing short and long utterances: {num_left}")
+        logging.info(
+            f"Removed {num_removed} utterances ({removed_percent:.5f}%)"
+        )
+    except TypeError as e:
+        # You can ignore this error as previous versions of Lhotse work fine
+        # for the above code. In recent versions of Lhotse, it uses
+        # lazy filter, producing cutsets that don't have the __len__  method
+        logging.info(str(e))
 
     train_dl = librispeech.train_dataloaders(train_cuts)
 
@@ -626,15 +674,17 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    scan_pessimistic_batches_for_oom(
-        model=model,
-        train_dl=train_dl,
-        optimizer=optimizer,
-        sp=sp,
-        params=params,
-    )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate
@@ -659,6 +709,10 @@ def run(rank, world_size, args):
             tb_writer=tb_writer,
             world_size=world_size,
         )
+
+        if params.print_diagnostics:
+            diagnostic.print_diagnostics()
+            break
 
         save_checkpoint(
             params=params,

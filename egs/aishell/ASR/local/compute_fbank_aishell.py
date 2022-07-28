@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomHdf5Writer
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -52,8 +52,13 @@ def compute_fbank_aishell(num_mel_bins: int = 80):
         "dev",
         "test",
     )
+    prefix = "aishell"
+    suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
@@ -61,7 +66,7 @@ def compute_fbank_aishell(num_mel_bins: int = 80):
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
-            if (output_dir / f"cuts_{partition}.json.gz").is_file():
+            if (output_dir / f"{prefix}_cuts_{partition}.{suffix}").is_file():
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
@@ -77,13 +82,13 @@ def compute_fbank_aishell(num_mel_bins: int = 80):
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
-                storage_path=f"{output_dir}/feats_{partition}",
+                storage_path=f"{output_dir}/{prefix}_feats_{partition}",
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
-            cut_set.to_json(output_dir / f"cuts_{partition}.json.gz")
+            cut_set.to_file(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
 
 
 def get_args():

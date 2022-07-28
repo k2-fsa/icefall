@@ -89,6 +89,29 @@ class CtcTrainingGraphCompiler(object):
 
         return decoding_graph
 
+    def texts_to_ids(self, texts: List[str]) -> List[List[int]]:
+        """Convert a list of texts to a list-of-list of word IDs.
+
+        Args:
+          texts:
+            It is a list of strings. Each string consists of space(s)
+            separated words. An example containing two strings is given below:
+
+                ['HELLO ICEFALL', 'HELLO k2']
+        Returns:
+          Return a list-of-list of word IDs.
+        """
+        word_ids_list = []
+        for text in texts:
+            word_ids = []
+            for word in text.split():
+                if word in self.word_table:
+                    word_ids.append(self.word_table[word])
+                else:
+                    word_ids.append(self.oov_id)
+            word_ids_list.append(word_ids)
+        return word_ids_list
+
     def convert_transcript_to_fsa(self, texts: List[str]) -> k2.Fsa:
         """Convert a list of transcript texts to an FsaVec.
 

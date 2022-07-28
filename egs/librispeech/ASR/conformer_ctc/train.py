@@ -17,6 +17,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Usage:
+  export CUDA_VISIBLE_DEVICES="0,1,2,3"
+  ./conformer_ctc/train.py \
+     --exp-dir ./conformer_ctc/exp \
+     --world-size 4 \
+     --full-libri 1 \
+     --max-duration 200 \
+     --num-epochs 20
+"""
+
 import argparse
 import logging
 from pathlib import Path
@@ -29,6 +40,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -41,6 +53,7 @@ from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -124,10 +137,26 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-decoder-layers",
+        type=int,
+        default=6,
+        help="""Number of decoder layer of transformer decoder.
+        Setting this to 0 will not create the decoder at all (pure CTC model)
+        """,
+    )
+
+    parser.add_argument(
         "--lr-factor",
         type=float,
         default=5.0,
         help="The lr_factor for Noam optimizer",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
     )
 
     return parser
@@ -210,7 +239,6 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             "attention_dim": 512,
             "nhead": 8,
-            "num_decoder_layers": 6,
             # parameters for loss
             "beam_size": 10,
             "reduction": "sum",
@@ -357,9 +385,17 @@ def compute_loss(
         supervisions, subsampling_factor=params.subsampling_factor
     )
 
-    token_ids = graph_compiler.texts_to_ids(texts)
-
-    decoding_graph = graph_compiler.compile(token_ids)
+    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
+        # Works with a BPE model
+        token_ids = graph_compiler.texts_to_ids(texts)
+        decoding_graph = graph_compiler.compile(token_ids)
+    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
+        # Works with a phone lexicon
+        decoding_graph = graph_compiler.compile(texts)
+    else:
+        raise ValueError(
+            f"Unsupported type of graph compiler: {type(graph_compiler)}"
+        )
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -563,7 +599,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(42)
+    fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -584,12 +620,38 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
+    if "lang_bpe" in str(params.lang_dir):
+        graph_compiler = BpeCtcTrainingGraphCompiler(
+            params.lang_dir,
+            device=device,
+            sos_token="<sos/eos>",
+            eos_token="<sos/eos>",
+        )
+    elif "lang_phone" in str(params.lang_dir):
+        assert params.att_rate == 0, (
+            "Attention decoder training does not support phone lang dirs "
+            "at this time due to a missing <sos/eos> symbol. Set --att-rate=0 "
+            "for pure CTC training when using a phone-based lang dir."
+        )
+        assert params.num_decoder_layers == 0, (
+            "Attention decoder training does not support phone lang dirs "
+            "at this time due to a missing <sos/eos> symbol. "
+            "Set --num-decoder-layers=0 for pure CTC training when using "
+            "a phone-based lang dir."
+        )
+        graph_compiler = CtcTrainingGraphCompiler(
+            lexicon,
+            device=device,
+        )
+        # Manually add the sos/eos ID with their default values
+        # from the BPE recipe which we're adapting here.
+        graph_compiler.sos_id = 1
+        graph_compiler.eos_id = 1
+    else:
+        raise ValueError(
+            f"Unsupported type of lang dir (we expected it to have "
+            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
+        )
 
     logging.info("About to create model")
     model = Conformer(
@@ -626,6 +688,20 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 20.0
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
     train_dl = librispeech.train_dataloaders(train_cuts)
 
     valid_cuts = librispeech.dev_clean_cuts()
@@ -641,6 +717,7 @@ def run(rank, world_size, args):
     )
 
     for epoch in range(params.start_epoch, params.num_epochs):
+        fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 
         cur_lr = optimizer._rate

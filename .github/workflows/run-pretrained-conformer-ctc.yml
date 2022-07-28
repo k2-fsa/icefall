@@ -31,9 +31,6 @@ jobs:
       matrix:
         os: [ubuntu-18.04]
         python-version: [3.7, 3.8, 3.9]
-        torch: ["1.10.0"]
-        torchaudio: ["0.10.0"]
-        k2-version: ["1.9.dev20211101"]
 
       fail-fast: false
 
@@ -43,67 +40,37 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip pytest
-          # numpy 1.20.x does not support python 3.6
-          pip install numpy==1.19
-          pip install torch==${{ matrix.torch }}+cpu torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
 
-          python3 -m pip install git+https://github.com/lhotse-speech/lhotse
-          python3 -m pip install kaldifeat
-          # We are in ./icefall and there is a file: requirements.txt in it
-          pip install -r requirements.txt
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}
 
-      - name: Install graphviz
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          python3 -m pip install -qq graphviz
-          sudo apt-get -qq install graphviz
+          .github/scripts/install-kaldifeat.sh
 
-      - name: Download pre-trained model
+      - name: Inference with pre-trained model
         shell: bash
         run: |
           sudo apt-get -qq install git-lfs tree sox
-          cd egs/librispeech/ASR
-          mkdir tmp
-          cd tmp
-          git lfs install
-          git clone https://github.com/csukuangfj/icefall-asr-conformer-ctc-bpe-500
-          cd ..
-          tree tmp
-          soxi tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/*.flac
-          ls -lh tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/*.flac
-
-      - name: Run CTC decoding
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:PYTHONPATH
-          cd egs/librispeech/ASR
-          ./conformer_ctc/pretrained.py \
-            --num-classes 500 \
-            --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
-            --bpe-model ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/bpe.model \
-            --method ctc-decoding \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0002.flac
-
-      - name: Run HLG decoding
-        shell: bash
-        run: |
           export PYTHONPATH=$PWD:$PYTHONPATH
-          cd egs/librispeech/ASR
-          ./conformer_ctc/pretrained.py \
-            --num-classes 500 \
-            --checkpoint ./tmp/icefall-asr-conformer-ctc-bpe-500/exp/pretrained.pt \
-            --words-file ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/words.txt \
-            --HLG ./tmp/icefall-asr-conformer-ctc-bpe-500/data/lang_bpe_500/HLG.pt \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1089-134686-0001.flac \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0001.flac \
-            ./tmp/icefall-asr-conformer-ctc-bpe-500/test_wavs/1221-135766-0002.flac
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+          .github/scripts/run-pre-trained-conformer-ctc.sh

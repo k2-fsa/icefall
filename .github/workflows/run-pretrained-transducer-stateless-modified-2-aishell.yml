@@ -1,0 +1,76 @@
+# Copyright      2021  Fangjun Kuang (csukuangfj@gmail.com)
+
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: run-pre-trained-trandsucer-stateless-modified-2-aishell
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+jobs:
+  run_pre_trained_transducer_stateless_modified_2_aishell:
+    if: github.event.label.name == 'ready' || github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+        python-version: [3.7, 3.8, 3.9]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
+
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}
+
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/install-kaldifeat.sh
+
+      - name: Inference with pre-trained model
+        shell: bash
+        run: |
+          sudo apt-get -qq install git-lfs tree sox
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+          .github/scripts/run-pre-trained-transducer-stateless-modified-2-aishell.sh

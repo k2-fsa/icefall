@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomHdf5Writer, combine
+from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter, combine
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -52,12 +52,22 @@ def compute_fbank_musan():
         "speech",
         "noise",
     )
+    prefix = "musan"
+    suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
-    musan_cuts_path = output_dir / "cuts_musan.json.gz"
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+    )
+
+    musan_cuts_path = output_dir / "musan_cuts.jsonl.gz"
 
     if musan_cuts_path.is_file():
         logging.info(f"{musan_cuts_path} already exists - skipping")
@@ -79,13 +89,13 @@ def compute_fbank_musan():
             .filter(lambda c: c.duration > 5)
             .compute_and_store_features(
                 extractor=extractor,
-                storage_path=f"{output_dir}/feats_musan",
+                storage_path=f"{output_dir}/musan_feats",
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
         )
-        musan_cuts.to_json(musan_cuts_path)
+        musan_cuts.to_file(musan_cuts_path)
 
 
 if __name__ == "__main__":

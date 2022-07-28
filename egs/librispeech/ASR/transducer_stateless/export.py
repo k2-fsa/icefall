@@ -48,6 +48,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -133,7 +134,7 @@ def get_params() -> AttributeDict:
     return params
 
 
-def get_encoder_model(params: AttributeDict):
+def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.encoder_out_dim,
@@ -147,7 +148,7 @@ def get_encoder_model(params: AttributeDict):
     return encoder
 
 
-def get_decoder_model(params: AttributeDict):
+def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
         embedding_dim=params.encoder_out_dim,
@@ -157,7 +158,7 @@ def get_decoder_model(params: AttributeDict):
     return decoder
 
 
-def get_joiner_model(params: AttributeDict):
+def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.encoder_out_dim,
         output_dim=params.vocab_size,
@@ -165,7 +166,7 @@ def get_joiner_model(params: AttributeDict):
     return joiner
 
 
-def get_transducer_model(params: AttributeDict):
+def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
@@ -181,8 +182,6 @@ def get_transducer_model(params: AttributeDict):
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
-
-    assert args.jit is False, "Support torchscript will be added later"
 
     params = get_params()
     params.update(vars(args))
@@ -225,6 +224,11 @@ def main():
     model.eval()
 
     if params.jit:
+        # We won't use the forward() method of the model in C++, so just ignore
+        # it here.
+        # Otherwise, one of its arguments is a ragged tensor and is not
+        # torch scriptabe.
+        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
