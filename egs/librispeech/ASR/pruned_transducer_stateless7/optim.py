@@ -1010,8 +1010,6 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 G_proj_unsmoothed = _diag(torch.matmul(U_prod * G_prime.unsqueeze(-2),  U_prod.transpose(2, 3)))
                 skip = 10 if block_size > 40 else 1
                 logging.info(f"dim={dim}, diag of P_proj is: {this_P_proj_diag[0,0,::skip]}, diag of unsmoothed P_proj is: {this_P_proj_unsmoothed[0,0,::skip]}, diag of unsmoothed G_proj is {G_proj_unsmoothed[0,0,::skip]}")
-            if size == 500:
-                xyz
 
         # P_proj won't be needed if simple_update == True.
         return P_proj
