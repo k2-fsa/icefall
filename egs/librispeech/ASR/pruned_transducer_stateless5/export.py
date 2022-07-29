@@ -97,7 +97,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -137,6 +137,15 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--streaming-model",
+        type=str2bool,
+        default=False,
+        help="""Whether to export a streaming model, if the models in exp-dir
+        are streaming model, this should be True.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -161,6 +170,9 @@ def main():
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.streaming_model:
+        assert params.causal_convolution
 
     logging.info(params)
 

@@ -618,6 +618,80 @@ done
 
 Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless4_20220625>
 
+#### [pruned_transducer_stateless5](./pruned_transducer_stateless5)
+
+See <https://github.com/k2-fsa/icefall/pull/454> for more details.
+
+##### Training on full librispeech
+The WERs are (the number in the table formatted as test-clean & test-other):
+
+We only trained 25 epochs for saving time, if you want to get better results you can train more epochs.
+
+| decoding method      | left context | chunk size = 2 | chunk size = 4 | chunk size = 8 | chunk size = 16|
+|----------------------|--------------|----------------|----------------|----------------|----------------|
+| greedy search        | 32           | 3.93 & 9.88    | 3.64 & 9.43    | 3.51 & 8.92    | 3.26 & 8.37    |
+| greedy search        | 64           | 4.84 & 9.81    | 3.59 & 9.27    | 3.44 & 8.83    | 3.23 & 8.33    |
+| fast beam search     | 32           | 3.86 & 9.77    | 3.67 & 9.3     | 3.5 & 8.83     | 3.27 & 8.33    |
+| fast beam search     | 64           | 3.79 & 9.68    | 3.57 & 9.21    | 3.41 & 8.72    | 3.25 & 8.27    |
+| modified beam search | 32           | 3.84 & 9.71    | 3.66 & 9.38    | 3.47 & 8.86    | 3.26 & 8.42    |
+| modified beam search | 64           | 3.81 & 9.59    | 3.58 & 9.2     | 3.44 & 8.74    | 3.23 & 8.35    |
+
+
+**NOTE:** The WERs in table above were decoded with simulate streaming method (i.e. using masking strategy), see commands below. We also have [real streaming decoding](./pruned_transducer_stateless5/streaming_decode.py) script which should produce almost the same results. We tried adding right context in the real streaming decoding, but it seemed not to benefit the performance for all the models, the reasons might be the training and decoding mismatching.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless5/train.py \
+  --exp-dir pruned_transducer_stateless5/exp \
+  --num-encoder-layers 18 \
+  --dim-feedforward 2048 \
+  --nhead 8 \
+  --encoder-dim 512 \
+  --decoder-dim 512 \
+  --joiner-dim 512 \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 20 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --world-size 4 \
+  --start-epoch 1 \
+  --num-epochs 25
+```
+
+You can find the tensorboard log here <https://tensorboard.dev/experiment/rO04h6vjTLyw0qSxjp4m4Q>
+
+The decoding command is:
+```bash
+decoding_method="greedy_search"  # "fast_beam_search", "modified_beam_search"
+
+for chunk in 2 4 8 16; do
+  for left in 32 64; do
+    ./pruned_transducer_stateless5/decode.py \
+            --num-encoder-layers 18 \
+            --dim-feedforward 2048 \
+            --nhead 8 \
+            --encoder-dim 512 \
+            --decoder-dim 512 \
+            --joiner-dim 512 \
+            --simulate-streaming 1 \
+            --decode-chunk-size ${chunk} \
+            --left-context ${left} \
+            --causal-convolution 1 \
+            --epoch 25 \
+            --avg 3 \
+            --exp-dir ./pruned_transducer_stateless5/exp \
+            --max-sym-per-frame 1 \
+            --max-duration 1000 \
+            --decoding-method ${decoding_method}
+  done
+done
+```
+
+Pre-trained models, training and decoding logs, and decoding results are available at <https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless5_20220729>
+
 
 ### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T)
 
