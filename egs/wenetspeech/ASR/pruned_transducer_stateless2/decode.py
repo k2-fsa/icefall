@@ -592,6 +592,11 @@ def main():
         params.suffix += f"-max-states-{params.max_states}"
         if params.decoding_method == "fast_beam_search_nbest_LG":
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+        if (
+            params.decoding_method == "fast_beam_search_nbest"
+            or params.decoding_method == "fast_beam_search_nbest_oracle"
+        ):
+            params.suffix += f"-nbest-scale-{params.nbest_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
     else:
