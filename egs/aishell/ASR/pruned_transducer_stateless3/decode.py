@@ -464,6 +464,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
+    params.datatang_prob = 0
 
     assert params.decoding_method in (
         "greedy_search",

@@ -643,7 +643,8 @@ class ScaledEmbedding(nn.Module):
             )
 
     def extra_repr(self) -> str:
-        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        # s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
             s += ", padding_idx={padding_idx}"
         if self.scale_grad_by_freq is not False:

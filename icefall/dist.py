@@ -57,9 +57,9 @@ def get_rank():
     if "RANK" in os.environ:
         return int(os.environ["RANK"])
     elif dist.is_available() and dist.is_initialized():
-        return dist.rank()
+        return dist.get_rank()
     else:
-        return 1
+        return 0
 
 
 def get_local_rank():

@@ -184,7 +184,9 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -195,7 +197,9 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
     else:
         if params.iter > 0:
             filenames = find_checkpoints(
@@ -223,7 +227,8 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                )
+                ),
+                strict=False,
             )
         else:
             assert params.avg > 0, params.avg
@@ -241,7 +246,8 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                )
+                ),
+                strict=False,
             )
 
     model.eval()
