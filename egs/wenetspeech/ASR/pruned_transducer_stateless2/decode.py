@@ -225,7 +225,7 @@ def get_parser():
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.07,
+        default=0.35,
         help="""
         Used only when --decoding_method is fast_beam_search_nbest_LG.
         It specifies the scale for n-gram LM scores.
