@@ -124,10 +124,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
                    (4) is for smoothing the grad covariance used for (2)
 
-                   (5) is for smoothing the final learning-rate matrix Z relative to
-                      its own diagonal.  Only the cov_max is actually used.
-                      the cov_min ends up not affecting the result, so we set it
-                      to 0.0.
+                   (5) is for smoothing the inverse Z^{-1} final learning-rate matrix Z relative to
+                      its own diagonal.  Only the cov_min[4] is actually used, we ignore
+                      cov_max[4]
           cov_pow: This was mainly added for development and experimentation purposes;
                   it allows you to smooth the parameter covariance matrices at the
                   stages (1), (2), (3) of smoothing mentioned above, and also
@@ -167,8 +166,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.0),
-            cov_max=(10.0, 80.0, 5.0, 400.0, 10.0),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.1),
+            cov_max=(10.0, 80.0, 5.0, 400.0, 100.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
             param_rms_smooth1=0.2,
@@ -974,7 +973,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # this is smoothing Z relative to its own diagonal.  This is z_inv,
             # so by applying a minimum here, we are applying a maximum of the
             # eigs of Z after normalizing so the diagonal is 1.
-            Z_prime_inv_diag *= (1. + 1. / group["cov_max"][4])
+            Z_prime_inv_diag *= (1. + group["cov_min"][4])
 
             # We really want the SVD on Z, which will be used for the learning-rate matrix
             # Q, but Z_prime is better, numerically, to work on because it's closer to
