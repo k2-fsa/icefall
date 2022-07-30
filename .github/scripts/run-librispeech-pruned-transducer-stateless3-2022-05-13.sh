@@ -61,7 +61,7 @@ log "Decode with ONNX models"
   --onnx-joiner-filename $repo/exp/joiner.onnx
 
 ./pruned_transducer_stateless3/onnx_pretrained.py \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --encoder-model-filename $repo/exp/encoder.onnx \
   --decoder-model-filename $repo/exp/decoder.onnx \
   --joiner-model-filename $repo/exp/joiner.onnx \
@@ -72,7 +72,7 @@ log "Decode with ONNX models"
 log "Decode with models exported by torch.jit.trace()"
 
 ./pruned_transducer_stateless3/jit_pretrained.py \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --encoder-model-filename $repo/exp/encoder_jit_trace.pt \
   --decoder-model-filename $repo/exp/decoder_jit_trace.pt \
   --joiner-model-filename $repo/exp/joiner_jit_trace.pt \
@@ -83,7 +83,7 @@ log "Decode with models exported by torch.jit.trace()"
 log "Decode with models exported by torch.jit.script()"
 
 ./pruned_transducer_stateless3/jit_pretrained.py \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --encoder-model-filename $repo/exp/encoder_jit_script.pt \
   --decoder-model-filename $repo/exp/decoder_jit_script.pt \
   --joiner-model-filename $repo/exp/joiner_jit_script.pt \
