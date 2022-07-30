@@ -42,14 +42,55 @@ log "Export to torchscript model"
   --avg 1 \
   --jit 1
 
+./pruned_transducer_stateless3/export.py \
+  --exp-dir $repo/exp \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 99 \
+  --avg 1 \
+  --jit-trace 1
+
 ls -lh $repo/exp/*.onnx
 ls -lh $repo/exp/*.pt
+
+log "Decode with ONNX models"
 
 ./pruned_transducer_stateless3/onnx_check.py \
   --jit-filename $repo/exp/cpu_jit.pt \
   --onnx-encoder-filename $repo/exp/encoder.onnx \
   --onnx-decoder-filename $repo/exp/decoder.onnx \
   --onnx-joiner-filename $repo/exp/joiner.onnx
+
+./pruned_transducer_stateless3/onnx_pretrained.py \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo/exp/encoder.onnx \
+  --decoder-model-filename $repo/exp/decoder.onnx \
+  --joiner-model-filename $repo/exp/joiner.onnx \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
+log "Decode with models exported by torch.jit.trace()"
+
+./pruned_transducer_stateless3/jit_pretrained.py \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo/exp/encoder_jit_trace.pt \
+  --decoder-model-filename $repo/exp/decoder_jit_trace.pt \
+  --joiner-model-filename $repo/exp/joiner_jit_trace.pt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
+log "Decode with models exported by torch.jit.script()"
+
+./pruned_transducer_stateless3/jit_pretrained.py \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo/exp/encoder_jit_script.pt \
+  --decoder-model-filename $repo/exp/decoder_jit_script.pt \
+  --joiner-model-filename $repo/exp/joiner_jit_script.pt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
 
 for sym in 1 2 3; do
   log "Greedy search with --max-sym-per-frame $sym"

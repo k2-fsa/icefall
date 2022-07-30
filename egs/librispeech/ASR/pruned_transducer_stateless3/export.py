@@ -21,7 +21,7 @@
 """
 Usage:
 
-(1) Export to torchscript model
+(1) Export to torchscript model using torch.jit.script()
 
 ./pruned_transducer_stateless3/export.py \
   --exp-dir ./pruned_transducer_stateless3/exp \
@@ -36,7 +36,23 @@ load it by `torch.jit.load("cpu_jit.pt")`.
 Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
 are on CPU. You can use `to("cuda")` to move them to a CUDA device.
 
-(2) Export to ONNX format
+It will also generates 3 other files: `encoder_jit_script.pt`,
+`decoder_jit_script.pt`, and `joiner_jit_script.pt`.
+
+(2) Export to torchscript model using torch.jit.trace()
+
+./pruned_transducer_stateless3/export.py \
+  --exp-dir ./pruned_transducer_stateless3/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+  --jit-trace 1
+
+It will generates 3 files: `encoder_jit_trace.pt`,
+`decoder_jit_trace.pt`, and `joiner_jit_trace.pt`.
+
+
+(3) Export to ONNX format
 
 ./pruned_transducer_stateless3/export.py \
   --exp-dir ./pruned_transducer_stateless3/exp \
@@ -53,7 +69,7 @@ Check `onnx_check.py` for how to use them.
     - joiner.onnx
 
 
-(3) Export `model.state_dict()`
+(4) Export `model.state_dict()`
 
 ./pruned_transducer_stateless3/export.py \
   --exp-dir ./pruned_transducer_stateless3/exp \
@@ -78,6 +94,8 @@ you can do:
         --max-duration 600 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
+
+Check ./pretrained.py for its usage.
 """
 
 import argparse
@@ -87,6 +105,7 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -155,6 +174,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--jit-trace",
+        type=str2bool,
+        default=False,
+        help="""True to save a model after applying torch.jit.trace.
+        """,
+    )
+
+    parser.add_argument(
         "--onnx",
         type=str2bool,
         default=False,
@@ -187,6 +214,128 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
+
+
+def export_encoder_model_jit_script(
+    encoder_model: nn.Module,
+    encoder_filename: str,
+) -> None:
+    """Export the given encoder model with torch.jit.script()
+
+    Args:
+      encoder_model:
+        The input encoder model
+      encoder_filename:
+        The filename to save the exported model.
+    """
+    script_model = torch.jit.script(encoder_model)
+    script_model.save(encoder_filename)
+    logging.info(f"Saved to {encoder_filename}")
+
+
+def export_decoder_model_jit_script(
+    decoder_model: nn.Module,
+    decoder_filename: str,
+) -> None:
+    """Export the given decoder model with torch.jit.script()
+
+    Args:
+      decoder_model:
+        The input decoder model
+      decoder_filename:
+        The filename to save the exported model.
+    """
+    script_model = torch.jit.script(decoder_model)
+    script_model.save(decoder_filename)
+    logging.info(f"Saved to {decoder_filename}")
+
+
+def export_joiner_model_jit_script(
+    joiner_model: nn.Module,
+    joiner_filename: str,
+) -> None:
+    """Export the given joiner model with torch.jit.trace()
+
+    Args:
+      joiner_model:
+        The input joiner model
+      joiner_filename:
+        The filename to save the exported model.
+    """
+    script_model = torch.jit.script(joiner_model)
+    script_model.save(joiner_filename)
+    logging.info(f"Saved to {joiner_filename}")
+
+
+def export_encoder_model_jit_trace(
+    encoder_model: nn.Module,
+    encoder_filename: str,
+) -> None:
+    """Export the given encoder model with torch.jit.trace()
+
+    Note: The warmup argument is fixed to 1.
+
+    Args:
+      encoder_model:
+        The input encoder model
+      encoder_filename:
+        The filename to save the exported model.
+    """
+    x = torch.zeros(1, 100, 80, dtype=torch.float32)
+    x_lens = torch.tensor([100], dtype=torch.int64)
+
+    traced_model = torch.jit.trace(encoder_model, (x, x_lens))
+    traced_model.save(encoder_filename)
+    logging.info(f"Saved to {encoder_filename}")
+
+
+def export_decoder_model_jit_trace(
+    decoder_model: nn.Module,
+    decoder_filename: str,
+) -> None:
+    """Export the given decoder model with torch.jit.trace()
+
+    Note: The argument need_pad is fixed to False.
+
+    Args:
+      decoder_model:
+        The input decoder model
+      decoder_filename:
+        The filename to save the exported model.
+    """
+    y = torch.zeros(10, decoder_model.context_size, dtype=torch.int64)
+    need_pad = torch.tensor([False])
+
+    traced_model = torch.jit.trace(decoder_model, (y, need_pad))
+    traced_model.save(decoder_filename)
+    logging.info(f"Saved to {decoder_filename}")
+
+
+def export_joiner_model_jit_trace(
+    joiner_model: nn.Module,
+    joiner_filename: str,
+) -> None:
+    """Export the given joiner model with torch.jit.trace()
+
+    Note: The argument project_input is fixed to True. A user should not
+    project the encoder_out/decoder_out by himself/herself. The exported joiner
+    will do that for the user.
+
+    Args:
+      joiner_model:
+        The input joiner model
+      joiner_filename:
+        The filename to save the exported model.
+
+    """
+    encoder_out_dim = joiner_model.encoder_proj.weight.shape[1]
+    decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
+    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
+    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+
+    traced_model = torch.jit.trace(joiner_model, (encoder_out, decoder_out))
+    traced_model.save(joiner_filename)
+    logging.info(f"Saved to {joiner_filename}")
 
 
 def export_encoder_model_onnx(
@@ -261,6 +410,8 @@ def export_decoder_model_onnx(
     and has one output:
 
         - decoder_out: a torch.float32 tensor of shape (N, 1, C)
+
+    Note: The argument need_pad is fixed to False.
 
     Args:
       decoder_model:
@@ -399,6 +550,7 @@ def main():
 
     model.to("cpu")
     model.eval()
+    convert_scaled_to_non_scaled(model, inplace=True)
 
     if params.onnx is True:
         opset_version = 11
@@ -424,6 +576,7 @@ def main():
             opset_version=opset_version,
         )
     elif params.jit is True:
+        logging.info("Using torch.jit.script()")
         # We won't use the forward() method of the model in C++, so just ignore
         # it here.
         # Otherwise, one of its arguments is a ragged tensor and is not
@@ -434,8 +587,29 @@ def main():
         filename = params.exp_dir / "cpu_jit.pt"
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
+
+        # Also export encoder/decoder/joiner separately
+        encoder_filename = params.exp_dir / "encoder_jit_script.pt"
+        export_encoder_model_jit_trace(model.encoder, encoder_filename)
+
+        decoder_filename = params.exp_dir / "decoder_jit_script.pt"
+        export_decoder_model_jit_trace(model.decoder, decoder_filename)
+
+        joiner_filename = params.exp_dir / "joiner_jit_script.pt"
+        export_joiner_model_jit_trace(model.joiner, joiner_filename)
+
+    elif params.jit_trace is True:
+        logging.info("Using torch.jit.trace()")
+        encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
+        export_encoder_model_jit_trace(model.encoder, encoder_filename)
+
+        decoder_filename = params.exp_dir / "decoder_jit_trace.pt"
+        export_decoder_model_jit_trace(model.decoder, decoder_filename)
+
+        joiner_filename = params.exp_dir / "joiner_jit_trace.pt"
+        export_joiner_model_jit_trace(model.joiner, joiner_filename)
     else:
-        logging.info("Not using torch.jit.script")
+        logging.info("Not using torchscript")
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = params.exp_dir / "pretrained.pt"
