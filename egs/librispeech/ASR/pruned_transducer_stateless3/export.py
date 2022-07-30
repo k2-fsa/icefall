@@ -45,8 +45,8 @@ are on CPU. You can use `to("cuda")` to move them to a CUDA device.
   --avg 10 \
   --onnx 1
 
-It will generate the following files in the given `exp_dir`.
-See `onnx_check.py` to see how to use it.
+It will generate the following three files in the given `exp_dir`.
+Check `onnx_check.py` for how to use them.
 
     - encoder.onnx
     - decoder.onnx
@@ -82,7 +82,6 @@ you can do:
 
 import argparse
 import logging
-import onnx
 from pathlib import Path
 
 import sentencepiece as spm
@@ -219,7 +218,7 @@ def export_encoder_model_onnx(
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
 
-    #  encoder_model = torch.jit.script(model.encoder)
+    #  encoder_model = torch.jit.script(encoder_model)
     # It throws the following error for the above statement
     #
     # RuntimeError: Exporting the operator __is_ to ONNX opset version
@@ -257,7 +256,7 @@ def export_decoder_model_onnx(
 
     The exported model has one input:
 
-        - y: a torch.int64 tensor of shape (N, 2)
+        - y: a torch.int64 tensor of shape (N, decoder_model.context_size)
 
     and has one output:
 
@@ -316,7 +315,7 @@ def export_joiner_model_onnx(
     decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
 
     project_input = True
-    # Note: We use torch.jit.trace() here
+    # Note: It uses torch.jit.trace() internally
     torch.onnx.export(
         joiner_model,
         (encoder_out, decoder_out, project_input),

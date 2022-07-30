@@ -25,11 +25,9 @@ import argparse
 import logging
 
 import onnxruntime as ort
+import torch
 
 ort.set_default_logger_severity(3)
-
-import numpy as np
-import torch
 
 
 def get_parser():
@@ -188,6 +186,7 @@ def main():
         sess_options=options,
     )
     test_joiner(model, joiner_session)
+    logging.info("Finished checking ONNX models")
 
 
 if __name__ == "__main__":
