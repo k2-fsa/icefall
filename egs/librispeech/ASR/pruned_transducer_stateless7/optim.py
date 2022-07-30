@@ -114,7 +114,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                    param covariance equals the dimension of the covaraince matrix.
                    param_rms_smooth{0,1} determine the smoothing proportions for other
                    conditions.
-  cov_min,cov_max: [IMPORTANT] 4-tuples of minimums and maximums of the diagonal values of
+  cov_min,cov_max: [IMPORTANT] 5-tuples of minimums and maximums of the diagonal values of
                    covariance matrices, after normalizing to unit-mean.  The first 3 are
                    for smoothing the parameter covariance, normalized in 3 different ways:
                    (1) relative to its own diagonal (in a basis that diagonalizes the grad
@@ -123,6 +123,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                    (3) in the canonical basis.
 
                    (4) is for smoothing the grad covariance used for (2)
+
+                   (5) is for smoothing the inverse Z^{-1} final learning-rate matrix Z relative to
+                      its own diagonal.  Only the cov_min[4] is actually used, we ignore
+                      cov_max[4]
           cov_pow: This was mainly added for development and experimentation purposes;
                   it allows you to smooth the parameter covariance matrices at the
                   stages (1), (2), (3) of smoothing mentioned above, and also
@@ -162,8 +166,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0025, 0.02, 0.0001),
-            cov_max=(10.0, 80.0, 5.0, 400.0),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.1),
+            cov_max=(10.0, 80.0, 5.0, 400.0, 100.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
             param_rms_smooth1=0.2,
@@ -877,6 +881,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         """
         ndim = len(p_shape)
         P_proj = [None] * ndim
+        denom_rel_eps = group["denom_rel_eps"]
+        eps = group["eps"]
+
         for dim in range(1, ndim):
             size = p_shape[dim]
             try:
@@ -898,6 +905,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # the singular values in places where it should be exactly zero.  This is to keep
             # dimensions with zero grad separate from those with nonzero grad.
             G_prime = _diag(torch.matmul(U_g.transpose(2,3), torch.matmul(grad_cov, U_g)))
+
+            # Use the form of the diagonalized gradient matrix that we get after
+            # we add the Adam-type smoothing with epsilon.
+            G_prime += (_mean(G_prime, exclude_dims=[0], keepdim=True) *(denom_rel_eps * denom_rel_eps) +
+                        (eps * eps))
 
             # P_prime is P' above, which represents param_cov in the basis that diagonalizes G_prime.
             # It is not smoothed yet.
@@ -957,11 +969,17 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 _check_similar(G_prime, G_prime_check, "G_prime")
 
 
+            Z_prime_inv_diag = _diag(Z_prime_inv)  # aliased with Z_prime_inv
+            # this is smoothing Z relative to its own diagonal.  This is z_inv,
+            # so by applying a minimum here, we are applying a maximum of the
+            # eigs of Z after normalizing so the diagonal is 1.
+            Z_prime_inv_diag *= (1. + group["cov_min"][4])
 
             # We really want the SVD on Z, which will be used for the learning-rate matrix
             # Q, but Z_prime is better, numerically, to work on because it's closer to
             # being diagonalized.
             U_z_prime, S_z_prime_inv, _ = _svd(Z_prime_inv)
+
 
             U_z = torch.matmul(U_g, U_z_prime)
             # We could obtain Z in two possible ways.
@@ -2203,7 +2221,7 @@ def _test_eve_cain():
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
-        hidden_dim = 400
+        hidden_dim = 768
         m = torch.nn.Sequential(Linear(E, hidden_dim),
                                 torch.nn.PReLU(),
                                 Linear(hidden_dim, hidden_dim),
