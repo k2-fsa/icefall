@@ -166,7 +166,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.025),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.05),
             cov_max=(10.0, 80.0, 5.0, 400.0, 100.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
@@ -2215,7 +2215,7 @@ def _test_eve_cain():
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
-        hidden_dim = 768
+        hidden_dim = 200
         m = torch.nn.Sequential(Linear(E, hidden_dim),
                                 torch.nn.PReLU(),
                                 Linear(hidden_dim, hidden_dim),
