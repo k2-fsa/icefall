@@ -17,18 +17,18 @@
 # limitations under the License.
 
 """
-This script checks that exported onnx models produces the same output
-as the given torchscript model for the same input.
+This script checks that exported onnx models produce the same output
+with the given torchscript model for the same input.
 """
 
 import argparse
 import logging
+
 import onnxruntime as ort
 
 ort.set_default_logger_severity(3)
 
 import numpy as np
-
 import torch
 
 
@@ -85,7 +85,10 @@ def test_encoder(
             x_lens = torch.randint(low=10, high=T + 1, size=(N,))
             x_lens[0] = T
 
-            encoder_inputs = {"x": x.numpy(), "x_lens": x_lens.numpy()}
+            encoder_inputs = {
+                "x": x.numpy(),
+                "x_lens": x_lens.numpy(),
+            }
             encoder_out, encoder_out_lens = encoder_session.run(
                 ["encoder_out", "encoder_out_lens"],
                 encoder_inputs,
@@ -141,7 +144,7 @@ def test_joiner(
             "encoder_out": encoder_out.numpy(),
             "decoder_out": decoder_out.numpy(),
         }
-        decoder_out = joiner_session.run(["logit"], joiner_inputs)[0]
+        joiner_out = joiner_session.run(["logit"], joiner_inputs)[0]
         joiner_out = torch.from_numpy(joiner_out)
 
         torch_joiner_out = model.joiner(

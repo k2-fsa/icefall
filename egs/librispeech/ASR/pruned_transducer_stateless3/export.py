@@ -34,7 +34,7 @@ It will generate a file `cpu_jit.pt` in the given `exp_dir`. You can later
 load it by `torch.jit.load("cpu_jit.pt")`.
 
 Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
-are on CPU. You can use `to("cuda")` to move it to a CUDA device.
+are on CPU. You can use `to("cuda")` to move them to a CUDA device.
 
 (2) Export to ONNX format
 
@@ -51,10 +51,7 @@ See `onnx_check.py` to see how to use it.
     - encoder.onnx
     - decoder.onnx
     - joiner.onnx
-    - all_in_one.onnx
 
-The file all_in_one.onnx combines `encoder.onnx`, `decoder.onnx`, and
-`joiner.onnx`. You can use `onnx.utils.Extractor` to extract them.
 
 (3) Export `model.state_dict()`
 
@@ -427,25 +424,6 @@ def main():
             joiner_filename,
             opset_version=opset_version,
         )
-
-        all_in_one_filename = params.exp_dir / "all_in_one.onnx"
-        encoder_onnx = onnx.load(encoder_filename)
-        decoder_onnx = onnx.load(decoder_filename)
-        joiner_onnx = onnx.load(joiner_filename)
-
-        encoder_onnx = onnx.compose.add_prefix(encoder_onnx, prefix="encoder/")
-        decoder_onnx = onnx.compose.add_prefix(decoder_onnx, prefix="decoder/")
-        joiner_onnx = onnx.compose.add_prefix(joiner_onnx, prefix="joiner/")
-
-        combined_model = onnx.compose.merge_models(
-            encoder_onnx, decoder_onnx, io_map={}
-        )
-        combined_model = onnx.compose.merge_models(
-            combined_model, joiner_onnx, io_map={}
-        )
-        onnx.save(combined_model, all_in_one_filename)
-        logging.info(f"Saved to {all_in_one_filename}")
-
     elif params.jit is True:
         # We won't use the forward() method of the model in C++, so just ignore
         # it here.
