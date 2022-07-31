@@ -163,7 +163,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0, 0.02, 0.0001),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001),
             cov_max=(10.0, 80.0, 5.0, 400.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
@@ -830,8 +830,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # which case X is extremely tiny).
 
             # eig_ceil is the maximum possible eigenvalue that X could possibly
-            # have at this time.
-            eig_ceil = X.shape[-1]
+            # have at this time, equal to num_blocks * block_size.
+            eig_ceil = X.shape[1] * X.shape[3]
 
             # the next statement wslightly adjusts the target to be the same as
             # what the baseline function, eig -> 1./(1./eig + 1./max_eig) would
@@ -886,10 +886,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         X /= mean_eig
 
         if min_eig != 0.0:
-            # should be inverting as block-diag..
-            X += min_eig * M.inverse()
+            X = X * (1.0-min_eig) + min_eig * M.inverse()
 
-        eig_ceil = X.shape[-1]
+        # eig_ceil is the maximum possible eigenvalue that X could possibly
+        # have at this time, equal to num_blocks * block_size.
+        eig_ceil = X.shape[1] * X.shape[3]
 
         # the next statement wslightly adjusts the target to be the same as
         # what the baseline function, eig -> 1./(1./eig + 1./max_eig) would
@@ -1859,7 +1860,7 @@ def _test_eve_cain():
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
-        hidden_dim = 200
+        hidden_dim = 300
         m = torch.nn.Sequential(Linear(E, hidden_dim),
                                 torch.nn.PReLU(),
                                 Linear(hidden_dim, hidden_dim),
