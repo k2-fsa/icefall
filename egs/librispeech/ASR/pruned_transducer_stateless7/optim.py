@@ -163,7 +163,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0025, 0.02, 0.0001),
+            cov_min=(0.025, 0.0, 0.02, 0.0001),
             cov_max=(10.0, 80.0, 5.0, 400.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
@@ -761,6 +761,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         #G = G.clone()
         #G_diag = _diag(G) # aliased
+        #G_diag *= 1.005  # ensure invertible.
         G = self._smooth_cov(G,
                              group["cov_min"][3],
                              group["cov_max"][3],
@@ -884,7 +885,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # make sure eigs of M^{0.5} X M^{0.5} are average 1.  this imposes limit on the max.
         X /= mean_eig
 
-        X += min_eig * M.inverse()
+        if min_eig != 0.0:
+            # should be inverting as block-diag..
+            X += min_eig * M.inverse()
 
         eig_ceil = X.shape[-1]
 
