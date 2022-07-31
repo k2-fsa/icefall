@@ -843,7 +843,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 # this is equivalent to the operation: l -> l - 0.5/eig_ceil*l*l
                 # on eigenvalues, which maps eig_ceil to 0.5*eig_ceil and is monotonically
                 # increasing from 0..eig_ceil.
-                X = X - 0.5/eig_ceil * torch.matmul(X, X)
+                # the transpose on the 2nd X is to try to stop small asymmetries from
+                # propagating.
+                X = X - 0.5/eig_ceil * torch.matmul(X, X.transpose(2, 3))
                 eig_ceil = 0.5 * eig_ceil
 
             # max_eig > eig_ceil * 0.5
@@ -855,11 +857,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 # .. and the fact that coeff <= 0.5/eig_ceil [since max_eig>eig_ceil*0.5]
                 # means that the function is monotonic on inputs from 0 to eig_ceil.
                 coeff = (eig_ceil - max_eig) / (eig_ceil*eig_ceil)
-                X = X - coeff * torch.matmul(X, X)
+                X = X - coeff * torch.matmul(X, X.transpose(2, 3))
 
             # Normalize again.
             X /= _mean(_diag(X), exclude_dims=[0], keepdim=True).unsqueeze(-1)
-            X = 0.5 * (X + X.transpose(-2, -1)) # make sure exactly symmetric.
+            X = 0.5 * (X + X.transpose(2, 3)) # make sure exactly symmetric.
             return X
 
 
@@ -880,17 +882,20 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
               M: Batch of positive definite block-diagonal matrices to use as metrics w.r.t. X.
         """
         X = X.clone()
+        # size of the block-diagonal matrix..
+        size = X.shape[1] * X.shape[3]
         # mean eig of M^{0.5} X M^{0.5} ...
-        mean_eig = (X*M).sum(dim=(2,3), keepdim=True) / X.shape[-1]
+        mean_eig = _sum(X*M, exclude_dims=[0], keepdim=True) / size
         # make sure eigs of M^{0.5} X M^{0.5} are average 1.  this imposes limit on the max.
         X /= mean_eig
 
         if min_eig != 0.0:
             X = X * (1.0-min_eig) + min_eig * M.inverse()
+            X = 0.5 * (X + X.transpose(-2, -1)) # make sure exactly symmetric.
 
         # eig_ceil is the maximum possible eigenvalue that X could possibly
         # have at this time, equal to num_blocks * block_size.
-        eig_ceil = X.shape[1] * X.shape[3]
+        eig_ceil = size
 
         # the next statement wslightly adjusts the target to be the same as
         # what the baseline function, eig -> 1./(1./eig + 1./max_eig) would
@@ -902,8 +907,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # this is equivalent to the operation: l -> l - 0.5/eig_ceil*l*l
             # on eigenvalues, which maps eig_ceil to 0.5*eig_ceil and is monotonically
             # increasing from 0..eig_ceil.
-            #logging.info(f"X={X}, eig_ceil={eig_ceil}")
-            X = X - 0.5/eig_ceil * torch.matmul(X, torch.matmul(M, X))
+            # The transpose is to try to stop small asymmetries from increasing.
+            X = X - 0.5/eig_ceil * torch.matmul(X, torch.matmul(M, X.transpose(2, 3)))
             eig_ceil = 0.5 * eig_ceil
 
         # max_eig > eig_ceil * 0.5
@@ -915,7 +920,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # .. and the fact that coeff <= 0.5/eig_ceil [since max_eig>eig_ceil*0.5]
             # means that the function is monotonic on inputs from 0 to eig_ceil.
             coeff = (eig_ceil - max_eig) / (eig_ceil*eig_ceil)
-            X = X - coeff * torch.matmul(X, torch.matmul(M, X))
+            X = X - coeff * torch.matmul(X, torch.matmul(M, X.transpose(2, 3)))
 
         # Normalize again.
         X /= _mean(_diag(X), exclude_dims=[0], keepdim=True).unsqueeze(-1)
