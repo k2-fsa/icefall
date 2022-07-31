@@ -163,7 +163,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0, 0.02, 0.0001),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001),
             cov_max=(10.0, 80.0, 5.0, 400.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
@@ -767,8 +767,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                              group["cov_pow"][3])
 
 
-        P = self._apply_max_with_metric(P, G,
-                                        group["cov_max"][1])
+        P = self._apply_min_max_with_metric(P, G,
+                                            group["cov_min"][1],
+                                            group["cov_max"][1])
 
 
         # Apply a 3rd round of smoothing in the canonical basis.
@@ -861,10 +862,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             return X
 
 
-    def _apply_max_with_metric(self,
-                               X: Tensor,
-                               M: Tensor,
-                               max_eig: float) -> Tensor:
+    def _apply_min_max_with_metric(self,
+                                   X: Tensor,
+                                   M: Tensor,
+                                   min_eig: float,
+                                   max_eig: float) -> Tensor:
         """
         Smooths X with maximum eigenvalue (relative to the mean) relative to
         metric M.  Equivalent to applying
@@ -881,6 +883,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         mean_eig = (X*M).sum(dim=(2,3), keepdim=True) / X.shape[-1]
         # make sure eigs of M^{0.5} X M^{0.5} are average 1.  this imposes limit on the max.
         X /= mean_eig
+
+        X += min_eig * M.inverse()
 
         eig_ceil = X.shape[-1]
 
