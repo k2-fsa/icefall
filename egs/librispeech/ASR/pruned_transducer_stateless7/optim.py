@@ -737,22 +737,9 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         if the parameter covariance is just the gradient covariance to some power, this
         function does no smoothing; but if it is highly off-diagonal we do more smoothing.
         """
-        P_prime_diag = _diag(P_prime)  # (batch_size, num_blocks, block_size)
-        eps = 1.0e-10
-        P_prime_diag = (P_prime_diag + eps) / P_prime_diag.mean()
-        # make sure no diagonal element is close to zero.. we don't expect this
-        # would happen.  this is likely not important.  Note, this just used for
-        # normalizing P prior to smoothing.
-        P_prime_diag.clamp_(min=0.01)
-        P_prime_rms = P_prime_diag.sqrt()
-        P_prime_scale = P_prime_rms.unsqueeze(-1) * P_prime_rms.unsqueeze(-2)
-
-        # P_norm will have diagonal elements close to 1.  We do some smoothing
-        # in this space.
-        P_norm = P_prime / P_prime_scale
-        # Now P is as normalized as we can make it... do smoothing baserd on 'rank',
+        # do smoothing based on 'rank',
         # that is intended to compensate for bad estimates of P.
-        (batch_size, num_blocks, block_size, block_size) = P_norm.shape
+        (batch_size, num_blocks, block_size, block_size) = P_prime.shape
         # `rank_per_block` is the rank of each block of P_prime if we were to estimate it from just one
         # parameter tensor.  We average it over time, but actually it won't be changing
         # too much, so `rank` does tell us something.
@@ -771,20 +758,10 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         smooth = smooth0 * block_size / ((smooth0/smooth1 - 1) * rank + block_size)
         if True:
             logging.info(f"block size={block_size}, rank={rank}, smooth={smooth}")
+
         # add rank-dependent smoothing amount to diagonal of P_prime.  _diag() returns an aliased tensor.
         # we don't need to multiply `smooth` by anything, because at this point, P_prime should have
         # diagonal elements close to 1.
-
-        #_diag(P_norm).add_(smooth)
-
-        #P_norm = self._smooth_cov(P_norm,
-        #                          group["cov_min"][0],
-        #                          group["cov_max"][0],
-        #                          group["cov_pow"][0])
-
-        # Remove the diagonal preconditioning on P_norm, giving us stage-1-smoothed
-        # version of P_prime.
-        P_prime = P_norm * P_prime_scale
 
         P_prime_diag = _diag(P_prime)
         P_prime_diag_mean = _mean(P_prime_diag, exclude_dims=[0], keepdim=True)
