@@ -124,9 +124,6 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
                    (4) is for smoothing the grad covariance used for (2)
 
-                   (5) is for smoothing the inverse Z^{-1} final learning-rate matrix Z relative to
-                      its own diagonal.  Only the cov_min[4] is actually used, we ignore
-                      cov_max[4]
           cov_pow: This was mainly added for development and experimentation purposes;
                   it allows you to smooth the parameter covariance matrices at the
                   stages (1), (2), (3) of smoothing mentioned above, and also
@@ -166,8 +163,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             lr=3e-02,
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
-            cov_min=(0.025, 0.0025, 0.02, 0.0001, 0.05),
-            cov_max=(10.0, 80.0, 5.0, 400.0, 100.0),
+            cov_min=(0.025, 0.0025, 0.02, 0.0001),
+            cov_max=(10.0, 80.0, 5.0, 400.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
             param_rms_smooth1=0.2,
@@ -720,9 +717,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
           p_shape: The shape of the parameter we are optimizing
           P: a Tensor of shape (batch_size, num_blocks, block_size, block_size),
                    containing the parameter covariance
-          G: the  gradient covariance, of shape (batch_size, num_blocks,
+          G: the gradient covariance, of shape (batch_size, num_blocks,
                   block_size, block_size)
-
 
         state[f"param_cov_{dim}"], which is an estimate of the covariance of the parameter
         p, averaged over time, and taken over dimension `dim` of the tensor.
@@ -765,7 +761,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         G = G.clone()
         G_diag = _diag(G) # aliased
-        G_diag *= 1.01 # improve its condition, for numerical reasons.
+        G_diag *= 1.005 # improve its condition, for numerical reasons.
         G = self._smooth_cov(G,
                              group["cov_min"][3],
                              group["cov_max"][3],
@@ -773,6 +769,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         # C C^T == G.
         C = G.cholesky()
+
+        P_orig = P.clone()
 
         # treat the last dim of C as being in an arbitrary space, its next-to-last dim
         # is the "canonical" one that we need to sum with the dims of P.
@@ -841,7 +839,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 X: the batch of symmetric positive definite tensors we are smoothing;
                    of shape (batch_size, num_blocks, block_size, block_size)
        """
-        eps = 1.0e-10
+        eps = 1.0e-20
         if power != 1.0:
             U, S, _ = _svd(X)
             S_mean = _mean(S, exclude_dims=[0], keepdim=True)
@@ -866,6 +864,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             _diag(X_inv).add_(1. / (max_eig * cur_diag_mean))
             X = X_inv.inverse()
             X /= _mean(_diag(X), exclude_dims=[0], keepdim=True).unsqueeze(-1)
+            X = 0.5 * (X + X.transpose(-2, -1)) # make sure exactly symmetric.
             return X
 
 
