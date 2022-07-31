@@ -774,15 +774,22 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # add rank-dependent smoothing amount to diagonal of P_prime.  _diag() returns an aliased tensor.
         # we don't need to multiply `smooth` by anything, because at this point, P_prime should have
         # diagonal elements close to 1.
-        _diag(P_norm).add_(smooth)
 
-        P_norm = self._smooth_cov(P_norm,
-                                  group["cov_min"][0],
-                                  group["cov_max"][0],
-                                  group["cov_pow"][0])
+        #_diag(P_norm).add_(smooth)
+
+        #P_norm = self._smooth_cov(P_norm,
+        #                          group["cov_min"][0],
+        #                          group["cov_max"][0],
+        #                          group["cov_pow"][0])
+
         # Remove the diagonal preconditioning on P_norm, giving us stage-1-smoothed
         # version of P_prime.
         P_prime = P_norm * P_prime_scale
+
+        P_prime_diag = _diag(P_prime)
+        P_prime_diag_mean = _mean(P_prime_diag, exclude_dims=[0], keepdim=True)
+        P_prime_diag += smooth * P_prime_diag_mean
+
 
         if True:
             # This block smooths G_prime.
