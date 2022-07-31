@@ -667,7 +667,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             P = param_cov.clone()
             P = self._smooth_param_cov(group, p_shape, P, G)
 
-            if True:
+            if random.random() < 0.25:
                 _,S,_ = _svd(P)
                 logging.info(f"Eigs of P are {S[0][0]}")
 
@@ -1865,7 +1865,7 @@ def _test_eve_cain():
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
-        hidden_dim = 300
+        hidden_dim = 400
         m = torch.nn.Sequential(Linear(E, hidden_dim),
                                 torch.nn.PReLU(),
                                 Linear(hidden_dim, hidden_dim),
