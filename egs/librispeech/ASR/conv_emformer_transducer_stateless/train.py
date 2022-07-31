@@ -28,7 +28,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --exp-dir conv_emformer_transducer_stateless/exp \
   --full-libri 1 \
-  --max-duration 300 \
+  --max-duration 280 \
   --master-port 12321 \
   --num-encoder-layers 12 \
   --chunk-length 32 \
@@ -686,6 +686,15 @@ def compute_loss(
             (feature_lens // params.subsampling_factor).sum().item()
         )
 
+    # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    info["utterances"] = feature.size(0)
+    # averaged input duration in frames over utterances
+    info["utt_duration"] = feature_lens.sum().item()
+    # averaged padding proportion over utterances
+    info["utt_pad_proportion"] = (
+        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    )
+
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
@@ -1018,6 +1027,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1078,6 +1088,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1088,9 +1099,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
@@ -1098,7 +1106,7 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=warmup,
                 )
             loss.backward()
             optimizer.step()

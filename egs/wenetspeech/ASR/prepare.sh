@@ -54,7 +54,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   # ln -sfv /path/to/WenetSpeech $dl_dir/WenetSpeech
   #
   if [ ! -d $dl_dir/WenetSpeech/wenet_speech ] && [ ! -f $dl_dir/WenetSpeech/metadata/v1.list ]; then
-    log "Stage 0: should download WenetSpeech first"
+    log "Stage 0: You should download WenetSpeech first"
     exit 1;
   fi
 
@@ -99,7 +99,7 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split S subset into ${num_splits} pieces"
-  split_dir=data/fbank/S_split_${num_splits}_test
+  split_dir=data/fbank/S_split_${num_splits}
   if [ ! -f $split_dir/.split_completed ]; then
     lhotse split $num_splits ./data/fbank/cuts_S_raw.jsonl.gz $split_dir
     touch $split_dir/.split_completed
@@ -191,7 +191,9 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
 
   # Prepare text.
   # Note: in Linux, you can install jq with the following command:
-  # wget -O jq https://github.com/stedolan/jq/release/download/jq-1.6/jq-linux64
+  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+  # 2. chmod +x ./jq
+  # 3. cp jq /usr/bin
   if [ ! -f $lang_char_dir/text ]; then
     gunzip -c data/manifests/supervisions_L.jsonl.gz \
       | jq 'text' | sed 's/"//g' \
@@ -222,4 +224,35 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
     python ./local/prepare_char.py \
       --lang-dir data/lang_char
   fi
+fi
+
+# If you don't want to use LG for decoding, the following steps are not necessary.
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Prepare G"
+  # It will take about 20 minutes.
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+  lang_char_dir=data/lang_char
+  if [ ! -f $lang_char_dir/3-gram.unpruned.arpa ]; then
+    python ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text $lang_char_dir/text_words_segmentation \
+      -lm $lang_char_dir/3-gram.unpruned.arpa
+  fi
+
+  mkdir -p data/lm
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+    # It is used in building LG
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_char_dir/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $lang_char_dir/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+  log "Stage 18: Compile LG"
+  lang_char_dir=data/lang_char
+  python ./local/compile_lg.py --lang-dir $lang_char_dir
 fi

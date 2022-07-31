@@ -10,6 +10,10 @@ using <https://github.com/k2-fsa/k2>.
 You can use <https://github.com/k2-fsa/sherpa> to deploy models
 trained with icefall.
 
+You can try pre-trained models from within your browser without the need
+to download or install anything by visiting <https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition>
+See <https://k2-fsa.github.io/icefall/huggingface/spaces.html> for more details.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
@@ -32,6 +36,7 @@ We provide the following recipes:
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
   - [Aishell4][aishell4]
+  - [TAL_CSASR][tal_csasr]
 
 ### yesno
 
@@ -245,17 +250,25 @@ We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless mod
 
 ### WenetSpeech
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2].
+We provide some models for this recipe: [Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2] and [Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless5].
 
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+#### Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset, offline ASR)
 
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
 |    greedy search     | 7.80  |  8.75    |  13.49       |
+| modified beam search| 7.76  |  8.71    |  13.41       |
 |   fast beam search   | 7.94  |  8.74    |  13.80       |
-| modified beam search | 7.76  |  8.71    |  13.41       |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+#### Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+**Streaming**:
+|                      |  Dev  | Test-Net | Test-Meeting |
+|----------------------|-------|----------|--------------|
+| greedy_search | 8.78 | 10.12 | 16.16 |
+| modified_beam_search | 8.53| 9.95 | 15.81 |
+| fast_beam_search| 9.01 | 10.47 | 16.28 |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless2 model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
 ### Alimeeting
 
@@ -286,6 +299,21 @@ The best CER(%) results:
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
+### TAL_CSASR
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TAL_CSASR_pruned_transducer_stateless5].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+|decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
+|--|--|--|--|--|--|--|
+|greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
+|modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
+|fast_beam_search| 7.18 | 6.39| 18.90 |  7.27| 6.55 | 18.77|
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
+
 ## Deployment with C++
 
 Once you have trained a model in icefall, you may want to deploy it with C++,
@@ -313,8 +341,10 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
+[WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
 [Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
+[TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -325,4 +355,5 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
 [aishell4]: egs/aishell4/ASR
+[tal_csasr]: egs/tal_csasr/ASR
 [k2]: https://github.com/k2-fsa/k2

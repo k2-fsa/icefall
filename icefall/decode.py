@@ -20,7 +20,34 @@ from typing import Dict, List, Optional, Union
 import k2
 import torch
 
-from icefall.utils import get_texts
+from icefall.utils import add_eos, add_sos, get_texts
+
+DEFAULT_LM_SCALE = [
+    0.01,
+    0.05,
+    0.08,
+    0.1,
+    0.3,
+    0.5,
+    0.6,
+    0.7,
+    0.9,
+    1.0,
+    1.1,
+    1.2,
+    1.3,
+    1.5,
+    1.7,
+    1.9,
+    2.0,
+    2.1,
+    2.2,
+    2.3,
+    2.5,
+    3.0,
+    4.0,
+    5.0,
+]
 
 
 def _intersect_device(
@@ -308,9 +335,7 @@ class Nbest(object):
             del word_fsa.aux_labels
 
         word_fsa.scores.zero_()
-        word_fsa_with_epsilon_loops = k2.remove_epsilon_and_add_self_loops(
-            word_fsa
-        )
+        word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
 
         path_to_utt_map = self.shape.row_ids(1)
 
@@ -609,7 +634,7 @@ def rescore_with_n_best_list(
       num_paths:
         Size of nbest list.
       lm_scale_list:
-        A list of float representing LM score scales.
+        A list of floats representing LM score scales.
       nbest_scale:
         Scale to be applied to ``lattice.score`` when sampling paths
         using ``k2.random_paths``.
@@ -953,4 +978,164 @@ def rescore_with_attention_decoder(
 
             key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}"
             ans[key] = best_path
+    return ans
+
+
+def rescore_with_rnn_lm(
+    lattice: k2.Fsa,
+    num_paths: int,
+    rnn_lm_model: torch.nn.Module,
+    model: torch.nn.Module,
+    memory: torch.Tensor,
+    memory_key_padding_mask: Optional[torch.Tensor],
+    sos_id: int,
+    eos_id: int,
+    blank_id: int,
+    nbest_scale: float = 1.0,
+    ngram_lm_scale: Optional[float] = None,
+    attention_scale: Optional[float] = None,
+    rnn_lm_scale: Optional[float] = None,
+    use_double_scores: bool = True,
+) -> Dict[str, k2.Fsa]:
+    """This function extracts `num_paths` paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest score is
+    the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc].
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      rnn_lm_model:
+        A rnn-lm model used for LM rescoring
+      model:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      memory:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `(T, N, C)`.
+      memory_key_padding_mask:
+        The padding mask for memory with shape `(N, T)`.
+      sos_id:
+        The token ID for SOS.
+      eos_id:
+        The token ID for EOS.
+      nbest_scale:
+        It's the scale applied to `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
+      rnn_lm_scale:
+        Optional. It specifies the scale for RNN LM scores.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
+    nbest = Nbest.from_lattice(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        nbest_scale=nbest_scale,
+    )
+    # nbest.fsa.scores are all 0s at this point
+
+    nbest = nbest.intersect(lattice)
+    # Now nbest.fsa has its scores set.
+    # Also, nbest.fsa inherits the attributes from `lattice`.
+    assert hasattr(nbest.fsa, "lm_scores")
+
+    am_scores = nbest.compute_am_scores()
+    ngram_lm_scores = nbest.compute_lm_scores()
+
+    # The `tokens` attribute is set inside `compile_hlg.py`
+    assert hasattr(nbest.fsa, "tokens")
+    assert isinstance(nbest.fsa.tokens, torch.Tensor)
+
+    path_to_utt_map = nbest.shape.row_ids(1).to(torch.long)
+    # the shape of memory is (T, N, C), so we use axis=1 here
+    expanded_memory = memory.index_select(1, path_to_utt_map)
+
+    if memory_key_padding_mask is not None:
+        # The shape of memory_key_padding_mask is (N, T), so we
+        # use axis=0 here.
+        expanded_memory_key_padding_mask = memory_key_padding_mask.index_select(
+            0, path_to_utt_map
+        )
+    else:
+        expanded_memory_key_padding_mask = None
+
+    # remove axis corresponding to states.
+    tokens_shape = nbest.fsa.arcs.shape().remove_axis(1)
+    tokens = k2.RaggedTensor(tokens_shape, nbest.fsa.tokens)
+    tokens = tokens.remove_values_leq(0)
+    token_ids = tokens.tolist()
+
+    if len(token_ids) == 0:
+        print("Warning: rescore_with_attention_decoder(): empty token-ids")
+        return None
+
+    nll = model.decoder_nll(
+        memory=expanded_memory,
+        memory_key_padding_mask=expanded_memory_key_padding_mask,
+        token_ids=token_ids,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
+    assert nll.ndim == 2
+    assert nll.shape[0] == len(token_ids)
+
+    attention_scores = -nll.sum(dim=1)
+
+    # Now for RNN LM
+    sos_tokens = add_sos(tokens, sos_id)
+    tokens_eos = add_eos(tokens, eos_id)
+    sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
+    sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+
+    x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
+    y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)
+
+    x_tokens = x_tokens.to(torch.int64)
+    y_tokens = y_tokens.to(torch.int64)
+    sentence_lengths = sentence_lengths.to(torch.int64)
+
+    rnn_lm_nll = rnn_lm_model(x=x_tokens, y=y_tokens, lengths=sentence_lengths)
+    assert rnn_lm_nll.ndim == 2
+    assert rnn_lm_nll.shape[0] == len(token_ids)
+
+    rnn_lm_scores = -1 * rnn_lm_nll.sum(dim=1)
+
+    ngram_lm_scale_list = DEFAULT_LM_SCALE
+    attention_scale_list = DEFAULT_LM_SCALE
+    rnn_lm_scale_list = DEFAULT_LM_SCALE
+
+    if ngram_lm_scale:
+        ngram_lm_scale_list = [ngram_lm_scale]
+
+    if attention_scale:
+        attention_scale_list = [attention_scale]
+
+    if rnn_lm_scale:
+        rnn_lm_scale_list = [rnn_lm_scale]
+
+    ans = dict()
+    for n_scale in ngram_lm_scale_list:
+        for a_scale in attention_scale_list:
+            for r_scale in rnn_lm_scale_list:
+                tot_scores = (
+                    am_scores.values
+                    + n_scale * ngram_lm_scores.values
+                    + a_scale * attention_scores
+                    + r_scale * rnn_lm_scores
+                )
+                ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+                max_indexes = ragged_tot_scores.argmax()
+                best_path = k2.index_fsa(nbest.fsa, max_indexes)
+
+                key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}_rnn_lm_scale_{r_scale}"  # noqa
+                ans[key] = best_path
     return ans

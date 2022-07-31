@@ -348,7 +348,6 @@ def get_params() -> AttributeDict:
                            epochs.
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
         - reset_interval: Reset statistics if batch_idx % reset_interval is 0
-        - valid_interval:  Run validation if batch_idx % valid_interval is 0
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
         - subsampling_factor:  The subsampling factor for the model.
@@ -376,7 +375,6 @@ def get_params() -> AttributeDict:
             "decoder_dim": 512,
             # parameters for joiner
             "joiner_dim": 512,
-            # parameters for Noam
             "env_info": get_env_info(),
         }
     )

@@ -19,45 +19,83 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method greedy_search
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
 (2) beam search (not recommended)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
-(4) fast beam search
+(4) fast beam search (one best)
 ./pruned_transducer_stateless3/decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --exp-dir ./pruned_transducer_stateless3/exp \
-        --max-duration 600 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+
+(5) fast beam search (nbest)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(6) fast beam search (nbest oracle WER)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_oracle \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(7) fast beam search (with LG)
+./pruned_transducer_stateless3/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_LG \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
 """
 
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -69,26 +107,36 @@ import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from beam_search import (
     beam_search,
+    fast_beam_search_nbest,
+    fast_beam_search_nbest_LG,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
+    fast_beam_search_with_nbest_rescoring,
+    fast_beam_search_with_nbest_rnn_rescoring,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
 )
 from librispeech import LibriSpeech
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
+    load_averaged_model,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -139,6 +187,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=Path,
+        default="data/lang_bpe_500",
+        help="The lang dir containing word table and LG graph",
+    )
+
+    parser.add_argument(
         "--decoding-method",
         type=str,
         default="greedy_search",
@@ -147,7 +202,11 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
+          - fast_beam_search_nbest_LG
+        If you use fast_beam_search_nbest_LG, you have to specify
+        `--lang-dir`, which should contain `LG.pt`.
         """,
     )
 
@@ -163,28 +222,42 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=20.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        Used only when --decoding-method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle
+        """,
+    )
+
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        It specifies the scale for n-gram LM scores.
+        """,
     )
 
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=4,
+        default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
         "--max-states",
         type=int,
-        default=8,
+        default=64,
         help="""Used only when --decoding-method is
-        fast_beam_search or fast_beam_search_nbest_oracle""",
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -205,10 +278,10 @@ def get_parser():
     parser.add_argument(
         "--num-paths",
         type=int,
-        default=100,
-        help="""Number of paths for computed nbest oracle WER
-        when the decoding method is fast_beam_search_nbest_oracle.
-        """,
+        default=200,
+        help="""Number of paths for nbest decoding.
+        Used only when the decoding method is fast_beam_search_nbest,
+        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -216,9 +289,120 @@ def get_parser():
         type=float,
         default=0.5,
         help="""Scale applied to lattice scores when computing nbest paths.
-        Used only when the decoding_method is fast_beam_search_nbest_oracle.
+        Used only when the decoding method is fast_beam_search_nbest,
+        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+    )
+
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
         """,
     )
+
+    parser.add_argument(
+        "--decode-chunk-size",
+        type=int,
+        default=16,
+        help="The chunk size for decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="""Softmax temperature.
+         The output of the model is (logits / temperature).log_softmax().
+         """,
+    )
+
+    parser.add_argument(
+        "--lm-dir",
+        type=Path,
+        default=Path("./data/lm"),
+        help="""Used only when --decoding-method is
+         fast_beam_search_with_nbest_rescoring.
+         It should contain either G_4_gram.pt or G_4_gram.fst.txt
+         """,
+    )
+
+    parser.add_argument(
+        "--words-txt",
+        type=Path,
+        default=Path("./data/lang_bpe_500/words.txt"),
+        help="""Used only when --decoding-method is
+         fast_beam_search_with_nbest_rescoring.
+         It is the word table.
+         """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-exp-dir",
+        type=str,
+        default="rnn_lm/exp",
+        help="""Used only when --method is rnn-lm.
+        It specifies the path to RNN LM exp dir.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-epoch",
+        type=int,
+        default=7,
+        help="""Used only when --method is rnn-lm.
+        It specifies the checkpoint to use.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-avg",
+        type=int,
+        default=2,
+        help="""Used only when --method is rnn-lm.
+        It specifies the number of checkpoints to average.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-num-layers",
+        type=int,
+        default=4,
+        help="Number of RNN layers the model",
+    )
+    parser.add_argument(
+        "--rnn-lm-tie-weights",
+        type=str2bool,
+        default=True,
+        help="""True to share the weights between the input embedding layer and the
+        last output linear layer
+        """,
+    )
+
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -227,7 +411,10 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    G: Optional[k2.Fsa] = None,
+    rnn_lm_model: torch.nn.Module = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -250,10 +437,17 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      word_table:
+        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is
-        fast_beam_search or fast_beam_search_nbest_oracle.
+        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      G:
+        Optional. Used only when decoding method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        or fast_beam_search_with_nbest_rescoring.
+        It an FsaVec containing an acceptor.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -268,9 +462,26 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
+    feature_lens += params.left_context
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.left_context),
+        value=LOG_EPS,
     )
+
+    if params.simulate_streaming:
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+            x=feature,
+            x_lens=feature_lens,
+            chunk_size=params.decode_chunk_size,
+            left_context=params.left_context,
+            simulate_streaming=True,
+        )
+    else:
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -282,6 +493,37 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            temperature=params.temperature,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "fast_beam_search_nbest_LG":
+        hyp_tokens = fast_beam_search_nbest_LG(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
+        )
+        for hyp in hyp_tokens:
+            hyps.append([word_table[i] for i in hyp])
+    elif params.decoding_method == "fast_beam_search_nbest":
+        hyp_tokens = fast_beam_search_nbest(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+            num_paths=params.num_paths,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -297,6 +539,7 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=sp.encode(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -317,9 +560,56 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            temperature=params.temperature,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "fast_beam_search_with_nbest_rescoring":
+        ngram_lm_scale_list = [-0.5, -0.2, -0.1, -0.05, -0.02, 0]
+        ngram_lm_scale_list += [0.01, 0.02, 0.05]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.8]
+        ngram_lm_scale_list += [1.0, 1.5, 2.5, 3]
+        hyp_tokens = fast_beam_search_with_nbest_rescoring(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_states=params.max_states,
+            max_contexts=params.max_contexts,
+            ngram_lm_scale_list=ngram_lm_scale_list,
+            num_paths=params.num_paths,
+            G=G,
+            sp=sp,
+            word_table=word_table,
+            use_double_scores=True,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
+        )
+    elif params.decoding_method == "fast_beam_search_with_nbest_rnn_rescoring":
+        ngram_lm_scale_list = [-0.5, -0.2, -0.1, -0.05, -0.02, 0]
+        ngram_lm_scale_list += [0.01, 0.02, 0.05]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.8]
+        ngram_lm_scale_list += [1.0, 1.5, 2.5, 3]
+        hyp_tokens = fast_beam_search_with_nbest_rnn_rescoring(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_states=params.max_states,
+            max_contexts=params.max_contexts,
+            ngram_lm_scale_list=ngram_lm_scale_list,
+            num_paths=params.num_paths,
+            G=G,
+            sp=sp,
+            word_table=word_table,
+            rnn_lm_model=rnn_lm_model,
+            rnn_lm_scale_list=ngram_lm_scale_list,
+            use_double_scores=True,
+            nbest_scale=params.nbest_scale,
+            temperature=params.temperature,
+        )
     else:
         batch_size = encoder_out.size(0)
 
@@ -353,20 +643,52 @@ def decode_one_batch(
                 f"beam_{params.beam}_"
                 f"max_contexts_{params.max_contexts}_"
                 f"max_states_{params.max_states}"
+                f"temperature_{params.temperature}"
             ): hyps
         }
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
+    elif params.decoding_method == "fast_beam_search":
         return {
             (
                 f"beam_{params.beam}_"
                 f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}_"
-                f"num_paths_{params.num_paths}_"
-                f"nbest_scale_{params.nbest_scale}"
+                f"max_states_{params.max_states}"
+                f"temperature_{params.temperature}"
             ): hyps
         }
+    elif params.decoding_method in [
+        "fast_beam_search_with_nbest_rescoring",
+        "fast_beam_search_with_nbest_rnn_rescoring",
+    ]:
+        prefix = (
+            f"beam_{params.beam}_"
+            f"max_contexts_{params.max_contexts}_"
+            f"max_states_{params.max_states}_"
+            f"num_paths_{params.num_paths}_"
+            f"nbest_scale_{params.nbest_scale}_"
+            f"temperature_{params.temperature}_"
+        )
+        ans: Dict[str, List[List[str]]] = {}
+        for key, hyp in hyp_tokens.items():
+            t: List[str] = sp.decode(hyp)
+            ans[prefix + key] = [s.split() for s in t]
+        return ans
+    elif "fast_beam_search" in params.decoding_method:
+        key = f"beam_{params.beam}_"
+        key += f"max_contexts_{params.max_contexts}_"
+        key += f"max_states_{params.max_states}"
+        if "nbest" in params.decoding_method:
+            key += f"_num_paths_{params.num_paths}_"
+            key += f"nbest_scale_{params.nbest_scale}"
+            if "LG" in params.decoding_method:
+                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        return {key: hyps}
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {
+            (
+                f"beam_size_{params.beam_size}_"
+                f"temperature_{params.temperature}"
+            ): hyps
+        }
 
 
 def decode_dataset(
@@ -374,7 +696,10 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    G: Optional[k2.Fsa] = None,
+    rnn_lm_model: torch.nn.Module = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -387,9 +712,17 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
+      word_table:
+        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      G:
+        Optional. Used only when decoding method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        or fast_beam_search_with_nbest_rescoring.
+        It's an FsaVec containing an acceptor.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -407,7 +740,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 10
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -417,8 +750,11 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
+            word_table=word_table,
             decoding_graph=decoding_graph,
             batch=batch,
+            G=G,
+            rnn_lm_model=rnn_lm_model,
         )
 
         for name, hyps in hyps_dict.items():
@@ -485,6 +821,71 @@ def save_results(
     logging.info(s)
 
 
+def load_ngram_LM(
+    lm_dir: Path, word_table: k2.SymbolTable, device: torch.device
+) -> k2.Fsa:
+    """Read a ngram model from the given directory.
+    Args:
+      lm_dir:
+        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+      word_table:
+        The word table mapping words to IDs and vice versa.
+      device:
+        The resulting FSA will be moved to this device.
+    Returns:
+      Return an FsaVec containing a single acceptor.
+    """
+    lm_dir = Path(lm_dir)
+    assert lm_dir.is_dir(), f"{lm_dir} does not exist"
+
+    pt_file = lm_dir / "G_4_gram.pt"
+
+    if pt_file.is_file():
+        logging.info(f"Loading pre-compiled {pt_file}")
+        d = torch.load(pt_file, map_location=device)
+        G = k2.Fsa.from_dict(d)
+        G = k2.add_epsilon_self_loops(G)
+        G = k2.arc_sort(G)
+        return G
+
+    txt_file = lm_dir / "G_4_gram.fst.txt"
+
+    assert txt_file.is_file(), f"{txt_file} does not exist"
+    logging.info(f"Loading {txt_file}")
+    logging.warning("It may take 8 minutes (Will be cached for later use).")
+    with open(txt_file) as f:
+        G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+
+        # G.aux_labels is not needed in later computations, so
+        # remove it here.
+        del G.aux_labels
+        # Now G is an acceptor
+
+        first_word_disambig_id = word_table["#0"]
+        # CAUTION: The following line is crucial.
+        # Arcs entering the back-off state have label equal to #0.
+        # We have to change it to 0 here.
+        G.labels[G.labels >= first_word_disambig_id] = 0
+
+        # See https://github.com/k2-fsa/k2/issues/874
+        # for why we need to set G.properties to None
+        G.__dict__["_properties"] = None
+
+        G = k2.Fsa.from_fsas([G]).to(device)
+
+        # Save a dummy value so that it can be loaded in C++.
+        # See https://github.com/pytorch/pytorch/issues/67902
+        # for why we need to do this.
+        G.dummy = 1
+
+        logging.info(f"Saving to {pt_file} for later use")
+        torch.save(G.as_dict(), pt_file)
+
+        G = k2.add_epsilon_self_loops(G)
+        G = k2.arc_sort(G)
+        return G
+
+
 @torch.no_grad()
 def main():
     parser = get_parser()
@@ -499,8 +900,12 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_nbest",
+        "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "fast_beam_search_with_nbest_rescoring",
+        "fast_beam_search_with_nbest_rnn_rescoring",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -509,23 +914,29 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    if params.decoding_method == "fast_beam_search":
+    if params.simulate_streaming:
+        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
+        params.suffix += f"-left-context-{params.left_context}"
+
+    if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
-        params.suffix += f"-beam-{params.beam}"
-        params.suffix += f"-max-contexts-{params.max_contexts}"
-        params.suffix += f"-max-states-{params.max_states}"
-        params.suffix += f"-num-paths-{params.num_paths}"
-        params.suffix += f"-nbest-scale-{params.nbest_scale}"
+        params.suffix += f"-temperature-{params.temperature}"
+        if "nbest" in params.decoding_method:
+            params.suffix += f"-nbest-scale-{params.nbest_scale}"
+            params.suffix += f"-num-paths-{params.num_paths}"
+            if "LG" in params.decoding_method:
+                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
         )
+        params.suffix += f"-temperature-{params.temperature}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+        params.suffix += f"-temperature-{params.temperature}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -539,10 +950,15 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.unk_id()
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.simulate_streaming:
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
@@ -583,13 +999,70 @@ def main():
     model.device = device
     model.unk_id = params.unk_id
 
-    if params.decoding_method in (
-        "fast_beam_search",
-        "fast_beam_search_nbest_oracle",
-    ):
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    G = None
+    if "fast_beam_search" in params.decoding_method:
+        if params.decoding_method == "fast_beam_search_nbest_LG":
+            lexicon = Lexicon(params.lang_dir)
+            word_table = lexicon.word_table
+            lg_filename = params.lang_dir / "LG.pt"
+            logging.info(f"Loading {lg_filename}")
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(lg_filename, map_location=device)
+            )
+            decoding_graph.scores *= params.ngram_lm_scale
+        elif params.decoding_method in [
+            "fast_beam_search_with_nbest_rescoring",
+            "fast_beam_search_with_nbest_rnn_rescoring",
+        ]:
+            logging.info(f"Loading word symbol table from {params.words_txt}")
+            word_table = k2.SymbolTable.from_file(params.words_txt)
+
+            G = load_ngram_LM(
+                lm_dir=params.lm_dir,
+                word_table=word_table,
+                device=device,
+            )
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
+            logging.info(f"G properties_str: {G.properties_str}")
+            rnn_lm_model = None
+            if (
+                params.decoding_method
+                == "fast_beam_search_with_nbest_rnn_rescoring"
+            ):
+                rnn_lm_model = RnnLmModel(
+                    vocab_size=params.vocab_size,
+                    embedding_dim=params.rnn_lm_embedding_dim,
+                    hidden_dim=params.rnn_lm_hidden_dim,
+                    num_layers=params.rnn_lm_num_layers,
+                    tie_weights=params.rnn_lm_tie_weights,
+                )
+                if params.rnn_lm_avg == 1:
+                    load_checkpoint(
+                        f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",
+                        rnn_lm_model,
+                    )
+                    rnn_lm_model.to(device)
+                else:
+                    rnn_lm_model = load_averaged_model(
+                        params.rnn_lm_exp_dir,
+                        rnn_lm_model,
+                        params.rnn_lm_epoch,
+                        params.rnn_lm_avg,
+                        device,
+                    )
+                rnn_lm_model.eval()
+        else:
+            word_table = None
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
+            rnn_lm_model = None
     else:
         decoding_graph = None
+        word_table = None
+        rnn_lm_model = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -612,7 +1085,10 @@ def main():
             params=params,
             model=model,
             sp=sp,
+            word_table=word_table,
             decoding_graph=decoding_graph,
+            G=G,
+            rnn_lm_model=rnn_lm_model,
         )
 
         save_results(
