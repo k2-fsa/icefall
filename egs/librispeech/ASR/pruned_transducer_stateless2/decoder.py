@@ -93,7 +93,7 @@ class Decoder(nn.Module):
           Return a tensor of shape (N, U, decoder_dim).
         """
         if isinstance(need_pad, torch.Tensor):
-            # This if for torch.jit.trace(), which cannot handle the case
+            # This is for torch.jit.trace(), which cannot handle the case
             # when the input argument is not a tensor.
             need_pad = bool(need_pad)
 
