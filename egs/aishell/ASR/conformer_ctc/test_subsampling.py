@@ -16,8 +16,8 @@
 # limitations under the License.
 
 
-from subsampling import Conv2dSubsampling
-from subsampling import VggSubsampling
+from .subsampling import Conv2dSubsampling
+from .subsampling import VggSubsampling
 import torch
 
 

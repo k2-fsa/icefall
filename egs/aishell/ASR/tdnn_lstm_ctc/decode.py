@@ -24,8 +24,8 @@ from typing import Dict, List, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
-from model import TdnnLstm
+from .asr_datamodule import AishellAsrDataModule
+from .model import TdnnLstm
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import get_lattice, nbest_decoding, one_best_decoding

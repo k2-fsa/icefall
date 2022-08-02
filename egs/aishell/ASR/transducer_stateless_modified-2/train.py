@@ -50,21 +50,21 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from aidatatang_200zh import AIDatatang200zh
-from aishell import AIShell
-from asr_datamodule import AsrDataModule
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
+from .aidatatang_200zh import AIDatatang200zh
+from .aishell import AIShell
+from .asr_datamodule import AsrDataModule
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
 from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from model import Transducer
+from .model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
+from .transformer import Noam
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint

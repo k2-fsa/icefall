@@ -22,7 +22,7 @@ from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from transformer import Transformer
+from .transformer import Transformer
 
 from icefall.utils import make_pad_mask
 

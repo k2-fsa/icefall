@@ -66,16 +66,16 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from aishell import AIShell
-from asr_datamodule import AsrDataModule
-from beam_search import (
+from .aishell import AIShell
+from .asr_datamodule import AsrDataModule
+from .beam_search import (
     beam_search,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

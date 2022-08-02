@@ -25,7 +25,7 @@ import k2
 import kaldifeat
 import torch
 import torchaudio
-from model import TdnnLstm
+from .model import TdnnLstm
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import get_lattice, one_best_decoding

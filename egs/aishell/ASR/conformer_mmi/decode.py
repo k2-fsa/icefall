@@ -26,8 +26,8 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
-from conformer import Conformer
+from .asr_datamodule import AishellAsrDataModule
+from .conformer import Conformer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
