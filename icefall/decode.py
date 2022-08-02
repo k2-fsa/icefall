@@ -330,12 +330,14 @@ class Nbest(object):
         # We use a word fsa to intersect with k2.invert(lattice)
         word_fsa = k2.invert(self.fsa)
 
+        word_fsa.scores.zero_()
         if hasattr(lattice, "aux_labels"):
             # delete token IDs as it is not needed
             del word_fsa.aux_labels
+            word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
+        else:
+            word_fsa_with_epsilon_loops = k2.linear_fst_with_self_loops(word_fsa)
 
-        word_fsa.scores.zero_()
-        word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
 
         path_to_utt_map = self.shape.row_ids(1)
 
