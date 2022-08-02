@@ -74,14 +74,10 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from gigaspeech_scoring import asr_text_post_processing
-from train import get_params, get_transducer_model
+from .gigaspeech_scoring import asr_text_post_processing
+from .train import get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import (
     AttributeDict,
     setup_logger,

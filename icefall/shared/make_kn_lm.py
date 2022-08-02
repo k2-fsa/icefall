@@ -15,14 +15,13 @@
 # The data structure is based on: kaldi/egs/wsj/s5/utils/lang/make_phone_lm.py
 # The smoothing algorithm is based on: http://www.speech.sri.com/projects/srilm/manpages/ngram-discount.7.html
 
-import sys
-import os
-import re
+import argparse
 import io
 import math
-import argparse
+import os
+import re
+import sys
 from collections import Counter, defaultdict
-
 
 parser = argparse.ArgumentParser(description="""
     Generate kneser-ney language model as arpa format. By default,
