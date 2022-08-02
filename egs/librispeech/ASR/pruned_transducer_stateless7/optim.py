@@ -164,7 +164,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             betas=(0.9, 0.98),
             size_lr_scale=0.1,
             cov_min=(0.025, 0.0025, 0.02, 0.0001),
-            cov_max=(10.0, 10.0, 5.0, 20.0),
+            cov_max=(5.0, 20.0, 5.0, 40.0),
             cov_pow=(1.0, 1.0, 1.0, 1.0),
             param_rms_smooth0=0.4,
             param_rms_smooth1=0.2,
@@ -761,10 +761,14 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # we don't need to multiply `smooth` by anything, because at this point, P_prime should have
         # diagonal elements close to 1.
 
-        P = P.clone()
-        P_diag = _diag(P)
-        P_diag_mean = _mean(P_diag, exclude_dims=[0], keepdim=True)
-        P_diag += smooth * P_diag_mean
+        P = self._smooth_cov(P,
+                             max(smooth, group["cov_min"][0]),
+                             group["cov_max"][0],
+                             group["cov_pow"][0])
+        #P = P.clone()
+        #P_diag = _diag(P)
+        #P_diag_mean = _mean(P_diag, exclude_dims=[0], keepdim=True)
+        #P_diag += smooth * P_diag_mean
 
         #G = G.clone()
         #G_diag = _diag(G) # aliased
@@ -818,9 +822,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         eps = 1.0e-20
         if power != 1.0:
             U, S, _ = _svd(X)
+            def mean(Y):
+                return _mean(Y, exclude_dims=[0], keepdim=True)
             def rms(Y):
                 return _mean(Y**2, exclude_dims=[0], keepdim=True).sqrt()
-            S = S + min_eig * rms(S) + eps
+            S = S + min_eig * mean(S) + eps
             S = S / rms(S)
             S = 1. / (1./S + 1./max_eig)
             S = S ** power
@@ -833,7 +839,7 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
                 # rms of eigenvalues, or spectral 2-norm.
                 return (_sum(Y**2, exclude_dims=[0], keepdim=True) / size).sqrt()
             diag = _diag(X).unsqueeze(-1)   # Aliased with X
-            diag += (rms_eig(X) * min_eig + eps)
+            diag += (_mean(diag, exclude_dims=[0], keepdim=True) * min_eig + eps)
             X /= rms_eig(X)
 
             # eig_ceil is the maximum possible eigenvalue that X could possibly
@@ -892,6 +898,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         # size of the block-diagonal matrix..
         size = X.shape[1] * X.shape[3]
         # mean eig of M^{0.5} X M^{0.5} ...
+
+        def mean_eig(Y):
+            # rms of eigenvalues, or spectral 2-norm.
+            return _mean(_diag(Y), exclude_dims=[0], keepdim=True).unsqueeze(-1)
+
         def rms_eig(Y):
             # rms of eigenvalues, or spectral 2-norm.
             return (_sum(Y**2, exclude_dims=[0], keepdim=True) / size).sqrt()
@@ -902,6 +913,8 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
         if min_eig != 0.0:
             X = X * (1.0-min_eig) + min_eig * M.inverse()
             X = 0.5 * (X + X.transpose(-2, -1)) # make sure exactly symmetric.
+
+        X /= rms_eig(torch.matmul(X, M))
 
         # eig_ceil is the maximum possible eigenvalue that X could possibly
         # have at this time, equal to num_blocks * block_size.
