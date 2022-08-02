@@ -71,7 +71,7 @@ from beam_search import (
     modified_beam_search,
 )
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+from .train import get_params, get_transducer_model
 
 from icefall.lexicon import Lexicon
 
