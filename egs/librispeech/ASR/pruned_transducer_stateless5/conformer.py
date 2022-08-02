@@ -21,8 +21,8 @@ import warnings
 from typing import List, Optional, Tuple
 
 import torch
-from encoder_interface import EncoderInterface
-from scaling import (
+from .encoder_interface import EncoderInterface
+from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
