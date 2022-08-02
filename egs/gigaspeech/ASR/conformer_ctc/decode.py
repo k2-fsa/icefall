@@ -27,9 +27,6 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import GigaSpeechAsrDataModule
-from conformer import Conformer
-from gigaspeech_scoring import asr_text_post_processing
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -51,6 +48,10 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import GigaSpeechAsrDataModule
+from .conformer import Conformer
+from .gigaspeech_scoring import asr_text_post_processing
 
 
 def get_parser():

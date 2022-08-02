@@ -34,7 +34,6 @@ from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
@@ -49,6 +48,8 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+from .transformer import Noam
 
 
 def get_parser():

@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 import k2
 import sentencepiece as spm
 import torch
-from model import Transducer
+from .model import Transducer
 
 from icefall.decode import Nbest, one_best_decoding
 from icefall.utils import add_eos, add_sos, get_texts

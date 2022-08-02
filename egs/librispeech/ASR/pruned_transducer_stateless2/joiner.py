@@ -16,7 +16,7 @@
 
 import torch
 import torch.nn as nn
-from scaling import ScaledLinear
+from .scaling import ScaledLinear
 
 
 class Joiner(nn.Module):
