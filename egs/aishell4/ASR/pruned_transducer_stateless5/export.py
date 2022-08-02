@@ -49,7 +49,7 @@ import logging
 from pathlib import Path
 
 import torch
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
