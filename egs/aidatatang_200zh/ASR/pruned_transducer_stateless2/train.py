@@ -57,15 +57,15 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import Aidatatang_200zhAsrDataModule
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
+from .asr_datamodule import Aidatatang_200zhAsrDataModule
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
-from optim import Eden, Eve
+from .model import Transducer
+from .optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
