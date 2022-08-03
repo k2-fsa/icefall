@@ -60,8 +60,9 @@ log "Decode with ONNX models"
   --onnx-decoder-filename $repo/exp/decoder.onnx \
   --onnx-joiner-filename $repo/exp/joiner.onnx
 
-./pruned_transducer_stateless3/onnx_check_all_in_one.py --jit-filename $repo/exp/cpu_jit.pt \
-                              --onnx-all-in-one-filename $repo/exp/all_in_one.onnx
+./pruned_transducer_stateless3/onnx_check_all_in_one.py \
+  --jit-filename $repo/exp/cpu_jit.pt \
+  --onnx-all-in-one-filename $repo/exp/all_in_one.onnx
 
 ./pruned_transducer_stateless3/onnx_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \

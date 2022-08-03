@@ -111,11 +111,11 @@ with the following commands:
     # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp
 """
 
-import onnx
 import argparse
 import logging
 from pathlib import Path
 
+import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -513,7 +513,12 @@ def export_joiner_model_onnx(
     logging.info(f"Saved to {joiner_filename}")
 
 
-def export_all_in_one_onnx(encoder_filename: str, decoder_filename: str, joiner_filename: str, all_in_one_filename: str):
+def export_all_in_one_onnx(
+    encoder_filename: str,
+    decoder_filename: str,
+    joiner_filename: str,
+    all_in_one_filename: str,
+):
     encoder_onnx = onnx.load(encoder_filename)
     decoder_onnx = onnx.load(decoder_filename)
     joiner_onnx = onnx.load(joiner_filename)
@@ -629,7 +634,7 @@ def main():
             encoder_filename,
             decoder_filename,
             joiner_filename,
-            all_in_one_filename
+            all_in_one_filename,
         )
     elif params.jit is True:
         logging.info("Using torch.jit.script()")
