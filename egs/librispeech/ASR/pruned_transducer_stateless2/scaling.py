@@ -495,9 +495,6 @@ class ScaledEmbedding(nn.Module):
         embedding_dim (int): the size of each embedding vector
         padding_idx (int, optional): If given, pads the output with the embedding vector at :attr:`padding_idx`
                                          (initialized to zeros) whenever it encounters the index.
-        max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
-                                    is renormalized to have norm :attr:`max_norm`.
-        norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
         scale_grad_by_freq (boolean, optional): If given, this will scale gradients by the inverse of frequency of
                                                 the words in the mini-batch. Default ``False``.
         sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` matrix will be a sparse tensor.
@@ -506,7 +503,7 @@ class ScaledEmbedding(nn.Module):
         initial_speed (float, optional):  This affects how fast the parameter will
            learn near the start of training; you can set it to a value less than
            one if you suspect that a module is contributing to instability near
-           the start of training.  Nnote: regardless of the use of this option,
+           the start of training.  Note: regardless of the use of this option,
            it's best to use schedulers like Noam that have a warm-up period.
            Alternatively you can set it to more than 1 if you want it to
            initially train faster.  Must be greater than 0.

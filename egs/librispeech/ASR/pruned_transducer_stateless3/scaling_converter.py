@@ -16,11 +16,11 @@
 
 """
 This file provides functions to convert `ScaledLinear`, `ScaledConv1d`,
-and `ScaledConv2d` to their non-scaled counterparts: `nn.Linear`, `nn.Conv1d`,
-and `nn.Conv2d`.
+`ScaledConv2d`, and `ScaledEmbedding` to their non-scaled counterparts:
+`nn.Linear`, `nn.Conv1d`, `nn.Conv2d`, and `nn.Embedding`.
 
 The scaled version are required only in the training time. It simplifies our
-life by converting them their non-scaled version during inference time.
+life by converting them to their non-scaled version during inference.
 """
 
 import copy
@@ -28,15 +28,7 @@ import re
 
 import torch
 import torch.nn as nn
-from scaling import ScaledConv1d, ScaledConv2d, ScaledLinear
-
-
-def _get_weight(self: torch.nn.Linear):
-    return self.weight
-
-
-def _get_bias(self: torch.nn.Linear):
-    return self.bias
+from scaling import ScaledConv1d, ScaledConv2d, ScaledEmbedding, ScaledLinear
 
 
 def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
@@ -53,10 +45,6 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
       for any given input tensor `x`.
     """
     assert isinstance(scaled_linear, ScaledLinear), type(scaled_linear)
-
-    #  if not hasattr(torch.nn.Linear, "get_weight"):
-    #      torch.nn.Linear.get_weight = _get_weight
-    #      torch.nn.Linear.get_bias = _get_bias
 
     weight = scaled_linear.get_weight()
     bias = scaled_linear.get_bias()
@@ -148,6 +136,34 @@ def scaled_conv2d_to_conv2d(scaled_conv2d: ScaledConv2d) -> nn.Conv2d:
     return conv2d
 
 
+def scaled_embedding_to_embedding(
+    scaled_embedding: ScaledEmbedding,
+) -> nn.Embedding:
+    """Convert an instance of ScaledEmbedding to nn.Embedding.
+
+    Args:
+      scaled_embedding:
+        The layer to be converted.
+    Returns:
+      Return an instance of nn.Embedding that has the same `forward()` behavior
+      of the given `scaled_embedding`.
+    """
+    assert isinstance(scaled_embedding, ScaledEmbedding), type(scaled_embedding)
+    embedding = nn.Embedding(
+        num_embeddings=scaled_embedding.num_embeddings,
+        embedding_dim=scaled_embedding.embedding_dim,
+        padding_idx=scaled_embedding.padding_idx,
+        scale_grad_by_freq=scaled_embedding.scale_grad_by_freq,
+        sparse=scaled_embedding.sparse,
+    )
+    weight = scaled_embedding.weight
+    scale = scaled_embedding.scale
+
+    embedding.weight.data.copy_(weight * scale.exp())
+
+    return embedding
+
+
 def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
@@ -178,6 +194,8 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
             d[name] = scaled_conv1d_to_conv1d(m)
         elif isinstance(m, ScaledConv2d):
             d[name] = scaled_conv2d_to_conv2d(m)
+        elif isinstance(m, ScaledEmbedding):
+            d[name] = scaled_embedding_to_embedding(m)
 
     for k, v in d.items():
         if "." in k:

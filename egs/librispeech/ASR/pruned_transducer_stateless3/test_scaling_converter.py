@@ -25,11 +25,12 @@ To run this file, do:
 import copy
 
 import torch
-from scaling import ScaledConv1d, ScaledConv2d, ScaledLinear
+from scaling import ScaledConv1d, ScaledConv2d, ScaledEmbedding, ScaledLinear
 from scaling_converter import (
     convert_scaled_to_non_scaled,
     scaled_conv1d_to_conv1d,
     scaled_conv2d_to_conv2d,
+    scaled_embedding_to_embedding,
     scaled_linear_to_linear,
 )
 from train import get_params, get_transducer_model
@@ -135,6 +136,21 @@ def test_scaled_conv2d_to_conv2d():
         assert torch.allclose(y1, y4)
 
 
+def test_scaled_embedding_to_embedding():
+    scaled_embedding = ScaledEmbedding(
+        num_embeddings=500,
+        embedding_dim=10,
+        padding_idx=0,
+    )
+    embedding = scaled_embedding_to_embedding(scaled_embedding)
+
+    for s in [10, 100, 300, 500, 800, 1000]:
+        x = torch.randint(low=0, high=500, size=(s,))
+        scaled_y = scaled_embedding(x)
+        y = embedding(x)
+        assert torch.equal(scaled_y, y)
+
+
 def test_convert_scaled_to_non_scaled():
     for inplace in [False, True]:
         model = get_model()
@@ -193,6 +209,7 @@ def main():
     test_scaled_linear_to_linear()
     test_scaled_conv1d_to_conv1d()
     test_scaled_conv2d_to_conv2d()
+    test_scaled_embedding_to_embedding()
     test_convert_scaled_to_non_scaled()
 
 
