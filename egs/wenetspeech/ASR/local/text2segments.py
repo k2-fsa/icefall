@@ -30,11 +30,12 @@ with word segmenting:
 
 
 import argparse
-from tqdm import tqdm
 from multiprocessing import Pool
 
-import paddle
 import jieba
+import paddle
+from tqdm import tqdm
+
 # In PaddlePaddle 2.x, dynamic graph mode is turned on by default,
 # and 'data()' is only supported in static graph mode. So if you
 # want to use this api, should call 'paddle.enable_static()' before
@@ -54,29 +55,29 @@ def get_parser():
         "-n",
         default=20,
         type=int,
-        help="the number of processes"
+        help="the number of processes",
     )
     parser.add_argument(
         "--input-file",
         "-i",
         default="data/lang_char/text",
         type=str,
-        help="the input text file for WenetSpeech"
+        help="the input text file for WenetSpeech",
     )
     parser.add_argument(
         "--output-file",
         "-o",
         default="data/lang_char/text_words_segmentation",
         type=str,
-        help="the text implemented with words segmenting for WenetSpeech"
+        help="the text implemented with words segmenting for WenetSpeech",
     )
 
     return parser
 
 
 def cut(lines):
-    if lines != None:
-        cut_lines  = jieba.cut(lines, use_paddle=True)
+    if lines is not None:
+        cut_lines = jieba.cut(lines, use_paddle=True)
         return [i for i in cut_lines]
     else:
         return None
@@ -100,7 +101,7 @@ def main():
 
     with open(output_file, "w", encoding="utf-8") as fw:
         for line in new_lines:
-            fw.write(' '.join(line) + "\n")
+            fw.write(" ".join(line) + "\n")
 
 
 if __name__ == "__main__":
