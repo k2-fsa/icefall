@@ -23,6 +23,7 @@ To run this file, do:
 """
 
 import torch
+
 from .emformer import Emformer, stack_states, unstack_states
 
 

@@ -22,6 +22,8 @@ import warnings
 from typing import Optional, Tuple
 
 import torch
+from torch import Tensor, nn
+
 from .scaling import (
     ActivationBalancer,
     BasicNorm,
@@ -29,9 +31,7 @@ from .scaling import (
     ScaledConv1d,
     ScaledLinear,
 )
-from torch import Tensor, nn
 from .subsampling import Conv2dSubsampling
-
 from .transformer import Supervisions, Transformer, encoder_padding_mask
 
 

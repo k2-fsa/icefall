@@ -26,13 +26,10 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from .asr_datamodule import AishellAsrDataModule
-from .conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from .transformer import Noam
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
@@ -47,6 +44,10 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+from .asr_datamodule import AishellAsrDataModule
+from .conformer import Conformer
+from .transformer import Noam
 
 
 def get_parser():

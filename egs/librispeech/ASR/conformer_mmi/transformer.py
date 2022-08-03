@@ -20,8 +20,9 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from .subsampling import Conv2dSubsampling, VggSubsampling
 from torch.nn.utils.rnn import pad_sequence
+
+from .subsampling import Conv2dSubsampling, VggSubsampling
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]

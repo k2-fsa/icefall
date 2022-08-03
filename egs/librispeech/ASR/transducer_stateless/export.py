@@ -49,14 +49,15 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from .conformer import Conformer
-from .decoder import Decoder
-from .joiner import Joiner
-from .model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, str2bool
+
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
+from .model import Transducer
 
 
 def get_parser():

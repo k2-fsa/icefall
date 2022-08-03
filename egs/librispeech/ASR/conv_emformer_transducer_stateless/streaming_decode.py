@@ -74,18 +74,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-from lhotse import CutSet
 import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from .asr_datamodule import LibriSpeechAsrDataModule
-from .beam_search import Hypothesis, HypothesisList, get_hyps_shape
-from .emformer import LOG_EPSILON, stack_states, unstack_states
 from kaldifeat import Fbank, FbankOptions
-from .stream import Stream
+from lhotse import CutSet
 from torch.nn.utils.rnn import pad_sequence
-from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -102,6 +97,12 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .beam_search import Hypothesis, HypothesisList, get_hyps_shape
+from .emformer import LOG_EPSILON, stack_states, unstack_states
+from .stream import Stream
+from .train import add_model_arguments, get_params, get_transducer_model
 
 
 def get_parser():

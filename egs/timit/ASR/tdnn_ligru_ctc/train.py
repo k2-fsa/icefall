@@ -28,9 +28,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from .asr_datamodule import TimitAsrDataModule
 from lhotse.utils import fix_random_seed
-from .model import TdnnLiGRU
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -50,6 +48,9 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+from .asr_datamodule import TimitAsrDataModule
+from .model import TdnnLiGRU
 
 
 def get_parser():

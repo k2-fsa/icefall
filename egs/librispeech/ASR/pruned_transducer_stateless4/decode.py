@@ -120,18 +120,6 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from .asr_datamodule import LibriSpeechAsrDataModule
-from .beam_search import (
-    beam_search,
-    fast_beam_search_nbest,
-    fast_beam_search_nbest_LG,
-    fast_beam_search_nbest_oracle,
-    fast_beam_search_one_best,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
-from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -147,6 +135,19 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .beam_search import (
+    beam_search,
+    fast_beam_search_nbest,
+    fast_beam_search_nbest_LG,
+    fast_beam_search_nbest_oracle,
+    fast_beam_search_one_best,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
+from .train import add_model_arguments, get_params, get_transducer_model
 
 LOG_EPS = math.log(1e-10)
 

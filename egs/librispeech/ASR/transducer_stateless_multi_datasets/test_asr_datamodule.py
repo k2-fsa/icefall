@@ -26,9 +26,10 @@ import argparse
 import random
 from pathlib import Path
 
+from lhotse import load_manifest
+
 from .asr_datamodule import AsrDataModule
 from .gigaspeech import GigaSpeech
-from lhotse import load_manifest
 from .librispeech import LibriSpeech
 
 

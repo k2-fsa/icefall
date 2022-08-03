@@ -40,15 +40,16 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
+from torch.nn.utils.rnn import pad_sequence
+
+from icefall.env import get_env_info
+from icefall.utils import AttributeDict
+
 from .beam_search import beam_search, greedy_search
 from .conformer import Conformer
 from .decoder import Decoder
 from .joiner import Joiner
 from .model import Transducer
-from torch.nn.utils.rnn import pad_sequence
-
-from icefall.env import get_env_info
-from icefall.utils import AttributeDict
 
 
 def get_parser():

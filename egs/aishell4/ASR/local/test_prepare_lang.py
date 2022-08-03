@@ -22,6 +22,7 @@ import os
 import tempfile
 
 import k2
+
 from .prepare_lang import (
     add_disambig_symbols,
     generate_id_map,

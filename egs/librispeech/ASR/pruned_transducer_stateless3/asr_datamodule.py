@@ -27,10 +27,7 @@ from lhotse.dataset import (
     K2SpeechRecognitionDataset,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (
-    OnTheFlyFeatures,
-    PrecomputedFeatures,
-)
+from lhotse.dataset.input_strategies import OnTheFlyFeatures, PrecomputedFeatures
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool

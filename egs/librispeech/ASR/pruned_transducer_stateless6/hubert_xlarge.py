@@ -22,11 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import torch
-from fairseq import (
-    checkpoint_utils,
-    tasks,
-    utils,
-)
+from fairseq import checkpoint_utils, tasks, utils
 from fairseq.data.data_utils import post_process
 from omegaconf import OmegaConf
 

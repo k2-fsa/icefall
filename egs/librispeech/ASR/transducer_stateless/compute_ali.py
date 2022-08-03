@@ -35,14 +35,15 @@ from typing import List
 import numpy as np
 import sentencepiece as spm
 import torch
-from .alignment import force_alignment
-from .asr_datamodule import LibriSpeechAsrDataModule
 from lhotse import CutSet
 from lhotse.features.io import FeaturesWriter, NumpyHdf5Writer
-from .train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
+
+from .alignment import force_alignment
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .train import get_params, get_transducer_model
 
 
 def get_parser():

@@ -59,6 +59,17 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from lhotse.cut import Cut
+
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.lexicon import Lexicon
+from icefall.utils import (
+    AttributeDict,
+    setup_logger,
+    store_transcripts,
+    write_error_stats,
+)
+
 from .asr_datamodule import AlimeetingAsrDataModule
 from .beam_search import (
     beam_search,
@@ -67,21 +78,7 @@ from .beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from lhotse.cut import Cut
 from .train import get_params, get_transducer_model
-
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
-from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    write_error_stats,
-)
 
 
 def get_parser():

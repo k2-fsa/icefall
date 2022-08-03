@@ -45,14 +45,8 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from .asr_datamodule import LibriSpeechAsrDataModule
-from .decoder import Decoder
-from .encoder import LstmEncoder
-from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from .model import Transducer
-from .noam import Noam
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -63,6 +57,13 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .decoder import Decoder
+from .encoder import LstmEncoder
+from .joiner import Joiner
+from .model import Transducer
+from .noam import Noam
 
 
 def get_parser():

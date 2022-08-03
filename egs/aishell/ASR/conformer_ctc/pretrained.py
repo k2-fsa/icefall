@@ -26,7 +26,6 @@ import k2
 import kaldifeat
 import torch
 import torchaudio
-from .conformer import Conformer
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import (
@@ -35,6 +34,8 @@ from icefall.decode import (
     rescore_with_attention_decoder,
 )
 from icefall.utils import AttributeDict, get_texts
+
+from .conformer import Conformer
 
 
 def get_parser():

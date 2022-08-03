@@ -50,7 +50,6 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -59,6 +58,8 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import str2bool
+
+from .train import add_model_arguments, get_params, get_transducer_model
 
 
 def get_parser():

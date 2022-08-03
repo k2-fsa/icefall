@@ -39,6 +39,7 @@ from typing import Dict, List
 
 import k2
 import torch
+
 from .prepare_lang import (
     Lexicon,
     add_disambig_symbols,

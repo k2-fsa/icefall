@@ -23,9 +23,10 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-from .encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
+
+from .encoder_interface import EncoderInterface
 
 
 class Transducer(nn.Module):

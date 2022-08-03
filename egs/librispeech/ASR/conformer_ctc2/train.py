@@ -57,19 +57,16 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from .asr_datamodule import LibriSpeechAsrDataModule
-from .conformer import Conformer
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from .optim import Eden, Eve, LRScheduler
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall import diagnostics
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -87,6 +84,10 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .conformer import Conformer
+from .optim import Eden, Eve, LRScheduler
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, LRScheduler

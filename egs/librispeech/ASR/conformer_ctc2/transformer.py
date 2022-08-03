@@ -21,19 +21,18 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from .label_smoothing import LabelSmoothingLoss
-from .subsampling import Conv2dSubsampling
-from .attention import MultiheadAttention
 from torch.nn.utils.rnn import pad_sequence
 
+from .attention import MultiheadAttention
+from .label_smoothing import LabelSmoothingLoss
 from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledLinear,
     ScaledEmbedding,
+    ScaledLinear,
 )
-
+from .subsampling import Conv2dSubsampling
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]

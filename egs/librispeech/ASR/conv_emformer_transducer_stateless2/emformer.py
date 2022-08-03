@@ -23,6 +23,9 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
+from icefall.utils import make_pad_mask
+
 from .encoder_interface import EncoderInterface
 from .scaling import (
     ActivationBalancer,
@@ -32,9 +35,6 @@ from .scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-
-from icefall.utils import make_pad_mask
-
 
 LOG_EPSILON = math.log(1e-10)
 

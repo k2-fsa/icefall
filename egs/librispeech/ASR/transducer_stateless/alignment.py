@@ -20,6 +20,7 @@ from typing import Iterator, List, Optional
 
 import sentencepiece as spm
 import torch
+
 from .model import Transducer
 
 # The force alignment problem can be formulated as finding

@@ -51,17 +51,18 @@ import kaldifeat
 import torch
 import torch.nn as nn
 import torchaudio
-from .beam_search import beam_search, greedy_search
-from .conformer import Conformer
-from .decoder import Decoder
-from .joiner import Joiner
-from .model import Transducer
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict
+
+from .beam_search import beam_search, greedy_search
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
+from .model import Transducer
 
 
 def get_parser():

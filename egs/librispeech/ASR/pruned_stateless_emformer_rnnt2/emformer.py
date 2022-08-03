@@ -19,6 +19,7 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
 from .encoder_interface import EncoderInterface
 from .subsampling import Conv2dSubsampling, VggSubsampling
 

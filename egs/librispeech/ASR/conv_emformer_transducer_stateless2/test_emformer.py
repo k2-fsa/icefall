@@ -19,6 +19,7 @@
 
 
 import torch
+
 from .emformer import ConvolutionModule, Emformer, stack_states, unstack_states
 
 

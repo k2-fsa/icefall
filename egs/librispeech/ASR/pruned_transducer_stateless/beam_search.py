@@ -21,10 +21,11 @@ from typing import Dict, List, Optional
 
 import k2
 import torch
-from .model import Transducer
 
 from icefall.decode import Nbest, one_best_decoding
 from icefall.utils import get_texts
+
+from .model import Transducer
 
 
 def fast_beam_search_one_best(

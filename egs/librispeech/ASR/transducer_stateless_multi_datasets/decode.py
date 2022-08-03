@@ -66,6 +66,15 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+
+from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.utils import (
+    AttributeDict,
+    setup_logger,
+    store_transcripts,
+    write_error_stats,
+)
+
 from .asr_datamodule import AsrDataModule
 from .beam_search import (
     beam_search,
@@ -76,14 +85,6 @@ from .beam_search import (
 )
 from .librispeech import LibriSpeech
 from .train import get_params, get_transducer_model
-
-from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    write_error_stats,
-)
 
 
 def get_parser():

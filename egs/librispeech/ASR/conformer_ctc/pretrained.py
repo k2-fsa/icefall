@@ -27,7 +27,6 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from .conformer import Conformer
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import (
@@ -37,6 +36,8 @@ from icefall.decode import (
     rescore_with_whole_lattice,
 )
 from icefall.utils import AttributeDict, get_texts
+
+from .conformer import Conformer
 
 
 def get_parser():

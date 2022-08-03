@@ -56,14 +56,8 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from .asr_datamodule import SPGISpeechAsrDataModule
-from .conformer import Conformer
-from .decoder import Decoder
-from .joiner import Joiner
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from .model import Transducer
-from .optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -76,6 +70,13 @@ from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+
+from .asr_datamodule import SPGISpeechAsrDataModule
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
+from .model import Transducer
+from .optim import Eden, Eve
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler

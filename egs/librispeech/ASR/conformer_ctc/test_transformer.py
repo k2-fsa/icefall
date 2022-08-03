@@ -18,6 +18,7 @@
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
+
 from .transformer import (
     Transformer,
     add_eos,

@@ -56,16 +56,9 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from .asr_datamodule import Aishell4AsrDataModule
-from .conformer import Conformer
-from .decoder import Decoder
-from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from ..local.text_normalize import text_normalize
-from .model import Transducer
-from .optim import Eden, Eve, LRScheduler
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -83,6 +76,14 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+
+from ..local.text_normalize import text_normalize
+from .asr_datamodule import Aishell4AsrDataModule
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
+from .model import Transducer
+from .optim import Eden, Eve, LRScheduler
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, LRScheduler

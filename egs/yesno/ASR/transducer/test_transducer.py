@@ -25,6 +25,7 @@ To run this file, do:
 
 import k2
 import torch
+
 from .decoder import Decoder
 from .encoder import Tdnn
 from .joiner import Joiner

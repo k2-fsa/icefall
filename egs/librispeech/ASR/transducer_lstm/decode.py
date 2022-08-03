@@ -45,12 +45,6 @@ from typing import Dict, List, Tuple
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from .asr_datamodule import LibriSpeechAsrDataModule
-from .beam_search import beam_search, greedy_search
-from .decoder import Decoder
-from .encoder import LstmEncoder
-from .joiner import Joiner
-from .model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
@@ -60,6 +54,13 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .beam_search import beam_search, greedy_search
+from .decoder import Decoder
+from .encoder import LstmEncoder
+from .joiner import Joiner
+from .model import Transducer
 
 
 def get_parser():
