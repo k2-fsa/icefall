@@ -28,8 +28,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .conformer import Conformer
 
 from icefall.checkpoint import (
     average_checkpoints,

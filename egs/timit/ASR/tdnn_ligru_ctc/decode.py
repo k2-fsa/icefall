@@ -26,8 +26,8 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import TimitAsrDataModule
-from model import TdnnLiGRU
+from .asr_datamodule import TimitAsrDataModule
+from .model import TdnnLiGRU
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (

@@ -21,7 +21,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn.init import xavier_normal_
 
-from scaling import ScaledLinear
+from .scaling import ScaledLinear
 
 
 class MultiheadAttention(nn.Module):

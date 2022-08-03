@@ -62,7 +62,7 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from beam_search import (
+from .beam_search import (
     beam_search,
     fast_beam_search_one_best,
     greedy_search,
@@ -70,7 +70,7 @@ from beam_search import (
     modified_beam_search,
 )
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.lexicon import Lexicon
 

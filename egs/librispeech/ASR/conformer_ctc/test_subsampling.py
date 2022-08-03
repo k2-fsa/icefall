@@ -17,7 +17,7 @@
 
 
 import torch
-from subsampling import Conv2dSubsampling, VggSubsampling
+from .subsampling import Conv2dSubsampling, VggSubsampling
 
 
 def test_conv2d_subsampling():

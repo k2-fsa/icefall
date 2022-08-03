@@ -9,8 +9,8 @@ from typing import List, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import YesNoAsrDataModule
-from model import Tdnn
+from .asr_datamodule import YesNoAsrDataModule
+from .model import Tdnn
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import get_lattice, one_best_decoding

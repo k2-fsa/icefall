@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import torch
-from transformer import (
+from .transformer import (
     Transformer,
     encoder_padding_mask,
     generate_square_subsequent_mask,

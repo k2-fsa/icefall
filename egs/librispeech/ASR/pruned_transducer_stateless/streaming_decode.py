@@ -39,17 +39,17 @@ import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from decode_stream import DecodeStream
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
-from streaming_beam_search import (
+from .streaming_beam_search import (
     fast_beam_search_one_best,
     greedy_search,
     modified_beam_search,
 )
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

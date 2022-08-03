@@ -23,7 +23,7 @@ To run this file, do:
 """
 
 import torch
-from conformer import Conformer
+from .conformer import Conformer
 
 
 def test_conformer():

@@ -24,7 +24,7 @@ To run this file, do:
 
 
 import torch
-from transducer.joiner import Joiner
+from .joiner import Joiner
 
 
 def test_joiner():

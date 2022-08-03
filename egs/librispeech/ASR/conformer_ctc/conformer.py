@@ -21,7 +21,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 from torch import Tensor, nn
-from transformer import Supervisions, Transformer, encoder_padding_mask
+from .transformer import Supervisions, Transformer, encoder_padding_mask
 
 
 class Conformer(Transformer):

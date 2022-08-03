@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-from encoder_interface import EncoderInterface
+from .encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
 

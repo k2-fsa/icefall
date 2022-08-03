@@ -34,8 +34,8 @@ from pathlib import Path
 import k2
 import numpy as np
 import torch
-from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .conformer import Conformer
 from lhotse import CutSet
 from lhotse.features.io import FeaturesWriter, NumpyHdf5Writer
 

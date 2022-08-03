@@ -27,7 +27,7 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from conformer import Conformer
+from .conformer import Conformer
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import (

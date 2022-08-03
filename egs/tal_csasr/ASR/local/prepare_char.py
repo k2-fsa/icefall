@@ -40,7 +40,7 @@ from typing import Dict, List
 import k2
 import sentencepiece as spm
 import torch
-from prepare_lang import (
+from .prepare_lang import (
     Lexicon,
     add_disambig_symbols,
     add_self_loops,

@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 
 import torch
-from model import RnnLmModel
+from .model import RnnLmModel
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, load_averaged_model, str2bool

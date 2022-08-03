@@ -104,8 +104,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
-from beam_search import (
+from .asr_datamodule import AsrDataModule
+from .beam_search import (
     beam_search,
     fast_beam_search_nbest,
     fast_beam_search_nbest_LG,
@@ -117,8 +117,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from librispeech import LibriSpeech
-from train import add_model_arguments, get_params, get_transducer_model
+from .librispeech import LibriSpeech
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

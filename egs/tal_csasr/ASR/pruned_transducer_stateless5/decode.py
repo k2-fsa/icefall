@@ -68,8 +68,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import TAL_CSASRAsrDataModule
-from beam_search import (
+from .asr_datamodule import TAL_CSASRAsrDataModule
+from .beam_search import (
     beam_search,
     fast_beam_search_one_best,
     greedy_search,
@@ -78,7 +78,7 @@ from beam_search import (
 )
 from lhotse.cut import Cut
 from local.text_normalize import text_normalize
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

@@ -23,7 +23,7 @@ To run this file, do:
 """
 
 import torch
-from transformer import Transformer
+from .transformer import Transformer
 
 
 def test_transformer():

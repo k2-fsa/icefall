@@ -24,7 +24,7 @@ To run this file, do:
 """
 
 import torch
-from train import get_params, get_transducer_model
+from .train import get_params, get_transducer_model
 
 
 def test_model():

@@ -41,19 +41,19 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import TedLiumAsrDataModule
-from conformer import Conformer
-from decoder import Decoder
-from joiner import Joiner
+from .asr_datamodule import TedLiumAsrDataModule
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
-from model import Transducer
+from .model import Transducer
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
+from .transformer import Noam
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl

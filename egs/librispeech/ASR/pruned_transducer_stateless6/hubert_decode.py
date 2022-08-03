@@ -24,8 +24,8 @@ from typing import Dict, List, Tuple
 
 import torch
 
-from asr_datamodule import LibriSpeechAsrDataModule
-from hubert_xlarge import HubertXlargeFineTuned
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .hubert_xlarge import HubertXlargeFineTuned
 
 from icefall.utils import (
     AttributeDict,

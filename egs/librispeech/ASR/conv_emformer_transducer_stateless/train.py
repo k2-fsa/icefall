@@ -65,20 +65,19 @@ from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
-import optim
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from decoder import Decoder
-from emformer import Emformer
-from joiner import Joiner
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .decoder import Decoder
+from .emformer import Emformer
+from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
-from optim import Eden, Eve
+from .model import Transducer
+from .optim import Eden, Eve, LRScheduler
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -96,7 +95,7 @@ from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
+    torch.optim.lr_scheduler._LRScheduler, LRScheduler
 ]
 
 

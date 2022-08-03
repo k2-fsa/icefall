@@ -45,14 +45,14 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from decoder import Decoder
-from encoder import LstmEncoder
-from joiner import Joiner
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .decoder import Decoder
+from .encoder import LstmEncoder
+from .joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from model import Transducer
-from noam import Noam
+from .model import Transducer
+from .noam import Noam
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_

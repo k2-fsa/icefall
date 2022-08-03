@@ -23,8 +23,8 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from encoder_interface import EncoderInterface
-from scaling import (
+from .encoder_interface import EncoderInterface
+from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,

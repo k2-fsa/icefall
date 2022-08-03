@@ -26,7 +26,7 @@ import k2
 import kaldifeat
 import torch
 import torchaudio
-from model import TdnnLiGRU
+from .model import TdnnLiGRU
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import (

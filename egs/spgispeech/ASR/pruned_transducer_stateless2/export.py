@@ -48,7 +48,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import get_params, get_transducer_model
+from .train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

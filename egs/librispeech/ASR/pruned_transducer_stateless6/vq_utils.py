@@ -30,8 +30,8 @@ import torch
 import torch.multiprocessing as mp
 import quantization
 
-from asr_datamodule import LibriSpeechAsrDataModule
-from hubert_xlarge import HubertXlargeFineTuned
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .hubert_xlarge import HubertXlargeFineTuned
 from icefall.utils import (
     AttributeDict,
     setup_logger,

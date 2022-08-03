@@ -23,7 +23,7 @@ To run this file, do:
 """
 
 import torch
-from transducer.encoder import Tdnn
+from .encoder import Tdnn
 
 
 def test_encoder():

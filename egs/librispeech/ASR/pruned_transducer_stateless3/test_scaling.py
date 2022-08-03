@@ -24,7 +24,7 @@ To run this file, do:
 """
 
 import torch
-from scaling import ActivationBalancer, ScaledConv1d, ScaledConv2d
+from .scaling import ActivationBalancer, ScaledConv1d, ScaledConv2d
 
 
 def test_scaled_conv1d():

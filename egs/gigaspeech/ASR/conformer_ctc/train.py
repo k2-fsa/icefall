@@ -27,8 +27,8 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import GigaSpeechAsrDataModule
-from conformer import Conformer
+from .asr_datamodule import GigaSpeechAsrDataModule
+from .conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP

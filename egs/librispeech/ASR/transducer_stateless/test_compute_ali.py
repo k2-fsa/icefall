@@ -43,7 +43,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from alignment import get_word_starting_frames
+from .alignment import get_word_starting_frames
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import DynamicBucketingSampler, K2SpeechRecognitionDataset
 from lhotse.dataset.collation import collate_custom_field

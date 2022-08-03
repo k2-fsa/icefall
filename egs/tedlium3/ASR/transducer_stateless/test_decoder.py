@@ -24,7 +24,7 @@ To run this file, do:
 """
 
 import torch
-from decoder import Decoder
+from .decoder import Decoder
 
 
 def test_decoder():

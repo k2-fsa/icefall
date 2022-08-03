@@ -79,13 +79,13 @@ import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import Hypothesis, HypothesisList, get_hyps_shape
-from emformer import LOG_EPSILON, stack_states, unstack_states
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .beam_search import Hypothesis, HypothesisList, get_hyps_shape
+from .emformer import LOG_EPSILON, stack_states, unstack_states
 from kaldifeat import Fbank, FbankOptions
-from stream import Stream
+from .stream import Stream
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
+from .train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

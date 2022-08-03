@@ -47,7 +47,7 @@ import logging
 from pathlib import Path
 
 import torch
-from decode import get_params
+from .decode import get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -55,7 +55,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from conformer import Conformer
+from .conformer import Conformer
 
 from icefall.utils import str2bool
 from icefall.lexicon import Lexicon

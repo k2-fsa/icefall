@@ -22,7 +22,7 @@ import warnings
 from typing import Optional, Tuple
 
 import torch
-from scaling import (
+from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
@@ -30,9 +30,9 @@ from scaling import (
     ScaledLinear,
 )
 from torch import Tensor, nn
-from subsampling import Conv2dSubsampling
+from .subsampling import Conv2dSubsampling
 
-from transformer import Supervisions, Transformer, encoder_padding_mask
+from .transformer import Supervisions, Transformer, encoder_padding_mask
 
 
 class Conformer(Transformer):

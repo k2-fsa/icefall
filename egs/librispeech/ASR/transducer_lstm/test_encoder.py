@@ -22,7 +22,7 @@ To run this file, do:
     python ./transducer_lstm/test_encoder.py
 """
 
-from encoder import LstmEncoder
+from .encoder import LstmEncoder
 
 
 def test_encoder():
