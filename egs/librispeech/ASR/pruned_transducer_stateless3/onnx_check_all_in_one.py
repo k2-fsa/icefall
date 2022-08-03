@@ -48,27 +48,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--onnx-encoder-filename",
-        required=True,
-        type=str,
-        help="Path to the onnx encoder model",
-    )
-
-    parser.add_argument(
-        "--onnx-decoder-filename",
-        required=True,
-        type=str,
-        help="Path to the onnx decoder model",
-    )
-
-    parser.add_argument(
-        "--onnx-joiner-filename",
-        required=True,
-        type=str,
-        help="Path to the onnx joiner model",
-    )
-
-    parser.add_argument(
         "--onnx-all-in-one-filename",
         required=True,
         type=str,
