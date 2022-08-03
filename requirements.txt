@@ -6,3 +6,4 @@ typeguard
 multi_quantization
 onnx
 onnxruntime
+onnx_graphsurgeon
