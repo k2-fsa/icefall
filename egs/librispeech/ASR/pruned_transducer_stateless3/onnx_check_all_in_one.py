@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2022 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2022 Xiaomi Corporation (Author: Yunus Emre Ozkose)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
