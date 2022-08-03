@@ -15,7 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
+This script loads a checkpoint and uses it to decode waves.
+You can generate the checkpoint with the following command:
+
+./pruned_transducer_stateless3/export.py \
+  --exp-dir ./pruned_transducer_stateless3/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10
+
+Usage of this script:
 
 (1) greedy search
 ./pruned_transducer_stateless3/pretrained.py \

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -78,7 +80,9 @@ class Decoder(nn.Module):
             # It is to support torch script
             self.conv = nn.Identity()
 
-    def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
+    def forward(
+        self, y: torch.Tensor, need_pad: Union[bool, torch.Tensor] = True
+    ) -> torch.Tensor:
         """
         Args:
           y:
@@ -89,18 +93,24 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, decoder_dim).
         """
+        if isinstance(need_pad, torch.Tensor):
+            # This is for torch.jit.trace(), which cannot handle the case
+            # when the input argument is not a tensor.
+            need_pad = bool(need_pad)
+
         y = y.to(torch.int64)
         embedding_out = self.embedding(y)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
-            if need_pad is True:
+            if need_pad:
                 embedding_out = F.pad(
                     embedding_out, pad=(self.context_size - 1, 0)
                 )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
-                assert embedding_out.size(-1) == self.context_size
+                if not torch.jit.is_tracing():
+                    assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
         embedding_out = F.relu(embedding_out)

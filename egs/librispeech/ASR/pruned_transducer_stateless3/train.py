@@ -437,13 +437,22 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_transducer_model(
+    params: AttributeDict,
+    enable_giga: bool = True,
+) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_giga = get_decoder_model(params)
-    joiner_giga = get_joiner_model(params)
+    if enable_giga:
+        logging.info("Use giga")
+        decoder_giga = get_decoder_model(params)
+        joiner_giga = get_joiner_model(params)
+    else:
+        logging.info("Disable giga")
+        decoder_giga = None
+        joiner_giga = None
 
     model = Transducer(
         encoder=encoder,
