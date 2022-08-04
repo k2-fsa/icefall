@@ -115,6 +115,7 @@ import argparse
 import logging
 from pathlib import Path
 
+import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -512,6 +513,30 @@ def export_joiner_model_onnx(
     logging.info(f"Saved to {joiner_filename}")
 
 
+def export_all_in_one_onnx(
+    encoder_filename: str,
+    decoder_filename: str,
+    joiner_filename: str,
+    all_in_one_filename: str,
+):
+    encoder_onnx = onnx.load(encoder_filename)
+    decoder_onnx = onnx.load(decoder_filename)
+    joiner_onnx = onnx.load(joiner_filename)
+
+    encoder_onnx = onnx.compose.add_prefix(encoder_onnx, prefix="encoder/")
+    decoder_onnx = onnx.compose.add_prefix(decoder_onnx, prefix="decoder/")
+    joiner_onnx = onnx.compose.add_prefix(joiner_onnx, prefix="joiner/")
+
+    combined_model = onnx.compose.merge_models(
+        encoder_onnx, decoder_onnx, io_map={}
+    )
+    combined_model = onnx.compose.merge_models(
+        combined_model, joiner_onnx, io_map={}
+    )
+    onnx.save(combined_model, all_in_one_filename)
+    logging.info(f"Saved to {all_in_one_filename}")
+
+
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
@@ -602,6 +627,14 @@ def main():
             model.joiner,
             joiner_filename,
             opset_version=opset_version,
+        )
+
+        all_in_one_filename = params.exp_dir / "all_in_one.onnx"
+        export_all_in_one_onnx(
+            encoder_filename,
+            decoder_filename,
+            joiner_filename,
+            all_in_one_filename,
         )
     elif params.jit is True:
         logging.info("Using torch.jit.script()")
