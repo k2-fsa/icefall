@@ -6,5 +6,4 @@ typeguard
 multi_quantization
 onnx
 onnxruntime
---extra-index-url https://pypi.ngc.nvidia.com
-onnx_graphsurgeon
+onnx_graphsurgeon -i https://pypi.ngc.nvidia.com
