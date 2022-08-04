@@ -6,4 +6,5 @@ typeguard
 multi_quantization
 onnx
 onnxruntime
+nvidia-pyindex
 onnx_graphsurgeon
