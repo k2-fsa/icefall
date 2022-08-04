@@ -23,4 +23,5 @@ multi_quantization
 
 onnx
 onnxruntime
-onnx_graphsurgeon -i https://pypi.ngc.nvidia.com
+--extra-index-url https://pypi.ngc.nvidia.com
+onnx_graphsurgeon
