@@ -929,7 +929,11 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
 
         if min_eig != 0.0:
             mean_XM_eig = _sum(X * M.transpose(2, 3), exclude_dims=[0], keepdim=True) / size
+            XM_over_X = mean_XM_eig / mean_eig(X)
             X /= mean_XM_eig
+            logging.info(f"Mean eig of M_inverse is {mean_eig(M_inverse).flatten()} "
+                         f"(scaled={mean_eig(M_inverse).flatten()*min_eig}), vs. X {mean_eig(X).flatten()}, "
+                         f"XM_over_X {XM_over_X.flatten()}")
             X = X * (1.0-min_eig) + min_eig * M_inverse
             X = 0.5 * (X + X.transpose(-2, -1)) # make sure exactly symmetric.
 
@@ -2051,7 +2055,7 @@ if __name__ == "__main__":
     torch.set_num_interop_threads(1)
     logging.getLogger().setLevel(logging.INFO)
     import subprocess
-    s = subprocess.check_output("git status -uno .; git log -1", shell=True)
+    s = subprocess.check_output("git status -uno .; git log -1; git diff HEAD .", shell=True)
     logging.info(s)
     _test_safe_inverse()
     _test_apply_min_max()
