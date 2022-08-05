@@ -123,16 +123,16 @@ class BasicNorm(torch.nn.Module):
     doesn't have to do this trick.  We make the "eps" learnable.
 
     Args:
-       num_channels: the number of channels, e.g. 512.
+      num_channels: the number of channels, e.g. 512.
       channel_dim: the axis/dimension corresponding to the channel,
-        interprted as an offset from the input's ndim if negative.
-        shis is NOT the num_channels; it should typically be one of
+        interpreted as an offset from the input's ndim if negative.
+        This is NOT the num_channels; it should typically be one of
         {-2, -1, 0, 1, 2, 3}.
-       eps: the initial "epsilon" that we add as ballast in:
+      eps: the initial "epsilon" that we add as ballast in:
              scale = ((input_vec**2).mean() + epsilon)**-0.5
           Note: our epsilon is actually large, but we keep the name
           to indicate the connection with conventional LayerNorm.
-       learn_eps: if true, we learn epsilon; if false, we keep it
+      learn_eps: if true, we learn epsilon; if false, we keep it
          at the initial value.
     """
 
