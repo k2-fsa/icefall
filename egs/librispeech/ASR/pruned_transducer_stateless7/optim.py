@@ -684,8 +684,15 @@ param_rms_smooth1: Smoothing proportion for parameter matrix, if assumed rank of
             # that takes normally distributed data to P, so we can use
             #  C U for any orthogonal U, since C U I U^T C^T == P.
             # So there is no harm in choosing a matrix U that diagonalizes the
-            # projected grad_cov.  grad_cov gets projected by
-
+            # projected grad_cov.
+            grad_cov = grad_cov.clone()
+            # Scale up the diagonal of grad_cov; this is to prevent optimizing on directions with low gradient
+            # covariance that would suffer excessively from roundoff in the grads, i.e. directions where the
+            # gradient direction would be dominated by gradient noise from the projection.  This is an issue
+            # for layers preceding softmax layers, where the direction that is the sum of all the axes
+            # has zero gradient; we can observe large magnitudes along this direction when training using
+            # this type of method.
+            _diag(grad_cov).mul_(1.0001)
             grad_cov_proj = torch.matmul(C.transpose(2, 3),
                                          torch.matmul(grad_cov, C))
 
