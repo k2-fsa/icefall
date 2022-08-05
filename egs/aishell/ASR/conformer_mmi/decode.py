@@ -431,6 +431,7 @@ def save_results(
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
             logging.info(f"The transcripts are stored in {recog_path}")

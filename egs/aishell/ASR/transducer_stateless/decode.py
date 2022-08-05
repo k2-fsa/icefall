@@ -38,8 +38,8 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
-    write_error_stats,
     str2bool,
+    write_error_stats,
 )
 
 
@@ -334,6 +334,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
 
         # The following prints out WERs, per-word error statistics and aligned
