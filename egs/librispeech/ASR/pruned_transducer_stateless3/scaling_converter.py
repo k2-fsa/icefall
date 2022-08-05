@@ -28,7 +28,13 @@ import re
 
 import torch
 import torch.nn as nn
-from scaling import ScaledConv1d, ScaledConv2d, ScaledEmbedding, ScaledLinear
+from scaling import (
+    ScaledConv1d,
+    ScaledConv2d,
+    ScaledEmbedding,
+    ScaledLinear,
+    ScaledLSTM,
+)
 
 
 def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
@@ -164,6 +170,38 @@ def scaled_embedding_to_embedding(
     return embedding
 
 
+def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM):
+    """Convert an instance of ScaledLSTM to nn.LSTM.
+
+    Args:
+      scaled_lstm:
+        The layer to be converted.
+    Returns:
+      Return an instance of nn.LSTM that has the same `forward()` behavior
+      of the given `scaled_lstm`.
+    """
+    assert isinstance(scaled_lstm, ScaledLSTM), type(scaled_lstm)
+    lstm = nn.LSTM(
+        input_size=scaled_lstm.input_size,
+        hidden_size=scaled_lstm.hidden_size,
+        num_layers=scaled_lstm.num_layers,
+        bias=scaled_lstm.bias,
+        batch_first=scaled_lstm.batch_first,
+        dropout=scaled_lstm.dropout,
+        bidirectional=scaled_lstm.bidirectional,
+        proj_size=scaled_lstm.proj_size,
+    )
+
+    assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
+    for idx in range(len(scaled_lstm._flat_weights_names)):
+        scaled_weight = (
+            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
+        )
+        lstm._flat_weights[idx].data.copy_(scaled_weight)
+
+    return lstm
+
+
 def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
@@ -196,6 +234,8 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
             d[name] = scaled_conv2d_to_conv2d(m)
         elif isinstance(m, ScaledEmbedding):
             d[name] = scaled_embedding_to_embedding(m)
+        elif isinstance(m, ScaledLSTM):
+            d[name] = scaled_lstm_to_lstm(m)
 
     for k, v in d.items():
         if "." in k:
