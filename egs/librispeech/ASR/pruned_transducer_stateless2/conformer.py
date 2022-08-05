@@ -1592,6 +1592,10 @@ class Conv2dSubsampling(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
+        # ncnn support only batch size == 1
+        self.for_ncnn = False
+        self.conv_out_dim = self.out.weight.shape[1]
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
 
@@ -1606,8 +1610,13 @@ class Conv2dSubsampling(nn.Module):
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
         # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
+        if torch.jit.is_tracing() and self.for_ncnn:
+            x = self.out(
+                x.transpose(1, 2).contiguous().view(1, -1, self.conv_out_dim)
+            )
+        else:
+            b, c, t, f = x.size()
+            x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
         x = self.out_balancer(x)
