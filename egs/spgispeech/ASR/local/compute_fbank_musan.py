@@ -92,6 +92,7 @@ def compute_fbank_musan():
             batch_duration=500,
             num_workers=4,
             storage_type=LilcomChunkyWriter,
+            overwrite=True,
         )
     )
 

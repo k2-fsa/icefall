@@ -153,7 +153,8 @@ class BasicNorm(torch.nn.Module):
             self.register_buffer("eps", torch.tensor(eps).log().detach())
 
     def forward(self, x: Tensor) -> Tensor:
-        assert x.shape[self.channel_dim] == self.num_channels
+        if not torch.jit.is_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
@@ -573,7 +574,7 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             return x
         else:
             return ActivationBalancerFunction.apply(
@@ -622,7 +623,7 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             return x * torch.sigmoid(x - 1.0)
         else:
             return DoubleSwishFunction.apply(x)
@@ -644,9 +645,6 @@ class ScaledEmbedding(nn.Module):
         embedding_dim (int): the size of each embedding vector
         padding_idx (int, optional): If given, pads the output with the embedding vector at :attr:`padding_idx`
                                          (initialized to zeros) whenever it encounters the index.
-        max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
-                                    is renormalized to have norm :attr:`max_norm`.
-        norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
         scale_grad_by_freq (boolean, optional): If given, this will scale gradients by the inverse of frequency of
                                                 the words in the mini-batch. Default ``False``.
         sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` matrix will be a sparse tensor.
@@ -655,7 +653,7 @@ class ScaledEmbedding(nn.Module):
         initial_speed (float, optional):  This affects how fast the parameter will
            learn near the start of training; you can set it to a value less than
            one if you suspect that a module is contributing to instability near
-           the start of training.  Nnote: regardless of the use of this option,
+           the start of training.  Note: regardless of the use of this option,
            it's best to use schedulers like Noam that have a warm-up period.
            Alternatively you can set it to more than 1 if you want it to
            initially train faster.  Must be greater than 0.
@@ -793,7 +791,8 @@ class ScaledEmbedding(nn.Module):
             )
 
     def extra_repr(self) -> str:
-        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        # s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
             s += ", padding_idx={padding_idx}"
         if self.scale_grad_by_freq is not False:

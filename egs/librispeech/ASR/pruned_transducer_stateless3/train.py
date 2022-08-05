@@ -436,13 +436,22 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_transducer_model(
+    params: AttributeDict,
+    enable_giga: bool = True,
+) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_giga = get_decoder_model(params)
-    joiner_giga = get_joiner_model(params)
+    if enable_giga:
+        logging.info("Use giga")
+        decoder_giga = get_decoder_model(params)
+        joiner_giga = get_joiner_model(params)
+    else:
+        logging.info("Disable giga")
+        decoder_giga = None
+        joiner_giga = None
 
     model = Transducer(
         encoder=encoder,
@@ -651,6 +660,15 @@ def compute_loss(
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
+
+    # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    info["utterances"] = feature.size(0)
+    # averaged input duration in frames over utterances
+    info["utt_duration"] = feature_lens.sum().item()
+    # averaged padding proportion over utterances
+    info["utt_pad_proportion"] = (
+        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
