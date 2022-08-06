@@ -22,7 +22,11 @@
 Usage:
 
 ./prepare.sh
+
+# If you use a non-zero value for --datatang-prob, you also need to run
 ./prepare_aidatatang_200zh.sh
+
+If you use --datatang-prob=0, then you don't need to run the above script.
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
@@ -62,7 +66,6 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-
 from aidatatang_200zh import AIDatatang200zh
 from aishell import AIShell
 from asr_datamodule import AsrDataModule
@@ -344,7 +347,7 @@ def get_parser():
     parser.add_argument(
         "--datatang-prob",
         type=float,
-        default=0.2,
+        default=0.0,
         help="""The probability to select a batch from the
         aidatatang_200zh dataset.
         If it is set to 0, you don't need to download the data
@@ -945,7 +948,10 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    if datatang_train_dl is not None:
+        loss_value = tot_loss["loss"] / tot_loss["frames"]
+    else:
+        loss_value = aishell_tot_loss["loss"] / aishell_tot_loss["frames"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
