@@ -1038,7 +1038,16 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        if params.datatang_prob > 0:
+            find_unused_parameters = True
+        else:
+            find_unused_parameters = False
+
+        model = DDP(
+            model,
+            device_ids=[rank],
+            find_unused_parameters=find_unused_parameters,
+        )
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
