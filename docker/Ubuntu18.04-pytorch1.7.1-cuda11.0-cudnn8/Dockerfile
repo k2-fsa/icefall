@@ -79,9 +79,10 @@ RUN git clone https://github.com/k2-fsa/k2.git /opt/k2 && \
     cd -
 
 # install  lhotse
+RUN pip install torchaudio==0.7.2
 RUN pip install git+https://github.com/lhotse-speech/lhotse
 #RUN pip install lhotse
-RUN pip install torchaudio==0.7.2
+
 # install icefall
 RUN git clone https://github.com/k2-fsa/icefall && \
     cd icefall && \
