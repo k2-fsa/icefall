@@ -26,10 +26,11 @@ import argparse
 import random
 from pathlib import Path
 
-from asr_datamodule import AsrDataModule
-from gigaspeech import GigaSpeech
 from lhotse import load_manifest
-from librispeech import LibriSpeech
+
+from .asr_datamodule import AsrDataModule
+from .gigaspeech import GigaSpeech
+from .librispeech import LibriSpeech
 
 
 def test_dataset():

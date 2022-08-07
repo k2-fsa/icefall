@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import torch
-from model import Transducer
+
+from .model import Transducer
 
 
 def greedy_search(

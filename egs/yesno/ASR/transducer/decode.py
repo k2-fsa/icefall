@@ -22,12 +22,6 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from asr_datamodule import YesNoAsrDataModule
-from transducer.beam_search import greedy_search
-from transducer.decoder import Decoder
-from transducer.encoder import Tdnn
-from transducer.joiner import Joiner
-from transducer.model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
@@ -37,6 +31,13 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import YesNoAsrDataModule
+from .beam_search import greedy_search
+from .decoder import Decoder
+from .encoder import Tdnn
+from .joiner import Joiner
+from .model import Transducer
 
 
 def get_parser():

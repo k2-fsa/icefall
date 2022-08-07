@@ -31,7 +31,7 @@ from pathlib import Path
 
 import torch
 from dataset import get_dataloader
-from model import RnnLmModel
+from .model import RnnLmModel
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, setup_logger, str2bool

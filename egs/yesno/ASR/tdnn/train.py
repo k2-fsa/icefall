@@ -11,9 +11,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from asr_datamodule import YesNoAsrDataModule
 from lhotse.utils import fix_random_seed
-from model import Tdnn
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
@@ -26,6 +24,9 @@ from icefall.env import get_env_info
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+
+from .asr_datamodule import YesNoAsrDataModule
+from .model import Tdnn
 
 
 def get_parser():

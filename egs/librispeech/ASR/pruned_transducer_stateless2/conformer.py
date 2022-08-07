@@ -21,8 +21,12 @@ import warnings
 from typing import List, Optional, Tuple
 
 import torch
-from encoder_interface import EncoderInterface
-from scaling import (
+from torch import Tensor, nn
+
+from icefall.utils import make_pad_mask, subsequent_chunk_mask
+
+from .encoder_interface import EncoderInterface
+from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
@@ -30,9 +34,6 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import Tensor, nn
-
-from icefall.utils import make_pad_mask, subsequent_chunk_mask
 
 
 class Conformer(EncoderInterface):

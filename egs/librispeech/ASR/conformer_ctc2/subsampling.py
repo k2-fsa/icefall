@@ -17,14 +17,15 @@
 # limitations under the License.
 
 import torch
-from scaling import (
+from torch import nn
+
+from .scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import nn
 
 
 class Conv2dSubsampling(nn.Module):

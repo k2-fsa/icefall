@@ -23,7 +23,8 @@ To run this file, do:
 """
 
 import torch
-from joiner import Joiner
+
+from .joiner import Joiner
 
 
 def test_joiner():

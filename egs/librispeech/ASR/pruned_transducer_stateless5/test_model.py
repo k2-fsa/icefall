@@ -23,7 +23,7 @@ To run this file, do:
     python ./pruned_transducer_stateless4/test_model.py
 """
 
-from train import get_params, get_transducer_model
+from .train import get_params, get_transducer_model
 
 
 def test_model_1():

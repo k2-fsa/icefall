@@ -22,9 +22,10 @@ from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from transformer import Transformer
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
+
+from .transformer import Transformer
 
 
 class Conformer(Transformer):

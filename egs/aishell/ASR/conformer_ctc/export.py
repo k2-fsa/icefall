@@ -24,11 +24,12 @@ import logging
 from pathlib import Path
 
 import torch
-from conformer import Conformer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, str2bool
+
+from .conformer import Conformer
 
 
 def get_parser():

@@ -36,9 +36,9 @@ import argparse
 from pathlib import Path
 from typing import Dict, List
 
-from generate_unique_lexicon import filter_multiple_pronunications
-
 from icefall.lexicon import read_lexicon
+
+from .generate_unique_lexicon import filter_multiple_pronunications
 
 
 def get_args():

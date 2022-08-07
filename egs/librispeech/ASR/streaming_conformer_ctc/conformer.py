@@ -22,7 +22,8 @@ from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from transformer import Supervisions, Transformer, encoder_padding_mask
+
+from .transformer import Supervisions, Transformer, encoder_padding_mask
 
 
 # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py#L42

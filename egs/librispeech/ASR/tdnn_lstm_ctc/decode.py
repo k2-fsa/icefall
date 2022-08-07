@@ -25,8 +25,6 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from model import TdnnLstm
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.decode import (
@@ -46,6 +44,9 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .model import TdnnLstm
 
 
 def get_parser():

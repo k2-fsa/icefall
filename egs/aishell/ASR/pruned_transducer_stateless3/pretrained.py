@@ -65,17 +65,18 @@ import k2
 import kaldifeat
 import torch
 import torchaudio
-from beam_search import (
+from torch.nn.utils.rnn import pad_sequence
+
+from icefall.lexicon import Lexicon
+
+from .beam_search import (
     beam_search,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
 )
-from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
-
-from icefall.lexicon import Lexicon
+from .train import add_model_arguments, get_params, get_transducer_model
 
 
 def get_parser():

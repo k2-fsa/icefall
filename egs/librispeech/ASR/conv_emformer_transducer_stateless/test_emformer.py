@@ -19,7 +19,8 @@
 
 
 import torch
-from emformer import ConvolutionModule, Emformer, stack_states, unstack_states
+
+from .emformer import ConvolutionModule, Emformer, stack_states, unstack_states
 
 
 def test_convolution_module_forward():

@@ -39,30 +39,27 @@ import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
-from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
-from librispeech import LibriSpeech
-from streaming_beam_search import (
-    fast_beam_search_one_best,
-    greedy_search,
-    modified_beam_search,
-)
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import AsrDataModule
+from .decode_stream import DecodeStream
+from .librispeech import LibriSpeech
+from .streaming_beam_search import (
+    fast_beam_search_one_best,
+    greedy_search,
+    modified_beam_search,
+)
+from .train import add_model_arguments, get_params, get_transducer_model
 
 LOG_EPS = math.log(1e-10)
 

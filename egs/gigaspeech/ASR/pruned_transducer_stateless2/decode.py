@@ -66,28 +66,25 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import GigaSpeechAsrDataModule
-from beam_search import (
-    beam_search,
-    fast_beam_search_one_best,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
-from gigaspeech_scoring import asr_text_post_processing
-from train import get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import GigaSpeechAsrDataModule
+from .beam_search import (
+    beam_search,
+    fast_beam_search_one_best,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
+from .gigaspeech_scoring import asr_text_post_processing
+from .train import get_params, get_transducer_model
 
 
 def get_parser():

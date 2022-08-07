@@ -17,7 +17,8 @@
 from typing import List
 
 import torch
-from transducer.model import Transducer
+
+from .model import Transducer
 
 
 def greedy_search(model: Transducer, encoder_out: torch.Tensor) -> List[str]:

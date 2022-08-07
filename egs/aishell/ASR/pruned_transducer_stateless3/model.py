@@ -20,10 +20,11 @@ from typing import Optional
 import k2
 import torch
 import torch.nn as nn
-from encoder_interface import EncoderInterface
-from scaling import ScaledLinear
 
 from icefall.utils import add_sos
+
+from .encoder_interface import EncoderInterface
+from .scaling import ScaledLinear
 
 
 class Transducer(nn.Module):

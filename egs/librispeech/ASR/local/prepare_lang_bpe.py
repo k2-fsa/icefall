@@ -41,15 +41,16 @@ from typing import Dict, List, Tuple
 import k2
 import sentencepiece as spm
 import torch
-from prepare_lang import (
+
+from icefall.utils import str2bool
+
+from .prepare_lang import (
     Lexicon,
     add_disambig_symbols,
     add_self_loops,
     write_lexicon,
     write_mapping,
 )
-
-from icefall.utils import str2bool
 
 
 def lexicon_to_fst_no_sil(

@@ -24,15 +24,15 @@ from typing import Dict, List, Tuple
 
 import torch
 
-from asr_datamodule import LibriSpeechAsrDataModule
-from hubert_xlarge import HubertXlargeFineTuned
-
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .hubert_xlarge import HubertXlargeFineTuned
 
 
 def get_parser():

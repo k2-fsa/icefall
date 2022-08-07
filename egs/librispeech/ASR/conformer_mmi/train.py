@@ -28,31 +28,23 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from transformer import Noam
 
-from icefall.ali import (
-    convert_alignments_to_tensor,
-    load_alignments,
-    lookup_alignments,
-)
+from icefall.ali import convert_alignments_to_tensor, load_alignments, lookup_alignments
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.mmi import LFMMILoss
 from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, encode_supervisions, setup_logger, str2bool
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .conformer import Conformer
+from .transformer import Noam
 
 
 def get_parser():

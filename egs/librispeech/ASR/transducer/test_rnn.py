@@ -23,7 +23,8 @@ To run this file, do:
 """
 import torch
 import torch.nn as nn
-from rnn import (
+
+from .rnn import (
     LayerNormGRU,
     LayerNormGRUCell,
     LayerNormGRULayer,

@@ -74,11 +74,12 @@ import logging
 from pathlib import Path
 
 import torch
-from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
+
+from .train import add_model_arguments, get_params, get_transducer_model
 
 
 def get_parser():

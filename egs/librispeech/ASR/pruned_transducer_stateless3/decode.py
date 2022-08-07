@@ -104,8 +104,21 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
-from beam_search import (
+
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
+from icefall.utils import (
+    AttributeDict,
+    load_averaged_model,
+    setup_logger,
+    store_transcripts,
+    str2bool,
+    write_error_stats,
+)
+
+from .asr_datamodule import AsrDataModule
+from .beam_search import (
     beam_search,
     fast_beam_search_nbest,
     fast_beam_search_nbest_LG,
@@ -117,24 +130,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from librispeech import LibriSpeech
-from train import add_model_arguments, get_params, get_transducer_model
-
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
-from icefall.lexicon import Lexicon
-from icefall.rnn_lm.model import RnnLmModel
-from icefall.utils import (
-    AttributeDict,
-    load_averaged_model,
-    setup_logger,
-    store_transcripts,
-    str2bool,
-    write_error_stats,
-)
+from .librispeech import LibriSpeech
+from .train import add_model_arguments, get_params, get_transducer_model
 
 LOG_EPS = math.log(1e-10)
 

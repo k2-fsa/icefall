@@ -20,11 +20,12 @@ from typing import List
 import k2
 import torch
 import torch.nn as nn
-from beam_search import Hypothesis, HypothesisList, get_hyps_shape
-from decode_stream import DecodeStream
 
 from icefall.decode import one_best_decoding
 from icefall.utils import get_texts
+
+from .beam_search import Hypothesis, HypothesisList, get_hyps_shape
+from .decode_stream import DecodeStream
 
 
 def greedy_search(

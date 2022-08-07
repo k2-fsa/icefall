@@ -18,7 +18,8 @@
 from distutils.version import LooseVersion
 
 import torch
-from label_smoothing import LabelSmoothingLoss
+
+from .label_smoothing import LabelSmoothingLoss
 
 torch_ver = LooseVersion(torch.__version__)
 

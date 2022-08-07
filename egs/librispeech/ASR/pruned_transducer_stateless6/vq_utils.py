@@ -26,19 +26,17 @@ from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
+import quantization
 import torch
 import torch.multiprocessing as mp
-import quantization
-
-from asr_datamodule import LibriSpeechAsrDataModule
-from hubert_xlarge import HubertXlargeFineTuned
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-)
 from lhotse import CutSet, load_manifest
 from lhotse.cut import MonoCut
 from lhotse.features.io import NumpyHdf5Writer
+
+from icefall.utils import AttributeDict, setup_logger
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .hubert_xlarge import HubertXlargeFineTuned
 
 
 class CodebookIndexExtractor:

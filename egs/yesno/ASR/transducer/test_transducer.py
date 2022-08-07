@@ -25,10 +25,11 @@ To run this file, do:
 
 import k2
 import torch
-from transducer.decoder import Decoder
-from transducer.encoder import Tdnn
-from transducer.joiner import Joiner
-from transducer.model import Transducer
+
+from .decoder import Decoder
+from .encoder import Tdnn
+from .joiner import Joiner
+from .model import Transducer
 
 
 def test_transducer():

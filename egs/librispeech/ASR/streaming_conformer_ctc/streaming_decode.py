@@ -26,8 +26,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
@@ -38,6 +37,9 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
+
+from .asr_datamodule import LibriSpeechAsrDataModule
+from .conformer import Conformer
 
 
 # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py#L166

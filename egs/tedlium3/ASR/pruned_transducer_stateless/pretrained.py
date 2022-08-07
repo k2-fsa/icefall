@@ -73,15 +73,16 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from beam_search import (
+from torch.nn.utils.rnn import pad_sequence
+
+from .beam_search import (
     beam_search,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
 )
-from torch.nn.utils.rnn import pad_sequence
-from train import get_params, get_transducer_model
+from .train import get_params, get_transducer_model
 
 
 def get_parser():

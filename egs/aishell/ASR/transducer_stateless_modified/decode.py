@@ -65,15 +65,6 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
-from beam_search import (
-    beam_search,
-    fast_beam_search_one_best,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
-from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
@@ -83,6 +74,16 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+
+from .asr_datamodule import AishellAsrDataModule
+from .beam_search import (
+    beam_search,
+    fast_beam_search_one_best,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
+from .train import get_params, get_transducer_model
 
 
 def get_parser():
