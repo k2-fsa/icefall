@@ -321,7 +321,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -329,15 +329,15 @@ def store_transcripts(
       filename:
         File to save the results to.
       texts:
-        An iterable of tuples. The first element is the reference transcript
-        while the second element is the predicted result.
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
     Returns:
       Return None.
     """
     with open(filename, "w") as f:
-        for ref, hyp in texts:
-            print(f"ref={ref}", file=f)
-            print(f"hyp={hyp}", file=f)
+        for cut_id, ref, hyp in texts:
+            print(f"{cut_id}:\tref={ref}", file=f)
+            print(f"{cut_id}:\thyp={hyp}", file=f)
 
 
 def write_error_stats(
@@ -372,8 +372,8 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the reference transcript
-        while the second element is the predicted result.
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
         Otherwise, it is written only to the given file.
@@ -389,7 +389,7 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
-    for ref, hyp in results:
+    for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
@@ -405,7 +405,7 @@ def write_error_stats(
             else:
                 words[ref_word][0] += 1
                 num_corr += 1
-    ref_len = sum([len(r) for r, _ in results])
+    ref_len = sum([len(r) for _, r, _ in results])
     sub_errs = sum(subs.values())
     ins_errs = sum(ins.values())
     del_errs = sum(dels.values())
@@ -434,7 +434,7 @@ def write_error_stats(
 
     print("", file=f)
     print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
-    for ref, hyp in results:
+    for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
         combine_successive_errors = True
         if combine_successive_errors:
@@ -461,7 +461,8 @@ def write_error_stats(
             ]
 
         print(
-            " ".join(
+            f"{cut_id}:\t"
+            + " ".join(
                 (
                     ref_word
                     if ref_word == hyp_word
