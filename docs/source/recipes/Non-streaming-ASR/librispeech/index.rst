@@ -6,3 +6,4 @@ LibriSpeech
 
    tdnn_lstm_ctc
    conformer_ctc
+   pruned_transducer_stateless

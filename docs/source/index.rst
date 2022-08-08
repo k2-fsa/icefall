@@ -21,6 +21,14 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
    :caption: Contents:
 
    installation/index
+
+.. toctree::
+   :maxdepth: 3
+
    recipes/index
+
+.. toctree::
+   :maxdepth: 2
+
    contributing/index
    huggingface/index
