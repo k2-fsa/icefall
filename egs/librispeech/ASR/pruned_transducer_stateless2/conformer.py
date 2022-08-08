@@ -798,7 +798,7 @@ class RelPositionalEncoding(torch.nn.Module):
 
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(p=dropout_rate)
-        self.pe = None
+        self.register_buffer("pe", None)
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
     def extend_pe(self, x: Tensor, left_context: int = 0) -> None:
@@ -835,7 +835,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_positive = torch.flip(pe_positive, [0]).unsqueeze(0)
         pe_negative = pe_negative[1:].unsqueeze(0)
         pe = torch.cat([pe_positive, pe_negative], dim=1)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
+        self.register_buffer("pe", pe.to(device=x.device, dtype=x.dtype))
 
     def forward(
         self,
