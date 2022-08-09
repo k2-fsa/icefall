@@ -55,8 +55,7 @@ class NonScaledNorm(nn.Module):
         if not torch.jit.is_tracing():
             assert x.shape[self.channel_dim] == self.num_channels
         scales = (
-            torch.mean(x.pow(2), dim=self.channel_dim, keepdim=True)
-            + self.eps_exp
+            torch.mean(x * x, dim=self.channel_dim, keepdim=True) + self.eps_exp
         ).pow(-0.5)
         return x * scales
 

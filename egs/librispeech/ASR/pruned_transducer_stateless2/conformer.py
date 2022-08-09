@@ -1611,9 +1611,8 @@ class Conv2dSubsampling(nn.Module):
         x = self.conv(x)
         # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
         if torch.jit.is_tracing() and self.for_ncnn:
-            x = self.out(
-                x.transpose(1, 2).contiguous().view(1, -1, self.conv_out_dim)
-            )
+            x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
+            x = self.out(x)
         else:
             b, c, t, f = x.size()
             x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
