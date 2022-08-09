@@ -51,7 +51,8 @@ class RNN(EncoderInterface):
         Dropout value for model-level warmup (default=0.075).
       aux_layer_period (int):
         Peroid of auxiliary layers used for randomly combined during training.
-        If not larger than 0, will not use the random combiner.
+        If set to 0, will not use the random combiner (Default).
+        You can set a positive integer to use the random combiner, e.g., 3.
     """
 
     def __init__(
@@ -64,7 +65,7 @@ class RNN(EncoderInterface):
         num_encoder_layers: int = 12,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        aux_layer_period: int = 3,
+        aux_layer_period: int = 0,
     ) -> None:
         super(RNN, self).__init__()
 
@@ -106,62 +107,11 @@ class RNN(EncoderInterface):
         )
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-          x:
-            The input tensor. Its shape is (N, T, C), where N is the batch size,
-            T is the sequence length, C is the feature dimension.
-          x_lens:
-            A tensor of shape (N,), containing the number of frames in `x`
-            before padding.
-          warmup:
-            A floating point value that gradually increases from 0 throughout
-            training; when it is >= 1.0 we are "fully warmed up".  It is used
-            to turn modules on sequentially.
-
-        Returns:
-          A tuple of 2 tensors:
-            - embeddings: its shape is (N, T', d_model), where T' is the output
-              sequence lengths.
-            - lengths: a tensor of shape (batch_size,) containing the number of
-              frames in `embeddings` before padding.
-        """
-        x = self.encoder_embed(x)
-        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
-        # lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
-        #
-        # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
-        lengths = (((x_lens - 1) >> 1) - 1) >> 1
-        assert x.size(0) == lengths.max().item()
-
-        x = self.encoder(x, warmup)
-
-        x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
-        return x, lengths
-
-    @torch.jit.export
-    def get_init_states(
-        self, device: torch.device
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get model initial states."""
-        # for rnn hidden states
-        hidden_states = torch.zeros(
-            (self.num_encoder_layers, self.d_model), device=device
-        )
-        cell_states = torch.zeros(
-            (self.num_encoder_layers, self.rnn_hidden_size), device=device
-        )
-        return (hidden_states, cell_states)
-
-    @torch.jit.export
-    def infer(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        states: Tuple[torch.Tensor, torch.Tensor],
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Args:
@@ -172,11 +122,15 @@ class RNN(EncoderInterface):
             A tensor of shape (N,), containing the number of frames in `x`
             before padding.
           states:
-            It is a list of 2 tensors.
+            A tuple of 2 tensors (optional). It is for streaming inference.
             states[0] is the hidden states of all layers,
               with shape of (num_layers, N, d_model);
             states[1] is the cell states of all layers,
               with shape of (num_layers, N, rnn_hidden_size).
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
 
         Returns:
           A tuple of 3 tensors:
@@ -186,36 +140,57 @@ class RNN(EncoderInterface):
               frames in `embeddings` before padding.
             - updated states, whose shape is same as the input states.
         """
-        assert not self.training
-        assert len(states) == 2
-        # for hidden state
-        assert states[0].shape == (
-            self.num_encoder_layers,
-            x.size(0),
-            self.d_model,
-        )
-        # for cell state
-        assert states[1].shape == (
-            self.num_encoder_layers,
-            x.size(0),
-            self.rnn_hidden_size,
-        )
+        x = self.encoder_embed(x)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
-        # we will cut off 1 frame on each side of encoder_embed output
-        lengths -= 2
+        if not torch.jit.is_tracing():
+            assert x.size(0) == lengths.max().item()
 
-        embed = self.encoder_embed(x)
-        embed = embed[:, 1:-1, :]
-        embed = embed.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+        if states is None:
+            x = self.encoder(x, warmup=warmup)[0]
+            # torch.jit.trace requires returned types be the same as annotated
+            new_states = (torch.empty(0), torch.empty(0))
+        else:
+            # we cut off 1 frame on each side of encoder_embed output
+            lengths -= 2
+            x = x[1:-1, :, :]
 
-        x, states = self.encoder.infer(embed, states)
+            assert not self.training
+            assert len(states) == 2
+            if not torch.jit.is_tracing():
+                # for hidden state
+                assert states[0].shape == (
+                    self.num_encoder_layers,
+                    x.size(1),
+                    self.d_model,
+                )
+                # for cell state
+                assert states[1].shape == (
+                    self.num_encoder_layers,
+                    x.size(1),
+                    self.rnn_hidden_size,
+                )
+            x, new_states = self.encoder(x, states)
 
         x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
-        return x, lengths, states
+        return x, lengths, new_states
+
+    def get_init_states(
+        self, device: torch.device = torch.device("cpu")
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get model initial states."""
+        # for rnn hidden states
+        hidden_states = torch.zeros(
+            (self.num_encoder_layers, self.d_model), device=device
+        )
+        cell_states = torch.zeros(
+            (self.num_encoder_layers, self.rnn_hidden_size), device=device
+        )
+        return (hidden_states, cell_states)
 
 
 class RNNEncoderLayer(nn.Module):
@@ -271,7 +246,12 @@ class RNNEncoderLayer(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, src: torch.Tensor, warmup: float = 1.0) -> torch.Tensor:
+    def forward(
+        self,
+        src: torch.Tensor,
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        warmup: float = 1.0,
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Pass the input through the encoder layer.
 
@@ -280,6 +260,12 @@ class RNNEncoderLayer(nn.Module):
             The sequence to the encoder layer (required).
             Its shape is (S, N, E), where S is the sequence length,
             N is the batch size, and E is the feature number.
+          states:
+            A tuple of 2 tensors (optional). It is for streaming inference.
+            states[0] is the hidden states of all layers,
+              with shape of (1, N, d_model);
+            states[1] is the cell states of all layers,
+              with shape of (1, N, rnn_hidden_size).
           warmup:
             It controls selective bypass of of layers; if < 1.0, we will
             bypass layers more frequently.
@@ -299,7 +285,19 @@ class RNNEncoderLayer(nn.Module):
             alpha = 1.0
 
         # lstm module
-        src_lstm = self.lstm(src)[0]
+        if states is None:
+            src_lstm = self.lstm(src)[0]
+            # torch.jit.trace requires returned types be the same as annotated
+            new_states = (torch.empty(0), torch.empty(0))
+        else:
+            assert not self.training
+            assert len(states) == 2
+            if not torch.jit.is_tracing():
+                # for hidden state
+                assert states[0].shape == (1, src.size(1), self.d_model)
+                # for cell state
+                assert states[1].shape == (1, src.size(1), self.rnn_hidden_size)
+            src_lstm, new_states = self.lstm(src, states)
         src = src + self.dropout(src_lstm)
 
         # feed forward module
@@ -309,41 +307,6 @@ class RNNEncoderLayer(nn.Module):
 
         if alpha != 1.0:
             src = alpha * src + (1 - alpha) * src_orig
-
-        return src
-
-    @torch.jit.export
-    def infer(
-        self, src: torch.Tensor, states: Tuple[torch.Tensor, torch.Tensor]
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Pass the input through the encoder layer.
-
-        Args:
-          src:
-            The sequence to the encoder layer (required).
-            Its shape is (S, N, d_model), where S is the sequence length,
-            N is the batch size.
-          states:
-            It is a tuple of 2 tensors.
-            states[0] is the hidden state, with shape of (1, N, d_model);
-            states[1] is the cell state, with shape of (1, N, rnn_hidden_size).
-        """
-        assert not self.training
-        assert len(states) == 2
-        # for hidden state
-        assert states[0].shape == (1, src.size(1), self.d_model)
-        # for cell state
-        assert states[1].shape == (1, src.size(1), self.rnn_hidden_size)
-
-        # lstm module
-        src_lstm, new_states = self.lstm(src, states)
-        src = src + self.dropout(src_lstm)
-
-        # feed forward module
-        src = src + self.dropout(self.feed_forward(src))
-
-        src = self.norm_final(self.balancer(src))
 
         return src, new_states
 
@@ -373,11 +336,11 @@ class RNNEncoder(nn.Module):
         self.d_model = encoder_layer.d_model
         self.rnn_hidden_size = encoder_layer.rnn_hidden_size
 
-        self.use_random_combiner = False
+        self.aux_layers: List[int] = []
+        self.combiner: Optional[nn.Module] = None
         if aux_layers is not None:
             assert len(set(aux_layers)) == len(aux_layers)
             assert num_layers - 1 not in aux_layers
-            self.use_random_combiner = True
             self.aux_layers = aux_layers + [num_layers - 1]
             self.combiner = RandomCombine(
                 num_inputs=len(self.aux_layers),
@@ -386,7 +349,12 @@ class RNNEncoder(nn.Module):
                 stddev=2.0,
             )
 
-    def forward(self, src: torch.Tensor, warmup: float = 1.0) -> torch.Tensor:
+    def forward(
+        self,
+        src: torch.Tensor,
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        warmup: float = 1.0,
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Pass the input through the encoder layer in turn.
 
@@ -395,75 +363,66 @@ class RNNEncoder(nn.Module):
             The sequence to the encoder layer (required).
             Its shape is (S, N, E), where S is the sequence length,
             N is the batch size, and E is the feature number.
-          warmup:
-            It controls selective bypass of of layers; if < 1.0, we will
-            bypass layers more frequently.
-        """
-        output = src
-
-        outputs = []
-
-        for i, mod in enumerate(self.layers):
-            output = mod(output, warmup=warmup)
-            if self.use_random_combiner:
-                if i in self.aux_layers:
-                    outputs.append(output)
-
-        if self.use_random_combiner:
-            output = self.combiner(outputs)
-
-        return output
-
-    @torch.jit.export
-    def infer(
-        self, src: torch.Tensor, states: Tuple[torch.Tensor, torch.Tensor]
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Pass the input through the encoder layer.
-
-        Args:
-          src:
-            The sequence to the encoder layer (required).
-            Its shape is (S, N, d_model), where S is the sequence length,
-            N is the batch size.
           states:
-            It is a list of 2 tensors.
+            A tuple of 2 tensors (optional). It is for streaming inference.
             states[0] is the hidden states of all layers,
               with shape of (num_layers, N, d_model);
             states[1] is the cell states of all layers,
               with shape of (num_layers, N, rnn_hidden_size).
+          warmup:
+            It controls selective bypass of of layers; if < 1.0, we will
+            bypass layers more frequently.
         """
-        assert not self.training
-        assert len(states) == 2
-        # for hidden state
-        assert states[0].shape == (self.num_layers, src.size(1), self.d_model)
-        # for cell state
-        assert states[1].shape == (
-            self.num_layers,
-            src.size(1),
-            self.rnn_hidden_size,
-        )
+        if states is not None:
+            assert not self.training
+            assert len(states) == 2
+            if not torch.jit.is_tracing():
+                # for hidden state
+                assert states[0].shape == (
+                    self.num_layers,
+                    src.size(1),
+                    self.d_model,
+                )
+                # for cell state
+                assert states[1].shape == (
+                    self.num_layers,
+                    src.size(1),
+                    self.rnn_hidden_size,
+                )
 
         output = src
+
+        outputs = []
+
         new_hidden_states = []
         new_cell_states = []
-        for layer_index, mod in enumerate(self.layers):
-            layer_states = (
-                states[0][
-                    layer_index : layer_index + 1, :, :
-                ],  # h: (1, N, d_model)
-                states[1][
-                    layer_index : layer_index + 1, :, :
-                ],  # c: (1, N, rnn_hidden_size)
-            )
-            output, (h, c) = mod.infer(output, layer_states)
-            new_hidden_states.append(h)
-            new_cell_states.append(c)
 
-        new_states = (
-            torch.cat(new_hidden_states, dim=0),
-            torch.cat(new_cell_states, dim=0),
-        )
+        for i, mod in enumerate(self.layers):
+            if states is None:
+                output = mod(output, warmup=warmup)[0]
+            else:
+                layer_state = (
+                    states[0][i : i + 1, :, :],  # h: (1, N, d_model)
+                    states[1][i : i + 1, :, :],  # c: (1, N, rnn_hidden_size)
+                )
+                output, (h, c) = mod(output, layer_state)
+                new_hidden_states.append(h)
+                new_cell_states.append(c)
+
+            if self.combiner is not None and i in self.aux_layers:
+                outputs.append(output)
+
+        if self.combiner is not None:
+            output = self.combiner(outputs)
+
+        if states is None:
+            new_states = (torch.empty(0), torch.empty(0))
+        else:
+            new_states = (
+                torch.cat(new_hidden_states, dim=0),
+                torch.cat(new_cell_states, dim=0),
+            )
+
         return output, new_states
 
 
@@ -804,9 +763,9 @@ if __name__ == "__main__":
     m = RNN(
         num_features=feature_dim,
         d_model=512,
-        rnn_hidden_size=1024,
+        rnn_hidden_size=1536,
         dim_feedforward=2048,
-        num_encoder_layers=12,
+        num_encoder_layers=10,
     )
     batch_size = 5
     seq_len = 20

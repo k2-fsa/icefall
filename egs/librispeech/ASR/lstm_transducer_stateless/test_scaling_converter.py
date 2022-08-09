@@ -19,7 +19,7 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./pruned_transducer_stateless3/test_scaling_converter.py
+    python ./lstm_transducer_stateless/test_scaling_converter.py
 """
 
 import copy

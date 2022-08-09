@@ -389,8 +389,9 @@ class ScaledLSTM(nn.LSTM):
         initial_speed: float = 1.0,
         **kwargs
     ):
-        # Hardcode bidirectional=False
-        super(ScaledLSTM, self).__init__(*args, bidirectional=False, **kwargs)
+        if "bidirectional" in kwargs:
+            assert kwargs["bidirectional"] is False
+        super(ScaledLSTM, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
         self._scales_names = []
         self._scales = []

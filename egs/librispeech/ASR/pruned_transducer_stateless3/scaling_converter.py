@@ -170,7 +170,7 @@ def scaled_embedding_to_embedding(
     return embedding
 
 
-def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM):
+def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
     """Convert an instance of ScaledLSTM to nn.LSTM.
 
     Args:
