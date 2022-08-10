@@ -92,6 +92,7 @@ class Conformer(EncoderInterface):
         short_chunk_size: int = 25,
         num_left_chunks: int = -1,
         causal: bool = False,
+        for_pnnx: bool = False,
     ) -> None:
         super(Conformer, self).__init__()
 
@@ -105,7 +106,11 @@ class Conformer(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+        self.encoder_embed = Conv2dSubsampling(
+            num_features,
+            d_model,
+            for_pnnx=for_pnnx,
+        )
 
         self.encoder_layers = num_encoder_layers
         self.d_model = d_model
@@ -130,6 +135,8 @@ class Conformer(EncoderInterface):
         )
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
+
+        self.for_pnnx = for_pnnx
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -160,7 +167,12 @@ class Conformer(EncoderInterface):
         #  lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
-        lengths = (((x_lens - 1) >> 1) - 1) >> 1
+        if not self.for_pnnx:
+            lengths = (((x_lens - 1) >> 1) - 1) >> 1
+        else:
+            lengths1 = torch.floor((x_lens - 1) / 2)
+            lengths = torch.floor((lengths1 - 1) / 2)
+            lengths = lengths.to(x_lens)
 
         if not torch.jit.is_tracing():
             assert x.size(0) == lengths.max().item()
@@ -1545,6 +1557,7 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 8,
         layer2_channels: int = 32,
         layer3_channels: int = 128,
+        for_pnnx: bool = False,
     ) -> None:
         """
         Args:
@@ -1600,7 +1613,7 @@ class Conv2dSubsampling(nn.Module):
         )
 
         # ncnn support only batch size == 1
-        self.for_ncnn = False
+        self.for_pnnx = for_pnnx
         self.conv_out_dim = self.out.weight.shape[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -1617,7 +1630,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
         # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
-        if torch.jit.is_tracing() and self.for_ncnn:
+        if torch.jit.is_tracing() and self.for_pnnx:
             x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
             x = self.out(x)
         else:
