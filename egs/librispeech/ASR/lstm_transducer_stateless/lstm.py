@@ -179,16 +179,18 @@ class RNN(EncoderInterface):
         x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
         return x, lengths, new_states
 
+    @torch.jit.export
     def get_init_states(
-        self, device: torch.device = torch.device("cpu")
+        self, batch_size: int = 1, device: torch.device = torch.device("cpu")
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get model initial states."""
         # for rnn hidden states
         hidden_states = torch.zeros(
-            (self.num_encoder_layers, self.d_model), device=device
+            (self.num_encoder_layers, batch_size, self.d_model), device=device
         )
         cell_states = torch.zeros(
-            (self.num_encoder_layers, self.rnn_hidden_size), device=device
+            (self.num_encoder_layers, batch_size, self.rnn_hidden_size),
+            device=device,
         )
         return (hidden_states, cell_states)
 
@@ -235,7 +237,7 @@ class RNNEncoderLayer(nn.Module):
             ScaledLinear(d_model, dim_feedforward),
             ActivationBalancer(channel_dim=-1),
             DoubleSwish(),
-            nn.Dropout(),
+            nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )
         self.norm_final = BasicNorm(d_model)
@@ -763,9 +765,9 @@ if __name__ == "__main__":
     m = RNN(
         num_features=feature_dim,
         d_model=512,
-        rnn_hidden_size=1536,
+        rnn_hidden_size=1024,
         dim_feedforward=2048,
-        num_encoder_layers=10,
+        num_encoder_layers=12,
     )
     batch_size = 5
     seq_len = 20

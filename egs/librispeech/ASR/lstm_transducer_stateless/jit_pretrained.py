@@ -289,9 +289,12 @@ def main():
 
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
+    states = encoder.get_init_states(batch_size=features.size(0), device=device)
+
     encoder_out, encoder_out_lens, _ = encoder(
         x=features,
         x_lens=feature_lengths,
+        states=states,
     )
 
     hyps = greedy_search(

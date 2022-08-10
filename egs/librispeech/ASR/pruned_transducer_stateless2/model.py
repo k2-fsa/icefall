@@ -116,7 +116,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens, _ = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network

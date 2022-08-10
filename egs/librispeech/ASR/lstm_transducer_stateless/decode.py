@@ -356,7 +356,7 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
+    encoder_out, encoder_out_lens, _ = model.encoder(
         x=feature, x_lens=feature_lens
     )
 
