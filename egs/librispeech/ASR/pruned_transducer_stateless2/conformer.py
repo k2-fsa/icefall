@@ -35,6 +35,12 @@ from torch import Tensor, nn
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
 
 
+class MakePadMask(nn.Module):
+    def forward(self, lengths: Tensor) -> Tensor:
+        """See doc for :func:`make_pad_mask`"""
+        return make_pad_mask(lengths)
+
+
 class Conformer(EncoderInterface):
     """
     Args:
@@ -111,6 +117,7 @@ class Conformer(EncoderInterface):
         self.num_left_chunks = num_left_chunks
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
+        self.make_pad_mask = MakePadMask()
 
         encoder_layer = ConformerEncoderLayer(
             d_model,
@@ -158,7 +165,7 @@ class Conformer(EncoderInterface):
         if not torch.jit.is_tracing():
             assert x.size(0) == lengths.max().item()
 
-        src_key_padding_mask = make_pad_mask(lengths)
+        src_key_padding_mask = self.make_pad_mask(lengths)
 
         if self.dynamic_chunk_training:
             assert (
@@ -835,7 +842,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_positive = torch.flip(pe_positive, [0]).unsqueeze(0)
         pe_negative = pe_negative[1:].unsqueeze(0)
         pe = torch.cat([pe_positive, pe_negative], dim=1)
-        self.register_buffer("pe", pe.to(device=x.device, dtype=x.dtype))
+        self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(
         self,
