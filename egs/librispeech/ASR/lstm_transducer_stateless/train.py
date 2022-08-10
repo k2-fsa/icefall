@@ -111,9 +111,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--aux-layer-period",
         type=int,
-        default=3,
+        default=0,
         help="""Peroid of auxiliary layers used for randomly combined during training.
-        If not larger than 0 (e.g., -1), will not use the random combiner.
+        If set to 0, will not use the random combiner (Default).
+        You can set a positive integer to use the random combiner, e.g., 3.
         """,
     )
 
@@ -206,7 +207,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=10,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -270,7 +271,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=4000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename

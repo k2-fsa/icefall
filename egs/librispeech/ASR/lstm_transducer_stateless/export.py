@@ -358,9 +358,9 @@ def main():
 
     model.to("cpu")
     model.eval()
-    convert_scaled_to_non_scaled(model, inplace=True)
 
     if params.jit_trace is True:
+        convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
         encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
         export_encoder_model_jit_trace(model.encoder, encoder_filename)
