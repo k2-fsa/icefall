@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# Copyright 2022 Xiaomi Corporation (Authors: Wei Kang, Fangjun Kuang)
+#
+# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -14,21 +16,48 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Usage:
+(1) greedy search
 ./lstm_transducer_stateless/streaming_decode.py \
-        --epoch 28 \
-        --avg 15 \
-        --decode-chunk-size 1 \
-        --exp-dir ./lstm_transducer_stateless/exp \
-        --decoding_method greedy_search \
-        --num-decode-streams 200
-"""
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir lstm_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --rnn-hidden-size 1024 \
+      --decoding-method greedy_search \
+      --use-averaged-model True
 
+(2) modified beam search
+./lstm_transducer_stateless/streaming_decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir lstm_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --rnn-hidden-size 1024 \
+      --decoding-method modified_beam_search \
+      --use-averaged-model True \
+      --beam-size 4
+
+(3) fast beam search
+./lstm_transducer_stateless/streaming_decode.py \
+      --epoch 30 \
+      --avg 10 \
+      --exp-dir lstm_transducer_stateless/exp \
+      --num-decode-streams 2000 \
+      --num-encoder-layers 12 \
+      --rnn-hidden-size 1024 \
+      --decoding-method fast_beam_search \
+      --use-averaged-model True \
+      --beam 4 \
+      --max-contexts 4 \
+      --max-states 8
+"""
 import argparse
 import logging
-import math
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -38,9 +67,11 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from decode_stream import DecodeStream
+from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
+from lstm import LOG_EPSILON, stack_states, unstack_states
+from stream import Stream
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -60,8 +91,6 @@ from icefall.utils import (
     write_error_stats,
 )
 
-LOG_EPS = math.log(1e-10)
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -72,9 +101,8 @@ def get_parser():
         "--epoch",
         type=int,
         default=28,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
-        You can specify --avg to use more checkpoints for model averaging.""",
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
 
     parser.add_argument(
@@ -93,13 +121,13 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        "'--epoch'. ",
     )
 
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=True,
+        default=False,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -110,7 +138,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="transducer_emformer/exp",
         help="The experiment dir",
     )
 
@@ -125,8 +153,20 @@ def get_parser():
         "--decoding-method",
         type=str,
         default="greedy_search",
-        help="""Support only greedy_search and fast_beam_search now.
+        help="""Possible values are:
+          - greedy_search
+          - modified_beam_search
+          - fast_beam_search
         """,
+    )
+
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=4,
+        help="""An interger indicating how many candidates we will keep for each
+        frame. Used only when --decoding-method is beam_search or
+        modified_beam_search.""",
     )
 
     parser.add_argument(
@@ -150,7 +190,7 @@ def get_parser():
     parser.add_argument(
         "--max-states",
         type=int,
-        default=32,
+        default=8,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -162,19 +202,26 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
-
     parser.add_argument(
-        "--decode-chunk-size",
+        "--max-sym-per-frame",
         type=int,
         default=1,
-        help="The chunk size for decoding (in frames after subsampling)",
+        help="""Maximum number of symbols per frame.
+        Used only when --decoding_method is greedy_search""",
+    )
+
+    parser.add_argument(
+        "--sampling-rate",
+        type=float,
+        default=16000,
+        help="Sample rate of the audio",
     )
 
     parser.add_argument(
         "--num-decode-streams",
         type=int,
         default=2000,
-        help="The number of streams that can be decoded parallel.",
+        help="The number of streams that can be decoded parallel",
     )
 
     add_model_arguments(parser)
@@ -185,26 +232,36 @@ def get_parser():
 def greedy_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
-    streams: List[DecodeStream],
-) -> List[List[int]]:
+    streams: List[Stream],
+) -> None:
+    """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
 
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C), where N >= 1.
+      streams:
+        A list of Stream objects.
+    """
     assert len(streams) == encoder_out.size(0)
     assert encoder_out.ndim == 3
 
     blank_id = model.decoder.blank_id
     context_size = model.decoder.context_size
-    device = model.device
+    device = next(model.parameters()).device
     T = encoder_out.size(1)
+
+    encoder_out = model.joiner.encoder_proj(encoder_out)
 
     decoder_input = torch.tensor(
         [stream.hyp[-context_size:] for stream in streams],
         device=device,
         dtype=torch.int64,
     )
-    # decoder_out is of shape (N, decoder_out_dim)
+    # decoder_out is of shape (batch_size, 1, decoder_out_dim)
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
-    # logging.info(f"decoder_out shape : {decoder_out.shape}")
 
     for t in range(T):
         # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
@@ -238,20 +295,171 @@ def greedy_search(
             )
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
-    hyp_tokens = []
-    for stream in streams:
-        hyp_tokens.append(stream.hyp)
-    return hyp_tokens
 
-
-def fast_beam_search(
+def modified_beam_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
+    streams: List[Stream],
+    beam: int = 4,
+):
+    """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
+
+    Args:
+      model:
+        The RNN-T model.
+      encoder_out:
+        A 3-D tensor of shape (N, T, encoder_out_dim) containing the output of
+        the encoder model.
+      streams:
+        A list of stream objects.
+      beam:
+        Number of active paths during the beam search.
+    """
+    assert encoder_out.ndim == 3, encoder_out.shape
+    assert len(streams) == encoder_out.size(0)
+
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+    device = next(model.parameters()).device
+    batch_size = len(streams)
+    T = encoder_out.size(1)
+
+    B = [stream.hyps for stream in streams]
+
+    encoder_out = model.joiner.encoder_proj(encoder_out)
+
+    for t in range(T):
+        current_encoder_out = encoder_out[:, t].unsqueeze(1).unsqueeze(1)
+        # current_encoder_out's shape: (batch_size, 1, 1, encoder_out_dim)
+
+        hyps_shape = get_hyps_shape(B).to(device)
+
+        A = [list(b) for b in B]
+        B = [HypothesisList() for _ in range(batch_size)]
+
+        ys_log_probs = torch.stack(
+            [hyp.log_prob.reshape(1) for hyps in A for hyp in hyps], dim=0
+        )  # (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
+        # decoder_out is of shape (num_hyps, 1, 1, decoder_output_dim)
+
+        # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
+        # as index, so we use `to(torch.int64)` below.
+        current_encoder_out = torch.index_select(
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
+        )  # (num_hyps, encoder_out_dim)
+
+        logits = model.joiner(
+            current_encoder_out, decoder_out, project_input=False
+        )
+        # logits is of shape (num_hyps, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)
+
+        log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
+
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+
+        log_probs = log_probs.reshape(-1)
+
+        row_splits = hyps_shape.row_splits(1) * vocab_size
+        log_probs_shape = k2.ragged.create_ragged_shape2(
+            row_splits=row_splits, cached_tot_size=log_probs.numel()
+        )
+        ragged_log_probs = k2.RaggedTensor(
+            shape=log_probs_shape, value=log_probs
+        )
+
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+                topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+
+                new_ys = hyp.ys[:]
+                new_token = topk_token_indexes[k]
+                if new_token != blank_id:
+                    new_ys.append(new_token)
+
+                new_log_prob = topk_log_probs[k]
+                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+                B[i].add(new_hyp)
+
+    for i in range(batch_size):
+        streams[i].hyps = B[i]
+
+
+def fast_beam_search_one_best(
+    model: nn.Module,
+    streams: List[Stream],
+    encoder_out: torch.Tensor,
     processed_lens: torch.Tensor,
-    decoding_streams: k2.RnntDecodingStreams,
-) -> List[List[int]]:
+    beam: float,
+    max_states: int,
+    max_contexts: int,
+) -> None:
+    """It limits the maximum number of symbols per frame to 1.
+
+    A lattice is first obtained using modified beam search, and then
+    the shortest path within the lattice is used as the final output.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      streams:
+        A list of stream objects.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      processed_lens:
+        A tensor of shape (N,) containing the number of processed frames
+        in `encoder_out` before padding.
+      beam:
+        Beam value, similar to the beam used in Kaldi..
+      max_states:
+        Max states per stream per frame.
+      max_contexts:
+        Max contexts pre stream per frame.
+    """
+    assert encoder_out.ndim == 3
+
+    context_size = model.decoder.context_size
+    vocab_size = model.decoder.vocab_size
 
     B, T, C = encoder_out.shape
+    assert B == len(streams)
+
+    config = k2.RnntDecodingConfig(
+        vocab_size=vocab_size,
+        decoder_history_len=context_size,
+        beam=beam,
+        max_contexts=max_contexts,
+        max_states=max_states,
+    )
+    individual_streams = []
+    for i in range(B):
+        individual_streams.append(streams[i].rnnt_decoding_stream)
+    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
+
+    encoder_out = model.joiner.encoder_proj(encoder_out)
+
     for t in range(T):
         # shape is a RaggedShape of shape (B, context)
         # contexts is a Tensor of shape (shape.NumElements(), context_size)
@@ -280,127 +488,152 @@ def fast_beam_search(
     decoding_streams.terminate_and_flush_to_streams()
 
     lattice = decoding_streams.format_output(processed_lens.tolist())
+
     best_path = one_best_decoding(lattice)
-    hyp_tokens = get_texts(best_path)
-    return hyp_tokens
+    hyps = get_texts(best_path)
+
+    for i in range(B):
+        streams[i].hyp = hyps[i]
 
 
 def decode_one_chunk(
-    params: AttributeDict,
     model: nn.Module,
-    decode_streams: List[DecodeStream],
+    streams: List[Stream],
+    params: AttributeDict,
+    decoding_graph: Optional[k2.Fsa] = None,
 ) -> List[int]:
-    """Decode one chunk frames of features for each decode_streams and
-    return the indexes of finished streams in a List.
-
-    Args:
-      params:
-        It's the return value of :func:`get_params`.
-      model:
-        The neural model.
-      decode_streams:
-        A List of DecodeStream, each belonging to a utterance.
-    Returns:
-      Return a List containing which DecodeStreams are finished.
     """
-    device = model.device
+    Args:
+      model:
+        The Transducer model.
+      streams:
+        A list of Stream objects.
+      params:
+        It is returned by :func:`get_params`.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding_method is fast_beam_search.
 
-    features = []
-    feature_lens = []
-    states = []
+    Returns:
+       A list of indexes indicating the finished streams.
+    """
+    device = next(model.parameters()).device
 
-    rnnt_stream_list = []
-    processed_lens = []
+    feature_list = []
+    feature_len_list = []
+    state_list = []
+    num_processed_frames_list = []
 
-    for stream in decode_streams:
-        feat, feat_len = stream.get_feature_frames(
-            params.decode_chunk_size * params.subsampling_factor
-        )
-        features.append(feat)
-        feature_lens.append(feat_len)
-        states.append(stream.states)
-        processed_lens.append(stream.done_frames)
-        if params.decoding_method == "fast_beam_search":
-            rnnt_stream_list.append(stream.rnnt_decoding_stream)
+    for stream in streams:
+        # We should first get `stream.num_processed_frames`
+        # before calling `stream.get_feature_chunk()`
+        # since `stream.num_processed_frames` would be updated
+        num_processed_frames_list.append(stream.num_processed_frames)
+        feature = stream.get_feature_chunk()
+        feature_len = feature.size(0)
+        feature_list.append(feature)
+        feature_len_list.append(feature_len)
+        state_list.append(stream.states)
 
-    feature_lens = torch.tensor(feature_lens, device=device)
-    features = pad_sequence(features, batch_first=True, padding_value=LOG_EPS)
+    features = pad_sequence(
+        feature_list, batch_first=True, padding_value=LOG_EPSILON
+    ).to(device)
+    feature_lens = torch.tensor(feature_len_list, device=device)
+    num_processed_frames = torch.tensor(
+        num_processed_frames_list, device=device
+    )
 
-    # if T is less than 7 there will be an error in time reduction layer,
-    # because we subsample features with ((x_len - 1) // 2 - 1) // 2
-    # we plus 2 here because we will cut off one frame on each size of
-    # encoder_embed output as they see invalid paddings. so we need extra 2
-    # frames.
-    tail_length = 7 + 2 * params.subsampling_factor
+    # Make sure it has at least 1 frame after subsampling, first-and-last-frame cutting, and right context cutting  # noqa
+    tail_length = 3 * params.subsampling_factor + 3
     if features.size(1) < tail_length:
-        feature_lens += tail_length - features.size(1)
-        features = torch.cat(
-            [
-                features,
-                torch.tensor(
-                    LOG_EPS, dtype=features.dtype, device=device
-                ).expand(
-                    features.size(0),
-                    tail_length - features.size(1),
-                    features.size(2),
-                ),
-            ],
-            dim=1,
+        pad_length = tail_length - features.size(1)
+        feature_lens += pad_length
+        features = torch.nn.functional.pad(
+            features,
+            (0, 0, 0, pad_length),
+            mode="constant",
+            value=LOG_EPSILON,
         )
 
-    states = [
-        torch.stack([x[0] for x in states], dim=2),
-        torch.stack([x[1] for x in states], dim=2),
-    ]
-    processed_lens = torch.tensor(processed_lens, device=device)
+    # Stack states of all streams
+    states = stack_states(state_list)
 
-    encoder_out, encoder_out_lens, states = model.encoder.infer(
+    encoder_out, encoder_out_lens, states = model.encoder(
         x=features,
         x_lens=feature_lens,
         states=states,
     )
 
-    encoder_out = model.joiner.encoder_proj(encoder_out)
-
     if params.decoding_method == "greedy_search":
-        hyp_tokens = greedy_search(model, encoder_out, decode_streams)
+        greedy_search(
+            model=model,
+            streams=streams,
+            encoder_out=encoder_out,
+        )
+    elif params.decoding_method == "modified_beam_search":
+        modified_beam_search(
+            model=model,
+            streams=streams,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
     elif params.decoding_method == "fast_beam_search":
-        config = k2.RnntDecodingConfig(
-            vocab_size=params.vocab_size,
-            decoder_history_len=params.context_size,
+        # feature_len is needed to get partial results.
+        # The rnnt_decoding_stream for fast_beam_search.
+        with warnings.simplefilter("ignore"):
+            processed_lens = (
+                num_processed_frames // params.subsampling_factor
+                + encoder_out_lens
+            )
+        fast_beam_search_one_best(
+            model=model,
+            streams=streams,
+            encoder_out=encoder_out,
+            processed_lens=processed_lens,
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        decoding_streams = k2.RnntDecodingStreams(rnnt_stream_list, config)
-        processed_lens = processed_lens + encoder_out_lens
-        hyp_tokens = fast_beam_search(
-            model, encoder_out, processed_lens, decoding_streams
-        )
     else:
-        assert False
+        raise ValueError(
+            f"Unsupported decoding method: {params.decoding_method}"
+        )
 
-    states = [torch.unbind(states[0], dim=2), torch.unbind(states[1], dim=2)]
+    # Update cached states of each stream
+    state_list = unstack_states(states)
+    for i, s in enumerate(state_list):
+        streams[i].states = s
 
-    finished_streams = []
-    for i in range(len(decode_streams)):
-        decode_streams[i].states = [states[0][i], states[1][i]]
-        decode_streams[i].done_frames += encoder_out_lens[i]
-        if params.decoding_method == "fast_beam_search":
-            decode_streams[i].hyp = hyp_tokens[i]
-        if decode_streams[i].done:
-            finished_streams.append(i)
-
+    finished_streams = [i for i, stream in enumerate(streams) if stream.done]
     return finished_streams
+
+
+def create_streaming_feature_extractor() -> Fbank:
+    """Create a CPU streaming feature extractor.
+
+    At present, we assume it returns a fbank feature extractor with
+    fixed options. In the future, we will support passing in the options
+    from outside.
+
+    Returns:
+      Return a CPU streaming feature extractor.
+    """
+    opts = FbankOptions()
+    opts.device = "cpu"
+    opts.frame_opts.dither = 0
+    opts.frame_opts.snip_edges = False
+    opts.frame_opts.samp_freq = 16000
+    opts.mel_opts.num_bins = 80
+    return Fbank(opts)
 
 
 def decode_dataset(
     cuts: CutSet,
-    params: AttributeDict,
     model: nn.Module,
+    params: AttributeDict,
     sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+):
     """Decode dataset.
 
     Args:
@@ -409,12 +642,13 @@ def decode_dataset(
       params:
         It is returned by :func:`get_params`.
       model:
-        The neural model.
+        The Transducer model.
       sp:
         The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
+
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -422,91 +656,88 @@ def decode_dataset(
       The first is the reference transcript, and the second is the
       predicted result.
     """
-    device = model.device
+    device = next(model.parameters()).device
 
-    opts = FbankOptions()
-    opts.device = device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = 16000
-    opts.mel_opts.num_bins = 80
+    log_interval = 300
 
-    log_interval = 50
+    fbank = create_streaming_feature_extractor()
 
     decode_results = []
-    # Contain decode streams currently running.
-    decode_streams = []
-    initial_states = model.encoder.get_init_states(device=device)
+    streams = []
     for num, cut in enumerate(cuts):
-        # each utterance has a DecodeStream.
-        decode_stream = DecodeStream(
+        # Each utterance has a Stream.
+        stream = Stream(
             params=params,
-            initial_states=initial_states,
             decoding_graph=decoding_graph,
             device=device,
+            LOG_EPS=LOG_EPSILON,
         )
+
+        stream.set_states(model.encoder.get_init_states(device=device))
 
         audio: np.ndarray = cut.load_audio()
         # audio.shape: (1, num_samples)
         assert len(audio.shape) == 2
         assert audio.shape[0] == 1, "Should be single channel"
         assert audio.dtype == np.float32, audio.dtype
-
         # The trained model is using normalized samples
         assert audio.max() <= 1, "Should be normalized to [-1, 1])"
 
         samples = torch.from_numpy(audio).squeeze(0)
+        feature = fbank(samples)
+        stream.set_feature(feature)
+        stream.set_ground_truth(cut.supervisions[0].text)
 
-        fbank = Fbank(opts)
-        feature = fbank(samples.to(device))
-        decode_stream.set_features(feature)
-        decode_stream.ground_truth = cut.supervisions[0].text
+        streams.append(stream)
 
-        decode_streams.append(decode_stream)
-
-        while len(decode_streams) >= params.num_decode_streams:
+        while len(streams) >= params.num_decode_streams:
             finished_streams = decode_one_chunk(
-                params=params, model=model, decode_streams=decode_streams
+                model=model,
+                streams=streams,
+                params=params,
+                decoding_graph=decoding_graph,
             )
+
             for i in sorted(finished_streams, reverse=True):
-                hyp = decode_streams[i].hyp
-                if params.decoding_method == "greedy_search":
-                    hyp = hyp[params.context_size :]  # noqa
                 decode_results.append(
                     (
-                        decode_streams[i].ground_truth.split(),
-                        sp.decode(hyp).split(),
+                        streams[i].ground_truth.split(),
+                        sp.decode(streams[i].decoding_result()).split(),
                     )
                 )
-                del decode_streams[i]
+                del streams[i]
 
         if num % log_interval == 0:
             logging.info(f"Cuts processed until now is {num}.")
 
-    # decode final chunks of last sequences
-    while len(decode_streams):
+    while len(streams) > 0:
         finished_streams = decode_one_chunk(
-            params=params, model=model, decode_streams=decode_streams
+            model=model,
+            streams=streams,
+            params=params,
+            decoding_graph=decoding_graph,
         )
+
         for i in sorted(finished_streams, reverse=True):
-            hyp = decode_streams[i].hyp
-            if params.decoding_method == "greedy_search":
-                hyp = hyp[params.context_size :]  # noqa
             decode_results.append(
                 (
-                    decode_streams[i].ground_truth.split(),
-                    sp.decode(hyp).split(),
+                    streams[i].ground_truth.split(),
+                    sp.decode(streams[i].decoding_result()).split(),
                 )
             )
-            del decode_streams[i]
+            del streams[i]
 
-    key = "greedy_search"
-    if params.decoding_method == "fast_beam_search":
+    if params.decoding_method == "greedy_search":
+        key = "greedy_search"
+    elif params.decoding_method == "fast_beam_search":
         key = (
             f"beam_{params.beam}_"
             f"max_contexts_{params.max_contexts}_"
             f"max_states_{params.max_states}"
         )
+    else:
+        key = f"beam_size_{params.beam_size}"
+
     return {key: decode_results}
 
 
@@ -520,8 +751,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts(filename=recog_path, texts=sorted(results))
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -565,6 +795,11 @@ def main():
     params = get_params()
     params.update(vars(args))
 
+    assert params.decoding_method in (
+        "greedy_search",
+        "fast_beam_search",
+        "modified_beam_search",
+    )
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:
@@ -572,19 +807,22 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    # for streaming
-    params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
-
-    # for fast_beam_search
-    if params.decoding_method == "fast_beam_search":
+    if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+    elif "beam_search" in params.decoding_method:
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
+    else:
+        params.suffix += f"-context-{params.context_size}"
+        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
 
-    setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
+    setup_logger(f"{params.res_dir}/log-streaming-decode")
     logging.info("Decoding started")
 
     device = torch.device("cpu")
@@ -596,13 +834,12 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
-    # Decoding in streaming requires causal convolution
-    params.causal_convolution = True
+    params.device = device
 
     logging.info(params)
 
@@ -633,7 +870,7 @@ def main():
             start = params.epoch - params.avg + 1
             filenames = []
             for i in range(start, params.epoch + 1):
-                if start >= 0:
+                if i >= 1:
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
@@ -686,13 +923,12 @@ def main():
                 )
             )
 
-    model.to(device)
     model.eval()
-    model.device = device
 
-    decoding_graph = None
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    else:
+        decoding_graph = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -708,8 +944,8 @@ def main():
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
             cuts=test_cut,
-            params=params,
             model=model,
+            params=params,
             sp=sp,
             decoding_graph=decoding_graph,
         )
@@ -724,4 +960,5 @@ def main():
 
 
 if __name__ == "__main__":
+    torch.manual_seed(20220810)
     main()

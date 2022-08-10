@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import copy
+import math
 from typing import List, Optional, Tuple
 
 import torch
@@ -28,6 +29,68 @@ from scaling import (
     ScaledLSTM,
 )
 from torch import nn
+
+LOG_EPSILON = math.log(1e-10)
+
+
+def unstack_states(
+    states: Tuple[torch.Tensor, torch.Tensor]
+) -> List[Tuple[torch.Tensor, torch.Tensor]]:
+    """
+    Unstack the lstm states corresponding to a batch of utterances into a list
+    of states, where the i-th entry is the state from the i-th utterance.
+
+    Args:
+      states:
+        A tuple of 2 elements.
+        ``states[0]`` is the lstm hidden states, of a batch of utterance.
+        ``states[1]`` is the lstm cell states, of a batch of utterances.
+
+    Returns:
+      A list of states.
+        ``states[i]`` is a tuple of 2 elememts of i-th utterance.
+        ``states[i][0]`` is the lstm hidden states of i-th utterance.
+        ``states[i][1]`` is the lstm cell states of i-th utterance.
+    """
+    hidden_states, cell_states = states
+
+    list_hidden_states = hidden_states.unbind(dim=1)
+    list_cell_states = cell_states.unbind(dim=1)
+
+    ans = [
+        (h.unsqueeze(1), c.unsqueeze(1))
+        for (h, c) in zip(list_hidden_states, list_cell_states)
+    ]
+    return ans
+
+
+def stack_states(
+    states_list: List[Tuple[torch.Tensor, torch.Tensor]]
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Stack list of lstm states corresponding to separate utterances into a single
+    lstm state so that it can be used as an input for lsit when those utterances
+    are formed into a batch.
+
+    Args:
+      state_list:
+        Each element in state_list corresponds to the lstm state for a single
+        utterance.
+        ``states[i]`` is a tuple of 2 elememts of i-th utterance.
+        ``states[i][0]`` is the lstm hidden states of i-th utterance.
+        ``states[i][1]`` is the lstm cell states of i-th utterance.
+
+
+    Returns:
+      A new state corresponding to a batch of utterances.
+      It is a tuple of 2 elements.
+        ``states[0]`` is the lstm hidden states, of a batch of utterance.
+        ``states[1]`` is the lstm cell states, of a batch of utterances.
+    """
+    hidden_states = torch.cat([s[0] for s in states_list], dim=1)
+    cell_states = torch.cat([s[1] for s in states_list], dim=1)
+    ans = (hidden_states, cell_states)
+    return ans
 
 
 class RNN(EncoderInterface):

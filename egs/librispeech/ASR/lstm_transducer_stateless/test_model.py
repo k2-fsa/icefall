@@ -26,11 +26,13 @@ To run this file, do:
 import os
 from pathlib import Path
 
+import torch
 from export import (
     export_decoder_model_jit_trace,
     export_encoder_model_jit_trace,
     export_joiner_model_jit_trace,
 )
+from lstm import stack_states, unstack_states
 from scaling_converter import convert_scaled_to_non_scaled
 from train import get_params, get_transducer_model
 
@@ -70,8 +72,20 @@ def test_model():
     print("The model has been successfully exported using jit.trace.")
 
 
+def test_states_stack_and_unstack():
+    layer, batch, hidden, cell = 12, 100, 512, 1024
+    states = (
+        torch.randn(layer, batch, hidden),
+        torch.randn(layer, batch, cell),
+    )
+    states2 = stack_states(unstack_states(states))
+    assert torch.allclose(states[0], states2[0])
+    assert torch.allclose(states[1], states2[1])
+
+
 def main():
     test_model()
+    test_states_stack_and_unstack()
 
 
 if __name__ == "__main__":
