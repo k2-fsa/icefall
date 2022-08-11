@@ -961,6 +961,7 @@ def run(rank, world_size, args):
         torch.distributed.barrier()
         cleanup_dist()
 
+
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
@@ -973,8 +974,6 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
-      sp:
-        The BPE model.
     """
     from lhotse.utils import uuid4
 
@@ -982,13 +981,15 @@ def display_and_save_batch(
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
 
-    supervisions = batch["supervisions"]
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
 
-    num_tokens = params.vocab_size
+    texts = batch["supervisions"]["text"]
+    num_tokens = sum(len(i) for i in texts)
+
     logging.info(f"num tokens: {num_tokens}")
+
 
 def scan_pessimistic_batches_for_oom(
     model: nn.Module,
