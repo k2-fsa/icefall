@@ -1055,5 +1055,3 @@ torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()
-
-
