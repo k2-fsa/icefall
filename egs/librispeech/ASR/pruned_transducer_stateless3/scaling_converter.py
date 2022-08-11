@@ -25,6 +25,7 @@ life by converting them to their non-scaled version during inference.
 
 import copy
 import re
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -54,7 +55,10 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
         in_features=scaled_linear.in_features,
         out_features=scaled_linear.out_features,
         bias=True,  # otherwise, it throws errors when converting to PNNX format.
-        device=weight.device,
+        # device=weight.device,  # Pytorch version before v1.9.0 does not has
+        # this argument. Comment out for now, we will
+        # see if it will raise error for versions
+        # after v1.9.0
     )
     linear.weight.data.copy_(weight)
 
@@ -164,6 +168,24 @@ def scaled_embedding_to_embedding(
     return embedding
 
 
+# Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule
+# get_submodule was added to nn.Module at v1.9.0
+def get_submodule(model, target):
+    if target == "":
+        return model
+    atoms: List[str] = target.split(".")
+    mod: torch.nn.Module = model
+    for item in atoms:
+        if not hasattr(mod, item):
+            raise AttributeError(
+                mod._get_name() + " has no " "attribute `" + item + "`"
+            )
+        mod = getattr(mod, item)
+        if not isinstance(mod, torch.nn.Module):
+            raise AttributeError("`" + item + "` is not " "an nn.Module")
+    return mod
+
+
 def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
@@ -200,7 +222,7 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
     for k, v in d.items():
         if "." in k:
             parent, child = k.rsplit(".", maxsplit=1)
-            setattr(model.get_submodule(parent), child, v)
+            setattr(get_submodule(model, parent), child, v)
         else:
             setattr(model, k, v)
 

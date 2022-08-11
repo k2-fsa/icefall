@@ -29,6 +29,7 @@ class Stream(object):
     def __init__(
         self,
         params: AttributeDict,
+        cut_id: str,
         decoding_graph: Optional[k2.Fsa] = None,
         device: torch.device = torch.device("cpu"),
         LOG_EPS: float = math.log(1e-10),
@@ -44,6 +45,7 @@ class Stream(object):
             The device to run this stream.
         """
         self.LOG_EPS = LOG_EPS
+        self.cut_id = cut_id
 
         # Containing attention caches and convolution caches
         self.states: Optional[
@@ -137,6 +139,10 @@ class Stream(object):
     def done(self) -> bool:
         """Return True if all feature frames are processed."""
         return self._done
+
+    @property
+    def id(self) -> str:
+        return self.cut_id
 
     def decoding_result(self) -> List[int]:
         """Obtain current decoding result."""

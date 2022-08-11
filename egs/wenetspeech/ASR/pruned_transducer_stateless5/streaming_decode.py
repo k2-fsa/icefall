@@ -396,6 +396,7 @@ def decode_dataset(
         # each utterance has a DecodeStream.
         decode_stream = DecodeStream(
             params=params,
+            cut_id=cut.id,
             initial_states=initial_states,
             decoding_graph=decoding_graph,
             device=device,
@@ -423,6 +424,7 @@ def decode_dataset(
                 hyp = decode_streams[i].decoding_result()
                 decode_results.append(
                     (
+                        decode_streams[i].id,
                         list(decode_streams[i].ground_truth),
                         [lexicon.token_table[idx] for idx in hyp],
                     )
@@ -441,6 +443,7 @@ def decode_dataset(
             hyp = decode_streams[i].decoding_result()
             decode_results.append(
                 (
+                    decode_streams[i].id,
                     list(decode_streams[i].ground_truth),
                     [lexicon.token_table[idx] for idx in hyp],
                 )
