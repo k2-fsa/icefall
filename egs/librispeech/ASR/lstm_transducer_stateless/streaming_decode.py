@@ -668,6 +668,7 @@ def decode_dataset(
         # Each utterance has a Stream.
         stream = Stream(
             params=params,
+            cut_id=cut.id,
             decoding_graph=decoding_graph,
             device=device,
             LOG_EPS=LOG_EPSILON,
@@ -701,6 +702,7 @@ def decode_dataset(
             for i in sorted(finished_streams, reverse=True):
                 decode_results.append(
                     (
+                        streams[i].id,
                         streams[i].ground_truth.split(),
                         sp.decode(streams[i].decoding_result()).split(),
                     )
@@ -721,6 +723,7 @@ def decode_dataset(
         for i in sorted(finished_streams, reverse=True):
             decode_results.append(
                 (
+                    streams[i].id,
                     streams[i].ground_truth.split(),
                     sp.decode(streams[i].decoding_result()).split(),
                 )
