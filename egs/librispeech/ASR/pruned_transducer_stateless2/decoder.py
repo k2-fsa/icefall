@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from scaling import ScaledConv1d, ScaledEmbedding
+
+from icefall.utils import is_jit_tracing
 
 
 class Decoder(nn.Module):
@@ -80,7 +80,10 @@ class Decoder(nn.Module):
             self.conv = nn.Identity()
 
     def forward(
-        self, y: torch.Tensor, need_pad: Union[bool, torch.Tensor] = True
+        self,
+        y: torch.Tensor,
+        need_pad: bool = True  # Annotation should be Union[bool, torch.Tensor]
+        # but, torch.jit.script does not support Union.
     ) -> torch.Tensor:
         """
         Args:
@@ -108,7 +111,7 @@ class Decoder(nn.Module):
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
-                if not torch.jit.is_tracing():
+                if not is_jit_tracing():
                     assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)

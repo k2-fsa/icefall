@@ -42,6 +42,18 @@ from icefall.checkpoint import average_checkpoints
 Pathlike = Union[str, Path]
 
 
+# Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
+# Fixed: https://github.com/pytorch/pytorch/pull/49853
+# The fix was included in v1.9.0
+# https://github.com/pytorch/pytorch/releases/tag/v1.9.0
+def is_jit_tracing():
+    if torch.jit.is_scripting():
+        return False
+    elif torch.jit.is_tracing():
+        return True
+    return False
+
+
 @contextmanager
 def get_executor():
     # We'll either return a process pool or a distributed worker pool.
