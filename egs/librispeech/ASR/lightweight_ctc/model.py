@@ -121,7 +121,8 @@ class MobileNetS4(nn.Module):
           A tensor with shape (N, round(T / 4), num_classes)
         """
         assert x.shape[-1] == self.num_features, \
-            f"Number of features should be {self.num_features} instead of {x.shape[3]}"
+            f"Number of features should be {self.num_features} \
+            instead of {x.shape[3]}"
         x = self.conv_subsample(x)                      # N, 32, T//4, F//4
         x = self.bottleneck_layers(x)                   # N, Tout, Fout * Cout
         x = x.permute(0, 2, 3, 1).flatten(2)            # N, Tout, Fout * Cout
@@ -157,7 +158,8 @@ class Bottleneck(nn.Module):
 
         super().__init__()
         if skip_add:
-            assert h_stride == w_stride == 1 and in_channels == out_channels, "Using skip_add requires identical input/output shape."
+            assert h_stride == w_stride == 1 and in_channels == out_channels, \
+                "Using skip_add requires identical input/output shape."
         hidden_dim = round(in_channels * expansion_rate)
         self.skip_add = skip_add
         self.layer = nn.Sequential(

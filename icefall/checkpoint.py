@@ -480,5 +480,6 @@ def average_state_dict(
                 buffer *= scaling_factor
                 state_dict_1[k] = torch.round(buffer).type_as(state_dict_1[k])
             except Exception as e:
-                logging.warn(f'Cannot average entry {k}, whose value is {state_dict_1[k]}')
+                logging.warn(f'Cannot average entry {k}, whose value is \
+                   {state_dict_1[k]}')
                 logging.warn(str(e))

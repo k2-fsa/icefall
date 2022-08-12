@@ -272,7 +272,7 @@ def get_parser():
         "--rnn-dim",
         type=int,
         default=0,
-        help="""If positive, add a GRU layer after convolution 
+        help="""If positive, add a GRU layer after convolution
         with rnn_dim as the output dimension.""",
     )
 
@@ -472,7 +472,8 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     batch: dict,
-    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: \
+        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
@@ -568,7 +569,8 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: \
+        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -603,7 +605,8 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: \
+        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     scheduler: LRSchedulerType,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -1010,7 +1013,8 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: \
+        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
