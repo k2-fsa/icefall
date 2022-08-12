@@ -4,9 +4,9 @@ from torch import Tensor
 
 class MobileNetS4(nn.Module):
     """
-    MobileNet V2-like network with subsampling rate = 4. 
-    The conv_subsampling layer is similar to Conv2dSubsampling, 
-    followed by configurable number of convolutional blocks, 
+    MobileNet V2-like network with subsampling rate = 4.
+    The conv_subsampling layer is similar to Conv2dSubsampling,
+    followed by configurable number of convolutional blocks,
     where each block consists of 3 bottleneck layers.
     """
 
@@ -34,7 +34,7 @@ class MobileNetS4(nn.Module):
           blocks:
             How many convolutional blocks to use. Scales network depth.
           expansion_rate:
-            Expansion rate of the bottleneck layers. 
+            Expansion rate of the bottleneck layers.
           skip_add:
             Use skip connect in the bottleneck layers.
           rnn_dim:
@@ -114,13 +114,14 @@ class MobileNetS4(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """
         Args:
-          x: input feature, with shape (N, 1, T, F), 
+          x: input feature, with shape (N, 1, T, F),
              where F is the feature dimension.
 
         Returns:
           A tensor with shape (N, round(T / 4), num_classes)
         """
-        assert x.shape[-1] == self.num_features, f"Number of features should be {self.num_features} instead of {x.shape[3]}"
+        assert x.shape[-1] == self.num_features, \
+            f"Number of features should be {self.num_features} instead of {x.shape[3]}"
         x = self.conv_subsample(x)                      # N, 32, T//4, F//4
         x = self.bottleneck_layers(x)                   # N, Tout, Fout * Cout
         x = x.permute(0, 2, 3, 1).flatten(2)            # N, Tout, Fout * Cout
@@ -150,7 +151,7 @@ class Bottleneck(nn.Module):
           in_channels, out_channels: Number of input/output channels.
           expansion_rate: Expansion rate of the bottleneck.
           h_stride, w_stride: stride in height (time) and width dimension.
-          skip_add: use skip connect like in MobileNet V2. 
+          skip_add: use skip connect like in MobileNet V2.
                     Requires stride = 1 and in_channels = out_channels.
         """
 
