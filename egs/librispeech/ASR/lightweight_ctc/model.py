@@ -1,11 +1,13 @@
-import torch
 import torch.nn as nn
 from torch import Tensor
 
 
 class MobileNetS4(nn.Module):
     """
-    MobileNet V2-like network with subsampling rate = 4. The conv_subsampling layer is similar to Conv2dSubsampling, followed by configurable number of convolutional blocks, where each block consists of 3 bottleneck layers. 
+    MobileNet V2-like network with subsampling rate = 4. 
+    The conv_subsampling layer is similar to Conv2dSubsampling, 
+    followed by configurable number of convolutional blocks, 
+    where each block consists of 3 bottleneck layers.
     """
 
     def __init__(
@@ -30,13 +32,13 @@ class MobileNetS4(nn.Module):
           first_out_channel:
             Out channels of the first layer. Scales network width.
           blocks:
-            Each block halves width and doubles channels. Scales network depth.
+            How many convolutional blocks to use. Scales network depth.
           expansion_rate:
-            Expansion rate of the bottleneck layers. Can be smaller or greater than 1.
+            Expansion rate of the bottleneck layers. 
           skip_add:
             Use skip connect in the bottleneck layers.
           rnn_dim:
-            If positive, add a GRU layer after convolution with rnn_dim as the output dimension.
+            If positive, add a GRU layer with rnn_dim as the output dimension.
         """
         super().__init__()
 
@@ -112,10 +114,11 @@ class MobileNetS4(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """
         Args:
-          x: input feature, with shape (N, 1, T, F), where F is the feature dimension.
+          x: input feature, with shape (N, 1, T, F), 
+             where F is the feature dimension.
 
         Returns:
-          A tensor with shape (N, round(T / subsampling_factor), num_classes)
+          A tensor with shape (N, round(T / 4), num_classes)
         """
         assert x.shape[-1] == self.num_features, f"Number of features should be {self.num_features} instead of {x.shape[3]}"
         x = self.conv_subsample(x)                      # N, 32, T//4, F//4
@@ -144,10 +147,11 @@ class Bottleneck(nn.Module):
     ) -> None:
         """
         Args:
-          in_channels, out_channels: Number of input/output channels
-          expansion_rate: Expansion rate of the bottleneck, can be greater or smaller than 1
+          in_channels, out_channels: Number of input/output channels.
+          expansion_rate: Expansion rate of the bottleneck.
           h_stride, w_stride: stride in height (time) and width dimension.
-          skip_add: use skip connect like in MobileNet V2. Requires stride = 1 and in_channels = out_channels
+          skip_add: use skip connect like in MobileNet V2. 
+                    Requires stride = 1 and in_channels = out_channels.
         """
 
         super().__init__()

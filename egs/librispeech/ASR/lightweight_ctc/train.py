@@ -271,8 +271,9 @@ def get_parser():
     parser.add_argument(
         "--rnn-dim",
         type=int,
-        default=200,
-        help="If positive, add a GRU layer after convolution with rnn_dim as the output dimension.",
+        default=0,
+        help="""If positive, add a GRU layer after convolution 
+        with rnn_dim as the output dimension.""",
     )
 
     return parser
@@ -506,7 +507,6 @@ def compute_loss(
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)
 
     with torch.set_grad_enabled(is_training):
         nnet_output = model(feature)
@@ -659,7 +659,7 @@ def train_one_epoch(
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        #batch_name = batch["supervisions"]["uttid"]
+        # batch_name = batch["supervisions"]["uttid"]
         batch_name = ''
 
         with torch.cuda.amp.autocast(enabled=params.use_fp16):

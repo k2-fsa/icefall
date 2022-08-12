@@ -146,7 +146,8 @@ def get_parser():
         "--rnn-dim",
         type=int,
         default=0,
-        help="If positive, add a GRU layer after convolution with rnn_dim as the output dimension.",
+        help="""If positive, add a GRU layer after convolution 
+        with rnn_dim as the output dimension.""",
     )
 
     return parser
