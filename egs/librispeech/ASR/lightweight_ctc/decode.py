@@ -670,6 +670,7 @@ def main():
         num_features=params.feature_dim,
         num_classes=num_classes,
         subsampling_factor=params.subsampling_factor,
+        first_out_channels=params.first_out_channels,
         blocks=params.conv_blocks,
         rnn_dim=params.rnn_dim,
     )

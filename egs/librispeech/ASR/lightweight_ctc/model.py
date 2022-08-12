@@ -108,7 +108,6 @@ class MobileNetS4(nn.Module):
             self.rnn = nn.GRU(c*w, rnn_dim, batch_first=True)
             self.linear = nn.Linear(rnn_dim, num_classes)
         else:
-            self.rnn = nn.Identity()
             self.linear = nn.Linear(c*w, num_classes)
 
     def forward(self, x: Tensor) -> Tensor:

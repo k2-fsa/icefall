@@ -472,8 +472,7 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     batch: dict,
-    graph_compiler: \
-        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
@@ -569,8 +568,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: \
-        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -605,8 +603,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    graph_compiler: \
-        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     scheduler: LRSchedulerType,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -847,7 +844,7 @@ def run(rank, world_size, args):
         num_features=params.feature_dim,
         num_classes=num_classes,
         subsampling_factor=params.subsampling_factor,
-        # first_out_channels=params.first_out_channels,
+        first_out_channels=params.first_out_channels,
         blocks=params.conv_blocks,
         rnn_dim=params.rnn_dim,
     )
@@ -1013,8 +1010,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: \
-        Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
+    graph_compiler: Union[CtcTrainingGraphCompiler, BpeCtcTrainingGraphCompiler],
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
