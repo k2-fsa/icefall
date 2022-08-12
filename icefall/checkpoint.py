@@ -466,13 +466,6 @@ def average_state_dict(
 
     uniqued_names = list(uniqued.values())
     for k in uniqued_names:
-<<<<<<< Updated upstream
-        state_dict_1[k] *= weight_1
-        state_dict_1[k] += (
-            state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
-        )
-        state_dict_1[k] *= scaling_factor
-=======
         if state_dict_1[k].is_floating_point():
             state_dict_1[k] *= weight_1
             state_dict_1[k] += (
@@ -488,4 +481,3 @@ def average_state_dict(
                 state_dict_1[k] = torch.round(buffer).type_as(state_dict_1[k])
             except:
                 logging.warn(f'Cannot average entry {k}, whose value is {state_dict_1[k]}')
->>>>>>> Stashed changes
