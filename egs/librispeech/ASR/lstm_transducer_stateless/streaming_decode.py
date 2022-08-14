@@ -543,8 +543,8 @@ def decode_one_chunk(
         num_processed_frames_list, device=device
     )
 
-    # Make sure it has at least 1 frame after subsampling, first-and-last-frame cutting, and right context cutting  # noqa
-    tail_length = 3 * params.subsampling_factor + 3
+    # Make sure it has at least 1 frame after subsampling
+    tail_length = params.subsampling_factor + 5
     if features.size(1) < tail_length:
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length

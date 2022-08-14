@@ -206,10 +206,10 @@ class RNN(EncoderInterface):
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        # lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
+        # lengths = ((x_lens - 3) // 2 - 1) // 2 # issue an warning
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
-        lengths = (((x_lens - 1) >> 1) - 1) >> 1
+        lengths = (((x_lens - 3) >> 1) - 1) >> 1
         if not torch.jit.is_tracing():
             assert x.size(0) == lengths.max().item()
 
@@ -218,10 +218,6 @@ class RNN(EncoderInterface):
             # torch.jit.trace requires returned types be the same as annotated
             new_states = (torch.empty(0), torch.empty(0))
         else:
-            # we cut off 1 frame on each side of encoder_embed output
-            lengths -= 2
-            x = x[1:-1, :, :]
-
             assert not self.training
             assert len(states) == 2
             if not torch.jit.is_tracing():
@@ -496,7 +492,7 @@ class Conv2dSubsampling(nn.Module):
 
     Convert an input of shape (N, T, idim) to an output
     with shape (N, T', odim), where
-    T' = ((T-1)//2 - 1)//2, which approximates T' == T//4
+    T' = ((T-3)//2-1)//2, which approximates T' == T//4
 
     It is based on
     https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/subsampling.py  # noqa
@@ -514,15 +510,15 @@ class Conv2dSubsampling(nn.Module):
         Args:
           in_channels:
             Number of channels in. The input shape is (N, T, in_channels).
-            Caution: It requires: T >=7, in_channels >=7
+            Caution: It requires: T >= 9, in_channels >= 9.
           out_channels
-            Output dim. The output shape is (N, ((T-1)//2 - 1)//2, out_channels)
+            Output dim. The output shape is (N, ((T-3)//2-1)//2, out_channels)
           layer1_channels:
             Number of channels in layer1
           layer1_channels:
             Number of channels in layer2
         """
-        assert in_channels >= 7
+        assert in_channels >= 9
         super().__init__()
 
         self.conv = nn.Sequential(
@@ -530,7 +526,7 @@ class Conv2dSubsampling(nn.Module):
                 in_channels=1,
                 out_channels=layer1_channels,
                 kernel_size=3,
-                padding=1,
+                padding=0,
             ),
             ActivationBalancer(channel_dim=1),
             DoubleSwish(),
@@ -552,7 +548,7 @@ class Conv2dSubsampling(nn.Module):
             DoubleSwish(),
         )
         self.out = ScaledLinear(
-            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
+            layer3_channels * (((in_channels - 3) // 2 - 1) // 2), out_channels
         )
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
@@ -571,15 +567,15 @@ class Conv2dSubsampling(nn.Module):
             Its shape is (N, T, idim).
 
         Returns:
-          Return a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          Return a tensor of shape (N, ((T-3)//2-1)//2, odim)
         """
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
+        # Now x is of shape (N, odim, ((T-3)//2-1)//2, ((idim-3)//2-1)//2)
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        # Now x is of shape (N, ((T-3)//2-1))//2, odim)
         x = self.out_norm(x)
         x = self.out_balancer(x)
         return x

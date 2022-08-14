@@ -81,8 +81,7 @@ class Stream(object):
         # Make sure all feature frames can be used.
         # We aim to obtain 1 frame after subsampling.
         self.chunk_length = params.subsampling_factor
-        # Add 2 here since we will drop the first and last after subsampling.
-        self.pad_length = 2 * params.subsampling_factor + 3
+        self.pad_length = 5
         self.num_frames = 0
         self.num_processed_frames = 0
 
@@ -91,11 +90,11 @@ class Stream(object):
 
     def set_feature(self, feature: torch.Tensor) -> None:
         assert feature.dim() == 2, feature.dim()
-        self.num_frames = feature.size(0)
         # tail padding
+        self.num_frames = feature.size(0) + 20
         self.feature = torch.nn.functional.pad(
             feature,
-            (0, 0, 0, self.pad_length),
+            (0, 0, 0, self.pad_length + 20),
             mode="constant",
             value=self.LOG_EPS,
         )
