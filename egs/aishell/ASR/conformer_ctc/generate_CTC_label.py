@@ -133,6 +133,8 @@ def main():
     parser = get_parser()
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.enable_spec_aug = False
+    args.enable_musan = False
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
@@ -183,19 +185,19 @@ def main():
     logging.info(f"Number of model parameters: {num_param}")
 
     aishell = AishellAsrDataModule(args)
-    test_cuts = aishell.test_cuts()
-    test_dl = aishell.test_dataloaders(test_cuts)
+    train_cuts = aishell.train_cuts()
+    train_dl = aishell.train_dataloaders(train_cuts)
 
-    test_sets = ["test"]
-    test_dls = [test_dl]
+    train_sets = ["train"]
+    train_dls = [train_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dls):
+    for train_set, train_dl in zip(train_sets, train_dls):
         generate_ctc_label_dataset(
-            dl=test_dl,
+            dl=train_dl,
             params=params,
             model=model,
             device=device,
-            output_path=os.path.join(args.exp_dir, f"ctc-label-{test_set}.lca"),
+            output_path=os.path.join(args.exp_dir, f"ctc-label-{train_set}.lca"),
         )
 
     logging.info("Done!")
