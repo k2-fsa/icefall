@@ -139,7 +139,7 @@ def main():
     params.update(vars(args))
 
     setup_logger(f"{params.exp_dir}/log-ctc-label/log-decode")
-    logging.info("Decoding started")
+    logging.info("CTC label generation started")
     logging.info(params)
 
     lexicon = Lexicon(params.lang_dir)
