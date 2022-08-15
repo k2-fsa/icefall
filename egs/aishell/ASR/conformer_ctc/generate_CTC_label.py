@@ -105,7 +105,7 @@ def generate_ctc_label_batch(
     supervisions = batch["supervisions"]
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     return nnet_output
-    
+
 
 def generate_ctc_label_dataset(
     dl: torch.utils.data.DataLoader,
