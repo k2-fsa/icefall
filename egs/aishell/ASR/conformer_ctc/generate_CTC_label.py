@@ -90,6 +90,7 @@ def get_params() -> AttributeDict:
     )
     return params
 
+
 def generate_ctc_label_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -105,6 +106,7 @@ def generate_ctc_label_batch(
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     return nnet_output
     
+
 def generate_ctc_label_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
@@ -124,6 +126,7 @@ def generate_ctc_label_dataset(
                 nnet_output.cpu().detach().numpy(),
                 writer,
             )
+
 
 @torch.no_grad()
 def main():
