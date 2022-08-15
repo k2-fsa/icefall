@@ -32,22 +32,11 @@ import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
 
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.decode import (
-    get_lattice,
-    nbest_decoding,
-    nbest_oracle,
-    one_best_decoding,
-    rescore_with_attention_decoder,
-)
-from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_texts,
     setup_logger,
-    store_transcripts,
     write_error_stats,
 )
 
