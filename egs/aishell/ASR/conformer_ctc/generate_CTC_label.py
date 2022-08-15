@@ -23,7 +23,6 @@ from collections import defaultdict
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from pdb import set_trace
 
 import k2
 from lhotse.features.io import LilcomChunkyWriter
@@ -128,7 +127,6 @@ def generate_ctc_label_dataset(
     device: torch.device,
     output_path: str,
 ):
-    set_trace()
     with LilcomChunkyWriter(output_path) as writer:
         for batch_idx, batch in enumerate(dl):
             nnet_output = generate_ctc_label_batch(
