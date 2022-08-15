@@ -15,12 +15,9 @@
 
 import argparse
 import logging
-from collections import defaultdict
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-import k2
 from lhotse.features.io import LilcomChunkyWriter
 from lhotse.features.base import store_feature_array
 import torch
