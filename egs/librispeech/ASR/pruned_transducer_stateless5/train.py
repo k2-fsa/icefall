@@ -670,6 +670,18 @@ def compute_loss(
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
+            # If the batch contains more than 10 utterance AND
+            # if either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if feature.size(0) >= 10:
+                if torch.all(~simple_loss_is_finite) or torch.all(
+                    ~pruned_loss_is_finite
+                ):
+                    raise ValueError(
+                        "There are too many utterances in this batch "
+                        "leading to inf or nan losses."
+                    )
+
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
         # after the main warmup step, we keep pruned_loss_scale small
@@ -691,7 +703,10 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        # info["frames"] is an approximate number
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
