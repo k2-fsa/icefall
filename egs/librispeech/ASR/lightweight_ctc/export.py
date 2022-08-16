@@ -24,7 +24,8 @@ Usage:
 ./lightweight_ctc/export.py \
   --exp-dir ./lightweight_ctc/exp \
   --epoch 20 \
-  --avg 10
+  --avg 5 \
+  --jit 0
 
 It will generate a file exp_dir/pretrained.pt
 
@@ -39,6 +40,7 @@ you can do:
         --exp-dir ./lightweight_ctc/exp \
         --epoch 9999 \
         --avg 1 \
+        --use-averaged-model 0 \
         --max-duration 100
 """
 

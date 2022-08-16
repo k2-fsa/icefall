@@ -1,3 +1,20 @@
+#!/usr/bin/env python3
+# Copyright (c)  2021  SpaceTouch Inc. (author: Tiance Wang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch.nn as nn
 from torch import Tensor
 
@@ -6,7 +23,7 @@ class MobileNetS4(nn.Module):
     """
     MobileNet V2-like network with subsampling rate = 4.
     The conv_subsampling layer is similar to Conv2dSubsampling,
-    followed by configurable number of convolutional blocks,
+    followed by a flexible number of convolutional blocks,
     where each block consists of 3 bottleneck layers.
     """
 
@@ -42,7 +59,7 @@ class MobileNetS4(nn.Module):
         """
         super().__init__()
 
-        assert subsampling_factor == 4, 'Only subsampling = 4 supported.'
+        assert subsampling_factor == 4, f'Only subsampling = 4 is supported, you have {subsampling_factor}'
         self.num_features = num_features
         self.skip_add = skip_add
         self.rnn_dim = rnn_dim
@@ -87,21 +104,21 @@ class MobileNetS4(nn.Module):
                     expansion_rate=expansion_rate,
                     w_stride=2,
                     skip_add=False,
-                )),
+                ))
             self.bottleneck_layers.append(
                 Bottleneck(
                     in_channels=c*2,
                     out_channels=c*2,
                     expansion_rate=expansion_rate,
                     skip_add=skip_add,
-                )),
+                ))
             self.bottleneck_layers.append(
                 Bottleneck(
                     in_channels=c*2,
                     out_channels=c*2,
                     expansion_rate=expansion_rate,
                     skip_add=skip_add,
-                )),
+                ))
             c *= 2
             w = (w+1) // 2
         if rnn_dim > 0:
@@ -113,7 +130,7 @@ class MobileNetS4(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """
         Args:
-          x: input feature, with shape (N, 1, T, F),
+          x: Input feature, with shape (N, 1, T, F),
              where F is the feature dimension.
 
         Returns:
@@ -121,9 +138,9 @@ class MobileNetS4(nn.Module):
         """
         assert x.shape[-1] == self.num_features, \
             f"Number of features should be {self.num_features} \
-            instead of {x.shape[3]}"
-        x = self.conv_subsample(x)                      # N, 32, T//4, F//4
-        x = self.bottleneck_layers(x)                   # N, Tout, Fout * Cout
+            instead of {x.shape[-1]}"
+        x = self.conv_subsample(x)                      # N, first_out_channels*4, T//4, F//4
+        x = self.bottleneck_layers(x)                   # N, Cout, Tout, Fout
         x = x.permute(0, 2, 3, 1).flatten(2)            # N, Tout, Fout * Cout
         if self.rnn_dim > 0:
             x, _ = self.rnn(x)
@@ -148,10 +165,11 @@ class Bottleneck(nn.Module):
     ) -> None:
         """
         Args:
-          in_channels, out_channels: Number of input/output channels.
+          in_channels: Number of input channels.
+          out_channels: Number of output channels.
           expansion_rate: Expansion rate of the bottleneck.
           h_stride, w_stride: stride in height (time) and width dimension.
-          skip_add: use skip connect like in MobileNet V2.
+          skip_add: Use skip connect like in MobileNet V2.
                     Requires stride = 1 and in_channels = out_channels.
         """
 

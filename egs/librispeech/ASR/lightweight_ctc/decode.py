@@ -260,8 +260,6 @@ def decode_one_batch(
 
       model:
         The neural model.
-      rnn_lm_model:
-        The neural model for RNN LM.
       HLG:
         The decoding graph. Used only when params.method is NOT ctc-decoding.
       H:
@@ -451,10 +449,6 @@ def decode_dataset(
         The BPE model. Used only when params.method is ctc-decoding.
       word_table:
         It is the word symbol table.
-      sos_id:
-        The token ID for SOS.
-      eos_id:
-        The token ID for EOS.
       G:
         An LM. It is not None when params.method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
