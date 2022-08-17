@@ -93,7 +93,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool, display_and_save_batch
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -645,7 +645,7 @@ def compute_loss(
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
-            # If the batch contains more than 10 utterance AND
+            # If the batch contains more than 10 utterances AND
             # if either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
             if feature.size(0) >= 10:

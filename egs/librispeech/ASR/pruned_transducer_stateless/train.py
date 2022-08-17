@@ -83,6 +83,7 @@ from icefall.utils import (
     optim_step_and_measure_param_change,
     setup_logger,
     str2bool,
+    display_and_save_batch,
 )
 
 
@@ -559,7 +560,7 @@ def compute_loss(
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
-            # If the batch contains more than 10 utterance AND
+            # If the batch contains more than 10 utterances AND
             # if either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
             if feature.size(0) >= 10:
