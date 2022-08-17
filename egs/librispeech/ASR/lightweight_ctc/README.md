@@ -3,20 +3,35 @@
 
 ### 2022-08-12
 
-The number of parameters with phone lexicon is 1766904. The WER with each decoding method is listed as follows. Since the model is targeted for low powered devices, the major goal is to improve one-best WER.
+The number of parameters with phone lexicon is 1766904. The WER for each decoding method is listed as follows. Since the model is targeted for low powered devices, the major goal is to improve one-best WER.
 
 | Decoding method           | test-clean | test-other | comment                      |
 |---------------------------|------------|------------|------------------------------|
-| one-best                  | 11.09      | 28.5       |                              |
-| nbest-rescoring           | 9.52       | 26.65*     | lm_scale=0.7 gives best WER  |
-| whole-lattice-rescoring   | 8.12       | 22.25*     | lm_scale=0.8 gives best WER  |
-| nbest-oracle              | 6.39       | 20.28      |                              |
+| one-best                  | 11.1       | 28.49      |                              |
+| nbest-rescoring           | 8.78       | 24.94      | lm_scale=0.7                 |
+| whole-lattice-rescoring   | 8.12       | 22.3*      | lm_scale=0.8                 |
+| nbest-oracle              | 5.87       | 19.32      |                              |
 
-*: CUDA OOM occured, so effective num_paths/num_arcs may be smaller.
+*: CUDA OOM occured during decoding.
 
-Pretrained model to replicate above results can be downloaded here: https://huggingface.co/wangtiance/lightweight_ctc
+Pretrained model to can be downloaded here: https://huggingface.co/wangtiance/lightweight_ctc.
+Use it to replicate above results:
 
-The training command for reproducing is given below:
+```bash
+ln -s pretrained.pt epoch-9999.pt
+
+python lightweight_ctc/decode.py \
+  --epoch 9999 \
+  --avg 1 \
+  --use-averaged-model 0 \
+  --lang-dir data/lang_phone \
+  --exp-dir lightweight_ctc/exp_phone \
+  --max-duration 100 \
+  --num-paths 50 \
+  --nbest-scale 1.0
+```
+
+The training command is given below:
 
 ```bash
 cd egs/librispeech/ASR/
@@ -31,7 +46,7 @@ python lightweight_ctc/train.py \
   --max-duration 600 \
 ```
 
-The decoding command is given below:
+Decoding command is given below:
 
 ```bash
 python lightweight_ctc/decode.py \

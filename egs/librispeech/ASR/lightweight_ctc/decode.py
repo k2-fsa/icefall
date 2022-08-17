@@ -132,7 +132,7 @@ def get_parser():
         default=100,
         help="""Number of paths for n-best based decoding method.
         Used only when "method" is one of the following values:
-        nbest, nbest-rescoring, attention-decoder, rnn-lm, and nbest-oracle
+        nbest, nbest-rescoring, and nbest-oracle
         """,
     )
 
@@ -143,7 +143,7 @@ def get_parser():
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
-        nbest, nbest-rescoring, attention-decoder, rnn-lm, and nbest-oracle
+        nbest, nbest-rescoring, and nbest-oracle
         A smaller value results in more unique paths.
         """,
     )
@@ -528,7 +528,7 @@ def save_results(
         enable_log = True
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        recog_path = params.exp_dir / f"decode-{params.method}" / f"recogs-{test_set_name}-{key}.txt"
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
@@ -536,7 +536,7 @@ def save_results(
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
+        errs_filename = params.exp_dir / f"decode-{params.method}" / f"errs-{test_set_name}-{key}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=enable_log
@@ -549,7 +549,7 @@ def save_results(
             )
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
+    errs_info = params.exp_dir / f"decode-{params.method}" / f"wer-summary-{test_set_name}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -575,7 +575,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
+    setup_logger(f"{params.exp_dir}/decode-{params.method}/log-decode")
     logging.info("Decoding started")
     logging.info(params)
 
