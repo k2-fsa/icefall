@@ -89,7 +89,7 @@ class Transducer(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         warmup: float = 1.0,
-        reudction: str = "sum",
+        reduction: str = "sum",
         codebook_indexes: torch.Tensor = None,
     ) -> torch.Tensor:
         """
