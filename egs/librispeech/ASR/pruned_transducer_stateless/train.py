@@ -78,12 +78,12 @@ from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    display_and_save_batch,
     measure_gradient_norms,
     measure_weight_norms,
     optim_step_and_measure_param_change,
     setup_logger,
     str2bool,
-    display_and_save_batch,
 )
 
 

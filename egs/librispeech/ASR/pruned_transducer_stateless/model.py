@@ -87,6 +87,10 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          reduction:
+            "sum" to sum the losses over all utterances in the batch.
+            "none" to return the loss in a 1-D tensor for each utterance
+            in the batch.
         Returns:
           Return the transducer loss.
 
