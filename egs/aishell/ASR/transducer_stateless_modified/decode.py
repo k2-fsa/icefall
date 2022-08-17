@@ -397,7 +397,9 @@ def save_results(
         # we compute CER for aishell dataset.
         results_char = []
         for res in results:
-            results_char.append((list("".join(res[0])), list("".join(res[1]))))
+            results_char.append(
+                (res[0], list("".join(res[1])), list("".join(res[2])))
+            )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results_char, enable_log=True

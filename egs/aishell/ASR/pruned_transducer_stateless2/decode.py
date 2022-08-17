@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 4 \
@@ -66,8 +66,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from aishell import AIShell
-from asr_datamodule import AsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -79,7 +78,6 @@ from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
-    average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
@@ -127,20 +125,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-averaged-model",
-        type=str2bool,
-        default=False,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless2/exp",
         help="The experiment dir",
     )
 
@@ -446,11 +433,11 @@ def save_results(
         / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
-        print("settings\tCER", file=f)
+        print("settings\tWER", file=f)
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, CER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
@@ -461,14 +448,13 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
-    params.datatang_prob = 0
 
     assert params.decoding_method in (
         "greedy_search",
@@ -495,9 +481,6 @@ def main():
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
-    if params.use_averaged_model:
-        params.suffix += "-use-averaged-model"
-
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
 
@@ -516,88 +499,38 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if not params.use_averaged_model:
-        if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
+    if params.iter > 0:
+        filenames = find_checkpoints(
+            params.exp_dir, iteration=-params.iter
+        )[: params.avg]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
             )
-        elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        else:
-            start = params.epoch - params.avg + 1
-            filenames = []
-            for i in range(start, params.epoch + 1):
-                if i >= 1:
-                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
             )
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
+    elif params.avg == 1:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
-        if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg + 1:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            filename_start = filenames[-1]
-            filename_end = filenames[0]
-            logging.info(
-                "Calculating the averaged model over iteration checkpoints"
-                f" from {filename_start} (excluded) to {filename_end}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                ),
-                strict=False,
-            )
-        else:
-            assert params.avg > 0, params.avg
-            start = params.epoch - params.avg
-            assert start >= 1, start
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"Calculating the averaged model over epoch range from "
-                f"{start} (excluded) to {params.epoch}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                ),
-                strict=False,
-            )
+        start = params.epoch - params.avg + 1
+        filenames = []
+        for i in range(start, params.epoch + 1):
+            if i >= 1:
+                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.to(device)
     model.eval()
@@ -610,14 +543,11 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # we need cut ids to display recognition results.
-    args.return_cuts = True
-    asr_datamodule = AsrDataModule(args)
-    aishell = AIShell(manifest_dir=args.manifest_dir)
+    aishell = AishellAsrDataModule(args)
     test_cuts = aishell.test_cuts()
     dev_cuts = aishell.valid_cuts()
-    test_dl = asr_datamodule.test_dataloaders(test_cuts)
-    dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
+    test_dl = aishell.test_dataloaders(test_cuts)
+    dev_dl = aishell.test_dataloaders(dev_cuts)
 
     test_sets = ["test", "dev"]
     test_dls = [test_dl, dev_dl]
