@@ -28,6 +28,7 @@ num_splits=1000
 #     - speech
 
 dl_dir=$PWD/download
+lang_char_dir=data/lang_char
 
 . shared/parse_options.sh || exit 1
 
@@ -186,24 +187,27 @@ fi
 
 if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
   log "Stage 15: Prepare char based lang"
-  lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
-  # Prepare text.
-  # Note: in Linux, you can install jq with the following command:
-  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-  # 2. chmod +x ./jq
-  # 3. cp jq /usr/bin
-  if [ ! -f $lang_char_dir/text ]; then
-    gunzip -c data/manifests/supervisions_L.jsonl.gz \
-      | jq 'text' | sed 's/"//g' \
+  if ! which jq; then
+      echo "This script is intended to be used with jq but you have not installed jq 
+      Note: in Linux, you can install jq with the following command:
+      1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+      2. chmod +x ./jq
+      3. cp jq /usr/bin" && exit 1
+  fi
+  if [ ! -f $lang_char_dir/text ] || [ ! -s $lang_char_dir/text ]; then
+    log "Prepare text."
+    gunzip -c data/manifests/wenetspeech_supervisions_L.jsonl.gz \
+      | jq '.text' | sed 's/"//g' \
       | ./local/text2token.py -t "char" > $lang_char_dir/text
   fi
 
   # The implementation of chinese word segmentation for text,
   # and it will take about 15 minutes.
   if [ ! -f $lang_char_dir/text_words_segmentation ]; then
-    python ./local/text2segments.py \
+    python3 ./local/text2segments.py \
+      --num-process $nj \
       --input-file $lang_char_dir/text \
       --output-file $lang_char_dir/text_words_segmentation
   fi
@@ -212,7 +216,7 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
     | sort -u | sed '/^$/d' | uniq > $lang_char_dir/words_no_ids.txt
 
   if [ ! -f $lang_char_dir/words.txt ]; then
-    python ./local/prepare_words.py \
+    python3 ./local/prepare_words.py \
       --input-file $lang_char_dir/words_no_ids.txt \
       --output-file $lang_char_dir/words.txt
   fi
@@ -221,7 +225,36 @@ fi
 if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
   log "Stage 16: Prepare char based L_disambig.pt"
   if [ ! -f data/lang_char/L_disambig.pt ]; then
-    python ./local/prepare_char.py \
+    python3 ./local/prepare_char.py \
       --lang-dir data/lang_char
   fi
+fi
+
+# If you don't want to use LG for decoding, the following steps are not necessary.
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Prepare G"
+  # It will take about 20 minutes.
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+  if [ ! -f $lang_char_dir/3-gram.unpruned.arpa ]; then
+    python3 ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text $lang_char_dir/text_words_segmentation \
+      -lm $lang_char_dir/3-gram.unpruned.arpa
+  fi
+
+  mkdir -p data/lm
+  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+    # It is used in building LG
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_char_dir/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $lang_char_dir/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+  log "Stage 18: Compile LG"
+  python ./local/compile_lg.py --lang-dir $lang_char_dir
 fi

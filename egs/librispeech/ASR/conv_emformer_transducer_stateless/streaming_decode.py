@@ -74,7 +74,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-from lhotse import CutSet
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -83,6 +82,7 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 from emformer import LOG_EPSILON, stack_states, unstack_states
 from kaldifeat import Fbank, FbankOptions
+from lhotse import CutSet
 from stream import Stream
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
@@ -678,6 +678,7 @@ def decode_dataset(
         # Each utterance has a Stream.
         stream = Stream(
             params=params,
+            cut_id=cut.id,
             decoding_graph=decoding_graph,
             device=device,
             LOG_EPS=LOG_EPSILON,
@@ -711,6 +712,7 @@ def decode_dataset(
             for i in sorted(finished_streams, reverse=True):
                 decode_results.append(
                     (
+                        streams[i].id,
                         streams[i].ground_truth.split(),
                         sp.decode(streams[i].decoding_result()).split(),
                     )
@@ -731,6 +733,7 @@ def decode_dataset(
         for i in sorted(finished_streams, reverse=True):
             decode_results.append(
                 (
+                    streams[i].id,
                     streams[i].ground_truth.split(),
                     sp.decode(streams[i].decoding_result()).split(),
                 )

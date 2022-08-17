@@ -96,6 +96,7 @@ Usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -131,6 +132,8 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -298,6 +301,29 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
+        """,
+    )
+
+    parser.add_argument(
+        "--decode-chunk-size",
+        type=int,
+        default=16,
+        help="The chunk size for decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -352,9 +378,26 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
+    feature_lens += params.left_context
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.left_context),
+        value=LOG_EPS,
     )
+
+    if params.simulate_streaming:
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+            x=feature,
+            x_lens=feature_lens,
+            chunk_size=params.decode_chunk_size,
+            left_context=params.left_context,
+            simulate_streaming=True,
+        )
+    else:
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -521,6 +564,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -534,9 +578,9 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -561,6 +605,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -621,6 +666,10 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
+    if params.simulate_streaming:
+        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
+        params.suffix += f"-left-context-{params.left_context}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -657,6 +706,11 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
+
+    if params.simulate_streaming:
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
@@ -765,6 +819,8 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
 
     test_clean_cuts = librispeech.test_clean_cuts()

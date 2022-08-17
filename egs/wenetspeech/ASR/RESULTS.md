@@ -84,7 +84,10 @@ When training with the L subset, the CERs are
 |------------------------------------|-------|----------|--------------|------------------------------------------|
 |          greedy search             | 7.80  | 8.75     | 13.49        | --epoch 10, --avg 2, --max-duration 100  |
 | modified beam search (beam size 4) | 7.76  | 8.71     | 13.41        | --epoch 10, --avg 2, --max-duration 100  |
-| fast beam search (set as default)  | 7.94  | 8.74     | 13.80        | --epoch 10, --avg 2, --max-duration 1500 |
+| fast beam search (1best)  | 7.94  | 8.74     | 13.80        | --epoch 10, --avg 2, --max-duration 1500 |
+| fast beam search (nbest)  | 9.82  | 10.98    |     16.37   | --epoch 10, --avg 2, --max-duration 600 |
+| fast beam search (nbest oracle)  | 6.88 | 7.18    |     11.77   | --epoch 10, --avg 2, --max-duration 600 |
+| fast beam search (nbest LG, ngram_lm_scale=0.35)  | 8.83 | 9.88    |   15.47  | --epoch 10, --avg 2, --max-duration 600 |
 
 The training command for reproducing is given below:
 
@@ -131,7 +134,7 @@ avg=2
         --decoding-method modified_beam_search \
         --beam-size 4
 
-## fast beam search
+## fast beam search (1best)
 ./pruned_transducer_stateless2/decode.py \
         --epoch $epoch \
         --avg $avg \
@@ -142,6 +145,47 @@ avg=2
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
+
+## fast beam search (nbest)
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 600 \
+        --decoding-method fast_beam_search_nbest \
+        --beam 20.0 \
+        --max-contexts 8 \
+        --max-states 64 \
+        --num-paths 200 \
+        --nbest-scale 0.5
+
+## fast beam search (nbest oracle WER)
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 600 \
+        --decoding-method fast_beam_search_nbest_oracle \
+        --beam 20.0 \
+        --max-contexts 8 \
+        --max-states 64 \
+        --num-paths 200 \
+        --nbest-scale 0.5
+
+## fast beam search (with LG)
+./pruned_transducer_stateless2/decode.py \
+        --epoch 10 \
+        --avg 2 \
+        --exp-dir ./pruned_transducer_stateless2/exp \
+        --lang-dir data/lang_char \
+        --max-duration 600 \
+        --decoding-method fast_beam_search_nbest_LG \
+        --ngram-lm-scale 0.35 \
+        --beam 20.0 \
+        --max-contexts 8 \
+        --max-states 64
 ```
 
 When training with the M subset, the CERs are

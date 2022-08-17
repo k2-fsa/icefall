@@ -436,13 +436,22 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_transducer_model(
+    params: AttributeDict,
+    enable_giga: bool = True,
+) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_giga = get_decoder_model(params)
-    joiner_giga = get_joiner_model(params)
+    if enable_giga:
+        logging.info("Use giga")
+        decoder_giga = get_decoder_model(params)
+        joiner_giga = get_joiner_model(params)
+    else:
+        logging.info("Disable giga")
+        decoder_giga = None
+        joiner_giga = None
 
     model = Transducer(
         encoder=encoder,
@@ -1049,14 +1058,15 @@ def run(rank, world_size, args):
     # It's time consuming to include `giga_train_dl` here
     #  for dl in [train_dl, giga_train_dl]:
     for dl in [train_dl]:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-            warmup=0.0 if params.start_epoch == 0 else 1.0,
-        )
+        if params.start_batch <= 0:
+            scan_pessimistic_batches_for_oom(
+                model=model,
+                train_dl=dl,
+                optimizer=optimizer,
+                sp=sp,
+                params=params,
+                warmup=0.0 if params.start_epoch == 0 else 1.0,
+            )
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:

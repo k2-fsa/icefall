@@ -134,6 +134,40 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -408,6 +442,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -511,9 +549,6 @@ def load_checkpoint_if_available(
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
-
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
 
@@ -620,7 +655,35 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            reduction="none",
         )
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        if not torch.all(is_finite):
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
+
+            # If the batch contains more than 10 utterance AND
+            # if either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if feature.size(0) >= 10:
+                if torch.all(~simple_loss_is_finite) or torch.all(
+                    ~pruned_loss_is_finite
+                ):
+                    raise ValueError(
+                        "There are too many utterances in this batch "
+                        "leading to inf or nan losses."
+                    )
+
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -640,6 +703,10 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
@@ -744,13 +811,7 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -796,7 +857,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -809,7 +869,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -901,6 +960,11 @@ def run(rank, world_size, args):
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
+    if params.dynamic_chunk_training:
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
+
     logging.info(params)
 
     logging.info("About to create model")
@@ -982,7 +1046,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if params.start_batch <= 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,

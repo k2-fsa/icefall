@@ -257,8 +257,8 @@ We provide some models for this recipe: [Pruned stateless RNN-T_2: Conformer enc
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
 |    greedy search     | 7.80  |  8.75    |  13.49       |
+| modified beam search| 7.76  |  8.71    |  13.41       |
 |   fast beam search   | 7.94  |  8.74    |  13.80       |
-| modified beam search | 7.76  |  8.71    |  13.41       |
 
 #### Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
 **Streaming**:
