@@ -378,6 +378,7 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         texts = [list(str(text).replace(" ", "")) for text in texts]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -390,8 +391,8 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
-                this_batch.append((ref_text, hyp_words))
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                this_batch.append((cut_id, ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -416,6 +417,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -607,6 +609,8 @@ def main():
         c.supervisions[0].text = text_normalize(text)
         return c
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     aishell4 = Aishell4AsrDataModule(args)
     test_cuts = aishell4.test_cuts()
     test_cuts = test_cuts.map(text_normalize_for_cut)

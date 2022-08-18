@@ -42,6 +42,18 @@ from icefall.checkpoint import average_checkpoints
 Pathlike = Union[str, Path]
 
 
+# Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
+# Fixed: https://github.com/pytorch/pytorch/pull/49853
+# The fix was included in v1.9.0
+# https://github.com/pytorch/pytorch/releases/tag/v1.9.0
+def is_jit_tracing():
+    if torch.jit.is_scripting():
+        return False
+    elif torch.jit.is_tracing():
+        return True
+    return False
+
+
 @contextmanager
 def get_executor():
     # We'll either return a process pool or a distributed worker pool.
@@ -932,3 +944,35 @@ def tokenize_by_bpe_model(
     txt_with_bpe = "/".join(tokens)
 
     return txt_with_bpe
+
+
+def display_and_save_batch(
+    batch: dict,
+    params: AttributeDict,
+    sp: spm.SentencePieceProcessor,
+) -> None:
+    """Display the batch statistics and save the batch into disk.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      params:
+        Parameters for training. See :func:`get_params`.
+      sp:
+        The BPE model.
+    """
+    from lhotse.utils import uuid4
+
+    filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
+    logging.info(f"Saving batch to {filename}")
+    torch.save(batch, filename)
+
+    supervisions = batch["supervisions"]
+    features = batch["inputs"]
+
+    logging.info(f"features shape: {features.shape}")
+
+    y = sp.encode(supervisions["text"], out_type=int)
+    num_tokens = sum(len(i) for i in y)
+    logging.info(f"num tokens: {num_tokens}")

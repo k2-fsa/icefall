@@ -24,6 +24,8 @@ import torch.backends.cudnn.rnn as rnn
 import torch.nn as nn
 from torch import _VF, Tensor
 
+from icefall.utils import is_jit_tracing
+
 
 def _ntuple(n):
     def parse(x):
@@ -153,7 +155,7 @@ class BasicNorm(torch.nn.Module):
             self.register_buffer("eps", torch.tensor(eps).log().detach())
 
     def forward(self, x: Tensor) -> Tensor:
-        if not torch.jit.is_tracing():
+        if not is_jit_tracing():
             assert x.shape[self.channel_dim] == self.num_channels
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
@@ -575,7 +577,7 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if torch.jit.is_scripting() or is_jit_tracing():
             return x
         else:
             return ActivationBalancerFunction.apply(
@@ -624,7 +626,7 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if torch.jit.is_scripting() or is_jit_tracing():
             return x * torch.sigmoid(x - 1.0)
         else:
             return DoubleSwishFunction.apply(x)
