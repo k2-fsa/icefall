@@ -1,6 +1,6 @@
 ## Results
 
-#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T 2)
+#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T)
 
 [lstm_transducer_stateless](./lstm_transducer_stateless)
 

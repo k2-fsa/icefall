@@ -208,8 +208,8 @@ def test_convert_scaled_to_non_scaled():
         x = torch.randn(N, T, 80, dtype=torch.float32)
         x_lens = torch.full((N,), x.size(1))
 
-        e1, e1_lens = model.encoder(x, x_lens)
-        e2, e2_lens = converted_model.encoder(x, x_lens)
+        e1, e1_lens, _ = model.encoder(x, x_lens)
+        e2, e2_lens, _ = converted_model.encoder(x, x_lens)
 
         assert torch.all(torch.eq(e1_lens, e2_lens))
         assert torch.allclose(e1, e2), (e1 - e2).abs().max()
