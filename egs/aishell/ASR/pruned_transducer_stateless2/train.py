@@ -69,9 +69,7 @@ from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import (
-    save_checkpoint_with_global_batch_idx
-)
+from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
@@ -717,9 +715,7 @@ def train_one_epoch(
                     warmup=(params.batch_idx_train / params.model_warm_step),
                 )
 
-            tot_loss = (
-                tot_loss * (1 - 1 / params.reset_interval)
-            ) + loss_info
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
@@ -870,9 +866,7 @@ def run(rank, world_size, args):
     logging.info(f"Number of model parameters: {num_param}")
 
     assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(
-        params=params, model=model
-    )
+    checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:

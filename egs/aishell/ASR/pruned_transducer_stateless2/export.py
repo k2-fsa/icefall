@@ -152,9 +152,9 @@ def main():
     model = get_transducer_model(params)
 
     if params.iter > 0:
-        filenames = find_checkpoints(
-            params.exp_dir, iteration=-params.iter
-        )[: params.avg]
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
         if len(filenames) == 0:
             raise ValueError(
                 f"No checkpoints found for"
