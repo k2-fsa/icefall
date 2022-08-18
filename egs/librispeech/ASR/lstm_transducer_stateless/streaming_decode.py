@@ -20,7 +20,7 @@
 Usage:
 (1) greedy search
 ./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 30 \
+      --epoch 35 \
       --avg 10 \
       --exp-dir lstm_transducer_stateless/exp \
       --num-decode-streams 2000 \
@@ -31,7 +31,7 @@ Usage:
 
 (2) modified beam search
 ./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 30 \
+      --epoch 35 \
       --avg 10 \
       --exp-dir lstm_transducer_stateless/exp \
       --num-decode-streams 2000 \
@@ -43,7 +43,7 @@ Usage:
 
 (3) fast beam search
 ./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 30 \
+      --epoch 35 \
       --avg 10 \
       --exp-dir lstm_transducer_stateless/exp \
       --num-decode-streams 2000 \
@@ -580,7 +580,8 @@ def decode_one_chunk(
     elif params.decoding_method == "fast_beam_search":
         # feature_len is needed to get partial results.
         # The rnnt_decoding_stream for fast_beam_search.
-        with warnings.simplefilter("ignore"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
             processed_lens = (
                 num_processed_frames // params.subsampling_factor
                 + encoder_out_lens

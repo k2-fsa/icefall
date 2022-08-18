@@ -91,10 +91,10 @@ class Stream(object):
     def set_feature(self, feature: torch.Tensor) -> None:
         assert feature.dim() == 2, feature.dim()
         # tail padding
-        self.num_frames = feature.size(0) + 20
+        self.num_frames = feature.size(0) + 35
         self.feature = torch.nn.functional.pad(
             feature,
-            (0, 0, 0, self.pad_length + 20),
+            (0, 0, 0, self.pad_length + 35),
             mode="constant",
             value=self.LOG_EPS,
         )

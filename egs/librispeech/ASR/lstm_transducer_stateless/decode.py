@@ -20,7 +20,7 @@
 Usage:
 (1) greedy search
 ./lstm_transducer_stateless/decode.py \
-    --epoch 30 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -28,7 +28,7 @@ Usage:
 
 (2) beam search (not recommended)
 ./lstm_transducer_stateless/decode.py \
-    --epoch 30 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -37,7 +37,7 @@ Usage:
 
 (3) modified beam search
 ./lstm_transducer_stateless/decode.py \
-    --epoch 30 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -46,7 +46,7 @@ Usage:
 
 (4) fast beam search (one best)
 ./lstm_transducer_stateless/decode.py \
-    --epoch 30 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -70,7 +70,7 @@ Usage:
 
 (6) fast beam search (nbest oracle WER)
 ./lstm_transducer_stateless/decode.py \
-    --epoch 30 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -83,7 +83,7 @@ Usage:
 
 (7) fast beam search (with LG)
 ./lstm_transducer_stateless/decode.py \
-    --epoch 28 \
+    --epoch 35 \
     --avg 15 \
     --exp-dir ./lstm_transducer_stateless/exp \
     --max-duration 600 \
@@ -359,11 +359,11 @@ def decode_one_batch(
     # tail padding
     feature = torch.nn.functional.pad(
         feature,
-        (0, 0, 0, 20),
+        (0, 0, 0, 35),
         mode="constant",
         value=LOG_EPS,
     )
-    feature_lens += 20
+    feature_lens += 35
 
     encoder_out, encoder_out_lens, _ = model.encoder(
         x=feature, x_lens=feature_lens
