@@ -86,7 +86,6 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
-    str2bool,
     write_error_stats,
 )
 

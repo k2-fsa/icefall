@@ -37,7 +37,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 
 import argparse
-import copy
 import logging
 import random
 import warnings
@@ -55,7 +54,7 @@ from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -777,7 +776,7 @@ def train_one_epoch(
 
                 loss_info.write_summary(
                     tb_writer,
-                    f"train/current_",
+                    "train/current_",
                     params.batch_idx_train,
                 )
 
