@@ -651,17 +651,15 @@ def compute_loss(
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
-            # If the batch contains more than 10 utterances AND
-            # if either all simple_loss or pruned_loss is inf or nan,
+            # If either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
-            if feature.size(0) >= 10:
-                if torch.all(~simple_loss_is_finite) or torch.all(
-                    ~pruned_loss_is_finite
-                ):
-                    raise ValueError(
-                        "There are too many utterances in this batch "
-                        "leading to inf or nan losses."
-                    )
+            if torch.all(~simple_loss_is_finite) or torch.all(
+                ~pruned_loss_is_finite
+            ):
+                raise ValueError(
+                    "There are too many utterances in this batch "
+                    "leading to inf or nan losses."
+                )
 
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
