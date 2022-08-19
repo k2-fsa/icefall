@@ -675,7 +675,7 @@ def decode_dataset(
             LOG_EPS=LOG_EPSILON,
         )
 
-        stream.set_states(model.encoder.get_init_states(device=device))
+        stream.states = model.encoder.get_init_states(device=device)
 
         audio: np.ndarray = cut.load_audio()
         # audio.shape: (1, num_samples)
@@ -688,7 +688,7 @@ def decode_dataset(
         samples = torch.from_numpy(audio).squeeze(0)
         feature = fbank(samples)
         stream.set_feature(feature)
-        stream.set_ground_truth(cut.supervisions[0].text)
+        stream.ground_truth = cut.supervisions[0].text
 
         streams.append(stream)
 

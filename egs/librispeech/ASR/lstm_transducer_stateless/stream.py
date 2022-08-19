@@ -38,11 +38,15 @@ class Stream(object):
         Args:
           params:
             It's the return value of :func:`get_params`.
+          cut_id:
+            The cut id of the current stream.
           decoding_graph:
             The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
             only when --decoding_method is fast_beam_search.
           device:
             The device to run this stream.
+          LOG_EPS:
+            A float value used for padding.
         """
         self.LOG_EPS = LOG_EPS
         self.cut_id = cut_id
@@ -99,15 +103,6 @@ class Stream(object):
             mode="constant",
             value=self.LOG_EPS,
         )
-
-    def set_ground_truth(self, ground_truth: str) -> None:
-        self.ground_truth = ground_truth
-
-    def set_states(
-        self, states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
-    ) -> None:
-        """Set states."""
-        self.states = states
 
     def get_feature_chunk(self) -> torch.Tensor:
         """Get a chunk of feature frames.
