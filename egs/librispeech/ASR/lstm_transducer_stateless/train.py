@@ -22,38 +22,24 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless4/train.py \
+./lstm_transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir lstm_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless4/train.py \
+./lstm_transducer_stateless/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir lstm_transducer_stateless/exp \
   --full-libri 1 \
   --max-duration 550
-
-# train a streaming model
-./pruned_transducer_stateless4/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless4/exp \
-  --full-libri 1 \
-  --dynamic-chunk-training 1 \
-  --causal-convolution 1 \
-  --short-chunk-size 25 \
-  --num-left-chunks 4 \
-  --max-duration 300
-
 """
 
 import argparse
@@ -71,12 +57,12 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -108,37 +94,34 @@ LRSchedulerType = Union[
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        """,
-    )
-
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
+        "--num-encoder-layers",
         type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
+        default=12,
+        help="Number of RNN encoder layers..",
     )
 
     parser.add_argument(
-        "--num-left-chunks",
+        "--encoder-dim",
         type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
+        default=512,
+        help="Encoder output dimesion.",
+    )
+
+    parser.add_argument(
+        "--rnn-hidden-size",
+        type=int,
+        default=1024,
+        help="Hidden dim for LSTM layers.",
+    )
+
+    parser.add_argument(
+        "--aux-layer-period",
+        type=int,
+        default=0,
+        help="""Peroid of auxiliary layers used for randomly combined during training.
+        If set to 0, will not use the random combiner (Default).
+        You can set a positive integer to use the random combiner, e.g., 3.
+        """,
     )
 
 
@@ -171,7 +154,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=30,
+        default=35,
         help="Number of epochs to train.",
     )
 
@@ -197,7 +180,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="lstm_transducer_stateless/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -230,7 +213,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=10,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -294,7 +277,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=4000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -378,8 +361,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - encoder_dim: Hidden dim for multi-head attention model.
-
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
         - warm_step: The warm_step for Noam optimizer.
@@ -397,10 +378,7 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
             "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
@@ -415,18 +393,14 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = RNN(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
-        nhead=params.nhead,
+        rnn_hidden_size=params.rnn_hidden_size,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        dynamic_chunk_training=params.dynamic_chunk_training,
-        short_chunk_size=params.short_chunk_size,
-        num_left_chunks=params.num_left_chunks,
-        causal=params.causal_convolution,
+        aux_layer_period=params.aux_layer_period,
     )
     return encoder
 
@@ -530,6 +504,9 @@ def load_checkpoint_if_available(
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
+
+        if "cur_batch_idx" in saved_params:
+            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
 
@@ -638,6 +615,8 @@ def compute_loss(
             warmup=warmup,
             reduction="none",
         )
+        simple_loss[0] = float("inf")
+        pruned_loss[1] = float("nan")
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
         is_finite = simple_loss_is_finite & pruned_loss_is_finite
@@ -790,29 +769,39 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
+    cur_batch_idx = params.get("cur_batch_idx", 0)
+
     for batch_idx, batch in enumerate(train_dl):
+        if batch_idx < cur_batch_idx:
+            continue
+        cur_batch_idx = batch_idx
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
-            loss, loss_info = compute_loss(
-                params=params,
-                model=model,
-                sp=sp,
-                batch=batch,
-                is_training=True,
-                warmup=(params.batch_idx_train / params.model_warm_step),
-            )
-        # summary stats
-        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+        try:
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                loss, loss_info = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=True,
+                    warmup=(params.batch_idx_train / params.model_warm_step),
+                )
+            # summary stats
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
-        # NOTE: We use reduction==sum and loss is computed over utterances
-        # in the batch and there is no normalization to it so far.
-        scaler.scale(loss).backward()
-        scheduler.step_batch(params.batch_idx_train)
-        scaler.step(optimizer)
-        scaler.update()
-        optimizer.zero_grad()
+            # NOTE: We use reduction==sum and loss is computed over utterances
+            # in the batch and there is no normalization to it so far.
+            scaler.scale(loss).backward()
+            scheduler.step_batch(params.batch_idx_train)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+        except:  # noqa
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise
 
         if params.print_diagnostics and batch_idx == 30:
             return
@@ -832,6 +821,7 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
+            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -844,6 +834,7 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
+            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -909,7 +900,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
     if params.full_libri is False:
-        params.valid_interval = 1600
+        params.valid_interval = 800
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -934,11 +925,6 @@ def run(rank, world_size, args):
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
-
-    if params.dynamic_chunk_training:
-        assert (
-            params.causal_convolution
-        ), "dynamic_chunk_training requires causal convolution"
 
     logging.info(params)
 
@@ -980,6 +966,10 @@ def run(rank, world_size, args):
         logging.info("Loading scheduler state dict")
         scheduler.load_state_dict(checkpoints["scheduler"])
 
+    # # overwrite it
+    # scheduler.base_lrs = [params.initial_lr for _ in scheduler.base_lrs]
+    # print(scheduler.base_lrs)
+
     if params.print_diagnostics:
         diagnostic = diagnostics.attach_diagnostics(model)
 
@@ -1018,7 +1008,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if params.start_batch <= 0 and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
