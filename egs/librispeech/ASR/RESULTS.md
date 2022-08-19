@@ -23,6 +23,8 @@ The WERs are:
 | modified beam search                | 3.64       | 9.55       | --epoch 35 --avg 15  | simulated streaming  |
 | modified beam search                | 3.65       | 9.51       | --epoch 35 --avg 15  | streaming            |
 
+Note: `simulated streaming` indicates feeding full utterance during decoding, while `streaming` indicates feeding certain number of frames at each time.
+
 The training command is:
 
 ```bash
@@ -41,90 +43,42 @@ The training command is:
 The tensorboard log can be found at
 <https://tensorboard.dev/experiment/FWrM20mjTeWo6dTpFYOsYQ/>
 
-The simulated streaming decoding command using greedy search is:
+The simulated streaming decoding command using greedy search, fast beam search, and modified beam search is:
 ```bash
-./lstm_transducer_stateless/decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method greedy_search \
-  --use-averaged-model True
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
 ```
 
-The simulated streaming decoding command using fast beam search is:
+The streaming decoding command using greedy search, fast beam search, and modified beam search is:
 ```bash
-./lstm_transducer_stateless/decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method fast_beam_search \
-  --use-averaged-model True \
-  --beam 4 \
-  --max-contexts 4 \
-  --max-states 8
-```
-
-The simulated streaming decoding command using modified beam search is:
-```bash
-./lstm_transducer_stateless/decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method modified_beam_search \
-  --use-averaged-model True \
-  --beam-size 4
-```
-
-The streaming decoding command using greedy search is:
-```bash
-./lstm_transducer_stateless/streaming_decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method greedy_search \
-  --use-averaged-model True
-```
-
-The streaming decoding command using fast beam search is:
-```bash
-./lstm_transducer_stateless/streaming_decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method fast_beam_search \
-  --use-averaged-model True \
-  --beam 4 \
-  --max-contexts 4 \
-  --max-states 8
-```
-
-The streaming decoding command using modified beam search is:
-```bash
-./lstm_transducer_stateless/streaming_decode.py \
-  --epoch 35 \
-  --avg 15 \
-  --exp-dir lstm_transducer_stateless/exp \
-  --max-duration 600 \
-  --num-encoder-layers 12 \
-  --rnn-hidden-size 1024
-  --decoding-method modified_beam_search \
-  --use-averaged-model True \
-  --beam-size 4
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless/streaming_decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
 ```
 
 Pretrained models, training logs, decoding logs, and decoding results
