@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang, Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -31,7 +31,7 @@ Usage:
   --avg 10 \
   --jit-trace 1
 
-It will generates 3 files: `encoder_jit_trace.pt`,
+It will generate 3 files: `encoder_jit_trace.pt`,
 `decoder_jit_trace.pt`, and `joiner_jit_trace.pt`.
 
 (2) Export `model.state_dict()`

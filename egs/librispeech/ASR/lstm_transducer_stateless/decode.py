@@ -339,7 +339,7 @@ def decode_one_batch(
       word_table:
         The word symbol table.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
@@ -356,14 +356,15 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    # tail padding
+    # tail padding here to alleviate the tail deletion problem
+    num_tail_padded_frames = 35
     feature = torch.nn.functional.pad(
         feature,
-        (0, 0, 0, 35),
+        (0, 0, 0, num_tail_padded_frames),
         mode="constant",
         value=LOG_EPS,
     )
-    feature_lens += 35
+    feature_lens += num_tail_padded_frames
 
     encoder_out, encoder_out_lens, _ = model.encoder(
         x=feature, x_lens=feature_lens
@@ -510,7 +511,7 @@ def decode_dataset(
       word_table:
         The word symbol table.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:

@@ -69,7 +69,7 @@ def stack_states(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Stack list of lstm states corresponding to separate utterances into a single
-    lstm state so that it can be used as an input for lsit when those utterances
+    lstm state so that it can be used as an input for lstm when those utterances
     are formed into a batch.
 
     Args:
@@ -113,7 +113,7 @@ class RNN(EncoderInterface):
       layer_dropout (float):
         Dropout value for model-level warmup (default=0.075).
       aux_layer_period (int):
-        Peroid of auxiliary layers used for randomly combined during training.
+        Period of auxiliary layers used for random combiner during training.
         If set to 0, will not use the random combiner (Default).
         You can set a positive integer to use the random combiner, e.g., 3.
     """
@@ -201,7 +201,7 @@ class RNN(EncoderInterface):
               sequence lengths.
             - lengths: a tensor of shape (batch_size,) containing the number of
               frames in `embeddings` before padding.
-            - updated states, whose shape is same as the input states.
+            - updated states, whose shape is the same as the input states.
         """
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
@@ -215,7 +215,7 @@ class RNN(EncoderInterface):
 
         if states is None:
             x = self.encoder(x, warmup=warmup)[0]
-            # torch.jit.trace requires returned types be the same as annotated
+            # torch.jit.trace requires returned types to be the same as annotated  # noqa
             new_states = (torch.empty(0), torch.empty(0))
         else:
             assert not self.training
@@ -284,7 +284,7 @@ class RNNEncoderLayer(nn.Module):
         self.d_model = d_model
         self.rnn_hidden_size = rnn_hidden_size
 
-        assert rnn_hidden_size >= d_model
+        assert rnn_hidden_size >= d_model, (rnn_hidden_size, d_model)
         self.lstm = ScaledLSTM(
             input_size=d_model,
             hidden_size=rnn_hidden_size,

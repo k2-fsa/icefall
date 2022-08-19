@@ -172,7 +172,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=20.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -182,7 +182,7 @@ def get_parser():
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=4,
+        default=8,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -190,7 +190,7 @@ def get_parser():
     parser.add_argument(
         "--max-states",
         type=int,
-        default=8,
+        default=64,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -221,7 +221,7 @@ def get_parser():
         "--num-decode-streams",
         type=int,
         default=2000,
-        help="The number of streams that can be decoded parallel",
+        help="The number of streams that can be decoded in parallel",
     )
 
     add_model_arguments(parser)
@@ -511,7 +511,7 @@ def decode_one_chunk(
       params:
         It is returned by :func:`get_params`.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
 
     Returns:
@@ -647,7 +647,7 @@ def decode_dataset(
       sp:
         The BPE model.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
 
     Returns:

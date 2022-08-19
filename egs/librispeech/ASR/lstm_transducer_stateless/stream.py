@@ -90,11 +90,12 @@ class Stream(object):
 
     def set_feature(self, feature: torch.Tensor) -> None:
         assert feature.dim() == 2, feature.dim()
-        # tail padding
-        self.num_frames = feature.size(0) + 35
+        # tail padding here to alleviate the tail deletion problem
+        num_tail_padded_frames = 35
+        self.num_frames = feature.size(0) + num_tail_padded_frames
         self.feature = torch.nn.functional.pad(
             feature,
-            (0, 0, 0, self.pad_length + 35),
+            (0, 0, 0, self.pad_length + num_tail_padded_frames),
             mode="constant",
             value=self.LOG_EPS,
         )
