@@ -223,6 +223,7 @@ def main():
 
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
+    params.datatang_prob = 0
 
     logging.info(params)
 
