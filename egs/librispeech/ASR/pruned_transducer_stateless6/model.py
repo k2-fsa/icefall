@@ -15,15 +15,16 @@
 # limitations under the License.
 
 
+from typing import Tuple
+
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from multi_quantization.prediction import JointCodebookLoss
 from scaling import ScaledLinear
 
 from icefall.utils import add_sos
-
-from multi_quantization.prediction import JointCodebookLoss
 
 
 class Transducer(nn.Module):
@@ -91,7 +92,7 @@ class Transducer(nn.Module):
         warmup: float = 1.0,
         reduction: str = "sum",
         codebook_indexes: torch.Tensor = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:

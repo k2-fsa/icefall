@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import k2
 import torch
@@ -106,7 +106,7 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         reduction: str = "sum",
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
