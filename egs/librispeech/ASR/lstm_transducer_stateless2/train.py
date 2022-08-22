@@ -22,24 +22,24 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
-  --max-duration 300
+  --max-duration 500
 
 # For mix precision training:
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
-  --max-duration 550
+  --max-duration 500
 """
 
 import argparse
