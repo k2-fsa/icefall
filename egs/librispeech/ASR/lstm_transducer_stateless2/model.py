@@ -36,6 +36,7 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        ctc_model: nn.Module,
         encoder_dim: int,
         decoder_dim: int,
         joiner_dim: int,
@@ -57,6 +58,8 @@ class Transducer(nn.Module):
             (N, U, decoder_dim).
             Its output shape is (N, T, U, vocab_size). Note that its output
             contains unnormalized probs, i.e., not processed by log-softmax.
+          ctc_model:
+            Model for the CTC part.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -70,6 +73,7 @@ class Transducer(nn.Module):
             encoder_dim, vocab_size, initial_speed=0.5
         )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+        self.ctc_model = ctc_model
 
     def forward(
         self,
@@ -81,7 +85,7 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         reduction: str = "sum",
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -109,7 +113,10 @@ class Transducer(nn.Module):
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
         Returns:
-          Return the transducer loss.
+          Return a tuple containing:
+            - The loss for the "trivial" joiner
+            - The loss for the non-linear joiner
+            - CTC loss
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -199,4 +206,35 @@ class Transducer(nn.Module):
                 reduction=reduction,
             )
 
-        return (simple_loss, pruned_loss)
+        if warmup >= 1.0:
+            nnet_output = self.ctc_model(encoder_out)
+
+            targets = []
+            target_lengths = []
+            for t in y.tolist():
+                target_lengths.append(len(t))
+                targets.extend(t)
+
+            targets = torch.tensor(
+                targets,
+                device=x.device,
+                dtype=torch.int64,
+            )
+
+            target_lengths = torch.tensor(
+                target_lengths,
+                device=x.device,
+                dtype=torch.int64,
+            )
+
+            ctc_loss = torch.nn.functional.ctc_loss(
+                log_probs=nnet_output.permute(1, 0, 2),  # (T, N, C)
+                targets=targets,
+                input_lengths=x_lens,
+                target_lengths=target_lengths,
+                reduction="sum",
+            )
+        else:
+            ctc_loss = 0
+
+        return (simple_loss, pruned_loss, ctc_loss)

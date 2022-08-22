@@ -86,6 +86,7 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+from scaling import ScaledLinear
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -261,6 +262,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.3,
+        help="Scale for CTC loss",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -425,15 +433,25 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_ctc_model(params: AttributeDict) -> nn.Module:
+    return nn.Sequential(
+        nn.Dropout(p=0.1),
+        ScaledLinear(params.encoder_dim, params.vocab_size),
+        nn.LogSoftmax(dim=-1),
+    )
+
+
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
+    ctc_model = get_ctc_model(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        ctc_model=ctc_model,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
@@ -602,7 +620,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, ctc_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -649,6 +667,7 @@ def compute_loss(
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
+            + params.ctc_loss_scale * ctc_loss
         )
 
     assert loss.requires_grad == is_training
@@ -677,6 +696,10 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if isinstance(ctc_loss, torch.Tensor):
+        info["ctc_loss"] = ctc_loss.detach().cpu().item()
+    else:
+        info["ctc_loss"] = 0
 
     return loss, info
 
@@ -935,7 +958,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
