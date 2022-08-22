@@ -115,21 +115,16 @@ The tensorboard log is available at
 https://tensorboard.dev/experiment/QI3PVzrGRrebxpbWUPwmkA/
 
 The decoding command is:
-
 ```bash
-for epoch in 72; do
-  for avg in 14; do
-      for m in greedy_search modified_beam_search fast_beam_search ; do
-      ./pruned_transducer_stateless2/decode.py \
-        --epoch $epoch \
-        --avg $avg \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 200 \
-        --decoding-method $m
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./pruned_transducer_stateless2/decode.py \
+    --epoch 72 \
+    --avg 14 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --lang-dir data/lang_char \
+    --max-duration 200 \
+    --decoding-method $m
 
-    done
-  done
 done
 ```
 
