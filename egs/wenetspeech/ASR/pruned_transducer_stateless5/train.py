@@ -1144,8 +1144,6 @@ def display_and_save_batch(
     y = graph_compiler.texts_to_ids(texts)
     if type(y) == list:
         y = k2.RaggedTensor(y)
-    else:
-        y = y
 
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")

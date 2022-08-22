@@ -155,7 +155,7 @@ class TimitAsrDataModule(DataModule):
 
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(
-            self.args.feature_dir / "cuts_musan.jsonl.gz"
+            self.args.feature_dir / "musan_cuts.jsonl.gz"
         )
 
         logging.info("About to create train dataset")
