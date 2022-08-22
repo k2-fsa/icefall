@@ -603,9 +603,9 @@ def main():
 
     model.to("cpu")
     model.eval()
-    convert_scaled_to_non_scaled(model, inplace=True)
 
     if params.onnx is True:
+        convert_scaled_to_non_scaled(model, inplace=True)
         opset_version = 11
         logging.info("Exporting to onnx format")
         encoder_filename = params.exp_dir / "encoder.onnx"
@@ -637,6 +637,7 @@ def main():
             all_in_one_filename,
         )
     elif params.jit is True:
+        convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.script()")
         # We won't use the forward() method of the model in C++, so just ignore
         # it here.
@@ -660,6 +661,7 @@ def main():
         export_joiner_model_jit_trace(model.joiner, joiner_filename)
 
     elif params.jit_trace is True:
+        convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
         encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
         export_encoder_model_jit_trace(model.encoder, encoder_filename)

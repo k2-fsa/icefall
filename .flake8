@@ -9,7 +9,8 @@ per-file-ignores =
     egs/*/ASR/pruned_transducer_stateless*/*.py: E501,
     egs/*/ASR/*/optim.py: E501,
     egs/*/ASR/*/scaling.py: E501,
-    egs/librispeech/ASR/conv_emformer_transducer_stateless*/*.py: E501, E203,
+    egs/librispeech/ASR/lstm_transducer_stateless/*.py: E501, E203
+    egs/librispeech/ASR/conv_emformer_transducer_stateless*/*.py: E501, E203
     egs/librispeech/ASR/conformer_ctc2/*py: E501,
     egs/librispeech/ASR/RESULTS.md: E999,
 
