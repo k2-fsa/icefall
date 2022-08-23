@@ -4,10 +4,9 @@ import argparse
 import re
 from typing import Tuple
 
-from tqdm import tqdm
-
-from lhotse import SupervisionSet, SupervisionSegment
+from lhotse import SupervisionSegment, SupervisionSet
 from lhotse.serialization import load_manifest_lazy_or_eager
+from tqdm import tqdm
 
 
 def get_args():
@@ -19,19 +18,14 @@ def get_args():
 
 # fmt: off
 class FisherSwbdNormalizer:
+    """Note: the functions "normalize" and "keep" implement the logic
+    similar to Kaldi's data prep scripts for Fisher and SWBD: One
+    notable difference is that we don't change [cough], [lipsmack],
+    etc. to [noise].  We also don't implement all the edge cases of
+    normalization from Kaldi (hopefully won't make too much
+    difference).
+
     """
-    Note: the functions "normalize" and "keep" implement the logic similar to
-    Kaldi's data prep scripts for Fisher:
-      https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/fisher_data_prep.sh
-    and for SWBD:
-      https://github.com/kaldi-asr/kaldi/blob/master/egs/fisher_swbd/s5/local/swbd1_data_prep.sh
-
-    One notable difference is that we don't change [cough], [lipsmack], etc. to [noise]. 
-    We also don't implement all the edge cases of normalization from Kaldi 
-    (hopefully won't make too much difference).
-    """
-
-
     def __init__(self) -> None:
 
         self.remove_regexp_before = re.compile(
@@ -51,10 +45,10 @@ class FisherSwbdNormalizer:
         #       We don't do that here.
         #       We also uppercase the text as the first operation.
         self.replace_regexps: Tuple[re.Pattern, str] = [
-            # SWBD: 
+            # SWBD:
             # [LAUGHTER-STORY] -> STORY
             (re.compile(r"\[LAUGHTER-(.*?)\]"), r"\1"),
-            # [WEA[SONABLE]-/REASONABLE] 
+            # [WEA[SONABLE]-/REASONABLE]
             (re.compile(r"\[\S+/(\S+)\]"), r"\1"),
             # -[ADV]AN[TAGE]- -> AN
             (re.compile(r"-?\[.*?\](\w+)\[.*?\]-?"), r"\1-"),

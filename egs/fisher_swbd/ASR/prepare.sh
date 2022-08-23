@@ -8,7 +8,7 @@ stop_stage=500
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. Most of them can't be downloaded automatically
-# as they are not publically available and require a license purchased 
+# as they are not publically available and require a license purchased
 # from the LDC.
 #
 #  - $dl_dir/{LDC2004S13,LDC2004T19,LDC2005S13,LDC2005T19}
@@ -28,8 +28,8 @@ stop_stage=500
 #     - noise
 #     - speech
 
-dl_dir=$PWD/download
-mkdir -p $dl_dir
+dl_dir=/mnt/dsk2
+#mkdir -p $dl_dir
 
 . shared/parse_options.sh || exit 1
 
@@ -62,25 +62,25 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
 
   # TODO: remove
-  LDC_ROOT=/nas/data4/DATA
-  for pkg in LDC2004S13 LDC2004T19 LDC2005S13 LDC2005T19 LDC97S62 LDC2002S09 LDC2002T43; do
-    ln -sfv $LDC_ROOT/$pkg $dl_dir/
-  done
+#  LDC_ROOT=/nas/data4/DATA
+#  for pkg in LDC2004S13 LDC2004T19 LDC2005S13 LDC2005T19 LDC97S62 LDC2002S09 LDC2002T43; do
+#    ln -sfv $LDC_ROOT/$pkg $dl_dir/
+#  done
 
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
   #
   #   ln -sfv /path/to/musan $dl_dir/
   #
-  if [ ! -d $dl_dir/musan ]; then
-    lhotse download musan $dl_dir
-  fi
+#  if [ ! -d $dl_dir/musan ]; then
+#    lhotse download musan $dl_dir
+#  fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ] ; then
   log "Stage 1: Prepare Fisher manifests"
-  mkdir -p data/manifests/fisher
-  lhotse prepare fisher-english --absolute-paths 1 $dl_dir data/manifests/fisher
+#  mkdir -p data/manifests/fisher
+#  lhotse prepare fisher-english --absolute-paths 1 $dl_dir data/manifests/fisher
   local/normalize_and_filter_supervisions.py data/manifests/fisher/supervisions.jsonl.gz data/manifests/supervisions_fisher.jsonl.gz
   cp data/manifests/fisher/recordings.jsonl.gz data/manifests/recordings_fisher.jsonl.gz
   gzip -d data/manifests/supervisions_fisher.jsonl.gz
@@ -91,10 +91,10 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare SWBD manifests"
   mkdir -p data/manifests/swbd
   lhotse prepare switchboard --absolute-paths 1 --omit-silence $dl_dir/LDC97S62 data/manifests/swbd
-  python3 local/normalize_and_filter_supervisions.py data/manifests/swbd/swbd_supervisions_all.jsonl.gz data/manifests/supervisions_swbd.jsonl.gz
-  cp data/manifests/swbd/swbd_recordings_all.jsonl.gz data/manifests/recordings_swbd.jsonl.gz
-  gzip -d data/manifests/supervisions_swbd.jsonl.gz
-  gzip -d data/manifests/recordings_swbd.jsonl.gz
+  python3 local/normalize_and_filter_supervisions.py data/manifests/swbd/swbd_supervisions.jsonl data/manifests/supervisions_swbd.jsonl
+  cp data/manifests/swbd/swbd_recordings.jsonl data/manifests/recordings_swbd.jsonl
+#  gzip -d data/manifests/supervisions_swbd.jsonl.gz
+#  gzip -d data/manifests/recordings_swbd.jsonl.gz
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
@@ -116,16 +116,16 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     #####################################
     #fisher
     #####################################
-    
+
     gzip -d data/fbank/cuts_fisher.json.gz
     jq -c '.[]' data/fbank/cuts_fisher.json  > data/fbank/cuts_fisher.jsonl
     gzip -c data/fbank/cuts_fisher.jsonl > data/fbank/cuts_fisher.jsonl.gz
-   
+
     # extract list of sph
     python3 local/extract_list_of_sph.py data/fbank/cuts_fisher.jsonl | sort | uniq > data/fbank/cuts_fisher_sph.list
 
     num_fisher_total_session=$(wc -l <data/fbank/cuts_fisher_sph.list)
-    num_fisher_dev_session=10 
+    num_fisher_dev_session=10
     num_fisher_train_session=$(($num_fisher_total_session - $num_fisher_dev_session))
     head -n $num_fisher_dev_session data/fbank/cuts_fisher_sph.list >data/fbank/cuts_fisher_sph_dev.list
     tail -n $num_fisher_train_session data/fbank/cuts_fisher_sph.list >data/fbank/cuts_fisher_sph_train.list
@@ -137,7 +137,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     # extract train json
     python3 local/extract_json_cuts.py data/fbank/cuts_fisher_sph_train.list data/fbank/cuts_fisher.jsonl data/fbank/train_cuts_fisher.jsonl
     gzip -c data/fbank/train_cuts_fisher.jsonl  > data/fbank/train_cuts_fisher.jsonl.gz
-    
+
     # describe cut
     lhotse cut describe data/fbank/train_cuts_fisher.jsonl.gz
     lhotse cut describe data/fbank/dev_cuts_fisher.jsonl.gz
@@ -145,7 +145,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     # extract dev supervision
     python local/extract_json_supervision.py data/fbank/cuts_fisher_sph_dev.list data/manifests/supervisions_fisher.jsonl data/manifests/dev_supervisions_fisher.jsonl
     python local/extract_json_supervision.py data/fbank/cuts_fisher_sph_train.list data/manifests/supervisions_fisher.jsonl data/manifests/train_supervisions_fisher.jsonl
-    
+
     ######################################
     #swbd
     ######################################
@@ -156,7 +156,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
     python3 local/extract_list_of_sph.py data/fbank/cuts_swbd.jsonl| sort | uniq > data/fbank/cuts_swbd_sph.list
     num_swbd_total_session=$(wc -l <data/fbank/cuts_swbd_sph.list)
-    num_swbd_dev_session=10 
+    num_swbd_dev_session=10
     num_swbd_train_session=$(($num_swbd_total_session - $num_swbd_dev_session))
 
     head -n $num_swbd_dev_session data/fbank/cuts_swbd_sph.list >data/fbank/cuts_swbd_sph_dev.list
@@ -168,22 +168,22 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
     python3 local/extract_json_cuts.py  data/fbank/cuts_swbd_sph_train.list data/fbank/cuts_swbd.jsonl  data/fbank/train_cuts_swbd.jsonl
     gzip -c data/fbank/train_cuts_swbd.jsonl > data/fbank/train_cuts_swbd.jsonl.gz
-    
+
     # describe cut
     lhotse cut describe data/fbank/train_cuts_swbd.jsonl.gz
     lhotse cut describe data/fbank/dev_cuts_swbd.jsonl.gz
 
-    # extract dev supervision                                                                                                                
+    # extract dev supervision
     python local/extract_json_supervision.py data/fbank/cuts_swbd_sph_dev.list data/manifests/supervisions_swbd.jsonl data/manifests/dev_supervisions_swbd.jsonl
     python local/extract_json_supervision.py data/fbank/cuts_swbd_sph_train.list data/manifests/supervisions_swbd.jsonl data/manifests/train_supervisions_swbd.jsonl
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 3: Prepare musan manifest"
-  # We assume that you have downloaded the musan corpus                                                                                      
-  # to data/musan                                                                                                                            
+  # We assume that you have downloaded the musan corpus
+  # to data/musan
   mkdir -p data/manifests/musan
-  lhotse prepare musan $dl_dir/musan data/manifests/musan  
+  lhotse prepare musan $dl_dir/musan data/manifests/musan
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
