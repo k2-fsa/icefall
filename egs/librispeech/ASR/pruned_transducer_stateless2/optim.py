@@ -162,6 +162,9 @@ class Eve(Optimizer):
                         target_rms * (p.numel() ** 0.5)
                     )
                     p.mul_(1 - (weight_decay * is_above_target_rms))
+                else:
+                    # for "scaling factors"
+                    p.clamp_(min=-10, max=2)
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss

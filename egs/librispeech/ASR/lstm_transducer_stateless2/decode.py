@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -56,10 +56,10 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -69,10 +69,10 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -82,10 +82,10 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./lstm_transducer_stateless/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless/exp \
+    --exp-dir ./lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \

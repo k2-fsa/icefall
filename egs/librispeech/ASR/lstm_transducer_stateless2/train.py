@@ -65,6 +65,7 @@ from lhotse.utils import fix_random_seed
 from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
+from scaling import ScaledLinear
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -86,7 +87,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-from scaling import ScaledLinear
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -664,10 +664,11 @@ def compute_loss(
             if warmup < 1.0
             else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
+        ctc_loss_scale = params.ctc_loss_scale if warmup >= 2.0 else 0
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
-            + params.ctc_loss_scale * ctc_loss
+            + ctc_loss_scale * ctc_loss
         )
 
     assert loss.requires_grad == is_training
@@ -696,10 +697,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
-    if isinstance(ctc_loss, torch.Tensor):
-        info["ctc_loss"] = ctc_loss.detach().cpu().item()
-    else:
-        info["ctc_loss"] = 0
+    info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
 
@@ -815,7 +813,7 @@ def train_one_epoch(
             display_and_save_batch(batch, params=params, sp=sp)
             raise
 
-        if params.print_diagnostics and batch_idx == 30:
+        if params.print_diagnostics and batch_idx == 6:
             return
 
         if (
@@ -958,7 +956,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank])
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 

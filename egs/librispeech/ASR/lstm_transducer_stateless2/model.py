@@ -206,35 +206,33 @@ class Transducer(nn.Module):
                 reduction=reduction,
             )
 
-        if warmup >= 1.0:
-            nnet_output = self.ctc_model(encoder_out)
+        # calculate ctc loss
+        nnet_output = self.ctc_model(encoder_out)
 
-            targets = []
-            target_lengths = []
-            for t in y.tolist():
-                target_lengths.append(len(t))
-                targets.extend(t)
+        targets = []
+        target_lengths = []
+        for t in y.tolist():
+            target_lengths.append(len(t))
+            targets.extend(t)
 
-            targets = torch.tensor(
-                targets,
-                device=x.device,
-                dtype=torch.int64,
-            )
+        targets = torch.tensor(
+            targets,
+            device=x.device,
+            dtype=torch.int64,
+        )
 
-            target_lengths = torch.tensor(
-                target_lengths,
-                device=x.device,
-                dtype=torch.int64,
-            )
+        target_lengths = torch.tensor(
+            target_lengths,
+            device=x.device,
+            dtype=torch.int64,
+        )
 
-            ctc_loss = torch.nn.functional.ctc_loss(
-                log_probs=nnet_output.permute(1, 0, 2),  # (T, N, C)
-                targets=targets,
-                input_lengths=x_lens,
-                target_lengths=target_lengths,
-                reduction="sum",
-            )
-        else:
-            ctc_loss = 0
+        ctc_loss = torch.nn.functional.ctc_loss(
+            log_probs=nnet_output.permute(1, 0, 2),  # (T, N, C)
+            targets=targets,
+            input_lengths=x_lens,
+            target_lengths=target_lengths,
+            reduction="sum",
+        )
 
         return (simple_loss, pruned_loss, ctc_loss)
