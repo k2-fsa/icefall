@@ -28,7 +28,7 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-import quantization
+import multi_quantization as quantization
 
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
