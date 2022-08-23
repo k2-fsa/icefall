@@ -43,7 +43,7 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
-    src_dir = Path("data/manifests")
+    src_dir = Path("data/manifests/aidatatang_200zh")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
