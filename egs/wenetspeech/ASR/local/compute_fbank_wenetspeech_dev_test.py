@@ -75,6 +75,7 @@ def compute_fbank_wenetspeech_dev_test():
             num_workers=num_workers,
             batch_duration=batch_duration,
             storage_type=LilcomHdf5Writer,
+            overwrite=True,
         )
 
         logging.info(f"Saving to {cuts_path}")
