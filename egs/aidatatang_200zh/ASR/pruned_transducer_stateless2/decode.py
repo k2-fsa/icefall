@@ -534,51 +534,60 @@ def main():
     args.return_cuts = True
     aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
 
-    dev = "dev"
-    test = "test"
+    # dev = "dev"
+    # test = "test"
+    
+    dev_cuts = aidatatang_200zh.valid_cuts()
+    test_cuts = aidatatang_200zh.test_cuts()
+    # dev_dl = aidatatang_200zh.valid_dataloaders(dev_cuts)
+    # test_dl = aidatatang_200zh.test_dataloaders(test_cuts)
 
-    if not os.path.exists(f"{dev}/shared-0.tar"):
-        os.makedirs(dev)
-        dev_cuts = aidatatang_200zh.valid_cuts()
-        export_to_webdataset(
-            dev_cuts,
-            output_path=f"{dev}/shared-%d.tar",
-            shard_size=300,
-        )
+    # test_sets = ["dev", "test"]
+    # test_dl = [dev_dl, test_dl]
 
-    if not os.path.exists(f"{test}/shared-0.tar"):
-        os.makedirs(test)
-        test_cuts = aidatatang_200zh.test_cuts()
-        export_to_webdataset(
-            test_cuts,
-            output_path=f"{test}/shared-%d.tar",
-            shard_size=300,
-        )
 
-    dev_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
-    ]
-    cuts_dev_webdataset = CutSet.from_webdataset(
-        dev_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    # if not os.path.exists(f"{dev}/shared-0.tar"):
+    #     os.makedirs(dev)
+    #     dev_cuts = aidatatang_200zh.valid_cuts()
+    #     export_to_webdataset(
+    #         dev_cuts,
+    #         output_path=f"{dev}/shared-%d.tar",
+    #         shard_size=300,
+    #     )
 
-    test_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test, "shared-*.tar")))
-    ]
-    cuts_test_webdataset = CutSet.from_webdataset(
-        test_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    # if not os.path.exists(f"{test}/shared-0.tar"):
+    #     os.makedirs(test)
+    #     test_cuts = aidatatang_200zh.test_cuts()
+    #     export_to_webdataset(
+    #         test_cuts,
+    #         output_path=f"{test}/shared-%d.tar",
+    #         shard_size=300,
+    #     )
 
-    dev_dl = aidatatang_200zh.valid_dataloaders(cuts_dev_webdataset)
-    test_dl = aidatatang_200zh.test_dataloaders(cuts_test_webdataset)
+    # dev_shards = [
+    #     str(path)
+    #     for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+    # ]
+    # cuts_dev_webdataset = CutSet.from_webdataset(
+    #     dev_shards,
+    #     split_by_worker=True,
+    #     split_by_node=True,
+    #     shuffle_shards=True,
+    # )
+
+    # test_shards = [
+    #     str(path)
+    #     for path in sorted(glob.glob(os.path.join(test, "shared-*.tar")))
+    # ]
+    # cuts_test_webdataset = CutSet.from_webdataset(
+    #     test_shards,
+    #     split_by_worker=True,
+    #     split_by_node=True,
+    #     shuffle_shards=True,
+    # )
+
+    dev_dl = aidatatang_200zh.valid_dataloaders(dev_cuts)
+    test_dl = aidatatang_200zh.test_dataloaders(test_cuts)
 
     test_sets = ["dev", "test"]
     test_dl = [dev_dl, test_dl]
@@ -602,3 +611,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
