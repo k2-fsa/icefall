@@ -62,7 +62,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
   # to data/musan
-  if [ ! -f data/manifests/musan/.manifests.done ]; then
+  if [ ! -f data/manifests/.manifests.done ]; then
     log "It may take 6 minutes"
     mkdir -p data/manifests/
     lhotse prepare musan $dl_dir/musan data/manifests/
