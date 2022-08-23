@@ -64,9 +64,9 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # to data/musan
   if [ ! -f data/manifests/musan/.manifests.done ]; then
     log "It may take 6 minutes"
-    mkdir -p data/manifests/musan
-    lhotse prepare musan $dl_dir/musan data/manifests/musan
-    touch data/manifests/musan/.manifests.done
+    mkdir -p data/manifests/
+    lhotse prepare musan $dl_dir/musan data/manifests/
+    touch data/manifests/.manifests.done
   fi
 fi
 
