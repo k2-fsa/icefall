@@ -78,6 +78,7 @@ from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    display_and_save_batch,
     measure_gradient_norms,
     measure_weight_norms,
     optim_step_and_measure_param_change,
@@ -544,7 +545,34 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            reduction="none",
         )
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        if not torch.all(is_finite):
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
+
+            # If either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if torch.all(~simple_loss_is_finite) or torch.all(
+                ~pruned_loss_is_finite
+            ):
+                raise ValueError(
+                    "There are too many utterances in this batch "
+                    "leading to inf or nan losses."
+                )
+
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
+
         loss = params.simple_loss_scale * simple_loss + pruned_loss
 
     assert loss.requires_grad == is_training
@@ -552,6 +580,10 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
