@@ -131,15 +131,15 @@ with the following commands:
 import argparse
 import logging
 from pathlib import Path
-from torch import Tensor
-from typing import Optional, List, Tuple
+
 import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+from conformer import StreamingEncoder
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-from conformer import StreamingEncoder
+
 from icefall.checkpoint import (
     average_checkpoints,
     find_checkpoints,
@@ -257,15 +257,6 @@ def get_parser():
         are streaming model, this should be True.
         """,
     )
-
-    # parser.add_argument(
-    #     "--causal-convolution",
-    #     type=str2bool,
-    #     default=False,
-    #     help="""Whether to use causal convolution, this requires to be True when
-    #     using dynamic_chunk_training.
-    #     """,
-    # )
 
     add_model_arguments(parser)
 
@@ -482,18 +473,25 @@ def export_encoder_model_onnx_streaming(
       opset_version:
         The opset version to use.
     """
-    encoder_model = StreamingEncoder(encoder_model,left_context, 
-                                     right_context, chunk_size, warmup)
+    encoder_model = StreamingEncoder(
+        encoder_model, left_context, right_context, chunk_size, warmup
+    )
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
-    states = [torch.zeros(encoder_model.encoder_layers,
-                          encoder_model.left_context,
-                          1,
-                          encoder_model.d_model),
-              torch.zeros(encoder_model.encoder_layers,
-                          encoder_model.cnn_module_kernel - 1,
-                          1,
-                          encoder_model.d_model)]
+    states = [
+        torch.zeros(
+            encoder_model.encoder_layers,
+            encoder_model.left_context,
+            1,
+            encoder_model.d_model,
+        ),
+        torch.zeros(
+            encoder_model.encoder_layers,
+            encoder_model.cnn_module_kernel - 1,
+            1,
+            encoder_model.d_model,
+        ),
+    ]
 
     processed_lens = torch.tensor([1], dtype=torch.int64)
 
@@ -507,7 +505,7 @@ def export_encoder_model_onnx_streaming(
     # I cannot find which statement causes the above error.
     # torch.onnx.export() will use torch.jit.trace() internally, which
     # works well for the current reworked model
-    
+
     torch.onnx.export(
         encoder_model,
         (x, x_lens, states, processed_lens),
@@ -519,11 +517,11 @@ def export_encoder_model_onnx_streaming(
         dynamic_axes={
             "x": {0: "B", 1: "T"},
             "x_lens": {0: "B"},
-            "states_in": {2:"B"},
-            "processed_lens": {0:"B"},
+            "states_in": {2: "B"},
+            "processed_lens": {0: "B"},
             "encoder_out": {0: "B", 1: "T"},
             "encoder_out_lens": {0: "B"},
-            "states_out": {2:"B"},
+            "states_out": {2: "B"},
         },
     )
     logging.info(f"Saved to {encoder_filename}")
@@ -665,16 +663,12 @@ def main():
     if params.streaming_model:
         assert params.causal_convolution
 
-
-
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params, enable_giga=False)
 
     model.to(device)
-
-
 
     if params.iter > 0:
         filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -724,11 +718,8 @@ def main():
                 opset_version=opset_version,
             )
         else:
-            assert model.encoder.causal
             export_encoder_model_onnx_streaming(
-                model.encoder,
-                encoder_filename,
-                opset_version=opset_version
+                model.encoder, encoder_filename, opset_version=opset_version
             )
 
         decoder_filename = params.exp_dir / "decoder.onnx"
