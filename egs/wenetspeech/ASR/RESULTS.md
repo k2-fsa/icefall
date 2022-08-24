@@ -70,7 +70,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 The tensorboard training log can be found at https://tensorboard.dev/experiment/E2NXPVflSOKWepzJ1a1uDQ/#scalars .
 
 
-A pre-trained offline model and decoding logs can be found at <https://huggingface.co/luomingshuang/icefall_asr_wenetspeech_pruned_transducer_stateless5_streaming>
+A pre-trained streaming model and decoding logs can be found at <https://huggingface.co/luomingshuang/icefall_asr_wenetspeech_pruned_transducer_stateless5_streaming>
 
 ### WenetSpeech char-based training results (Pruned Transducer 2)
 

@@ -401,7 +401,142 @@ class Conformer(EncoderInterface):
 
         return x, lengths, states
 
+class StreamingEncoder(torch.nn.Module):
+    """
+    Args:
+          left_context:
+            How many previous frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `left_context` frames
+            of left context, some have more.
+          right_context:
+            How many future frames the attention can see in current chunk.
+            Note: It's not that each individual frame has `right_context` frames
+            of right context, some have more.
+          chunk_size:
+            The chunk size for decoding, this will be used to simulate streaming
+            decoding using masking.
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
+    """
+    def __init__(self, model, left_context, right_context, chunk_size, warmup):
+        super().__init__()
+        self.encoder = model.encoder
+        self.encoder_embed = model.encoder_embed
+        self.encoder_layers = model.encoder_layers
+        self.d_model = model.d_model
+        self.cnn_module_kernel = model.cnn_module_kernel
+        self.encoder_pos = model.encoder_pos
+        self.left_context = left_context
+        self.right_context = right_context
+        self.chunk_size = chunk_size
+        self.warmup = warmup
 
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+        states: Optional[List[Tensor]] = None,
+        processed_lens: Optional[Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """
+        Args:
+          x:
+            The input tensor. Its shape is (batch_size, seq_len, feature_dim).
+          x_lens:
+            A tensor of shape (batch_size,) containing the number of frames in
+            `x` before padding.
+          states:
+            The decode states for previous frames which contains the cached data.
+            It has two elements, the first element is the attn_cache which has
+            a shape of (encoder_layers, left_context, batch, attention_dim),
+            the second element is the conv_cache which has a shape of
+            (encoder_layers, cnn_module_kernel-1, batch, conv_dim).
+            Note: states will be modified in this function.
+          processed_lens:
+            How many frames (after subsampling) have been processed for each sequence.
+          
+        Returns:
+          Return a tuple containing 2 tensors:
+            - logits, its shape is (batch_size, output_seq_len, output_dim)
+            - logit_lens, a tensor of shape (batch_size,) containing the number
+              of frames in `logits` before padding.
+            - decode_states, the updated states including the information
+              of current chunk.
+        """
+
+        # x: [N, T, C]
+        # Caution: We assume the subsampling factor is 4!
+
+        #  lengths = ((x_lens - 1) // 2 - 1) // 2 # issue an warning
+        #
+        # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
+
+
+        assert states is not None
+        assert processed_lens is not None
+        assert (
+            len(states) == 2
+            and states[0].shape
+            == (self.encoder_layers, self.left_context, x.size(0), self.d_model)
+            and states[1].shape
+            == (
+                self.encoder_layers,
+                self.cnn_module_kernel - 1,
+                x.size(0),
+                self.d_model,
+            )
+        ), f"""The length of states MUST be equal to 2, and the shape of
+            first element should be {(self.encoder_layers, self,left_context, x.size(0), self.d_model)},
+            given {states[0].shape}. the shape of second element should be
+            {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
+            given {states[1].shape}."""
+
+        lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
+
+        src_key_padding_mask = make_pad_mask(lengths)
+
+        processed_mask = torch.arange(self.left_context, device=x.device).expand(
+            x.size(0), self.left_context
+        )
+        processed_lens = processed_lens.view(x.size(0), 1)
+        processed_mask = (processed_lens <= processed_mask).flip(1)
+
+        src_key_padding_mask = torch.cat(
+            [processed_mask, src_key_padding_mask], dim=1
+        )
+
+        embed = self.encoder_embed(x)
+
+        # cut off 1 frame on each size of embed as they see the padding
+        # value which causes a training and decoding mismatch.
+        embed = embed[:, 1:-1, :]
+
+        embed, pos_enc = self.encoder_pos(embed, self.left_context)
+        embed = embed.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
+
+        x, states = self.encoder.chunk_forward(
+            embed,
+            pos_enc,
+            src_key_padding_mask=src_key_padding_mask,
+            warmup=self.warmup,
+            states=states,
+            left_context=self.left_context,
+            right_context=self.right_context,
+        )  # (T, B, F)
+        if self.right_context > 0:
+            x = x[0:-self.right_context, ...]
+            lengths -= self.right_context
+
+
+        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+
+        return x, lengths, states
+
+        
 class ConformerEncoderLayer(nn.Module):
     """
     ConformerEncoderLayer is made up of self-attn, feedforward and convolution networks.

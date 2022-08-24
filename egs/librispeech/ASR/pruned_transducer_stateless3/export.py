@@ -69,8 +69,25 @@ Check `onnx_check.py` for how to use them.
     - decoder.onnx
     - joiner.onnx
 
+(4) Export to ONNX format with streaming ASR model
 
-(4) Export `model.state_dict()`
+./pruned_transducer_stateless3/export.py \
+  --exp-dir ./icefall_librispeech_streaming_pruned_transducer_stateless3_giga_0.9_20220625/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+  --streaming-model \
+  --onnx 1
+
+It will generate the following three files in the given `exp_dir`.
+Check `onnx_check.py` for how to use them.
+
+    - encoder.onnx
+    - decoder.onnx
+    - joiner.onnx
+
+
+(5) Export `model.state_dict()`
 
 ./pruned_transducer_stateless3/export.py \
   --exp-dir ./pruned_transducer_stateless3/exp \
@@ -114,14 +131,15 @@ with the following commands:
 import argparse
 import logging
 from pathlib import Path
-
+from torch import Tensor
+from typing import Optional, List, Tuple
 import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-
+from conformer import StreamingEncoder
 from icefall.checkpoint import (
     average_checkpoints,
     find_checkpoints,
@@ -239,6 +257,15 @@ def get_parser():
         are streaming model, this should be True.
         """,
     )
+
+    # parser.add_argument(
+    #     "--causal-convolution",
+    #     type=str2bool,
+    #     default=False,
+    #     help="""Whether to use causal convolution, this requires to be True when
+    #     using dynamic_chunk_training.
+    #     """,
+    # )
 
     add_model_arguments(parser)
 
@@ -425,6 +452,83 @@ def export_encoder_model_onnx(
     logging.info(f"Saved to {encoder_filename}")
 
 
+def export_encoder_model_onnx_streaming(
+    encoder_model: nn.Module,
+    encoder_filename: str,
+    opset_version: int = 11,
+    left_context: int = 64,
+    right_context: int = 4,
+    chunk_size: int = 16,
+    warmup: float = 1.0,
+) -> None:
+    """Export the given encoder model to ONNX format.
+    The exported model has two inputs:
+
+        - x, a tensor of shape (N, T, C); dtype is torch.float32
+        - x_lens, a tensor of shape (N,); dtype is torch.int64
+
+    and it has two outputs:
+
+        - encoder_out, a tensor of shape (N, T, C)
+        - encoder_out_lens, a tensor of shape (N,)
+
+    Note: The warmup argument is fixed to 1.
+
+    Args:
+      encoder_model:
+        The input encoder model
+      encoder_filename:
+        The filename to save the exported ONNX model.
+      opset_version:
+        The opset version to use.
+    """
+    encoder_model = StreamingEncoder(encoder_model,left_context, 
+                                     right_context, chunk_size, warmup)
+    x = torch.zeros(1, 100, 80, dtype=torch.float32)
+    x_lens = torch.tensor([100], dtype=torch.int64)
+    states = [torch.zeros(encoder_model.encoder_layers,
+                          encoder_model.left_context,
+                          1,
+                          encoder_model.d_model),
+              torch.zeros(encoder_model.encoder_layers,
+                          encoder_model.cnn_module_kernel - 1,
+                          1,
+                          encoder_model.d_model)]
+
+    processed_lens = torch.tensor([1], dtype=torch.int64)
+
+    #  encoder_model = torch.jit.script(encoder_model)
+    # It throws the following error for the above statement
+    #
+    # RuntimeError: Exporting the operator __is_ to ONNX opset version
+    # 11 is not supported. Please feel free to request support or
+    # submit a pull request on PyTorch GitHub.
+    #
+    # I cannot find which statement causes the above error.
+    # torch.onnx.export() will use torch.jit.trace() internally, which
+    # works well for the current reworked model
+    
+    torch.onnx.export(
+        encoder_model,
+        (x, x_lens, states, processed_lens),
+        encoder_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["x", "x_lens", "states_in", "processed_lens"],
+        output_names=["encoder_out", "encoder_out_lens", "states_out"],
+        dynamic_axes={
+            "x": {0: "B", 1: "T"},
+            "x_lens": {0: "B"},
+            "states_in": {2:"B"},
+            "processed_lens": {0:"B"},
+            "encoder_out": {0: "B", 1: "T"},
+            "encoder_out_lens": {0: "B"},
+            "states_out": {2:"B"},
+        },
+    )
+    logging.info(f"Saved to {encoder_filename}")
+
+
 def export_decoder_model_onnx(
     decoder_model: nn.Module,
     decoder_filename: str,
@@ -561,12 +665,16 @@ def main():
     if params.streaming_model:
         assert params.causal_convolution
 
+
+
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params, enable_giga=False)
 
     model.to(device)
+
+
 
     if params.iter > 0:
         filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -609,11 +717,19 @@ def main():
         opset_version = 11
         logging.info("Exporting to onnx format")
         encoder_filename = params.exp_dir / "encoder.onnx"
-        export_encoder_model_onnx(
-            model.encoder,
-            encoder_filename,
-            opset_version=opset_version,
-        )
+        if not params.streaming_model:
+            export_encoder_model_onnx(
+                model.encoder,
+                encoder_filename,
+                opset_version=opset_version,
+            )
+        else:
+            assert model.encoder.causal
+            export_encoder_model_onnx_streaming(
+                model.encoder,
+                encoder_filename,
+                opset_version=opset_version
+            )
 
         decoder_filename = params.exp_dir / "decoder.onnx"
         export_decoder_model_onnx(
