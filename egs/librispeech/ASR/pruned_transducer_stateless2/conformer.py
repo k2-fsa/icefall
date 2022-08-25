@@ -443,7 +443,7 @@ class StreamingEncoder(torch.nn.Module):
         cnn_cache: torch.tensor,
         processed_lens: Optional[torch.Tensor] = None,
     ) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.tensor, torch.tensor
+        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
     ]:
         """
         Args:
@@ -478,7 +478,8 @@ class StreamingEncoder(torch.nn.Module):
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
-
+        attn_cache = attn_cache.transpose(0, 2)
+        cnn_cache = cnn_cache.transpose(0, 2)
         states = [attn_cache, cnn_cache]
         assert states is not None
         assert processed_lens is not None
@@ -539,7 +540,13 @@ class StreamingEncoder(torch.nn.Module):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         processed_lens = processed_lens.squeeze(-1) + lengths
-        return x, lengths, states[0], states[1], processed_lens
+        return (
+            x,
+            lengths,
+            states[0].transpose(0, 2),
+            states[1].transpose(0, 2),
+            processed_lens,
+        )
 
 
 class ConformerEncoderLayer(nn.Module):

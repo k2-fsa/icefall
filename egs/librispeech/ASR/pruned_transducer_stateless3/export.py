@@ -480,15 +480,15 @@ def export_encoder_model_onnx_streaming(
     x_lens = torch.tensor([100], dtype=torch.int64)
     states = [
         torch.zeros(
+            1,
             encoder_model.encoder_layers,
             encoder_model.left_context,
-            1,
             encoder_model.d_model,
         ),
         torch.zeros(
+            1,
             encoder_model.encoder_layers,
             encoder_model.cnn_module_kernel - 1,
-            1,
             encoder_model.d_model,
         ),
     ]
@@ -531,13 +531,13 @@ def export_encoder_model_onnx_streaming(
         dynamic_axes={
             "x": {0: "B", 1: "T"},
             "x_lens": {0: "B"},
-            "attn_cache": {2: "B"},
-            "cnn_cache": {2: "B"},
+            "attn_cache": {0: "B"},
+            "cnn_cache": {0: "B"},
             "processed_lens": {0: "B"},
             "encoder_out": {0: "B", 1: "T"},
             "encoder_out_lens": {0: "B"},
-            "next_attn_cache": {2: "B"},
-            "next_cnn_cache": {2: "B"},
+            "next_attn_cache": {0: "B"},
+            "next_cnn_cache": {0: "B"},
             "next_processed_lens": {0: "B"},
         },
     )
