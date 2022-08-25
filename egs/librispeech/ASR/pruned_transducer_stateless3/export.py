@@ -652,13 +652,13 @@ def main():
 
         # Also export encoder/decoder/joiner separately
         encoder_filename = params.exp_dir / "encoder_jit_script.pt"
-        export_encoder_model_jit_trace(model.encoder, encoder_filename)
+        export_encoder_model_jit_script(model.encoder, encoder_filename)
 
         decoder_filename = params.exp_dir / "decoder_jit_script.pt"
-        export_decoder_model_jit_trace(model.decoder, decoder_filename)
+        export_decoder_model_jit_script(model.decoder, decoder_filename)
 
         joiner_filename = params.exp_dir / "joiner_jit_script.pt"
-        export_joiner_model_jit_trace(model.joiner, joiner_filename)
+        export_joiner_model_jit_script(model.joiner, joiner_filename)
 
     elif params.jit_trace is True:
         convert_scaled_to_non_scaled(model, inplace=True)
