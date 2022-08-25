@@ -493,6 +493,8 @@ def export_encoder_model_onnx_streaming(
         ),
     ]
 
+    attn_cache, cnn_cache = states[0], states[1]
+
     processed_lens = torch.tensor([1], dtype=torch.int64)
 
     #  encoder_model = torch.jit.script(encoder_model)
@@ -508,20 +510,35 @@ def export_encoder_model_onnx_streaming(
 
     torch.onnx.export(
         encoder_model,
-        (x, x_lens, states, processed_lens),
+        (x, x_lens, attn_cache, cnn_cache, processed_lens),
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "x_lens", "states_in", "processed_lens"],
-        output_names=["encoder_out", "encoder_out_lens", "states_out"],
+        input_names=[
+            "x",
+            "x_lens",
+            "attn_cache",
+            "cnn_cache",
+            "processed_lens",
+        ],
+        output_names=[
+            "encoder_out",
+            "encoder_out_lens",
+            "next_attn_cache",
+            "next_cnn_cache",
+            "next_processed_lens",
+        ],
         dynamic_axes={
             "x": {0: "B", 1: "T"},
             "x_lens": {0: "B"},
-            "states_in": {2: "B"},
+            "attn_cache": {2: "B"},
+            "cnn_cache": {2: "B"},
             "processed_lens": {0: "B"},
             "encoder_out": {0: "B", 1: "T"},
             "encoder_out_lens": {0: "B"},
-            "states_out": {2: "B"},
+            "next_attn_cache": {2: "B"},
+            "next_cnn_cache": {2: "B"},
+            "next_processed_lens": {0: "B"},
         },
     )
     logging.info(f"Saved to {encoder_filename}")

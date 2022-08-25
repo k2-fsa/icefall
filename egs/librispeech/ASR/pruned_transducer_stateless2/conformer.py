@@ -250,8 +250,8 @@ class Conformer(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        states: Optional[List[Tensor]] = None,
-        processed_lens: Optional[Tensor] = None,
+        states: Optional[List[torch.Tensor]] = None,
+        processed_lens: Optional[torch.Tensor] = None,
         left_context: int = 64,
         right_context: int = 4,
         chunk_size: int = 16,
@@ -401,6 +401,7 @@ class Conformer(EncoderInterface):
 
         return x, lengths, states
 
+
 class StreamingEncoder(torch.nn.Module):
     """
     Args:
@@ -420,6 +421,7 @@ class StreamingEncoder(torch.nn.Module):
             training; when it is >= 1.0 we are "fully warmed up".  It is used
             to turn modules on sequentially.
     """
+
     def __init__(self, model, left_context, right_context, chunk_size, warmup):
         super().__init__()
         self.encoder = model.encoder
@@ -433,14 +435,16 @@ class StreamingEncoder(torch.nn.Module):
         self.chunk_size = chunk_size
         self.warmup = warmup
 
-
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        states: Optional[List[Tensor]] = None,
-        processed_lens: Optional[Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        attn_cache: torch.tensor,
+        cnn_cache: torch.tensor,
+        processed_lens: Optional[torch.Tensor] = None,
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor, torch.tensor, torch.tensor
+    ]:
         """
         Args:
           x:
@@ -457,7 +461,7 @@ class StreamingEncoder(torch.nn.Module):
             Note: states will be modified in this function.
           processed_lens:
             How many frames (after subsampling) have been processed for each sequence.
-          
+
         Returns:
           Return a tuple containing 2 tensors:
             - logits, its shape is (batch_size, output_seq_len, output_dim)
@@ -475,7 +479,7 @@ class StreamingEncoder(torch.nn.Module):
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
 
-
+        states = [attn_cache, cnn_cache]
         assert states is not None
         assert processed_lens is not None
         assert (
@@ -490,18 +494,20 @@ class StreamingEncoder(torch.nn.Module):
                 self.d_model,
             )
         ), f"""The length of states MUST be equal to 2, and the shape of
-            first element should be {(self.encoder_layers, self,left_context, x.size(0), self.d_model)},
+            first element should be {(self.encoder_layers, self.left_context, x.size(0), self.d_model)},
             given {states[0].shape}. the shape of second element should be
             {(self.encoder_layers, self.cnn_module_kernel - 1, x.size(0), self.d_model)},
             given {states[1].shape}."""
 
-        lengths -= 2  # we will cut off 1 frame on each side of encoder_embed output
+        lengths -= (
+            2  # we will cut off 1 frame on each side of encoder_embed output
+        )
 
         src_key_padding_mask = make_pad_mask(lengths)
 
-        processed_mask = torch.arange(self.left_context, device=x.device).expand(
-            x.size(0), self.left_context
-        )
+        processed_mask = torch.arange(
+            self.left_context, device=x.device
+        ).expand(x.size(0), self.left_context)
         processed_lens = processed_lens.view(x.size(0), 1)
         processed_mask = (processed_lens <= processed_mask).flip(1)
 
@@ -528,15 +534,14 @@ class StreamingEncoder(torch.nn.Module):
             right_context=self.right_context,
         )  # (T, B, F)
         if self.right_context > 0:
-            x = x[0:-self.right_context, ...]
+            x = x[: -self.right_context, ...]
             lengths -= self.right_context
 
-
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        processed_lens = processed_lens.squeeze(-1) + lengths
+        return x, lengths, states[0], states[1], processed_lens
 
-        return x, lengths, states
 
-        
 class ConformerEncoderLayer(nn.Module):
     """
     ConformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
