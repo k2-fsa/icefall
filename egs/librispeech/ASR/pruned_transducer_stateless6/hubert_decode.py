@@ -81,7 +81,7 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        ## hyps is a list, every element is decode result of a sentence.
+        # hyps is a list, every element is decode result of a sentence.
         hyps = hubert_model.ctc_greedy_search(batch)
         
         texts = batch["supervisions"]["text"]
