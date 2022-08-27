@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -16,37 +17,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-When training with the L subset, usage:
+Usage:
 (1) greedy search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 100 \
-        --decoding-method greedy_search
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) modified beam search
+(2) beam search (not recommended)
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
-(3) fast beam search
+(3) modified beam search
 ./pruned_transducer_stateless2/decode.py \
-        --epoch 6 \
-        --avg 3 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+(4) fast beam search
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
 
 
@@ -59,7 +66,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import Aidatatang_200zhAsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -67,7 +74,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -91,17 +98,20 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        default=30,
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 1.
+        You can specify --avg to use more checkpoints for model averaging.""",
     )
 
     parser.add_argument(
-        "--batch",
+        "--iter",
         type=int,
-        default=None,
-        help="It specifies the batch checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
     )
 
     parser.add_argument(
@@ -110,18 +120,7 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
-    )
-
-    parser.add_argument(
-        "--avg-last-n",
-        type=int,
-        default=0,
-        help="""If positive, --epoch and --avg are ignored and it
-        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
-        where xxx is the number of processed batches while
-        saving that checkpoint.
-        """,
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
@@ -135,10 +134,7 @@ def get_parser():
         "--lang-dir",
         type=str,
         default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -157,7 +153,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -191,7 +187,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
@@ -203,13 +199,15 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
+    token_table: k2.SymbolTable,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
@@ -228,6 +226,8 @@ def decode_one_batch(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
+      token_table:
+        It maps token ID to a string.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -239,7 +239,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = model.device
+    device = next(model.parameters()).device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
@@ -252,7 +252,6 @@ def decode_one_batch(
     encoder_out, encoder_out_lens = model.encoder(
         x=feature, x_lens=feature_lens
     )
-    hyps = []
 
     if params.decoding_method == "fast_beam_search":
         hyp_tokens = fast_beam_search_one_best(
@@ -264,8 +263,6 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
@@ -275,8 +272,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -284,11 +279,9 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
-        for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     else:
+        hyp_tokens = []
         batch_size = encoder_out.size(0)
-
         for i in range(batch_size):
             # fmt: off
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
@@ -309,7 +302,9 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append([lexicon.token_table[idx] for idx in hyp])
+            hyp_tokens.append(hyp)
+
+    hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -329,7 +324,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
+    token_table: k2.SymbolTable,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -341,6 +336,8 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
+      token_table:
+        It maps a token ID to a string.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -359,20 +356,19 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
-    else:
         log_interval = 50
+    else:
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list(str(text).replace(" ", "")) for text in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            lexicon=lexicon,
+            token_table=token_table,
             decoding_graph=decoding_graph,
             batch=batch,
         )
@@ -381,7 +377,8 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                this_batch.append((cut_id, ref_text, hyp_words))
+                ref_words = ref_text.split()
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -415,9 +412,15 @@ def save_results(
         errs_filename = (
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        # we compute CER for aishell dataset.
+        results_char = []
+        for res in results:
+            results_char.append(
+                (res[0], list("".join(res[1])), list("".join(res[2])))
+            )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f, f"{test_set_name}-{key}", results_char, enable_log=True
             )
             test_set_wers[key] = wer
 
@@ -444,9 +447,10 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    Aidatatang_200zhAsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
@@ -459,13 +463,19 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    if params.iter > 0:
+        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+    else:
+        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -480,7 +490,7 @@ def main():
     logging.info(f"Device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    params.blank_id = lexicon.token_table["<blk>"]
+    params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
@@ -488,31 +498,41 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
     elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-    elif params.batch is not None:
-        filenames = f"{params.exp_dir}/checkpoint-{params.batch}.pt"
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints([filenames], device=device))
     else:
         start = params.epoch - params.avg + 1
         filenames = []
         for i in range(start, params.epoch + 1):
-            if start >= 0:
+            if i >= 1:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.to(device)
     model.eval()
-    model.device = device
 
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
@@ -522,26 +542,24 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # we need cut ids to display recognition results.
-    args.return_cuts = True
-    aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
+    aishell = AishellAsrDataModule(args)
+    test_cuts = aishell.test_cuts()
+    dev_cuts = aishell.valid_cuts()
+    test_dl = aishell.test_dataloaders(test_cuts)
+    dev_dl = aishell.test_dataloaders(dev_cuts)
 
-    dev_cuts = aidatatang_200zh.valid_cuts()
-    test_cuts = aidatatang_200zh.test_cuts()
-    dev_dl = aidatatang_200zh.valid_dataloaders(dev_cuts)
-    test_dl = aidatatang_200zh.test_dataloaders(test_cuts)
+    test_sets = ["test", "dev"]
+    test_dls = [test_dl, dev_dl]
 
-    test_sets = ["dev", "test"]
-    test_dl = [dev_dl, test_dl]
-
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
-            lexicon=lexicon,
+            token_table=lexicon.token_table,
             decoding_graph=decoding_graph,
         )
+
         save_results(
             params=params,
             test_set_name=test_set,

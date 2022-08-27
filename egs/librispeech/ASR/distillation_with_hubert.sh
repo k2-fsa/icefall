@@ -81,9 +81,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ] && [ ! "$use_extracted_codebook" ==
   # or
   # pip install multi_quantization
 
-  has_quantization=$(python3 -c "import importlib; print(importlib.util.find_spec('quantization') is not None)")
+  has_quantization=$(python3 -c "import importlib; print(importlib.util.find_spec('multi_quantization') is not None)")
   if [ $has_quantization == 'False' ]; then
-    log "Please install quantization before running following stages"
+    log "Please install multi_quantization before running following stages"
     exit 1
   fi
 
