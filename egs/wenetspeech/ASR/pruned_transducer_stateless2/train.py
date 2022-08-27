@@ -81,7 +81,6 @@ For training with the S subset:
 
 import argparse
 import logging
-import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -119,8 +118,6 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
-
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 def get_parser():
@@ -162,7 +159,7 @@ def get_parser():
         default=0,
         help="""Resume training from from this epoch.
         If it is positive, it will load checkpoint from
-        transducer_stateless2/exp/epoch-{start_epoch-1}.pt
+        pruned_transducer_stateless2/exp/epoch-{start_epoch-1}.pt
         """,
     )
 

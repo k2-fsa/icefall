@@ -61,7 +61,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 import argparse
 import copy
 import logging
-import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -102,8 +101,6 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
-
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
