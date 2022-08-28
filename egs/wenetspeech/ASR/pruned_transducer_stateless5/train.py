@@ -681,7 +681,7 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
 
     y = graph_compiler.texts_to_ids(texts)
-    if type(y) == list:
+    if isinstance(y, list):
         y = k2.RaggedTensor(y).to(device)
     else:
         y = y.to(device)
