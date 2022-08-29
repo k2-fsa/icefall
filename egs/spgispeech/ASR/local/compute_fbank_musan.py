@@ -69,6 +69,13 @@ def compute_fbank_musan():
     )
     assert manifests is not None
 
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
+
     musan_cuts_path = src_dir / "cuts_musan.jsonl.gz"
 
     if musan_cuts_path.is_file():
