@@ -35,7 +35,7 @@ on:
 
 jobs:
   run_librispeech_pruned_transducer_stateless3_2022_05_13:
-    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -59,6 +59,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
 
       - name: Cache kaldifeat
         id: my-cache
@@ -99,7 +101,7 @@ jobs:
         with:
           path: |
             ~/tmp/fbank-libri
-          key: cache-libri-fbank-test-clean-and-test-other
+          key: cache-libri-fbank-test-clean-and-test-other-v2
 
       - name: Compute fbank for LibriSpeech test-clean and test-other
         if: steps.libri-test-clean-and-test-other-fbank.outputs.cache-hit != 'true'

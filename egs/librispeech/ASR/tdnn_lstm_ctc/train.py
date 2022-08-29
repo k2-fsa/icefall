@@ -16,6 +16,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Usage:
+  export CUDA_VISIBLE_DEVICES="0,1,2,3"
+  ./tdnn_lstm_ctc/train.py \
+     --world-size 4 \
+     --full-libri 1 \
+     --max-duration 300 \
+     --num-epochs 20
+"""
 
 import argparse
 import logging
@@ -29,6 +38,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
 from asr_datamodule import LibriSpeechAsrDataModule
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from model import TdnnLstm
 from torch import Tensor
@@ -339,6 +349,17 @@ def compute_loss(
     info["frames"] = supervision_segments[:, 2].sum().item()
     info["loss"] = loss.detach().cpu().item()
 
+    # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    info["utterances"] = feature.size(0)
+    # averaged input duration in frames over utterances
+    info["utt_duration"] = supervisions["num_frames"].sum().item()
+    # averaged padding proportion over utterances
+    info["utt_pad_proportion"] = (
+        ((feature.size(2) - supervisions["num_frames"]) / feature.size(2))
+        .sum()
+        .item()
+    )
+
     return loss, info
 
 
@@ -544,10 +565,25 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 20.0
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
     train_dl = librispeech.train_dataloaders(train_cuts)
 
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
+
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     for epoch in range(params.start_epoch, params.num_epochs):

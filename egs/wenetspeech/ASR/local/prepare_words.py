@@ -75,6 +75,16 @@ def main():
 
     logging.info("Starting writing the words.txt")
     f_out = open(output_file, "w", encoding="utf-8")
+
+    # LG decoding needs below symbols.
+    id1, id2, id3 = (
+        str(len(new_lines)),
+        str(len(new_lines) + 1),
+        str(len(new_lines) + 2),
+    )
+    add_words = ["#0 " + id1, "<s> " + id2, "</s> " + id3]
+    new_lines.extend(add_words)
+
     for line in new_lines:
         f_out.write(line)
         f_out.write("\n")

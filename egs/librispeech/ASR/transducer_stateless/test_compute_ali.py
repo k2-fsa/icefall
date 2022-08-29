@@ -44,8 +44,8 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from alignment import get_word_starting_frames
-from lhotse import CutSet, load_manifest
-from lhotse.dataset import K2SpeechRecognitionDataset, SingleCutSampler
+from lhotse import CutSet, load_manifest_lazy
+from lhotse.dataset import DynamicBucketingSampler, K2SpeechRecognitionDataset
 from lhotse.dataset.collation import collate_custom_field
 
 
@@ -93,14 +93,15 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(args.bpe_model)
 
-    cuts_json = args.ali_dir / f"cuts_{args.dataset}.json.gz"
+    cuts_jsonl = args.ali_dir / f"librispeech_cuts_{args.dataset}.jsonl.gz"
 
-    logging.info(f"Loading {cuts_json}")
-    cuts = load_manifest(cuts_json)
+    logging.info(f"Loading {cuts_jsonl}")
+    cuts = load_manifest_lazy(cuts_jsonl)
 
-    sampler = SingleCutSampler(
+    sampler = DynamicBucketingSampler(
         cuts,
         max_duration=30,
+        num_buckets=30,
         shuffle=False,
     )
 

@@ -311,6 +311,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -324,9 +325,9 @@ def decode_dataset(
         for lm_scale, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             results[lm_scale].extend(this_batch)
 
@@ -349,6 +350,7 @@ def save_results(
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -468,6 +470,8 @@ def main():
     model.to(device)
     model.eval()
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     timit = TimitAsrDataModule(args)
     test_set = "TEST"
     test_dl = timit.test_dataloaders()

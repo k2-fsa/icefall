@@ -22,7 +22,6 @@ from typing import Optional
 
 from lhotse import CutSet, Fbank, FbankConfig
 from lhotse.dataset import (
-    BucketingSampler,
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
@@ -71,8 +70,7 @@ class AsrDataModule:
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the BucketingSampler "
-            "and DynamicBucketingSampler."
+            help="The number of buckets for the DynamicBucketingSampler. "
             "(you might want to increase it for larger datasets).",
         )
 
@@ -152,7 +150,6 @@ class AsrDataModule:
     def train_dataloaders(
         self,
         cuts_train: CutSet,
-        dynamic_bucketing: bool,
         on_the_fly_feats: bool,
         cuts_musan: Optional[CutSet] = None,
     ) -> DataLoader:
@@ -162,9 +159,6 @@ class AsrDataModule:
             Cuts for training.
           cuts_musan:
             If not None, it is the cuts for mixing.
-          dynamic_bucketing:
-            True to use DynamicBucketingSampler;
-            False to use BucketingSampler.
           on_the_fly_feats:
             True to use OnTheFlyFeatures;
             False to use PrecomputedFeatures.
@@ -230,25 +224,14 @@ class AsrDataModule:
             return_cuts=self.args.return_cuts,
         )
 
-        if dynamic_bucketing:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
-                cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-                num_buckets=self.args.num_buckets,
-                drop_last=True,
-            )
-        else:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
-                cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-                num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
-                drop_last=True,
-            )
+        logging.info("Using DynamicBucketingSampler.")
+        train_sampler = DynamicBucketingSampler(
+            cuts_train,
+            max_duration=self.args.max_duration,
+            shuffle=self.args.shuffle,
+            num_buckets=self.args.num_buckets,
+            drop_last=True,
+        )
 
         logging.info("About to create train dataloader")
         train_dl = DataLoader(
@@ -277,10 +260,12 @@ class AsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = BucketingSampler(
+        valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
+            num_buckets=self.args.num_buckets,
+            drop_last=False,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -301,8 +286,11 @@ class AsrDataModule:
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
-        sampler = BucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False
+        sampler = DynamicBucketingSampler(
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
+            num_buckets=self.args.num_buckets,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(

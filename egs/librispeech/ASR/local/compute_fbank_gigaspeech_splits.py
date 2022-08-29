@@ -77,7 +77,7 @@ def get_parser():
 
 def compute_fbank_gigaspeech_splits(args):
     num_splits = args.num_splits
-    output_dir = f"data/fbank/XL_split_{num_splits}"
+    output_dir = f"data/fbank/gigaspeech_XL_split_{num_splits}"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -96,17 +96,19 @@ def compute_fbank_gigaspeech_splits(args):
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
+    prefix = "gigaspeech"
+
     num_digits = 8  # num_digits is fixed by lhotse split-lazy
     for i in range(start, stop):
         idx = f"{i + 1}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
-        cuts_path = output_dir / f"cuts_XL.{idx}.jsonl.gz"
+        cuts_path = output_dir / f"{prefix}_cuts_XL.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = output_dir / f"cuts_XL_raw.{idx}.jsonl.gz"
+        raw_cuts_path = output_dir / f"{prefix}_cuts_XL_raw.{idx}.jsonl.gz"
         if not raw_cuts_path.is_file():
             logging.info(f"{raw_cuts_path} does not exist - skipping it")
             continue
@@ -115,15 +117,16 @@ def compute_fbank_gigaspeech_splits(args):
         cut_set = CutSet.from_file(raw_cuts_path)
 
         logging.info("Computing features")
-        if (output_dir / f"feats_XL_{idx}.lca").exists():
-            logging.info(f"Removing {output_dir}/feats_XL_{idx}.lca")
-            os.remove(output_dir / f"feats_XL_{idx}.lca")
+        if (output_dir / f"{prefix}_feats_XL_{idx}.lca").exists():
+            logging.info(f"Removing {output_dir}/{prefix}_feats_XL_{idx}.lca")
+            os.remove(output_dir / f"{prefix}_feats_XL_{idx}.lca")
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/feats_XL_{idx}",
+            storage_path=f"{output_dir}/{prefix}_feats_XL_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
+            overwrite=True,
         )
 
         logging.info("About to split cuts into smaller chunks.")
