@@ -1,9 +1,9 @@
-FROM pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel
+FROM pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel
 
 # install normal source
 
-ENV http_proxy http://proxy.uec.ac.jp:8080
-ENV https_proxy http://proxy.uec.ac.jp:8080
+ENV http_proxy "http://proxy.uec.ac.jp:8080"
+ENV https_proxy "http://proxy.uec.ac.jp:8080"
 
 RUN cat /etc/apt/sources.list.d/cuda.list && \
 	cat /etc/apt/sources.list.d/nvidia-ml.list
@@ -34,6 +34,10 @@ RUN apt-get update && \
 	libssl-dev \
 	    vim \
 		curl
+		
+VOLUME ["/mnt/host"]
+WORKDIR /mnt/host
+
 
 RUN curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub | apt-key add -
 RUN curl -fsSL https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub | apt-key add -
@@ -47,8 +51,8 @@ RUN echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu180
 RUN mv /opt/conda/lib/libcufft.so.10 /opt/libcufft.so.10.bak && \
     mv /opt/conda/lib/libcurand.so.10 /opt/libcurand.so.10.bak && \
     mv /opt/conda/lib/libcublas.so.11 /opt/libcublas.so.11.bak && \
-    mv /opt/conda/lib/libnvrtc.so.11.0 /opt/libnvrtc.so.11.1.bak && \
-    mv /opt/conda/lib/libnvToolsExt.so.1 /opt/libnvToolsExt.so.1.bak && \
+    mv /opt/conda/lib/libnvrtc.so.11.1 /opt/libnvrtc.so.11.1.bak && \
+#    mv /opt/conda/lib/libnvToolsExt.so.1 /opt/libnvToolsExt.so.1.bak && \
     mv /opt/conda/lib/libcudart.so.11.0 /opt/libcudart.so.11.0.bak
 
 # cmake
@@ -64,10 +68,9 @@ RUN wget -P /opt https://cmake.org/files/v3.18/cmake-3.18.0.tar.gz && \
     find /opt/cmake-3.18.0 -type f \( -name "*.o" -o -name "*.la" -o -name "*.a" \) -exec rm {} \; && \
     cd -
 
-#kaldiio
+# kaldiio
 
-RUN pip install kaldiio 
-# || echo 'Error at pip install kaldiio'
+RUN pip install kaldiio
 
 # flac 
 RUN wget -P /opt https://downloads.xiph.org/releases/flac/flac-1.3.2.tar.xz  && \
@@ -98,14 +101,16 @@ RUN git clone https://github.com/k2-fsa/k2.git /opt/k2 && \
     cd -
 
 # install  lhotse
-RUN pip install git+https://github.com/lhotse-speech/lhotse 
-# || echo 'Error at pip install lhotse'
+RUN pip install git+https://github.com/lhotse-speech/lhotse
 #RUN pip install lhotse
 
 # install icefall
 RUN git clone https://github.com/k2-fsa/icefall && \
     cd icefall && \
     pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    
-ENV PYTHONPATH /workspace/icefall:$PYTHONPATH  
 
+RUN rm -rf icefall
+
+# ENV PYTHONPATH /workspace/icefall:$PYTHONPATH  
+
+ENV PYTHONPATH /mnt/host/icefall:$PYTHONPATH
