@@ -28,10 +28,10 @@ from lhotse import (
     Fbank,
     FbankConfig,
     load_manifest,
+    load_manifest_lazy,
     set_caching_enabled,
 )
 from lhotse.dataset import (
-    BucketingSampler,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -206,7 +206,7 @@ class Aidatatang_200zhAsrDataModule:
         """
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
+            self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
         transforms = []
@@ -290,13 +290,12 @@ class Aidatatang_200zhAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using BucketingSampler.")
-            train_sampler = BucketingSampler(
+            logging.info("Using DynamicBucketingSampler.")
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                bucket_method="equal_duration",
                 drop_last=True,
             )
         else:
@@ -402,14 +401,20 @@ class Aidatatang_200zhAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aidatatang_cuts_train.jsonl.gz"
+        )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_dev.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aidatatang_cuts_dev.jsonl.gz"
+        )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "aidatatang_cuts_test.jsonl.gz"
+        )

@@ -33,13 +33,13 @@ jobs:
         # disable macOS test for now.
         os: [ubuntu-18.04]
         python-version: [3.7, 3.8]
-        torch: ["1.8.0", "1.10.0"]
-        torchaudio: ["0.8.0", "0.10.0"]
-        k2-version: ["1.9.dev20211101"]
+        torch: ["1.8.0", "1.11.0"]
+        torchaudio: ["0.8.0", "0.11.0"]
+        k2-version: ["1.15.1.dev20220427"]
         exclude:
           - torch: "1.8.0"
-            torchaudio: "0.10.0"
-          - torch: "1.10.0"
+            torchaudio: "0.11.0"
+          - torch: "1.11.0"
             torchaudio: "0.8.0"
 
       fail-fast: false
@@ -67,7 +67,7 @@ jobs:
           # numpy 1.20.x does not support python 3.6
           pip install numpy==1.19
           pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
+          if [[ ${{ matrix.torchaudio }} == "0.11.0" ]]; then
             pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
           else
             pip install torchaudio==${{ matrix.torchaudio }}
@@ -76,6 +76,9 @@ jobs:
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
+
           pip install -r requirements.txt
 
       - name: Install graphviz

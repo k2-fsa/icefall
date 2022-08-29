@@ -38,7 +38,6 @@ def get_args():
         "--lang-dir",
         type=str,
         help="""Input and output directory.
-        It should contain the training corpus: transcript_words.txt.
         The generated bpe.model is saved to this directory.
         """,
     )

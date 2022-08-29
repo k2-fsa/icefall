@@ -1,4 +1,4 @@
-# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey)
+# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey, Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,8 +20,11 @@ from itertools import repeat
 from typing import Optional, Tuple
 
 import torch
+import torch.backends.cudnn.rnn as rnn
 import torch.nn as nn
-from torch import Tensor
+from torch import _VF, Tensor
+
+from icefall.utils import is_jit_tracing
 
 
 def _ntuple(n):
@@ -52,7 +55,15 @@ class ActivationBalancerFunction(torch.autograd.Function):
         if x.requires_grad:
             if channel_dim < 0:
                 channel_dim += x.ndim
-            sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+
+            #  sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+            # The above line is not torch scriptable for torch 1.6.0
+            # torch.jit.frontend.NotSupportedError: comprehension ifs not supported yet:  # noqa
+            sum_dims = []
+            for d in range(x.ndim):
+                if d != channel_dim:
+                    sum_dims.append(d)
+
             xgt0 = x > 0
             proportion_positive = torch.mean(
                 xgt0.to(x.dtype), dim=sum_dims, keepdim=True
@@ -144,7 +155,8 @@ class BasicNorm(torch.nn.Module):
             self.register_buffer("eps", torch.tensor(eps).log().detach())
 
     def forward(self, x: Tensor) -> Tensor:
-        assert x.shape[self.channel_dim] == self.num_channels
+        if not is_jit_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
@@ -214,8 +226,8 @@ class ScaledLinear(nn.Linear):
     def get_bias(self):
         if self.bias is None or self.bias_scale is None:
             return None
-
-        return self.bias * self.bias_scale.exp()
+        else:
+            return self.bias * self.bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         return torch.nn.functional.linear(
@@ -234,6 +246,9 @@ class ScaledConv1d(nn.Conv1d):
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
+
+        self.bias_scale: Optional[nn.Parameter]  # for torchscript
+
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
@@ -262,7 +277,8 @@ class ScaledConv1d(nn.Conv1d):
         bias_scale = self.bias_scale
         if bias is None or bias_scale is None:
             return None
-        return bias * bias_scale.exp()
+        else:
+            return bias * bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         F = torch.nn.functional
@@ -331,7 +347,8 @@ class ScaledConv2d(nn.Conv2d):
         bias_scale = self.bias_scale
         if bias is None or bias_scale is None:
             return None
-        return bias * bias_scale.exp()
+        else:
+            return bias * bias_scale.exp()
 
     def _conv_forward(self, input, weight):
         F = torch.nn.functional
@@ -361,6 +378,156 @@ class ScaledConv2d(nn.Conv2d):
 
     def forward(self, input: Tensor) -> Tensor:
         return self._conv_forward(input, self.get_weight())
+
+
+class ScaledLSTM(nn.LSTM):
+    # See docs for ScaledLinear.
+    # This class implements LSTM with scaling mechanism, using `torch._VF.lstm`
+    # Please refer to https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        **kwargs
+    ):
+        if "bidirectional" in kwargs:
+            assert kwargs["bidirectional"] is False
+        super(ScaledLSTM, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self._scales_names = []
+        self._scales = []
+        for name in self._flat_weights_names:
+            scale_name = name + "_scale"
+            self._scales_names.append(scale_name)
+            param = nn.Parameter(initial_scale.clone().detach())
+            setattr(self, scale_name, param)
+            self._scales.append(param)
+
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        scale = self.hidden_size ** -0.5
+        v = scale / std
+        for idx, name in enumerate(self._flat_weights_names):
+            if "weight" in name:
+                nn.init.uniform_(self._flat_weights[idx], -a, a)
+                with torch.no_grad():
+                    self._scales[idx] += torch.tensor(v).log()
+            elif "bias" in name:
+                nn.init.constant_(self._flat_weights[idx], 0.0)
+
+    def _flatten_parameters(self, flat_weights) -> None:
+        """Resets parameter data pointer so that they can use faster code paths.
+
+        Right now, this works only if the module is on the GPU and cuDNN is enabled.
+        Otherwise, it's a no-op.
+
+        This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
+        """
+        # Short-circuits if _flat_weights is only partially instantiated
+        if len(flat_weights) != len(self._flat_weights_names):
+            return
+
+        for w in flat_weights:
+            if not isinstance(w, Tensor):
+                return
+        # Short-circuits if any tensor in flat_weights is not acceptable to cuDNN
+        # or the tensors in flat_weights are of different dtypes
+
+        first_fw = flat_weights[0]
+        dtype = first_fw.dtype
+        for fw in flat_weights:
+            if (
+                not isinstance(fw.data, Tensor)
+                or not (fw.data.dtype == dtype)
+                or not fw.data.is_cuda
+                or not torch.backends.cudnn.is_acceptable(fw.data)
+            ):
+                return
+
+        # If any parameters alias, we fall back to the slower, copying code path. This is
+        # a sufficient check, because overlapping parameter buffers that don't completely
+        # alias would break the assumptions of the uniqueness check in
+        # Module.named_parameters().
+        unique_data_ptrs = set(p.data_ptr() for p in flat_weights)
+        if len(unique_data_ptrs) != len(flat_weights):
+            return
+
+        with torch.cuda.device_of(first_fw):
+
+            # Note: no_grad() is necessary since _cudnn_rnn_flatten_weight is
+            # an inplace operation on self._flat_weights
+            with torch.no_grad():
+                if torch._use_cudnn_rnn_flatten_weight():
+                    num_weights = 4 if self.bias else 2
+                    if self.proj_size > 0:
+                        num_weights += 1
+                    torch._cudnn_rnn_flatten_weight(
+                        flat_weights,
+                        num_weights,
+                        self.input_size,
+                        rnn.get_cudnn_mode(self.mode),
+                        self.hidden_size,
+                        self.proj_size,
+                        self.num_layers,
+                        self.batch_first,
+                        bool(self.bidirectional),
+                    )
+
+    def _get_flat_weights(self):
+        """Get scaled weights, and resets their data pointer."""
+        flat_weights = []
+        for idx in range(len(self._flat_weights_names)):
+            flat_weights.append(
+                self._flat_weights[idx] * self._scales[idx].exp()
+            )
+        self._flatten_parameters(flat_weights)
+        return flat_weights
+
+    def forward(
+        self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
+    ):
+        # This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
+        # The change for calling `_VF.lstm()` is:
+        # self._flat_weights -> self._get_flat_weights()
+        if hx is None:
+            h_zeros = torch.zeros(
+                self.num_layers,
+                input.size(1),
+                self.proj_size if self.proj_size > 0 else self.hidden_size,
+                dtype=input.dtype,
+                device=input.device,
+            )
+            c_zeros = torch.zeros(
+                self.num_layers,
+                input.size(1),
+                self.hidden_size,
+                dtype=input.dtype,
+                device=input.device,
+            )
+            hx = (h_zeros, c_zeros)
+
+        self.check_forward_args(input, hx, None)
+        result = _VF.lstm(
+            input,
+            hx,
+            self._get_flat_weights(),
+            self.bias,
+            self.num_layers,
+            self.dropout,
+            self.training,
+            self.bidirectional,
+            self.batch_first,
+        )
+
+        output = result[0]
+        hidden = result[1:]
+        return output, hidden
 
 
 class ActivationBalancer(torch.nn.Module):
@@ -410,18 +577,18 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or is_jit_tracing():
             return x
-
-        return ActivationBalancerFunction.apply(
-            x,
-            self.channel_dim,
-            self.min_positive,
-            self.max_positive,
-            self.max_factor,
-            self.min_abs,
-            self.max_abs,
-        )
+        else:
+            return ActivationBalancerFunction.apply(
+                x,
+                self.channel_dim,
+                self.min_positive,
+                self.max_positive,
+                self.max_factor,
+                self.min_abs,
+                self.max_abs,
+            )
 
 
 class DoubleSwishFunction(torch.autograd.Function):
@@ -459,9 +626,10 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or is_jit_tracing():
             return x * torch.sigmoid(x - 1.0)
-        return DoubleSwishFunction.apply(x)
+        else:
+            return DoubleSwishFunction.apply(x)
 
 
 class ScaledEmbedding(nn.Module):
@@ -480,9 +648,6 @@ class ScaledEmbedding(nn.Module):
         embedding_dim (int): the size of each embedding vector
         padding_idx (int, optional): If given, pads the output with the embedding vector at :attr:`padding_idx`
                                          (initialized to zeros) whenever it encounters the index.
-        max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
-                                    is renormalized to have norm :attr:`max_norm`.
-        norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
         scale_grad_by_freq (boolean, optional): If given, this will scale gradients by the inverse of frequency of
                                                 the words in the mini-batch. Default ``False``.
         sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` matrix will be a sparse tensor.
@@ -491,7 +656,7 @@ class ScaledEmbedding(nn.Module):
         initial_speed (float, optional):  This affects how fast the parameter will
            learn near the start of training; you can set it to a value less than
            one if you suspect that a module is contributing to instability near
-           the start of training.  Nnote: regardless of the use of this option,
+           the start of training.  Note: regardless of the use of this option,
            it's best to use schedulers like Noam that have a warm-up period.
            Alternatively you can set it to more than 1 if you want it to
            initially train faster.  Must be greater than 0.
@@ -629,7 +794,8 @@ class ScaledEmbedding(nn.Module):
             )
 
     def extra_repr(self) -> str:
-        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        # s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
             s += ", padding_idx={padding_idx}"
         if self.scale_grad_by_freq is not False:
@@ -712,8 +878,22 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
+def _test_scaled_lstm():
+    N, L = 2, 30
+    dim_in, dim_hidden = 10, 20
+    m = ScaledLSTM(input_size=dim_in, hidden_size=dim_hidden, bias=True)
+    x = torch.randn(L, N, dim_in)
+    h0 = torch.randn(1, N, dim_hidden)
+    c0 = torch.randn(1, N, dim_hidden)
+    y, (h, c) = m(x, (h0, c0))
+    assert y.shape == (L, N, dim_hidden)
+    assert h.shape == (1, N, dim_hidden)
+    assert c.shape == (1, N, dim_hidden)
+
+
 if __name__ == "__main__":
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
+    _test_scaled_lstm()

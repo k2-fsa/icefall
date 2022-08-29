@@ -58,17 +58,26 @@ def preprocess_giga_speech():
     )
 
     logging.info("Loading manifest (may take 4 minutes)")
+    prefix = "gigaspeech"
+    suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
-        prefix="gigaspeech",
-        suffix="jsonl.gz",
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
+
     for partition, m in manifests.items():
         logging.info(f"Processing {partition}")
-        raw_cuts_path = output_dir / f"cuts_{partition}_raw.jsonl.gz"
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.{suffix}"
         if raw_cuts_path.is_file():
             logging.info(f"{partition} already exists - skipping")
             continue
