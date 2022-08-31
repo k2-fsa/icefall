@@ -148,7 +148,7 @@ class GradientClipFunction(torch.autograd.Function):
         )
 
 
-class GradientCliper(torch.nn.Module):
+class GradientClipper(torch.nn.Module):
     """
     This is used to modify gradients.
 
@@ -165,7 +165,7 @@ class GradientCliper(torch.nn.Module):
         grad_scale_factor: float = 0.9,
         grad_max_norm: float = 5.0,
     ):
-        super(GradientCliper, self).__init__()
+        super(GradientClipper, self).__init__()
         self.grad_norm_threshold = grad_norm_threshold
         self.grad_scale_factor = grad_scale_factor
         self.grad_max_norm = grad_max_norm
@@ -484,7 +484,7 @@ class ScaledLSTM(nn.LSTM):
         )  # Overrides the reset_parameters in base class
 
         if clip_grad:
-            self.grad_cliper = GradientCliper(
+            self.grad_clipper = GradientClipper(
                 grad_norm_threshold=grad_norm_threshold,
                 grad_scale_factor=grad_scale_factor,
                 grad_max_norm=grad_max_norm,
@@ -620,8 +620,8 @@ class ScaledLSTM(nn.LSTM):
                 )
                 y = result[0]
                 hx = result[1:]
-                if hasattr(self, "grad_cliper"):
-                    hx = (self.grad_cliper(hx[0]), self.grad_cliper(hx[1]))
+                if hasattr(self, "grad_clipper"):
+                    hx = (self.grad_clipper(hx[0]), self.grad_clipper(hx[1]))
                 chunk_outputs.append(y)
             output = torch.cat(chunk_outputs, dim=0)
             hidden = hx
@@ -640,10 +640,10 @@ class ScaledLSTM(nn.LSTM):
             )
             output = result[0]
             hidden = result[1:]
-            if hasattr(self, "grad_cliper"):
+            if hasattr(self, "grad_clipper"):
                 hidden = (
-                    self.grad_cliper(hidden[0]),
-                    self.grad_cliper(hidden[1]),
+                    self.grad_clipper(hidden[0]),
+                    self.grad_clipper(hidden[1]),
                 )
         return output, hidden
 
@@ -1016,19 +1016,19 @@ def _test_scaled_lstm_forward():
     assert torch.allclose(c, c_chunk)
 
 
-def _test_grad_cliper():
-    grad_cliper = GradientCliper(
+def _test_grad_clipper():
+    grad_clipper = GradientClipper(
         grad_norm_threshold=10.0, grad_scale_factor=0.9, grad_max_norm=1.0
     )
     x = torch.randn(2, 5, requires_grad=True)
-    y = grad_cliper(x)
+    y = grad_clipper(x)
     y_grad = torch.randn(2, 5)
     y.backward(y_grad)
 
-    print("_test_grad_cliper: y_grad = ", y_grad)
-    print("_test_grad_cliper: y_grad norm = ", y_grad.norm())
-    print("_test_grad_cliper: x_grad = ", x.grad)
-    print("_test_grad_cliper: x_grad norm = ", x.grad.norm())
+    print("_test_grad_clipper: y_grad = ", y_grad)
+    print("_test_grad_clipper: y_grad norm = ", y_grad.norm())
+    print("_test_grad_clipper: x_grad = ", x.grad)
+    print("_test_grad_clipper: x_grad norm = ", x.grad.norm())
 
 
 def _test_scaled_lstm_grad_clip():
@@ -1072,5 +1072,5 @@ if __name__ == "__main__":
     _test_basic_norm()
     _test_double_swish_deriv()
     _test_scaled_lstm_forward()
-    _test_grad_cliper()
+    _test_grad_clipper()
     _test_scaled_lstm_grad_clip()
