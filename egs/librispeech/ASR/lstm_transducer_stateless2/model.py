@@ -76,6 +76,7 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        rnn_chunk_size: int = 0,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -92,6 +93,8 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          rnn_chunk_size:
+            The chunk size for chunk-wise forward during rnn training.
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -124,7 +127,9 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens, _ = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens, _ = self.encoder(
+            x, x_lens, rnn_chunk_size=rnn_chunk_size, warmup=warmup
+        )
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network

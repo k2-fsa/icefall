@@ -111,6 +111,77 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x_grad - neg_delta_grad, None, None, None, None, None, None
 
 
+class GradientClipFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        grad_norm_threshold: float,  # e.g., 10.0
+        grad_scale_factor: float,  # e.g., 0.9
+        grad_max_norm: float,  # e.g., 5.0
+    ) -> Tensor:
+        if x.requires_grad:
+            ctx.grad_norm_threshold = grad_norm_threshold
+            ctx.grad_scale_factor = grad_scale_factor
+            ctx.grad_max_norm = grad_max_norm
+        return x
+
+    @staticmethod
+    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None]:
+        if x_grad.norm() > ctx.grad_norm_threshold:
+            # Zero gradients if its norm is larger than the threshold
+            x_grad = torch.zeros_like(x_grad)
+        else:
+            # Scale down gradient
+            x_grad = x_grad * ctx.grad_scale_factor
+
+            # Limit gradient norm to a maxmimum value
+            clip_coef = ctx.grad_max_norm / (x_grad.norm() + 1e-6)
+            clip_coef.clamp_(max=1.0)
+            x_grad = x_grad * clip_coef
+
+        return (
+            x_grad,  # x
+            None,  # grad_norm_threshold
+            None,  # grad_scale_factor
+            None,  # grad_max_norm
+        )
+
+
+class GradientCliper(torch.nn.Module):
+    """
+    This is used to modify gradients.
+
+    Args:
+      grad_scale_factor (float):
+        The scale factor used to scale down gradients.
+      grad_max_norm (float):
+        Max norm of the gradients.
+    """
+
+    def __init__(
+        self,
+        grad_norm_threshold: float = 10.0,
+        grad_scale_factor: float = 0.9,
+        grad_max_norm: float = 5.0,
+    ):
+        super(GradientCliper, self).__init__()
+        self.grad_norm_threshold = grad_norm_threshold
+        self.grad_scale_factor = grad_scale_factor
+        self.grad_max_norm = grad_max_norm
+
+    def forward(self, x: Tensor) -> Tensor:
+        if torch.jit.is_scripting() or is_jit_tracing():
+            return x
+        else:
+            return GradientClipFunction.apply(
+                x,
+                self.grad_norm_threshold,
+                self.grad_scale_factor,
+                self.grad_max_norm,
+            )
+
+
 class BasicNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
@@ -195,7 +266,7 @@ class ScaledLinear(nn.Linear):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -242,7 +313,7 @@ class ScaledConv1d(nn.Conv1d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -314,7 +385,7 @@ class ScaledConv2d(nn.Conv2d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -389,7 +460,11 @@ class ScaledLSTM(nn.LSTM):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        clip_grad: bool = False,
+        grad_norm_threshold: float = 10.0,
+        grad_scale_factor: float = 0.9,
+        grad_max_norm: float = 0.5,
+        **kwargs,
     ):
         if "bidirectional" in kwargs:
             assert kwargs["bidirectional"] is False
@@ -407,6 +482,13 @@ class ScaledLSTM(nn.LSTM):
         self._reset_parameters(
             initial_speed
         )  # Overrides the reset_parameters in base class
+
+        if clip_grad:
+            self.grad_cliper = GradientCliper(
+                grad_norm_threshold=grad_norm_threshold,
+                grad_scale_factor=grad_scale_factor,
+                grad_max_norm=grad_max_norm,
+            )
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
@@ -490,11 +572,15 @@ class ScaledLSTM(nn.LSTM):
         return flat_weights
 
     def forward(
-        self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
+        self,
+        input: Tensor,
+        hx: Optional[Tuple[Tensor, Tensor]] = None,
+        chunk_size: int = 0,
     ):
         # This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
         # The change for calling `_VF.lstm()` is:
         # self._flat_weights -> self._get_flat_weights()
+
         if hx is None:
             h_zeros = torch.zeros(
                 self.num_layers,
@@ -512,21 +598,53 @@ class ScaledLSTM(nn.LSTM):
             )
             hx = (h_zeros, c_zeros)
 
-        self.check_forward_args(input, hx, None)
-        result = _VF.lstm(
-            input,
-            hx,
-            self._get_flat_weights(),
-            self.bias,
-            self.num_layers,
-            self.dropout,
-            self.training,
-            self.bidirectional,
-            self.batch_first,
-        )
+        if chunk_size > 0:
+            # It supports chunk-size (e.g., 10 frames) forward.
+            # We can clip gradients to a maximum norm at each chunk.
 
-        output = result[0]
-        hidden = result[1:]
+            # apply chunk-wise forward
+            chunk_outputs = []
+            chunk_list = torch.split(input, chunk_size, dim=0)
+            for chunk in chunk_list:
+                self.check_forward_args(chunk, hx, None)
+                result = _VF.lstm(
+                    chunk,
+                    hx,
+                    self._get_flat_weights(),
+                    self.bias,
+                    self.num_layers,
+                    self.dropout,
+                    self.training,
+                    self.bidirectional,
+                    self.batch_first,
+                )
+                y = result[0]
+                hx = result[1:]
+                if hasattr(self, "grad_cliper"):
+                    hx = (self.grad_cliper(hx[0]), self.grad_cliper(hx[1]))
+                chunk_outputs.append(y)
+            output = torch.cat(chunk_outputs, dim=0)
+            hidden = hx
+        else:
+            self.check_forward_args(input, hx, None)
+            result = _VF.lstm(
+                input,
+                hx,
+                self._get_flat_weights(),
+                self.bias,
+                self.num_layers,
+                self.dropout,
+                self.training,
+                self.bidirectional,
+                self.batch_first,
+            )
+            output = result[0]
+            hidden = result[1:]
+            if hasattr(self, "grad_cliper"):
+                hidden = (
+                    self.grad_cliper(hidden[0]),
+                    self.grad_cliper(hidden[1]),
+                )
         return output, hidden
 
 
@@ -878,10 +996,12 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
-def _test_scaled_lstm():
-    N, L = 2, 30
+def _test_scaled_lstm_forward():
+    N, L = 2, 2000
     dim_in, dim_hidden = 10, 20
-    m = ScaledLSTM(input_size=dim_in, hidden_size=dim_hidden, bias=True)
+    m = ScaledLSTM(
+        input_size=dim_in, hidden_size=dim_hidden, bias=True, grad_max_norm=0
+    )
     x = torch.randn(L, N, dim_in)
     h0 = torch.randn(1, N, dim_hidden)
     c0 = torch.randn(1, N, dim_hidden)
@@ -890,10 +1010,67 @@ def _test_scaled_lstm():
     assert h.shape == (1, N, dim_hidden)
     assert c.shape == (1, N, dim_hidden)
 
+    y_chunk, (h_chunk, c_chunk) = m(x, (h0, c0), chunk_size=10)
+    assert torch.allclose(y, y_chunk)
+    assert torch.allclose(h, h_chunk)
+    assert torch.allclose(c, c_chunk)
+
+
+def _test_grad_cliper():
+    grad_cliper = GradientCliper(
+        grad_norm_threshold=10.0, grad_scale_factor=0.9, grad_max_norm=1.0
+    )
+    x = torch.randn(2, 5, requires_grad=True)
+    y = grad_cliper(x)
+    y_grad = torch.randn(2, 5)
+    y.backward(y_grad)
+
+    print("_test_grad_cliper: y_grad = ", y_grad)
+    print("_test_grad_cliper: y_grad norm = ", y_grad.norm())
+    print("_test_grad_cliper: x_grad = ", x.grad)
+    print("_test_grad_cliper: x_grad norm = ", x.grad.norm())
+
+
+def _test_scaled_lstm_grad_clip():
+    torch.manual_seed(20220830)
+
+    N, L = 2, 2000
+    dim_in, dim_hidden = 10, 20
+    x = torch.randn(L, N, dim_in)
+    y_grad = torch.ones(L, N, dim_in)
+
+    def print_param_grad(m: torch.nn.Module):
+        for name, p in m.named_parameters():
+            if p.grad is not None:
+                print(name, p.grad.norm())
+
+    options = [(False, 0), (True, 10)]
+    for (clip_grad, chunk_size) in options:
+        torch.manual_seed(20220831)
+        m = ScaledLSTM(
+            input_size=dim_in,
+            hidden_size=dim_hidden,
+            proj_size=dim_in,
+            bias=True,
+            grad_norm_threshold=2.0,
+            grad_scale_factor=0.9,
+            grad_max_norm=0.5,
+            clip_grad=clip_grad,
+        )
+        y, (h, c) = m(x, chunk_size=chunk_size)
+        y.backward(y_grad)
+
+        print(
+            f"_test_scaled_lstm_grad_clip: clip_grad={clip_grad}, chunk_size={chunk_size}"  # noqa
+        )
+        print_param_grad(m)
+
 
 if __name__ == "__main__":
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
-    _test_scaled_lstm()
+    _test_scaled_lstm_forward()
+    _test_grad_cliper()
+    _test_scaled_lstm_grad_clip()

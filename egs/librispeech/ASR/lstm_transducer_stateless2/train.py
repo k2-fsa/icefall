@@ -124,6 +124,43 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--rnn-clip-grad",
+        type=str2bool,
+        default=True,
+        help="Whether to clip rnn gradients.",
+    )
+
+    parser.add_argument(
+        "--rnn-grad-norm-threshold",
+        type=float,
+        default=10.0,
+        help="The norm threshold used to zero rnn gradients.",
+    )
+
+    parser.add_argument(
+        "--rnn-grad-scale-factor",
+        type=float,
+        default=0.9,
+        help="The scale factor used to scale down rnn gradients.",
+    )
+
+    parser.add_argument(
+        "--rnn-grad-max-norm",
+        type=float,
+        default=5.0,
+        help="The max norm value used to clip the rnn grad.",
+    )
+
+    parser.add_argument(
+        "--rnn-chunk-size",
+        type=int,
+        default=10,
+        help="""The chunk size for rnn training.
+        It is used to apply chunk-wise gradient clipping.
+        If 0, will feed full utterance to RNN layer.""",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -401,6 +438,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
+        rnn_clip_grad=params.rnn_clip_grad,
+        rnn_grad_norm_threshold=params.rnn_grad_norm_threshold,
+        rnn_grad_scale_factor=params.rnn_grad_scale_factor,
+        rnn_grad_max_norm=params.rnn_grad_max_norm,
     )
     return encoder
 
@@ -606,6 +647,7 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            rnn_chunk_size=params.rnn_chunk_size,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
