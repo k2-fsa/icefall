@@ -551,6 +551,7 @@ def main():
             dev_cuts,
             output_path=f"{dev}/shared-%d.tar",
             shard_size=300,
+            load_audio=False,         
         )
 
     if not os.path.exists(f"{test}/shared-0.tar"):
@@ -560,6 +561,7 @@ def main():
             test_cuts,
             output_path=f"{test}/shared-%d.tar",
             shard_size=300,
+            load_audio=False,
         )
 
     dev_shards = [
