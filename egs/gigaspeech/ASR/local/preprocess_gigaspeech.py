@@ -62,6 +62,13 @@ def preprocess_giga_speech():
     )
     assert manifests is not None
 
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
+
     for partition, m in manifests.items():
         logging.info(f"Processing {partition}")
         raw_cuts_path = output_dir / f"cuts_{partition}_raw.jsonl.gz"
