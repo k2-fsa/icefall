@@ -22,3 +22,11 @@ exclude =
   **/data/**,
   icefall/shared/make_kn_lm.py,
   icefall/__init__.py
+
+ignore =
+  # E203 white space before ":"
+  E203,
+  # W503 line break before binary operator
+  W503,
+  # E226 missing whitespace around arithmetic operator
+  E226,
