@@ -118,12 +118,10 @@ class RNN(EncoderInterface):
         You can set a positive integer to use the random combiner, e.g., 3.
       rnn_clip_grad:
         Whether to clip rnn gradients (default=True).
-      rnn_grad_norm_threshold:
-        The norm threshold used to zero rnn gradients (default=10.0).
       rnn_grad_scale_factor:
         The scale factor used to scale down rnn gradients (default=0.9).
       rnn_grad_max_norm:
-        The max norm value used to clip the rnn gradients (default=5.0).
+        The max norm value used to clip the rnn gradients (default=0.5).
     """
 
     def __init__(
@@ -138,9 +136,8 @@ class RNN(EncoderInterface):
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
         rnn_clip_grad: bool = True,
-        rnn_grad_norm_threshold: float = 10.0,
         rnn_grad_scale_factor: float = 0.9,
-        rnn_grad_max_norm: float = 5.0,
+        rnn_grad_max_norm: float = 0.5,
     ) -> None:
         super(RNN, self).__init__()
 
@@ -167,7 +164,6 @@ class RNN(EncoderInterface):
             dropout=dropout,
             layer_dropout=layer_dropout,
             rnn_clip_grad=rnn_clip_grad,
-            rnn_grad_norm_threshold=rnn_grad_norm_threshold,
             rnn_grad_scale_factor=rnn_grad_scale_factor,
             rnn_grad_max_norm=rnn_grad_max_norm,
         )
@@ -290,12 +286,10 @@ class RNNEncoderLayer(nn.Module):
         The dropout value for model-level warmup (default=0.075).
       rnn_clip_grad:
         Whether to clip rnn gradients (default=True).
-      rnn_grad_norm_threshold:
-        The norm threshold used to zero rnn gradients (default=10.0).
       rnn_grad_scale_factor:
         The scale factor used to scale down rnn gradients (default=0.9).
       rnn_grad_max_norm:
-        The max norm value used to clip the rnn gradients (default=5.0).
+        The max norm value used to clip the rnn gradients (default=0.5).
     """
 
     def __init__(
@@ -306,9 +300,8 @@ class RNNEncoderLayer(nn.Module):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         rnn_clip_grad: bool = True,
-        rnn_grad_norm_threshold: float = 10.0,
         rnn_grad_scale_factor: float = 0.9,
-        rnn_grad_max_norm: float = 5.0,
+        rnn_grad_max_norm: float = 0.5,
     ) -> None:
         super(RNNEncoderLayer, self).__init__()
         self.layer_dropout = layer_dropout
@@ -323,7 +316,6 @@ class RNNEncoderLayer(nn.Module):
             num_layers=1,
             dropout=0.0,
             clip_grad=rnn_clip_grad,
-            grad_norm_threshold=rnn_grad_norm_threshold,
             grad_scale_factor=rnn_grad_scale_factor,
             grad_max_norm=rnn_grad_max_norm,
         )
