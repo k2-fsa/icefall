@@ -132,6 +132,36 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--rnn-clip-grad",
+        type=str2bool,
+        default=True,
+        help="Whether to clip rnn gradients.",
+    )
+
+    parser.add_argument(
+        "--rnn-grad-scale-factor",
+        type=float,
+        default=0.9,
+        help="The scale factor used to scale down rnn gradients.",
+    )
+
+    parser.add_argument(
+        "--rnn-grad-max-norm",
+        type=float,
+        default=5.0,
+        help="The max norm value used to clip the rnn grad.",
+    )
+
+    parser.add_argument(
+        "--rnn-chunk-size",
+        type=int,
+        default=10,
+        help="""The chunk size for rnn training.
+        It is used to apply chunk-wise gradient clipping.
+        If 0, will feed full utterance to RNN layer.""",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -424,6 +454,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
+        rnn_clip_grad=params.rnn_clip_grad,
+        rnn_grad_scale_factor=params.rnn_grad_scale_factor,
+        rnn_grad_max_norm=params.rnn_grad_max_norm,
     )
     return encoder
 
@@ -656,6 +689,7 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            rnn_chunk_size=params.rnn_chunk_size,
             libri=libri,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
@@ -922,7 +956,10 @@ def train_one_epoch(
                 rank=rank,
             )
 
-        if batch_idx % params.log_interval == 0:
+        if (
+            batch_idx % params.log_interval == 0
+            and not params.print_diagnostics
+        ):
             cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
@@ -954,7 +991,11 @@ def train_one_epoch(
                     tb_writer, "train/giga_tot_", params.batch_idx_train
                 )
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+        if (
+            batch_idx > 0
+            and batch_idx % params.valid_interval == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
