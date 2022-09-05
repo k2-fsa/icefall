@@ -24,6 +24,7 @@ from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
+    GradientFilter,
     ScaledConv2d,
     ScaledLinear,
     ScaledLSTM,
@@ -106,6 +107,11 @@ class RNN(EncoderInterface):
         Feedforward dimension (default=2048).
       rnn_hidden_size (int):
         Hidden dimension for lstm layers (default=1024).
+      grad_norm_threshold:
+        For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
       num_encoder_layers (int):
         Number of encoder layers (default=12).
       dropout (float):
@@ -125,6 +131,7 @@ class RNN(EncoderInterface):
         d_model: int = 512,
         dim_feedforward: int = 2048,
         rnn_hidden_size: int = 1024,
+        grad_norm_threshold: float = 10.0,
         num_encoder_layers: int = 12,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
@@ -152,6 +159,7 @@ class RNN(EncoderInterface):
             d_model=d_model,
             dim_feedforward=dim_feedforward,
             rnn_hidden_size=rnn_hidden_size,
+            grad_norm_threshold=grad_norm_threshold,
             dropout=dropout,
             layer_dropout=layer_dropout,
         )
@@ -265,6 +273,11 @@ class RNNEncoderLayer(nn.Module):
         The dimension of feedforward network model (default=2048).
       rnn_hidden_size:
         The hidden dimension of rnn layer.
+      grad_norm_threshold:
+        For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
       dropout:
         The dropout value (default=0.1).
       layer_dropout:
@@ -276,6 +289,7 @@ class RNNEncoderLayer(nn.Module):
         d_model: int,
         dim_feedforward: int,
         rnn_hidden_size: int,
+        grad_norm_threshold: float = 10.0,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
     ) -> None:
@@ -285,6 +299,10 @@ class RNNEncoderLayer(nn.Module):
         self.rnn_hidden_size = rnn_hidden_size
 
         assert rnn_hidden_size >= d_model, (rnn_hidden_size, d_model)
+        self.grad_filter = GradientFilter(
+            batch_dim=1,
+            threshold=grad_norm_threshold,
+        )
         self.lstm = ScaledLSTM(
             input_size=d_model,
             hidden_size=rnn_hidden_size,
@@ -347,7 +365,7 @@ class RNNEncoderLayer(nn.Module):
 
         # lstm module
         if states is None:
-            src_lstm = self.lstm(src)[0]
+            src_lstm = self.lstm(self.grad_filter(src))[0]
             # torch.jit.trace requires returned types be the same as annotated
             new_states = (torch.empty(0), torch.empty(0))
         else:

@@ -111,6 +111,67 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x_grad - neg_delta_grad, None, None, None, None, None, None
 
 
+class GradientFilterFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        batch_dim: int,  # e.g., 1
+        threshold: float,  # e.g., 10.0
+    ) -> Tensor:
+        if x.requires_grad:
+            if batch_dim < 0:
+                batch_dim += x.ndim
+            ctx.batch_dim = batch_dim
+            ctx.threshold = threshold
+        return x
+
+    @staticmethod
+    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None]:
+        dim = ctx.batch_dim
+        if x_grad.shape[dim] == 1:
+            return x_grad, None, None
+        norm_dims = [d for d in range(x_grad.ndim) if d != dim]
+        norm_of_batch = x_grad.norm(dim=norm_dims, keepdim=True)
+        norm_of_batch_sorted = norm_of_batch.sort(dim=dim)[0]
+        median_idx = (x_grad.shape[dim] - 1) // 2
+        median_norm = norm_of_batch_sorted.narrow(
+            dim=dim, start=median_idx, length=1
+        )
+        mask = norm_of_batch <= ctx.threshold * median_norm
+        return x_grad * mask, None, None
+
+
+class GradientFilter(torch.nn.Module):
+    """This is used to filter out elements that have extremely large gradients
+    in batch.
+
+    Args:
+      batch_dim (int):
+        The batch dimension.
+      threshold (float):
+        For each element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
+    """
+
+    def __init__(self, batch_dim: int = 1, threshold: float = 10.0):
+        super(GradientFilter, self).__init__()
+        self.batch_dim = batch_dim
+        self.threshold = threshold
+
+    def forward(self, x: Tensor) -> Tensor:
+        if torch.jit.is_scripting() or is_jit_tracing():
+            return x
+        else:
+            return GradientFilterFunction.apply(
+                x,
+                self.batch_dim,
+                self.threshold,
+            )
+
+
 class BasicNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
@@ -891,9 +952,31 @@ def _test_scaled_lstm():
     assert c.shape == (1, N, dim_hidden)
 
 
+def _test_grad_filter():
+    import math
+
+    threshold = 10.0
+    time, batch, channel = 200, 5, 128
+    grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
+    x = torch.randn(time, batch, channel, requires_grad=True)
+    y = grad_filter(x)
+    y_grad = torch.rand_like(x)
+    num = time * channel
+    # The gradient norm of the first element must be larger than
+    # `threshold * median`, where `median` is the median value
+    # of gradient norms of all elements in batch.
+    y_grad[:, 0, :] = torch.full(
+        (time, channel), math.sqrt(((math.sqrt(num) * threshold) ** 2) / num)
+    )
+    y.backward(y_grad)
+    print("_test_grad_filter: y_grad norm = ", y_grad.norm(dim=(0, 2)))
+    print("_test_grad_filter: x_grad norm = ", x.grad.norm(dim=(0, 2)))
+
+
 if __name__ == "__main__":
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
     _test_scaled_lstm()
+    _test_grad_filter()
