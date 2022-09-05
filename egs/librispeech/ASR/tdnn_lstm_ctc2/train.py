@@ -112,6 +112,16 @@ def get_parser():
         help="The seed for random generators intended for reproducibility",
     )
 
+    parser.add_argument(
+        "--grad-norm-threshold",
+        type=float,
+        default=10.0,
+        help="""For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.""",
+    )
+
     return parser
 
 
@@ -171,7 +181,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("tdnn_lstm_ctc/exp"),
+            "exp_dir": Path("tdnn_lstm_ctc2/exp"),
             "lang_dir": Path("data/lang_phone"),
             "lr": 1e-3,
             "feature_dim": 80,
@@ -540,6 +550,7 @@ def run(rank, world_size, args):
         num_features=params.feature_dim,
         num_classes=max_phone_id + 1,  # +1 for the blank symbol
         subsampling_factor=params.subsampling_factor,
+        grad_norm_threshold=params.grad_norm_threshold,
     )
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
