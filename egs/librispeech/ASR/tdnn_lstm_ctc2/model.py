@@ -144,7 +144,10 @@ class TdnnLstm(nn.Module):
             [nn.BatchNorm1d(num_features=500, affine=False) for _ in range(5)]
         )
         self.grad_filters = nn.ModuleList(
-            [GradientFilter(batch_dim=1, threshold=grad_norm_threshold)]
+            [
+                GradientFilter(batch_dim=1, threshold=grad_norm_threshold)
+                for _ in range(5)
+            ]
         )
 
         self.dropout = nn.Dropout(0.2)

@@ -19,7 +19,7 @@
 """
 Usage:
   export CUDA_VISIBLE_DEVICES="0,1,2,3"
-  ./tdnn_lstm_ctc/train.py \
+  ./tdnn_lstm_ctc2/train.py \
      --world-size 4 \
      --full-libri 1 \
      --max-duration 300 \
@@ -112,16 +112,6 @@ def get_parser():
         help="The seed for random generators intended for reproducibility",
     )
 
-    parser.add_argument(
-        "--grad-norm-threshold",
-        type=float,
-        default=10.0,
-        help="""For each sequence element in batch, its gradient will be
-        filtered out if the gradient norm is larger than
-        `grad_norm_threshold * median`, where `median` is the median
-        value of gradient norms of all elememts in batch.""",
-    )
-
     return parser
 
 
@@ -199,6 +189,11 @@ def get_params() -> AttributeDict:
             "reduction": "sum",
             "use_double_scores": True,
             "env_info": get_env_info(),
+            "grad_norm_threshold": 10.0,
+            # For each sequence element in batch, its gradient will be
+            # filtered out if the gradient norm is larger than
+            # `grad_norm_threshold * median`, where `median` is the median
+            # value of gradient norms of all elememts in batch.
         }
     )
 

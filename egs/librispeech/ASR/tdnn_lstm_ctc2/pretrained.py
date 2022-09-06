@@ -124,6 +124,11 @@ def get_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            "grad_norm_threshold": 10.0,
+            # For each sequence element in batch, its gradient will be
+            # filtered out if the gradient norm is larger than
+            # `grad_norm_threshold * median`, where `median` is the median
+            # value of gradient norms of all elememts in batch.
         }
     )
     return params
@@ -172,6 +177,7 @@ def main():
         num_features=params.feature_dim,
         num_classes=params.num_classes,
         subsampling_factor=params.subsampling_factor,
+        grad_norm_threshold=params.grad_norm_threshold,
     )
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
