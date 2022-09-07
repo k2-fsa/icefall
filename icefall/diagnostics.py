@@ -78,7 +78,7 @@ def get_tensor_stats(
     elif stats_type == "abs":
         x = x.abs()
     elif stats_type == "rms":
-        x = x ** 2
+        x = x**2
     elif stats_type == "positive":
         x = (x > 0).to(dtype=torch.float)
     else:
@@ -241,10 +241,10 @@ class TensorDiagnostic(object):
                     # sqrt(eigenvalue) of the variance, which we print out, and shows,
                     # speaking in an approximate way, how much of that largest eigenvalue
                     # can be attributed to the mean of the distribution.
-                    norm = (stats ** 2).sum().sqrt().item()
+                    norm = (stats**2).sum().sqrt().item()
                     ans += f", norm={norm:.2g}"
                 mean = stats.mean().item()
-                rms = (stats ** 2).mean().sqrt().item()
+                rms = (stats**2).mean().sqrt().item()
                 ans += f", mean={mean:.2g}, rms={rms:.2g}"
 
                 # OK, "ans" contains the actual stats, e.g.

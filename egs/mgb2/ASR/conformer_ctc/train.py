@@ -362,15 +362,21 @@ def compute_loss(
         allow_truncate=params.subsampling_factor - 1,
     )
 
-    ctc_loss = k2.ctc_loss(decoding_graph=decoding_graph,
-                           dense_fsa_vec=dense_fsa_vec,
-                           output_beam=params.beam_size,
-                           reduction='none',
-                           use_double_scores=params.use_double_scores,
-                           )
+    ctc_loss = k2.ctc_loss(
+        decoding_graph=decoding_graph,
+        dense_fsa_vec=dense_fsa_vec,
+        output_beam=params.beam_size,
+        reduction="none",
+        use_double_scores=params.use_double_scores,
+    )
     # filter inf from ctc_loss
-    ctc_loss = torch.sum(torch.where(ctc_loss != float(
-        'inf'), ctc_loss, torch.tensor(0, dtype=torch.float32).to(device)))
+    ctc_loss = torch.sum(
+        torch.where(
+            ctc_loss != float("inf"),
+            ctc_loss,
+            torch.tensor(0, dtype=torch.float32).to(device),
+        )
+    )
 
     if params.att_rate != 0.0:
         with torch.set_grad_enabled(is_training):
@@ -486,7 +492,7 @@ def train_one_epoch(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(train_dl):
-        if batch['inputs'].shape[0] == len(batch["supervisions"]["text"]):
+        if batch["inputs"].shape[0] == len(batch["supervisions"]["text"]):
             params.batch_idx_train += 1
             batch_size = len(batch["supervisions"]["text"])
 
@@ -545,14 +551,16 @@ def train_one_epoch(
                 )
                 model.train()
                 logging.info(
-                    f"Epoch {params.cur_epoch}, validation: {valid_info}")
+                    f"Epoch {params.cur_epoch}, validation: {valid_info}"
+                )
                 if tb_writer is not None:
                     valid_info.write_summary(
                         tb_writer, "train/valid_", params.batch_idx_train
                     )
         else:
             logging.warning(
-                f"Batch {batch_idx} mismatch in dimentions between the input and the output. Skipping ...")
+                f"Batch {batch_idx} mismatch in dimentions between the input and the output. Skipping ..."
+            )
             continue
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value

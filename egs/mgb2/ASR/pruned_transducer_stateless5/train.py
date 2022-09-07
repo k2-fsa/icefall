@@ -20,23 +20,23 @@ Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./pruned_transducer_stateless5/train.py \
-  --world-size 4 \
+  --world-size 2 \
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless5/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --max-duration 200 \
+  --num-buckets 50
 
 # For mix precision training:
 
 ./pruned_transducer_stateless5/train.py \
-  --world-size 4 \
+  --world-size 2 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless5/exp \
-  --full-libri 1 \
-  --max-duration 550
+  --max-duration 200	\
+  --num-buckets 50
 
 """
 
@@ -48,7 +48,8 @@ import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
-
+import nvidia_smi
+from torch.nn.utils import clip_grad_norm_
 import k2
 import optim
 import sentencepiece as spm
@@ -89,14 +90,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
-        default=24,
+        default=12,
         help="Number of conformer encoder layers..",
     )
 
     parser.add_argument(
         "--dim-feedforward",
         type=int,
-        default=1536,
+        default=2048,
         help="Feedforward dimension of the conformer encoder layer.",
     )
 
@@ -110,7 +111,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=int,
-        default=384,
+        default=512,
         help="Attention dimension in the conformer encoder layer.",
     )
 
@@ -197,14 +198,14 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_5000/bpe.model",
+        default="data/lang_bpe_2000/bpe.model",
         help="Path to the BPE model",
     )
 
     parser.add_argument(
         "--initial-lr",
         type=float,
-        default=0.0005,
+        default=0.003,
         help="The initial learning rate.  This value should not need "
         "to be changed.",
     )
@@ -284,7 +285,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=4000,
+        default=8000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -297,7 +298,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=20,
+        default=10,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -388,7 +389,7 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             # parameters for Noam
-            "model_warm_step": 5000,  # arg given to model, not for lrate
+            "model_warm_step": 80000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -572,6 +573,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
+    reduction="none",
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -617,7 +619,26 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            reduction="none",
         )
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        inf_flag = False
+        if not torch.all(is_finite):
+            inf_flag = True
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
+
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
+
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -637,16 +658,26 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
+
+    # # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    # info["utterances"] = feature.size(0)
+    # # averaged input duration in frames over utterances
+    # info["utt_duration"] = feature_lens.sum().item()
+    # # averaged padding proportion over utterances
+    # info["utt_pad_proportion"] = (
+    #     ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    # )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
-    return loss, info
+    return loss, info, inf_flag
 
 
 def compute_validation_loss(
@@ -660,25 +691,25 @@ def compute_validation_loss(
     model.eval()
 
     tot_loss = MetricsTracker()
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(valid_dl):
+            loss, loss_info, inf_flag = compute_loss(
+                params=params,
+                model=model,
+                sp=sp,
+                batch=batch,
+                is_training=False,
+            )
+            assert loss.requires_grad is False
+            tot_loss = tot_loss + loss_info
 
-    for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            batch=batch,
-            is_training=False,
-        )
-        assert loss.requires_grad is False
-        tot_loss = tot_loss + loss_info
+        if world_size > 1:
+            tot_loss.reduce(loss.device)
 
-    if world_size > 1:
-        tot_loss.reduce(loss.device)
-
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if loss_value < params.best_valid_loss:
-        params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
+        loss_value = tot_loss["loss"] / tot_loss["frames"]
+        if loss_value < params.best_valid_loss:
+            params.best_valid_epoch = params.cur_epoch
+            params.best_valid_loss = loss_value
 
     return tot_loss
 
@@ -735,6 +766,7 @@ def train_one_epoch(
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
+
         if batch["inputs"].shape[0] == len(batch["supervisions"]["text"]):
             if batch_idx < cur_batch_idx:
                 continue
@@ -745,7 +777,7 @@ def train_one_epoch(
 
             try:
                 with torch.cuda.amp.autocast(enabled=params.use_fp16):
-                    loss, loss_info = compute_loss(
+                    loss, loss_info, inf_flag = compute_loss(
                         params=params,
                         model=model,
                         sp=sp,
@@ -762,11 +794,14 @@ def train_one_epoch(
 
                 # NOTE: We use reduction==sum and loss is computed over utterances
                 # in the batch and there is no normalization to it so far.
-                scaler.scale(loss).backward()
-                scheduler.step_batch(params.batch_idx_train)
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad()
+                if not inf_flag:
+                    scaler.scale(loss).backward()
+                    scheduler.step_batch(params.batch_idx_train)
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
+                else:
+                    continue
             except:  # noqa
                 display_and_save_batch(batch, params=params, sp=sp)
                 raise
@@ -811,6 +846,8 @@ def train_one_epoch(
 
             if batch_idx % params.log_interval == 0:
                 cur_lr = scheduler.get_last_lr()[0]
+                # https://silpara.medium.com/check-gpu-memory-usage-from-python-ccca503322ea
+                memory_debugging()
                 logging.info(
                     f"Epoch {params.cur_epoch}, "
                     f"batch {batch_idx}, loss[{loss_info}], "
@@ -860,6 +897,28 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def memory_debugging():
+    # memory nvidia debugging
+    nvidia_smi.nvmlInit()
+
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        logging.info(
+            "Device {}: {}, Memory : ({:.2f}% free): {}(total), {} (free), {} (used)".format(
+                i,
+                nvidia_smi.nvmlDeviceGetName(handle),
+                100 * info.free / info.total,
+                info.total,
+                info.free,
+                info.used,
+            )
+        )
+
+    nvidia_smi.nvmlShutdown()
+
+
 def run(rank, world_size, args):
     """
     Args:
@@ -894,7 +953,6 @@ def run(rank, world_size, args):
 
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
-
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
@@ -913,7 +971,6 @@ def run(rank, world_size, args):
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model)
 
-    assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
         params=params, model=model, model_avg=model_avg
     )
@@ -941,7 +998,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -957,9 +1014,15 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 0.5 <= c.duration <= 25.0
+        return 0.5 <= c.duration <= 30.0
+
+    def remove_short_and_long_text(c: Cut):
+        # Keep only text with charachters between 20 and 450
+
+        return 20 <= len(c.supervisions[0].text) <= 450
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.filter(remove_short_and_long_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -969,7 +1032,8 @@ def run(rank, world_size, args):
         sampler_state_dict = None
 
     train_dl = MGB2.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict)
+        train_cuts, sampler_state_dict=sampler_state_dict
+    )
 
     valid_cuts = MGB2.dev_cuts()
     valid_dl = MGB2.test_dataloaders(valid_cuts)
@@ -989,6 +1053,7 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
+
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
@@ -1087,7 +1152,8 @@ def scan_pessimistic_batches_for_oom(
             # (i.e. are not remembered by the decaying-average in adam), because
             # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
-                loss, _ = compute_loss(
+
+                loss, _, _ = compute_loss(
                     params=params,
                     model=model,
                     sp=sp,
@@ -1096,6 +1162,7 @@ def scan_pessimistic_batches_for_oom(
                     warmup=0.0,
                 )
             loss.backward()
+            # clip_grad_norm_(model.parameters(), 5.0, 2.0)
             optimizer.step()
             optimizer.zero_grad()
         except Exception as e:

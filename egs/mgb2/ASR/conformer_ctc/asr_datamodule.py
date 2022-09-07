@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
-
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -147,7 +146,7 @@ class MGB2AsrDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=16,
+            default=1,
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
@@ -177,16 +176,17 @@ class MGB2AsrDataModule:
             "with training dataset. ",
         )
 
-    def train_dataloaders(self,
-                          cuts_train: CutSet,
-                          sampler_state_dict: Optional[Dict[str, Any]] = None,
-                          ) -> DataLoader:
+    def train_dataloaders(
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
+    ) -> DataLoader:
 
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest_lazy(
+            cuts_musan = load_manifest(
                 self.args.manifest_dir / "cuts_musan.jsonl.gz"
             )
 
@@ -275,7 +275,6 @@ class MGB2AsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=self.args.drop_last,
-
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -283,7 +282,6 @@ class MGB2AsrDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
-
             )
         logging.info("About to create train dataloader")
 
@@ -348,8 +346,7 @@ class MGB2AsrDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(
-                Fbank(FbankConfig(num_mel_bins=80)))
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
             else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,

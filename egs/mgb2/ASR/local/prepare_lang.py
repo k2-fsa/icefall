@@ -407,8 +407,7 @@ def main():
 
         L_disambig.labels_sym = labels_sym
         L_disambig.aux_labels_sym = aux_labels_sym
-        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}",
-                        title="L_disambig.pt")
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
 
 
 if __name__ == "__main__":

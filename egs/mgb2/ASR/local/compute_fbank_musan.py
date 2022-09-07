@@ -110,4 +110,3 @@ if __name__ == "__main__":
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan()
-

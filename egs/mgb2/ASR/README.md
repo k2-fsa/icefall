@@ -24,12 +24,20 @@ Ali, Ahmed, et al. "The MGB-2 challenge: Arabic multi-dialect broadcast media re
 
 IEEE link: https://ieeexplore.ieee.org/abstract/document/7846277
 
-## Performance Record (after 3 epochs)
+## Stateless Pruned Transducer Performance Record (after 30 epochs)
+
+|                                    |     dev    |    test    | comment                                  |
+|------------------------------------|------------|------------|------------------------------------------|
+|          greedy search             | 15.52      | 15.28      | --epoch 22, --avg 5, --max-duration 200  |
+| modified beam search               | 13.88      | 13.7       | --epoch 22, --avg 5, --max-duration 200  |
+| fast beam search                   | 14.62      | 14.36      | --epoch 22, --avg 5, --max-duration 200  |
+
+## Conformer-CTC Performance Record (after 40 epochs)
 
 | Decoding method           | dev WER    | test WER |
 |---------------------------|------------|---------|
-| attention-decoder         | 27.87      |  26.12   |
-| whole-lattice-rescoring   | 25.32      |  23.53   |
+| attention-decoder         | 15.62      |  15.01  |
+| whole-lattice-rescoring   | 15.89      |  15.08  |
 
 
 See [RESULTS](/egs/mgb2/ASR/RESULTS.md) for details.

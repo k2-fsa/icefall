@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-#
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright    2022  Johns Hopkins        (authors: Amir Hussein)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,38 +18,38 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --epoch 18 \
+    --avg 5 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
+    --max-duration 200 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --epoch 18 \
+    --avg 5 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
+    --max-duration 200 \
     --decoding-method beam_search \
-    --beam-size 4
+    --beam-size 10
 
 (3) modified beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --epoch 18 \
+    --avg 5 \
     --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
-    --beam-size 4
+    --beam-size 10
 
 (4) fast beam search
 ./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --epoch 18 \
+    --avg 5 \
     --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
+    --max-duration 200 \
     --decoding-method fast_beam_search \
-    --beam 4 \
+    --beam-size 10 \
     --max-contexts 4 \
     --max-states 8
 """
@@ -62,12 +60,11 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
 import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import MGB2AsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -146,7 +143,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
+        default="data/lang_bpe_2000/bpe.model",
         help="Path to the BPE model",
     )
 
@@ -283,11 +280,13 @@ def decode_one_batch(
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
     ):
+
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
+
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search":
@@ -394,6 +393,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for hyp_words, ref_text in zip(hyps, texts):
+
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
 
@@ -457,7 +457,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    MGB2AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -602,18 +602,18 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    MGB2 = MGB2AsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_cuts = MGB2.test_cuts()
+    dev_cuts = MGB2.dev_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_dl = MGB2.test_dataloaders(test_cuts)
+    dev_dl = MGB2.test_dataloaders(dev_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["test", "dev"]
+    test_all_dl = [test_dl, dev_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_all_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
