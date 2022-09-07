@@ -995,9 +995,9 @@ def _test_grad_filter():
 
 
 if __name__ == "__main__":
-    # _test_activation_balancer_sign()
-    # _test_activation_balancer_magnitude()
-    # _test_basic_norm()
-    # _test_double_swish_deriv()
-    # _test_scaled_lstm()
+    _test_activation_balancer_sign()
+    _test_activation_balancer_magnitude()
+    _test_basic_norm()
+    _test_double_swish_deriv()
+    _test_scaled_lstm()
     _test_grad_filter()
