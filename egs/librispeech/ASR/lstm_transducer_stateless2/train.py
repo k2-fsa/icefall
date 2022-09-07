@@ -839,7 +839,10 @@ def train_one_epoch(
                 rank=rank,
             )
 
-        if batch_idx % params.log_interval == 0:
+        if (
+            batch_idx % params.log_interval == 0
+            and not params.print_diagnostics
+        ):
             cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
@@ -860,7 +863,11 @@ def train_one_epoch(
                     tb_writer, "train/tot_", params.batch_idx_train
                 )
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+        if (
+            batch_idx > 0
+            and batch_idx % params.valid_interval == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,

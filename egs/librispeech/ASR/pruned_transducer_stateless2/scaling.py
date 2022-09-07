@@ -133,11 +133,7 @@ class GradientFilterFunction(torch.autograd.Function):
             return x_grad, None, None
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
         norm_of_batch = x_grad.norm(dim=norm_dims, keepdim=True)
-        norm_of_batch_sorted = norm_of_batch.sort(dim=dim)[0]
-        median_idx = (x_grad.shape[dim] - 1) // 2
-        median_norm = norm_of_batch_sorted.narrow(
-            dim=dim, start=median_idx, length=1
-        )
+        median_norm = norm_of_batch.median(dim=dim, keepdim=True)[0]
         mask = norm_of_batch <= ctx.threshold * median_norm
         return x_grad * mask, None, None
 
