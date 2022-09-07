@@ -453,6 +453,7 @@ def decode_dataset(
     zh_char = "[\u4e00-\u9fa5]+"  # Chinese chars
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         zh_texts = []
         en_texts = []
         for i in range(len(texts)):
@@ -487,14 +488,14 @@ def decode_dataset(
             # print(hyps_texts)
             hyps, zh_hyps, en_hyps = hyps_texts
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
-                this_batch.append((ref_text, hyp_words))
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                this_batch.append((cut_id, ref_text, hyp_words))
 
-            for hyp_words, ref_text in zip(zh_hyps, zh_texts):
-                this_batch_zh.append((ref_text, hyp_words))
+            for cut_id, hyp_words, ref_text in zip(cut_ids, zh_hyps, zh_texts):
+                this_batch_zh.append((cut_id, ref_text, hyp_words))
 
-            for hyp_words, ref_text in zip(en_hyps, en_texts):
-                this_batch_en.append((ref_text, hyp_words))
+            for cut_id, hyp_words, ref_text in zip(cut_ids, en_hyps, en_texts):
+                this_batch_en.append((cut_id, ref_text, hyp_words))
 
             results[name].extend(this_batch)
             zh_results[name + "_zh"].extend(this_batch_zh)
@@ -521,6 +522,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -710,6 +712,8 @@ def main():
         c.supervisions[0].text = text_normalize(text)
         return c
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     tal_csasr = TAL_CSASRAsrDataModule(args)
 
     dev_cuts = tal_csasr.valid_cuts()

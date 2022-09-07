@@ -1141,8 +1141,8 @@ class EmformerEncoderLayer(nn.Module):
              - output utterance, with shape (U, B, D);
              - output right_context, with shape (R, B, D);
              - output memory, with shape (1, B, D) or (0, B, D).
-             - output state.
-             - updated conv_cache.
+             - updated attention cache.
+             - updated convolution cache.
         """
         R = right_context.size(0)
         src = torch.cat([right_context, utterance])
@@ -1251,6 +1251,11 @@ class EmformerEncoder(nn.Module):
         negative_inf: float = -1e8,
     ):
         super().__init__()
+
+        assert (
+            chunk_length - 1
+        ) & chunk_length == 0, "chunk_length should be a power of 2."
+        self.shift = int(math.log(chunk_length, 2))
 
         self.use_memory = memory_size > 0
         self.init_memory_op = nn.AvgPool1d(
@@ -1525,7 +1530,6 @@ class EmformerEncoder(nn.Module):
             right_context at the end.
           states (List[torch.Tensor, List[List[torch.Tensor]], List[torch.Tensor]]: # noqa
             Cached states containing:
-            - past_lens: number of past frames for each sample in batch
             - attn_caches: attention states from preceding chunk's computation,
               where each element corresponds to each emformer layer
             - conv_caches: left context for causal convolution, where each
@@ -1580,13 +1584,15 @@ class EmformerEncoder(nn.Module):
         # calcualte padding mask to mask out initial zero caches
         chunk_mask = make_pad_mask(output_lengths).to(x.device)
         memory_mask = (
-            torch.div(
-                num_processed_frames, self.chunk_length, rounding_mode="floor"
-            ).view(x.size(1), 1)
-            <= torch.arange(self.memory_size, device=x.device).expand(
-                x.size(1), self.memory_size
-            )
-        ).flip(1)
+            (
+                (num_processed_frames >> self.shift).view(x.size(1), 1)
+                <= torch.arange(self.memory_size, device=x.device).expand(
+                    x.size(1), self.memory_size
+                )
+            ).flip(1)
+            if self.use_memory
+            else torch.empty(0).to(dtype=torch.bool, device=x.device)
+        )
         left_context_mask = (
             num_processed_frames.view(x.size(1), 1)
             <= torch.arange(self.left_context_length, device=x.device).expand(
@@ -1631,6 +1637,31 @@ class EmformerEncoder(nn.Module):
         )
         return output, output_lengths, output_states
 
+    @torch.jit.export
+    def init_states(self, device: torch.device = torch.device("cpu")):
+        """Create initial states."""
+        attn_caches = [
+            [
+                torch.zeros(self.memory_size, self.d_model, device=device),
+                torch.zeros(
+                    self.left_context_length, self.d_model, device=device
+                ),
+                torch.zeros(
+                    self.left_context_length, self.d_model, device=device
+                ),
+            ]
+            for _ in range(self.num_encoder_layers)
+        ]
+        conv_caches = [
+            torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
+            for _ in range(self.num_encoder_layers)
+        ]
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
+            attn_caches,
+            conv_caches,
+        )
+        return states
+
 
 class Emformer(EncoderInterface):
     def __init__(
@@ -1655,6 +1686,7 @@ class Emformer(EncoderInterface):
 
         self.subsampling_factor = subsampling_factor
         self.right_context_length = right_context_length
+        self.chunk_length = chunk_length
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
         if chunk_length % subsampling_factor != 0:
@@ -1802,6 +1834,11 @@ class Emformer(EncoderInterface):
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
         return output, output_lengths, output_states
+
+    @torch.jit.export
+    def init_states(self, device: torch.device = torch.device("cpu")):
+        """Create initial states."""
+        return self.encoder.init_states(device)
 
 
 class Conv2dSubsampling(nn.Module):

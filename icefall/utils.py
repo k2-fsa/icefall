@@ -42,6 +42,18 @@ from icefall.checkpoint import average_checkpoints
 Pathlike = Union[str, Path]
 
 
+# Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
+# Fixed: https://github.com/pytorch/pytorch/pull/49853
+# The fix was included in v1.9.0
+# https://github.com/pytorch/pytorch/releases/tag/v1.9.0
+def is_jit_tracing():
+    if torch.jit.is_scripting():
+        return False
+    elif torch.jit.is_tracing():
+        return True
+    return False
+
+
 @contextmanager
 def get_executor():
     # We'll either return a process pool or a distributed worker pool.
@@ -96,8 +108,6 @@ def str2bool(v):
 def setup_logger(
     log_filename: Pathlike,
     log_level: str = "info",
-    rank: int = 0,
-    world_size: int = 1,
     use_console: bool = True,
 ) -> None:
     """Setup log level.
@@ -108,16 +118,14 @@ def setup_logger(
       log_level:
         The log level to use, e.g., "debug", "info", "warning", "error",
         "critical"
-      rank:
-        Rank of this node in DDP training.
-      world_size:
-        Number of nodes in DDP training.
       use_console:
         True to also print logs to console.
     """
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-    if world_size > 1:
+    if dist.is_available() and dist.is_initialized():
+        world_size = dist.get_world_size()
+        rank = dist.get_rank()
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:
@@ -325,7 +333,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -333,15 +341,15 @@ def store_transcripts(
       filename:
         File to save the results to.
       texts:
-        An iterable of tuples. The first element is the reference transcript
-        while the second element is the predicted result.
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
     Returns:
       Return None.
     """
     with open(filename, "w") as f:
-        for ref, hyp in texts:
-            print(f"ref={ref}", file=f)
-            print(f"hyp={hyp}", file=f)
+        for cut_id, ref, hyp in texts:
+            print(f"{cut_id}:\tref={ref}", file=f)
+            print(f"{cut_id}:\thyp={hyp}", file=f)
 
 
 def write_error_stats(
@@ -376,8 +384,8 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the reference transcript
-        while the second element is the predicted result.
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
         Otherwise, it is written only to the given file.
@@ -393,7 +401,7 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
-    for ref, hyp in results:
+    for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
@@ -409,7 +417,7 @@ def write_error_stats(
             else:
                 words[ref_word][0] += 1
                 num_corr += 1
-    ref_len = sum([len(r) for r, _ in results])
+    ref_len = sum([len(r) for _, r, _ in results])
     sub_errs = sum(subs.values())
     ins_errs = sum(ins.values())
     del_errs = sum(dels.values())
@@ -438,7 +446,7 @@ def write_error_stats(
 
     print("", file=f)
     print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
-    for ref, hyp in results:
+    for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
         combine_successive_errors = True
         if combine_successive_errors:
@@ -465,7 +473,8 @@ def write_error_stats(
             ]
 
         print(
-            " ".join(
+            f"{cut_id}:\t"
+            + " ".join(
                 (
                     ref_word
                     if ref_word == hyp_word
@@ -533,13 +542,27 @@ class MetricsTracker(collections.defaultdict):
         return ans
 
     def __str__(self) -> str:
-        ans = ""
+        ans_frames = ""
+        ans_utterances = ""
         for k, v in self.norm_items():
             norm_value = "%.4g" % v
-            ans += str(k) + "=" + str(norm_value) + ", "
+            if "utt_" not in k:
+                ans_frames += str(k) + "=" + str(norm_value) + ", "
+            else:
+                ans_utterances += str(k) + "=" + str(norm_value)
+                if k == "utt_duration":
+                    ans_utterances += " frames, "
+                elif k == "utt_pad_proportion":
+                    ans_utterances += ", "
+                else:
+                    raise ValueError(f"Unexpected key: {k}")
         frames = "%.2f" % self["frames"]
-        ans += "over " + str(frames) + " frames."
-        return ans
+        ans_frames += "over " + str(frames) + " frames. "
+        if ans_utterances != "":
+            utterances = "%.2f" % self["utterances"]
+            ans_utterances += "over " + str(utterances) + " utterances."
+
+        return ans_frames + ans_utterances
 
     def norm_items(self) -> List[Tuple[str, float]]:
         """
@@ -547,11 +570,17 @@ class MetricsTracker(collections.defaultdict):
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
         num_frames = self["frames"] if "frames" in self else 1
+        num_utterances = self["utterances"] if "utterances" in self else 1
         ans = []
         for k, v in self.items():
-            if k != "frames":
-                norm_value = float(v) / num_frames
-                ans.append((k, norm_value))
+            if k == "frames" or k == "utterances":
+                continue
+            norm_value = (
+                float(v) / num_frames
+                if "utt_" not in k
+                else float(v) / num_utterances
+            )
+            ans.append((k, norm_value))
         return ans
 
     def reduce(self, device):
@@ -915,3 +944,35 @@ def tokenize_by_bpe_model(
     txt_with_bpe = "/".join(tokens)
 
     return txt_with_bpe
+
+
+def display_and_save_batch(
+    batch: dict,
+    params: AttributeDict,
+    sp: spm.SentencePieceProcessor,
+) -> None:
+    """Display the batch statistics and save the batch into disk.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      params:
+        Parameters for training. See :func:`get_params`.
+      sp:
+        The BPE model.
+    """
+    from lhotse.utils import uuid4
+
+    filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
+    logging.info(f"Saving batch to {filename}")
+    torch.save(batch, filename)
+
+    supervisions = batch["supervisions"]
+    features = batch["inputs"]
+
+    logging.info(f"features shape: {features.shape}")
+
+    y = sp.encode(supervisions["text"], out_type=int)
+    num_tokens = sum(len(i) for i in y)
+    logging.info(f"num tokens: {num_tokens}")

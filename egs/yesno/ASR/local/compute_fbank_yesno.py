@@ -47,6 +47,13 @@ def compute_fbank_yesno():
     )
     assert manifests is not None
 
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
+
     extractor = Fbank(
         FbankConfig(sampling_rate=8000, num_mel_bins=num_mel_bins)
     )
