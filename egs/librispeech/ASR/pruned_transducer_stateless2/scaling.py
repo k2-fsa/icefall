@@ -118,24 +118,31 @@ class GradientFilterFunction(torch.autograd.Function):
         x: Tensor,
         batch_dim: int,  # e.g., 1
         threshold: float,  # e.g., 10.0
+        prev_cutoff: Tensor,  # initialized as 1.0e+10
     ) -> Tensor:
         if x.requires_grad:
             if batch_dim < 0:
                 batch_dim += x.ndim
             ctx.batch_dim = batch_dim
             ctx.threshold = threshold
+            ctx.prev_cutoff = prev_cutoff
         return x
 
     @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None]:
+    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
         dim = ctx.batch_dim
-        if x_grad.shape[dim] == 1:
-            return x_grad, None, None
+        prev_cutoff = ctx.prev_cutoff
+
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
-        norm_of_batch = x_grad.norm(dim=norm_dims, keepdim=True)
-        median_norm = norm_of_batch.median(dim=dim, keepdim=True)[0]
-        mask = norm_of_batch <= ctx.threshold * median_norm
-        return x_grad * mask, None, None
+        norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
+
+        median_norm = norm_of_batch.median()
+        cutoff = torch.min(prev_cutoff * 1.1, median_norm * ctx.threshold)
+        # update prev_cutoff
+        prev_cutoff.copy_(cutoff)
+
+        mask = norm_of_batch <= cutoff
+        return x_grad * mask, None, None, None
 
 
 class GradientFilter(torch.nn.Module):
@@ -156,6 +163,7 @@ class GradientFilter(torch.nn.Module):
         super(GradientFilter, self).__init__()
         self.batch_dim = batch_dim
         self.threshold = threshold
+        self.prev_cutoff = torch.tensor(1.0e10)
 
     def forward(self, x: Tensor) -> Tensor:
         if torch.jit.is_scripting() or is_jit_tracing():
@@ -165,6 +173,7 @@ class GradientFilter(torch.nn.Module):
                 x,
                 self.batch_dim,
                 self.threshold,
+                self.prev_cutoff,
             )
 
 
@@ -949,30 +958,46 @@ def _test_scaled_lstm():
 
 
 def _test_grad_filter():
-    import math
-
     threshold = 10.0
     time, batch, channel = 200, 5, 128
     grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
-    x = torch.randn(time, batch, channel, requires_grad=True)
-    y = grad_filter(x)
-    y_grad = torch.rand_like(x)
-    num = time * channel
-    # The gradient norm of the first element must be larger than
-    # `threshold * median`, where `median` is the median value
-    # of gradient norms of all elements in batch.
-    y_grad[:, 0, :] = torch.full(
-        (time, channel), math.sqrt(((math.sqrt(num) * threshold) ** 2) / num)
-    )
-    y.backward(y_grad)
-    print("_test_grad_filter: y_grad norm = ", y_grad.norm(dim=(0, 2)))
-    print("_test_grad_filter: x_grad norm = ", x.grad.norm(dim=(0, 2)))
+
+    for i in range(5):
+        x = torch.randn(time, batch, channel, requires_grad=True)
+        y = grad_filter(x)
+        y_grad = torch.rand_like(x)
+        # The gradient norm of the first element must be larger than
+        # `threshold * median`, where `median` is the median value
+        # of gradient norms of all elements in batch.
+        y_grad[:, 0, :] = torch.full(
+            (time, channel),
+            threshold,
+        )
+        # if i % 2 != 0, y_grad would be fully filtered out
+        y_grad += (i % 2) * threshold
+        y.backward(y_grad)
+        print(
+            "_test_grad_filter: y_grad would be fully filtered out = ",
+            i % 2 != 0,
+        )
+        print(
+            "_test_grad_filter: y_grad norm = ",
+            (y_grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print(
+            "_test_grad_filter: x_grad norm = ",
+            (x.grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print(
+            "_test_grad_filter: grad_filter.prev_cutoff = ",
+            grad_filter.prev_cutoff,
+        )
 
 
 if __name__ == "__main__":
-    _test_activation_balancer_sign()
-    _test_activation_balancer_magnitude()
-    _test_basic_norm()
-    _test_double_swish_deriv()
-    _test_scaled_lstm()
+    # _test_activation_balancer_sign()
+    # _test_activation_balancer_magnitude()
+    # _test_basic_norm()
+    # _test_double_swish_deriv()
+    # _test_scaled_lstm()
     _test_grad_filter()
