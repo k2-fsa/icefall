@@ -90,6 +90,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for mgb2"
   mkdir -p data/fbank
   ./local/compute_fbank_mgb2.py
+   # shufling the data
+  gunzip -c data/fbank/cuts_train.jsonl.gz | shuf | gzip -c > data/fbank/cuts_train_shuf.jsonl.gz
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then

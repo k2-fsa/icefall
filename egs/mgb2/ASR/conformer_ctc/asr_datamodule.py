@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.dataset import (
-					 
+
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -181,7 +181,6 @@ class MGB2AsrDataModule:
                           cuts_train: CutSet,
                           sampler_state_dict: Optional[Dict[str, Any]] = None,
                           ) -> DataLoader:
-		 
 
         transforms = []
         if self.args.enable_musan:
@@ -276,7 +275,7 @@ class MGB2AsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=self.args.drop_last,
-							   
+
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -284,7 +283,7 @@ class MGB2AsrDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
-												
+
             )
         logging.info("About to create train dataloader")
 
@@ -371,18 +370,17 @@ class MGB2AsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train.jsonl.gz"
+            self.args.manifest_dir / "cuts_train_shuf.jsonl.gz"
         )
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-							 
+
         return load_manifest_lazy(self.args.manifest_dir / "cuts_dev.jsonl.gz")
-		 
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-							 
+
         return load_manifest_lazy(self.args.manifest_dir / "cuts_test.jsonl.gz")
