@@ -29,6 +29,7 @@ class Stream(object):
     def __init__(
         self,
         params: AttributeDict,
+        cut_id: str,
         decoding_graph: Optional[k2.Fsa] = None,
         device: torch.device = torch.device("cpu"),
         LOG_EPS: float = math.log(1e-10),
@@ -43,15 +44,13 @@ class Stream(object):
           device:
             The device to run this stream.
         """
-        self.device = device
         self.LOG_EPS = LOG_EPS
+        self.cut_id = cut_id
 
         # Containing attention caches and convolution caches
         self.states: Optional[
             Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
         ] = None
-        # Initailize zero states.
-        self.init_states(params)
 
         # It uses different attributes for different decoding methods.
         self.context_size = params.context_size
@@ -107,34 +106,11 @@ class Stream(object):
     def set_ground_truth(self, ground_truth: str) -> None:
         self.ground_truth = ground_truth
 
-    def init_states(self, params: AttributeDict) -> None:
-        attn_caches = [
-            [
-                torch.zeros(
-                    params.memory_size, params.encoder_dim, device=self.device
-                ),
-                torch.zeros(
-                    params.left_context_length // params.subsampling_factor,
-                    params.encoder_dim,
-                    device=self.device,
-                ),
-                torch.zeros(
-                    params.left_context_length // params.subsampling_factor,
-                    params.encoder_dim,
-                    device=self.device,
-                ),
-            ]
-            for _ in range(params.num_encoder_layers)
-        ]
-        conv_caches = [
-            torch.zeros(
-                params.encoder_dim,
-                params.cnn_module_kernel - 1,
-                device=self.device,
-            )
-            for _ in range(params.num_encoder_layers)
-        ]
-        self.states = (attn_caches, conv_caches)
+    def set_states(
+        self, states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
+    ) -> None:
+        """Set states."""
+        self.states = states
 
     def get_feature_chunk(self) -> torch.Tensor:
         """Get a chunk of feature frames.
@@ -163,6 +139,10 @@ class Stream(object):
     def done(self) -> bool:
         """Return True if all feature frames are processed."""
         return self._done
+
+    @property
+    def id(self) -> str:
+        return self.cut_id
 
     def decoding_result(self) -> List[int]:
         """Obtain current decoding result."""

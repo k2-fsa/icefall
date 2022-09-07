@@ -119,6 +119,7 @@ def compute_fbank_spgispeech(args):
                 batch_duration=500,
                 num_workers=4,
                 storage_type=LilcomChunkyWriter,
+                overwrite=True,
             )
             cs.to_file(cuts_train_idx_path)
 
@@ -138,6 +139,7 @@ def compute_fbank_spgispeech(args):
                 batch_duration=500,
                 num_workers=4,
                 storage_type=LilcomChunkyWriter,
+                overwrite=True,
             )
 
 

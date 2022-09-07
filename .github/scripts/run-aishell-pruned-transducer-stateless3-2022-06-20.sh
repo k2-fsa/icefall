@@ -27,7 +27,7 @@ soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
-ln -s pretrained-epoch-29-avg-5-torch-1.10.pt pretrained.pt
+ln -s pretrained-epoch-29-avg-5-torch-1.10.0.pt pretrained.pt
 popd
 
 for sym in 1 2 3; do

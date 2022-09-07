@@ -126,6 +126,7 @@ def compute_fbank_gigaspeech_splits(args):
             storage_path=f"{output_dir}/{prefix}_feats_XL_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
+            overwrite=True,
         )
 
         logging.info("About to split cuts into smaller chunks.")
