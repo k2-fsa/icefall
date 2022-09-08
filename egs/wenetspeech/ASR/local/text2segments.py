@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Copyright    2021  Xiaomi Corp.        (authors: Mingshuang Luo)
+#              2022  Xiaomi Corp.        (authors: Weiji Zhuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -29,10 +30,18 @@ with word segmenting:
 
 
 import argparse
+from multiprocessing import Pool
 
 import jieba
+import paddle
 from tqdm import tqdm
 
+# In PaddlePaddle 2.x, dynamic graph mode is turned on by default,
+# and 'data()' is only supported in static graph mode. So if you
+# want to use this api, should call 'paddle.enable_static()' before
+# this api to enter static graph mode.
+paddle.enable_static()
+paddle.disable_signal_handler()
 jieba.enable_paddle()
 
 
@@ -42,13 +51,22 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--num-process",
+        "-n",
+        default=20,
+        type=int,
+        help="the number of processes",
+    )
+    parser.add_argument(
         "--input-file",
+        "-i",
         default="data/lang_char/text",
         type=str,
         help="the input text file for WenetSpeech",
     )
     parser.add_argument(
         "--output-file",
+        "-o",
         default="data/lang_char/text_words_segmentation",
         type=str,
         help="the text implemented with words segmenting for WenetSpeech",
@@ -57,26 +75,33 @@ def get_parser():
     return parser
 
 
+def cut(lines):
+    if lines is not None:
+        cut_lines = jieba.cut(lines, use_paddle=True)
+        return [i for i in cut_lines]
+    else:
+        return None
+
+
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    num_process = args.num_process
     input_file = args.input_file
     output_file = args.output_file
+    # parallel mode does not support use_paddle
+    # jieba.enable_parallel(num_process)
 
-    f = open(input_file, "r", encoding="utf-8")
-    lines = f.readlines()
-    new_lines = []
-    for i in tqdm(range(len(lines))):
-        x = lines[i].rstrip()
-        seg_list = jieba.cut(x, use_paddle=True)
-        new_line = " ".join(seg_list)
-        new_lines.append(new_line)
+    with open(input_file, "r", encoding="utf-8") as fr:
+        lines = fr.readlines()
 
-    f_new = open(output_file, "w", encoding="utf-8")
-    for line in new_lines:
-        f_new.write(line)
-        f_new.write("\n")
+    with Pool(processes=num_process) as p:
+        new_lines = list(tqdm(p.imap(cut, lines), total=len(lines)))
+
+    with open(output_file, "w", encoding="utf-8") as fw:
+        for line in new_lines:
+            fw.write(" ".join(line) + "\n")
 
 
 if __name__ == "__main__":

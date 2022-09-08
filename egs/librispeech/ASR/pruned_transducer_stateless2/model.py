@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from typing import Tuple
+
 import k2
 import torch
 import torch.nn as nn
@@ -78,9 +80,10 @@ class Transducer(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         warmup: float = 1.0,
+        reduction: str = "sum",
         delay_penalty: float = 0.0,
         return_sym_delay: bool = False,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -103,6 +106,10 @@ class Transducer(nn.Module):
           warmup:
             A value warmup >= 0 that determines which modules are active, values
             warmup > 1 "are fully warmed up" and all modules will be active.
+          reduction:
+            "sum" to sum the losses over all utterances in the batch.
+            "none" to return the loss in a 1-D tensor for each utterance
+            in the batch.
         Returns:
           Return the transducer loss.
 
@@ -112,6 +119,7 @@ class Transducer(nn.Module):
               lm_scale * lm_probs + am_scale * am_probs +
               (1-lm_scale-am_scale) * combined_probs
         """
+        assert reduction in ("sum", "none"), reduction
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
         assert y.num_axes == 2, y.num_axes
@@ -158,7 +166,7 @@ class Transducer(nn.Module):
                 am_only_scale=am_scale,
                 boundary=boundary,
                 delay_penalty=delay_penalty,
-                reduction="sum",
+                reduction=reduction,
                 return_grad=True,
             )
 
@@ -212,7 +220,7 @@ class Transducer(nn.Module):
                 termination_symbol=blank_id,
                 boundary=boundary,
                 delay_penalty=delay_penalty,
-                reduction="sum",
+                reduction=reduction,
             )
 
         return (simple_loss, pruned_loss, sym_delay)

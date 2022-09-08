@@ -49,6 +49,7 @@ from .utils import (
     get_alignments,
     get_executor,
     get_texts,
+    is_jit_tracing,
     l1_norm,
     l2_norm,
     linf_norm,

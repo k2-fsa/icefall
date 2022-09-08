@@ -107,7 +107,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   # Prepare text.
   # Note: in Linux, you can install jq with the  following command:
   # wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-  gunzip -c data/manifests/alimeeting/supervisions_train.jsonl.gz \
+  gunzip -c data/manifests/alimeeting/alimeeting_supervisions_train.jsonl.gz \
     | jq ".text" | sed 's/"//g' \
     | ./local/text2token.py -t "char" > $lang_char_dir/text
 
