@@ -37,7 +37,6 @@ and generates the following files in the directory `lang_dir`:
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple
-import pdb
 import k2
 import sentencepiece as spm
 import torch
