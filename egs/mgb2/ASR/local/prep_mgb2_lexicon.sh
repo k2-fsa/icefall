@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#  Copyright 2022 Johns Hopkins University  (Amir Hussein)
+# Copyright 2022 QCRI (author: Amir Hussein)
 # Apache 2.0
 # This script prepares the graphemic lexicon.
 

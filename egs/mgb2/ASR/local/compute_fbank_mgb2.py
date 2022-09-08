@@ -56,7 +56,12 @@ def compute_fbank_mgb2():
         prefix="mgb2", dataset_parts=dataset_parts, output_dir=src_dir
     )
     assert manifests is not None
-
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
     extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
     with get_executor() as ex:  # Initialize the executor only once.

@@ -112,8 +112,8 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
-  ./local/prep_lexicon.sh 
-  python local/prepare_lexicon.py  $dl_dir/lm/grapheme_lexicon.txt  $dl_dir/lm/lexicon.txt
+  ./local/prep_mgb2_lexicon.sh 
+  python local/prepare_mgb2_lexicon.py  $dl_dir/lm/grapheme_lexicon.txt  $dl_dir/lm/lexicon.txt
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
     cat - $dl_dir/lm/lexicon.txt |
     sort | uniq > $lang_dir/lexicon.txt
