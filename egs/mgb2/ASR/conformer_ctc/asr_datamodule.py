@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy, load_manifest
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
