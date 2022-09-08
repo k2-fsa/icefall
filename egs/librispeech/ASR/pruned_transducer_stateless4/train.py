@@ -643,6 +643,8 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
+    delay_penalty = 0.0 if warmup < 2.0 else params.delay_penalty
+
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, sym_delay = model(
             x=feature,
@@ -652,7 +654,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
-            delay_penalty=params.delay_penalty,
+            delay_penalty=delay_penalty,
             return_sym_delay=params.return_sym_delay,
         )
         # after the main warmup step, we keep pruned_loss_scale small
