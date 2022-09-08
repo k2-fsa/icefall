@@ -28,9 +28,9 @@ IEEE link: https://ieeexplore.ieee.org/abstract/document/7846277
 
 |                                    |     dev    |    test    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-|          greedy search             | 15.52      | 15.28      | --epoch 22, --avg 5, --max-duration 200  |
-| modified beam search               | 13.88      | 13.7       | --epoch 22, --avg 5, --max-duration 200  |
-| fast beam search                   | 14.62      | 14.36      | --epoch 22, --avg 5, --max-duration 200  |
+|          greedy search             | 15.52      | 15.28      | --epoch 18, --avg 5, --max-duration 200  |
+| modified beam search               | 13.88      | 13.7       | --epoch 18, --avg 5, --max-duration 200  |
+| fast beam search                   | 14.62      | 14.36      | --epoch 18, --avg 5, --max-duration 200  |
 
 ## Conformer-CTC Performance Record (after 40 epochs)
 
