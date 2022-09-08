@@ -23,6 +23,7 @@ consisting of supervisions_train.json and does the following:
 1. Generate train.text.
 
 """
+import lhotse
 import argparse
 import json
 import logging
@@ -60,15 +61,10 @@ def prepare_transcripts(manifests_dir: str, lang_dir: str):
     """
     texts = []
 
-    supervisions_train = Path(manifests_dir) / "supervisions_train.json"
     train_text = Path(lang_dir) / "train.text"
-
-    logging.info(f"Loading {supervisions_train}!")
-    with open(supervisions_train, "r") as load_f:
-        load_dicts = json.load(load_f)
-        for load_dict in load_dicts:
-            text = load_dict["text"]
-            texts.append(text)
+    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
+    for s in sups:
+    	texts.append(s.text)
 
     with open(train_text, "w") as f:
         for text in texts:
