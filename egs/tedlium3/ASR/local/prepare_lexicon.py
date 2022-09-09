@@ -61,7 +61,9 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     words = set()
 
     lexicon = Path(lang_dir) / "lexicon_words.txt"
-    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
+    sups = lhotse.load_manifest(
+        f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz"
+    )
     for s in sups:
         # list the words units and filter the empty item
         words_list = list(filter(None, s.text.split()))
