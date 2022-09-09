@@ -61,7 +61,9 @@ def prepare_transcripts(manifests_dir: str, lang_dir: str):
     texts = []
 
     train_text = Path(lang_dir) / "train.text"
-    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
+    sups = lhotse.load_manifest(
+        f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz"
+    )
     for s in sups:
         texts.append(s.text)
 
