@@ -25,7 +25,6 @@ consisting of supervisions_train.json and does the following:
 """
 import lhotse
 import argparse
-import json
 import logging
 from pathlib import Path
 
@@ -64,12 +63,12 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     lexicon = Path(lang_dir) / "lexicon_words.txt"
     sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
     for s in sups:
-	# list the words units and filter the empty item
-    	words_list = list(filter(None, s.text.split()))
+        # list the words units and filter the empty item
+        words_list = list(filter(None, s.text.split()))
 
-    	for word in words_list:
-        	if word not in words and word != "<unk>":
-	        	words.add(word)
+        for word in words_list:
+            if word not in words and word != "<unk>":
+                words.add(word)
 
     with open(lexicon, "w") as f:
         for word in sorted(words):
