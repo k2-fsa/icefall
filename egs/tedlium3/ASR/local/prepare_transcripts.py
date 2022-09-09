@@ -25,7 +25,6 @@ consisting of supervisions_train.json and does the following:
 """
 import lhotse
 import argparse
-import json
 import logging
 from pathlib import Path
 
@@ -64,7 +63,7 @@ def prepare_transcripts(manifests_dir: str, lang_dir: str):
     train_text = Path(lang_dir) / "train.text"
     sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
     for s in sups:
-    	texts.append(s.text)
+        texts.append(s.text)
 
     with open(train_text, "w") as f:
         for text in texts:
