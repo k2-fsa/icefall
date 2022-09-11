@@ -22,22 +22,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 500
 
 # For mix precision training:
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 500
 """
@@ -65,6 +65,7 @@ from lhotse.utils import fix_random_seed
 from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
+from scaling import ScaledLinear
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -261,6 +262,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.3,
+        help="Scale for CTC loss",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -425,15 +433,25 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_ctc_model(params: AttributeDict) -> nn.Module:
+    return nn.Sequential(
+        nn.Dropout(p=0.1),
+        ScaledLinear(params.encoder_dim, params.vocab_size),
+        nn.LogSoftmax(dim=-1),
+    )
+
+
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
+    ctc_model = get_ctc_model(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        ctc_model=ctc_model,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
@@ -602,7 +620,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, ctc_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -646,9 +664,11 @@ def compute_loss(
             if warmup < 1.0
             else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
+        ctc_loss_scale = params.ctc_loss_scale if warmup >= 2.0 else 0
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
+            + ctc_loss_scale * ctc_loss
         )
 
     assert loss.requires_grad == is_training
@@ -677,6 +697,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
 
@@ -792,7 +813,7 @@ def train_one_epoch(
             display_and_save_batch(batch, params=params, sp=sp)
             raise
 
-        if params.print_diagnostics and batch_idx == 30:
+        if params.print_diagnostics and batch_idx == 6:
             return
 
         if (

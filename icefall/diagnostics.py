@@ -133,6 +133,9 @@ class TensorDiagnostic(object):
         if x.numel() == 0:  # for empty tensor
             return
         x = x.detach().clone()
+        # for empty tensor
+        if x.numel() == 0:
+            return
         if x.ndim == 0:
             x = x.unsqueeze(0)
         ndim = x.ndim
