@@ -24,7 +24,6 @@ from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    GradientFilter,
     ScaledConv2d,
     ScaledLinear,
     ScaledLSTM,
@@ -299,16 +298,14 @@ class RNNEncoderLayer(nn.Module):
         self.rnn_hidden_size = rnn_hidden_size
 
         assert rnn_hidden_size >= d_model, (rnn_hidden_size, d_model)
-        self.grad_filter = GradientFilter(
-            batch_dim=1,
-            threshold=grad_norm_threshold,
-        )
+
         self.lstm = ScaledLSTM(
             input_size=d_model,
             hidden_size=rnn_hidden_size,
             proj_size=d_model if rnn_hidden_size > d_model else 0,
             num_layers=1,
             dropout=0.0,
+            grad_norm_threshold=grad_norm_threshold,
         )
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -365,7 +362,7 @@ class RNNEncoderLayer(nn.Module):
 
         # lstm module
         if states is None:
-            src_lstm = self.lstm(self.grad_filter(src))[0]
+            src_lstm = self.lstm(src)[0]
             # torch.jit.trace requires returned types be the same as annotated
             new_states = (torch.empty(0), torch.empty(0))
         else:

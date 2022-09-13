@@ -118,31 +118,34 @@ class GradientFilterFunction(torch.autograd.Function):
         x: Tensor,
         batch_dim: int,  # e.g., 1
         threshold: float,  # e.g., 10.0
-        prev_cutoff: Tensor,  # initialized as 1.0e+10
-    ) -> Tensor:
+        *params: nn.Parameter,  # module parameters
+    ):
         if x.requires_grad:
             if batch_dim < 0:
                 batch_dim += x.ndim
             ctx.batch_dim = batch_dim
             ctx.threshold = threshold
-            ctx.prev_cutoff = prev_cutoff
-        return x
+        return x, *params
 
     @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+    def backward(
+        ctx,
+        x_grad: Tensor,
+        *param_grads: nn.Parameter,
+    ):
         dim = ctx.batch_dim
-        prev_cutoff = ctx.prev_cutoff
-
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
         norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
-
         median_norm = norm_of_batch.median()
-        cutoff = torch.min(prev_cutoff * 1.1, median_norm * ctx.threshold)
-        # update prev_cutoff
-        prev_cutoff.copy_(cutoff)
+        mask = norm_of_batch <= median_norm * ctx.threshold
+        x_grad = x_grad * mask
 
-        mask = norm_of_batch <= cutoff
-        return x_grad * mask, None, None, None
+        if not torch.all(mask):
+            # If any of elements of x_grad is zeroed,
+            # the param_grads would be fully zeroed.
+            for g in param_grads:
+                g.zero_()
+        return x_grad, None, None, *param_grads
 
 
 class GradientFilter(torch.nn.Module):
@@ -163,17 +166,16 @@ class GradientFilter(torch.nn.Module):
         super(GradientFilter, self).__init__()
         self.batch_dim = batch_dim
         self.threshold = threshold
-        self.prev_cutoff = torch.tensor(1.0e10)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, *params: nn.Parameter) -> Tensor:
         if torch.jit.is_scripting() or is_jit_tracing():
-            return x
+            return x, *params
         else:
             return GradientFilterFunction.apply(
                 x,
                 self.batch_dim,
                 self.threshold,
-                self.prev_cutoff,
+                *params,
             )
 
 
@@ -261,7 +263,7 @@ class ScaledLinear(nn.Linear):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -308,7 +310,7 @@ class ScaledConv1d(nn.Conv1d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -380,7 +382,7 @@ class ScaledConv2d(nn.Conv2d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -455,7 +457,8 @@ class ScaledLSTM(nn.LSTM):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        grad_norm_threshold: float = 10.0,
+        **kwargs,
     ):
         if "bidirectional" in kwargs:
             assert kwargs["bidirectional"] is False
@@ -469,6 +472,10 @@ class ScaledLSTM(nn.LSTM):
             param = nn.Parameter(initial_scale.clone().detach())
             setattr(self, scale_name, param)
             self._scales.append(param)
+
+        self.grad_filter = GradientFilter(
+            batch_dim=1, threshold=grad_norm_threshold
+        )
 
         self._reset_parameters(
             initial_speed
@@ -579,10 +586,14 @@ class ScaledLSTM(nn.LSTM):
             hx = (h_zeros, c_zeros)
 
         self.check_forward_args(input, hx, None)
+
+        flat_weights = self._get_flat_weights()
+        input, *flat_weights = self.grad_filter(input, *flat_weights)
+
         result = _VF.lstm(
             input,
             hx,
-            self._get_flat_weights(),
+            flat_weights,
             self.bias,
             self.num_layers,
             self.dropout,
@@ -962,42 +973,49 @@ def _test_grad_filter():
     time, batch, channel = 200, 5, 128
     grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
 
-    for i in range(5):
+    for i in range(2):
         x = torch.randn(time, batch, channel, requires_grad=True)
-        y = grad_filter(x)
-        y_grad = torch.rand_like(x)
-        # The gradient norm of the first element must be larger than
-        # `threshold * median`, where `median` is the median value
-        # of gradient norms of all elements in batch.
-        y_grad[:, 0, :] = torch.full(
-            (time, channel),
-            threshold,
+        w = nn.Parameter(torch.ones(5))
+        b = nn.Parameter(torch.zeros(5))
+
+        x_out, w_out, b_out = grad_filter(x, w, b)
+
+        w_out_grad = torch.randn_like(w)
+        b_out_grad = torch.randn_like(b)
+        x_out_grad = torch.rand_like(x)
+        if i % 2 == 1:
+            # The gradient norm of the first element must be larger than
+            # `threshold * median`, where `median` is the median value
+            # of gradient norms of all elements in batch.
+            x_out_grad[:, 0, :] = torch.full((time, channel), threshold)
+
+        torch.autograd.backward(
+            [x_out, w_out, b_out], [x_out_grad, w_out_grad, b_out_grad]
         )
-        # if i % 2 != 0, y_grad would be fully filtered out
-        y_grad += (i % 2) * threshold
-        y.backward(y_grad)
+
         print(
-            "_test_grad_filter: y_grad would be fully filtered out = ",
-            i % 2 != 0,
+            "_test_grad_filter: w_grad and b_grad would be zeroed = ",
+            i % 2 == 1,
+        )
+
+        print(
+            "_test_grad_filter: x_out_grad norm = ",
+            (x_out_grad ** 2).mean(dim=(0, 2)).sqrt(),
         )
         print(
-            "_test_grad_filter: y_grad norm = ",
-            (y_grad ** 2).mean(dim=(0, 2)).sqrt(),
-        )
-        print(
-            "_test_grad_filter: x_grad norm = ",
+            "_test_grad_filter: x.grad norm = ",
             (x.grad ** 2).mean(dim=(0, 2)).sqrt(),
         )
-        print(
-            "_test_grad_filter: grad_filter.prev_cutoff = ",
-            grad_filter.prev_cutoff,
-        )
+        print("_test_grad_filter: w_out_grad = ", w_out_grad)
+        print("_test_grad_filter: w.grad = ", w.grad)
+        print("_test_grad_filter: b_out_grad = ", b_out_grad)
+        print("_test_grad_filter: b.grad = ", b.grad)
 
 
 if __name__ == "__main__":
-    _test_activation_balancer_sign()
-    _test_activation_balancer_magnitude()
-    _test_basic_norm()
-    _test_double_swish_deriv()
+    # _test_activation_balancer_sign()
+    # _test_activation_balancer_magnitude()
+    # _test_basic_norm()
+    # _test_double_swish_deriv()
     _test_scaled_lstm()
     _test_grad_filter()
