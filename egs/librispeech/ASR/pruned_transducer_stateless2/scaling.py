@@ -133,18 +133,19 @@ class GradientFilterFunction(torch.autograd.Function):
         x_grad: Tensor,
         *param_grads: Tensor,
     ):
+        eps = 1.0e-20
         dim = ctx.batch_dim
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
         norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
         median_norm = norm_of_batch.median()
-        mask = norm_of_batch <= median_norm * ctx.threshold
+
+        cutoff = median_norm * ctx.threshold
+        inv_mask = (cutoff + norm_of_batch) / (cutoff + eps)
+        mask = 1.0 / (inv_mask + eps)
         x_grad = x_grad * mask
 
-        # 1 if no grad was zeroed, 0 if any was zeroed
-        all = torch.all(mask).to(x_grad.dtype)
-        # If any of elements of x_grad is zeroed,
-        # the param_grads would be fully zeroed.
-        param_grads = [all * g for g in param_grads]
+        avg_mask = 1.0 / (inv_mask.mean() + eps)
+        param_grads = [avg_mask * g for g in param_grads]
 
         return x_grad, None, None, *param_grads
 
@@ -970,7 +971,7 @@ def _test_scaled_lstm():
 
 
 def _test_grad_filter():
-    threshold = 10.0
+    threshold = 50.0
     time, batch, channel = 200, 5, 128
     grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
 
@@ -995,7 +996,7 @@ def _test_grad_filter():
         )
 
         print(
-            "_test_grad_filter: w_grad and b_grad would be zeroed = ",
+            "_test_grad_filter: for gradient norms, the first element > median * threshold ",  # noqa
             i % 2 == 1,
         )
 
@@ -1014,9 +1015,9 @@ def _test_grad_filter():
 
 
 if __name__ == "__main__":
-    # _test_activation_balancer_sign()
-    # _test_activation_balancer_magnitude()
-    # _test_basic_norm()
-    # _test_double_swish_deriv()
+    _test_activation_balancer_sign()
+    _test_activation_balancer_magnitude()
+    _test_basic_norm()
+    _test_double_swish_deriv()
     _test_scaled_lstm()
     _test_grad_filter()
