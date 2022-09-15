@@ -116,6 +116,12 @@ class RNN(EncoderInterface):
         Period of auxiliary layers used for random combiner during training.
         If set to 0, will not use the random combiner (Default).
         You can set a positive integer to use the random combiner, e.g., 3.
+      rnn_clip_grad:
+        Whether to clip rnn gradients (default=True).
+      rnn_grad_scale_factor:
+        The scale factor used to scale down rnn gradients (default=0.9).
+      rnn_grad_max_norm:
+        The max norm value used to clip the rnn gradients (default=0.5).
     """
 
     def __init__(
@@ -129,6 +135,9 @@ class RNN(EncoderInterface):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
+        rnn_clip_grad: bool = True,
+        rnn_grad_scale_factor: float = 0.9,
+        rnn_grad_max_norm: float = 0.5,
     ) -> None:
         super(RNN, self).__init__()
 
@@ -154,6 +163,9 @@ class RNN(EncoderInterface):
             rnn_hidden_size=rnn_hidden_size,
             dropout=dropout,
             layer_dropout=layer_dropout,
+            rnn_clip_grad=rnn_clip_grad,
+            rnn_grad_scale_factor=rnn_grad_scale_factor,
+            rnn_grad_max_norm=rnn_grad_max_norm,
         )
         self.encoder = RNNEncoder(
             encoder_layer,
@@ -173,6 +185,7 @@ class RNN(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
+        rnn_chunk_size: int = 0,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
@@ -184,6 +197,8 @@ class RNN(EncoderInterface):
           x_lens:
             A tensor of shape (N,), containing the number of frames in `x`
             before padding.
+          rnn_chunk_size:
+            The chunk size for chunk-wise forward during rnn training.
           states:
             A tuple of 2 tensors (optional). It is for streaming inference.
             states[0] is the hidden states of all layers,
@@ -214,7 +229,7 @@ class RNN(EncoderInterface):
             assert x.size(0) == lengths.max().item()
 
         if states is None:
-            x = self.encoder(x, warmup=warmup)[0]
+            x = self.encoder(x, rnn_chunk_size=rnn_chunk_size, warmup=warmup)[0]
             # torch.jit.trace requires returned types to be the same as annotated  # noqa
             new_states = (torch.empty(0), torch.empty(0))
         else:
@@ -269,6 +284,12 @@ class RNNEncoderLayer(nn.Module):
         The dropout value (default=0.1).
       layer_dropout:
         The dropout value for model-level warmup (default=0.075).
+      rnn_clip_grad:
+        Whether to clip rnn gradients (default=True).
+      rnn_grad_scale_factor:
+        The scale factor used to scale down rnn gradients (default=0.9).
+      rnn_grad_max_norm:
+        The max norm value used to clip the rnn gradients (default=0.5).
     """
 
     def __init__(
@@ -278,6 +299,9 @@ class RNNEncoderLayer(nn.Module):
         rnn_hidden_size: int,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
+        rnn_clip_grad: bool = True,
+        rnn_grad_scale_factor: float = 0.9,
+        rnn_grad_max_norm: float = 0.5,
     ) -> None:
         super(RNNEncoderLayer, self).__init__()
         self.layer_dropout = layer_dropout
@@ -291,6 +315,9 @@ class RNNEncoderLayer(nn.Module):
             proj_size=d_model if rnn_hidden_size > d_model else 0,
             num_layers=1,
             dropout=0.0,
+            clip_grad=rnn_clip_grad,
+            grad_scale_factor=rnn_grad_scale_factor,
+            grad_max_norm=rnn_grad_max_norm,
         )
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -310,6 +337,7 @@ class RNNEncoderLayer(nn.Module):
     def forward(
         self,
         src: torch.Tensor,
+        rnn_chunk_size: int = 0,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
@@ -321,6 +349,8 @@ class RNNEncoderLayer(nn.Module):
             The sequence to the encoder layer (required).
             Its shape is (S, N, E), where S is the sequence length,
             N is the batch size, and E is the feature number.
+          rnn_chunk_size:
+            The chunk size for chunk-wise forward during rnn training.
           states:
             A tuple of 2 tensors (optional). It is for streaming inference.
             states[0] is the hidden states of all layers,
@@ -347,7 +377,7 @@ class RNNEncoderLayer(nn.Module):
 
         # lstm module
         if states is None:
-            src_lstm = self.lstm(src)[0]
+            src_lstm = self.lstm(src, chunk_size=rnn_chunk_size)[0]
             # torch.jit.trace requires returned types be the same as annotated
             new_states = (torch.empty(0), torch.empty(0))
         else:
@@ -413,6 +443,7 @@ class RNNEncoder(nn.Module):
     def forward(
         self,
         src: torch.Tensor,
+        rnn_chunk_size: int = 0,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
@@ -424,6 +455,8 @@ class RNNEncoder(nn.Module):
             The sequence to the encoder layer (required).
             Its shape is (S, N, E), where S is the sequence length,
             N is the batch size, and E is the feature number.
+          rnn_chunk_size:
+            The chunk size for chunk-wise forward during rnn training.
           states:
             A tuple of 2 tensors (optional). It is for streaming inference.
             states[0] is the hidden states of all layers,
@@ -460,7 +493,9 @@ class RNNEncoder(nn.Module):
 
         for i, mod in enumerate(self.layers):
             if states is None:
-                output = mod(output, warmup=warmup)[0]
+                output = mod(
+                    output, rnn_chunk_size=rnn_chunk_size, warmup=warmup
+                )[0]
             else:
                 layer_state = (
                     states[0][i : i + 1, :, :],  # h: (1, N, d_model)
@@ -773,7 +808,7 @@ class RandomCombine(nn.Module):
         """
         logprobs = (
             torch.randn(num_frames, self.num_inputs, dtype=dtype, device=device)
-            * self.stddev  # noqa
+            * self.stddev
         )
         logprobs[:, -1] += self.final_log_weight
         return logprobs.softmax(dim=1)
