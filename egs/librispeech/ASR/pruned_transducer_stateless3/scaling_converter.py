@@ -60,7 +60,7 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
     linear = torch.nn.Linear(
         in_features=scaled_linear.in_features,
         out_features=scaled_linear.out_features,
-        bias=True,  # otherwise, it throws errors when converting to PNNX format.
+        bias=True,  # otherwise, it throws errors when converting to PNNX format
         # device=weight.device,  # Pytorch version before v1.9.0 does not has
         # this argument. Comment out for now, we will
         # see if it will raise error for versions
@@ -206,7 +206,7 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
     return lstm
 
 
-# Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule
+# Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
 # get_submodule was added to nn.Module at v1.9.0
 def get_submodule(model, target):
     if target == "":
