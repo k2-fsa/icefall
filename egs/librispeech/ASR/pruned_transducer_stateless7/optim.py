@@ -240,7 +240,7 @@ class ScaledAdam(Optimizer):
             percent_clipped = (state["num_clipped"] * 100.0 / clipping_update_period
                                if "num_clipped" in state else 0.0)
             state["num_clipped"] = 0
-            quartiles = [ '%.3e' % x for x in quartiles ]
+            quartiles = ' '.join([ '%.3e' % x for x in quartiles ])
             logging.info(f"Clipping_scale={clipping_scale}, grad-norm quartiles {quartiles}, "
                          f"threshold={threshold:.3e}, percent-clipped={percent_clipped:.1f}")
 
