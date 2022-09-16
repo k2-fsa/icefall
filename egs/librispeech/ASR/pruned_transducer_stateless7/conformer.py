@@ -27,10 +27,7 @@ from scaling import (
     BasicNorm,
     DoubleSwish,
     ScaledConv1d,
-    ScaledConv2d,
-    ScaledLinear,
-    StructuredConv1d,
-    StructuredLinear,
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
 )
 from torch import Tensor, nn
 
@@ -1023,9 +1020,7 @@ class Conv2dSubsampling(nn.Module):
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2 - 1) // 2)
-        self.out = StructuredLinear(
-            (out_height, layer3_channels), (out_channels,)
-        )
+        self.out = nn.Linear(out_height * layer3_channels, out_channels)
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
