@@ -1020,7 +1020,7 @@ class Conv2dSubsampling(nn.Module):
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2 - 1) // 2)
-        self.out = nn.Linear(out_height * layer3_channels, out_channels)
+        self.out = ScaledLinear(out_height * layer3_channels, out_channels)
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
         # needed.
