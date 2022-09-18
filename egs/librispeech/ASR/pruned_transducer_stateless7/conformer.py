@@ -173,7 +173,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ActivationBalancer(channel_dim=-1, max_abs=10.0),
+            ActivationBalancer(dim_feedforward,
+                               channel_dim=-1, max_abs=10.0),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
@@ -182,7 +183,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ActivationBalancer(channel_dim=-1, max_abs=10.0),
+            ActivationBalancer(dim_feedforward,
+                               channel_dim=-1, max_abs=10.0),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
@@ -196,7 +198,7 @@ class ConformerEncoderLayer(nn.Module):
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(
-            channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
+            d_model, channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -464,8 +466,11 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
-        self.in_balancer = ActivationBalancer(channel_dim=-1, max_abs=5.0)
-        self.proj_balancer = ActivationBalancer(channel_dim=-1, max_abs=10.0,
+        self.in_balancer = ActivationBalancer(3 * embed_dim,
+                                              channel_dim=-1, max_abs=5.0,
+                                              max_var_per_eig=0.1)
+        self.proj_balancer = ActivationBalancer(embed_dim,
+                                                channel_dim=-1, max_abs=10.0,
                                                 min_positive=0.0, max_positive=1.0)
         self.out_proj = ScaledLinear(
             embed_dim, embed_dim, bias=True, initial_scale=0.5
@@ -901,6 +906,7 @@ class ConvolutionModule(nn.Module):
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
         self.deriv_balancer1 = ActivationBalancer(
+            2 * channels,
             channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
         )
 
@@ -915,7 +921,7 @@ class ConvolutionModule(nn.Module):
         )
 
         self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
+            channels, channel_dim=1, min_positive=0.05, max_positive=1.0
         )
 
         self.activation = DoubleSwish()
@@ -1001,7 +1007,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=1,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer1_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer1_channels,
@@ -1009,7 +1016,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=2,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer2_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer2_channels,
@@ -1017,7 +1025,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=2,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer3_channels,
+                               channel_dim=1),
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2 - 1) // 2)
@@ -1028,6 +1037,7 @@ class Conv2dSubsampling(nn.Module):
         self.out_norm = BasicNorm(out_channels, learn_eps=False)
         # constrain median of output to be close to zero.
         self.out_balancer = ActivationBalancer(
+            out_channels,
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
