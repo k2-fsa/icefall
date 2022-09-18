@@ -465,8 +465,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
         self.in_balancer = ActivationBalancer(channel_dim=-1, max_abs=5.0)
-        self.proj_balancer = ActivationBalancer(channel_dim=-1, max_abs=10.0,
-                                                min_positive=0.0, max_positive=1.0)
+        self.proj_balancer = ActivationBalancer(channel_dim=-1, max_abs=10.0)
         self.out_proj = ScaledLinear(
             embed_dim, embed_dim, bias=True, initial_scale=0.5
         )
