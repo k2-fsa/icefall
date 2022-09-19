@@ -318,6 +318,22 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="A constant value to penalize symbol delay.",
+    )
+
+    parser.add_argument(
+        "--return-sym-delay",
+        type=str2bool,
+        default=False,
+        help="""Whether to return `sym_delay` during training, this is a stat
+        to measure symbols emission delay.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -602,7 +618,8 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        delay_penalty = 0.0 if warmup < 2.0 else params.delay_penalty
+        simple_loss, pruned_loss, sym_delay, total_syms = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -611,6 +628,8 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
             reduction="none",
+            delay_penalty=delay_penalty,
+            return_sym_delay=params.return_sym_delay,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -677,6 +696,10 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+
+    if params.return_sym_delay:
+        info["symbols"] = total_syms.detach().cpu().item()
+        info["sym_delay"] = sym_delay.detach().cpu().item()
 
     return loss, info
 
@@ -778,6 +801,7 @@ def train_one_epoch(
                     is_training=True,
                     warmup=(params.batch_idx_train / params.model_warm_step),
                 )
+
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
