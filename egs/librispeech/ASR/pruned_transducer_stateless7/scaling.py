@@ -145,71 +145,6 @@ def find_direction_coeffs(x: Tensor,
     return cur_direction, coeffs
 
 
-def get_max_eig_proportion(x: Tensor,
-                           prev_direction: Tensor,
-                           subtract_mean: bool) -> Tuple[Tensor, Tensor]:
-    """
-    Figure out (an approximation to) the proportion of the variance of a set of
-    feature vectors that can be attributed to the top eigen-direction.
-    Args:
-        x: a Tensor of shape (*, num_channels).  There must be more than one frame,
-             i.e. x.numel() // num_channels > 1.
-    prev_direction:  a Tensor of shape (num_channels,), that is our previous estimate
-             of the top eigen-direction, or a random direction if this is the first
-             iteration.  Expected to be without gradient.  Does not have to be
-             normalized.
-    subtract_mean:   if True, we will first subtract the mean of x, over the
-             frames.  Suggest to make this true in most circumstances.
-
-    Returns: (cur_direction, max_proportion), where:
-           cur_direction: a Tensor of shape (num_channels,) that is the current
-             estimate of the top eigen-direction.  Detached / not intended to be
-             differentiable.
-           proportion: a scalar Tensor containing the proportion of the variance
-             of the input that is in direction `cur_direction`.  This is with
-             gradient, that can be propagated back to x.
-    """
-    num_channels = x.shape[-1]
-    assert prev_direction.shape == (num_channels,)
-    x = x.reshape(-1, num_channels)
-    if subtract_mean:
-        x = x - x.mean(dim=0)
-
-    with torch.no_grad():
-        cur_norm = prev_direction.norm()
-
-        prev_direction = prev_direction / cur_norm
-        is_ok = (cur_norm / cur_norm == 1.0)
-        # if there was a problem like NaN or inf, restart.  this should be very rare.
-        prev_direction = torch.where(is_ok.unsqueeze(-1).expand(prev_direction.shape),
-                                     prev_direction,
-                                     torch.randn_like(prev_direction) * (num_channels ** -0.5))
-
-        # `coeffs` are the coefficients of `prev_direction` in x.
-        coeffs = (x * prev_direction).sum(dim=1, keepdim=True)
-
-        x_norm = x.norm()
-        x_coeffs1_norm = (x - coeffs * prev_direction).norm()
-
-        with torch.no_grad():
-            cur_direction =  (x * coeffs).sum(dim=0) / ((coeffs ** 2).sum() + 1.0e-20)
-
-        x_coeffs2_norm = (x - coeffs * cur_direction).norm()
-
-        # for the returned direction interpolate with prev_direction so that
-        # even if x == 0, we get a nonzero new direction.
-        ans_direction = 0.5 * (prev_direction + cur_direction)
-
-    x_sumsq = (x**2).sum() + 1.0e-20
-    x_remaining_sumsq = ((x - coeffs * cur_direction) ** 2).sum() + 1.0e-20
-
-    proportion = (x - x_remaining_sumsq) / x_sumsq
-
-    return (ans_direction, proportion)
-
-    print(f"x_norm={x_norm}, x_coeffs1_norm={x_coeffs1_norm}, x_coeffs2_norm={x_coeffs2_norm}")
-
-
 
 
 class MaxEigLimiterFunction(torch.autograd.Function):
@@ -233,17 +168,18 @@ class MaxEigLimiterFunction(torch.autograd.Function):
         if subtract_mean:
             x = x - x.mean(dim=0)
         new_direction, coeffs = find_direction_coeffs(x, direction)
-        x_var = (x**2).sum()
+        x_var = (x**2).mean()
         x_residual = x - coeffs * new_direction
-        x_residual_var = (x_residual**2).sum()
+        x_residual_var = (x_residual**2).mean()
         # `variance_proportion` is the proportion of the variance accounted for
         # by the top eigen-direction.
-        variance_proportion = (x_var - x_residual_var) / x_var
+        variance_proportion = (x_var - x_residual_var) / (x_var + 1.0e-20)
 
         ans_direction = direction + new_direction  # ensure nonzero even if x == 0
         ans_direction = ans_direction / ans_direction.norm()
 
-        logging.info(f"variance_proportion = {variance_proportion.item()}")
+        if random.random() < 0.01:
+            logging.info(f"variance_proportion = {variance_proportion.item()}")
 
         # Caution: this causes a CUDA sync, which is not ideal.
         if variance_proportion >= max_variance_proportion:
@@ -262,7 +198,6 @@ class MaxEigLimiterFunction(torch.autograd.Function):
         if not hasattr(ctx, 'channel_dim'):
             # the top eig's proportion of the variance was below the threshold.
             return x_grad, None, None, None, None, None, None
-
         with torch.enable_grad():
             (x_orig, coeffs, new_direction) = ctx.saved_tensors
             x_orig.requires_grad = True
@@ -271,16 +206,16 @@ class MaxEigLimiterFunction(torch.autograd.Function):
             new_direction.requires_grad = False
             if ctx.subtract_mean:
                 x = x - x.mean(dim=0)
-            x_var = (x**2).sum()
+            x_var = (x ** 2).mean()
             x_residual = x - coeffs * new_direction
-            x_residual_var = (x_residual**2).sum()
+            x_residual_var = (x_residual ** 2).mean()
             # `variance_proportion` is the proportion of the variance accounted for
             # by the top eigen-direction.  This is to be minimized.
-            variance_proportion = (x_var - x_residual_var) / x_var
+            variance_proportion = (x_var - x_residual_var) / (x_var + 1.0e-20)
             variance_proportion.backward()
-            x_orig_grad = x_orig.grad
-            x_extra_grad = x_orig.grad * x_orig.grad.norm() / (x_orig_grad.norm() + 1.0e-20)
-        return x_grad + x_extra_grad, None, None, None, None, None, None
+        x_orig_grad = x_orig.grad
+        x_extra_grad = x_orig.grad * ctx.grad_scale * x_grad.norm() / (x_orig_grad.norm() + 1.0e-20)
+        return x_grad + x_extra_grad.detach(), None, None, None, None, None, None
 
 
 class BasicNorm(torch.nn.Module):
@@ -448,7 +383,9 @@ class ActivationBalancer(torch.nn.Module):
         self.max_var_per_eig = max_var_per_eig
         if max_var_per_eig > 0.0:
             with torch.no_grad():
-                direction = torch.randn(num_channels)
+                # arbitrary.. would use randn() but want to leave the rest of the model's
+                # random parameters unchanged for comparison
+                direction = torch.arange(num_channels).to(torch.float)
                 direction = direction / direction.norm()
             self.register_buffer('max_eig_direction', direction)
         else:
@@ -460,15 +397,16 @@ class ActivationBalancer(torch.nn.Module):
             return x
 
         if self.max_var_per_eig > 0:
-            x, new_direction = MaxEigLimiterFunction.apply(
-                x, self.max_eig_direction,
-                self.channel_dim,
-                0.1, # prob
-                True, # subtract_mean
-                self.max_var_per_eig,
-                self.max_factor,
-            )
-            self.max_eig_direction[:] = new_direction
+            with torch.cuda.amp.autocast(enabled=False):
+                x, new_direction = MaxEigLimiterFunction.apply(
+                    x, self.max_eig_direction,
+                    self.channel_dim,
+                    0.25, # prob
+                    True, # subtract_mean
+                    self.max_var_per_eig,
+                    self.max_factor,
+                )
+                self.max_eig_direction[:] = new_direction.detach()
 
         return ActivationBalancerFunction.apply(
             x,
@@ -628,17 +566,12 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
-def _test_get_max_eig_proportion():
-    x = torch.randn(100, 128)
-    d = torch.randn(128) * (128 ** -0.5)
-    get_max_eig_proportion(x, d, True)
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     _test_max_eig_limiter()
-    _test_get_max_eig_proportion()
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
