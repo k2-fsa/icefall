@@ -170,6 +170,18 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--pnnx",
+        type=str2bool,
+        default=False,
+        help="""True to save a model after applying torch.jit.trace for later
+        converting to PNNX. It will generate 3 files:
+         - encoder_jit_trace-pnnx.pt
+         - decoder_jit_trace-pnnx.pt
+         - joiner_jit_trace-pnnx.pt
+        """,
+    )
+
+    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
@@ -277,6 +289,10 @@ def main():
 
     logging.info(params)
 
+    if params.pnnx:
+        params.is_pnnx = params.pnnx
+        logging.info("For PNNX")
+
     logging.info("About to create model")
     model = get_transducer_model(params, enable_giga=False)
 
@@ -370,6 +386,18 @@ def main():
 
     model.to("cpu")
     model.eval()
+
+    if params.pnnx:
+        convert_scaled_to_non_scaled(model, inplace=True)
+        logging.info("Using torch.jit.trace()")
+        encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
+        export_encoder_model_jit_trace(model.encoder, encoder_filename)
+
+        decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
+        export_decoder_model_jit_trace(model.decoder, decoder_filename)
+
+        joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
+        export_joiner_model_jit_trace(model.joiner, joiner_filename)
 
     if params.jit_trace is True:
         convert_scaled_to_non_scaled(model, inplace=True)
