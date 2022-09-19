@@ -773,7 +773,7 @@ class RandomCombine(nn.Module):
         """
         logprobs = (
             torch.randn(num_frames, self.num_inputs, dtype=dtype, device=device)
-            * self.stddev
+            * self.stddev  # noqa
         )
         logprobs[:, -1] += self.final_log_weight
         return logprobs.softmax(dim=1)
