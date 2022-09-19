@@ -106,6 +106,11 @@ class RNN(EncoderInterface):
         Feedforward dimension (default=2048).
       rnn_hidden_size (int):
         Hidden dimension for lstm layers (default=1024).
+      grad_norm_threshold:
+        For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
       num_encoder_layers (int):
         Number of encoder layers (default=12).
       dropout (float):
@@ -125,6 +130,7 @@ class RNN(EncoderInterface):
         d_model: int = 512,
         dim_feedforward: int = 2048,
         rnn_hidden_size: int = 1024,
+        grad_norm_threshold: float = 10.0,
         num_encoder_layers: int = 12,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
@@ -152,6 +158,7 @@ class RNN(EncoderInterface):
             d_model=d_model,
             dim_feedforward=dim_feedforward,
             rnn_hidden_size=rnn_hidden_size,
+            grad_norm_threshold=grad_norm_threshold,
             dropout=dropout,
             layer_dropout=layer_dropout,
         )
@@ -265,6 +272,11 @@ class RNNEncoderLayer(nn.Module):
         The dimension of feedforward network model (default=2048).
       rnn_hidden_size:
         The hidden dimension of rnn layer.
+      grad_norm_threshold:
+        For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
       dropout:
         The dropout value (default=0.1).
       layer_dropout:
@@ -276,6 +288,7 @@ class RNNEncoderLayer(nn.Module):
         d_model: int,
         dim_feedforward: int,
         rnn_hidden_size: int,
+        grad_norm_threshold: float = 10.0,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
     ) -> None:
@@ -285,12 +298,14 @@ class RNNEncoderLayer(nn.Module):
         self.rnn_hidden_size = rnn_hidden_size
 
         assert rnn_hidden_size >= d_model, (rnn_hidden_size, d_model)
+
         self.lstm = ScaledLSTM(
             input_size=d_model,
             hidden_size=rnn_hidden_size,
             proj_size=d_model if rnn_hidden_size > d_model else 0,
             num_layers=1,
             dropout=0.0,
+            grad_norm_threshold=grad_norm_threshold,
         )
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -773,7 +788,7 @@ class RandomCombine(nn.Module):
         """
         logprobs = (
             torch.randn(num_frames, self.num_inputs, dtype=dtype, device=device)
-            * self.stddev  # noqa
+            * self.stddev
         )
         logprobs[:, -1] += self.final_log_weight
         return logprobs.softmax(dim=1)

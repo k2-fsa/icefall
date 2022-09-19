@@ -124,6 +124,16 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--grad-norm-threshold",
+        type=float,
+        default=10.0,
+        help="""For each sequence element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.""",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -414,6 +424,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
         rnn_hidden_size=params.rnn_hidden_size,
+        grad_norm_threshold=params.grad_norm_threshold,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
