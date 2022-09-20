@@ -398,8 +398,7 @@ def main():
 
         joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
         export_joiner_model_jit_trace(model.joiner, joiner_filename)
-
-    if params.jit_trace is True:
+    elif params.jit_trace is True:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
         encoder_filename = params.exp_dir / "encoder_jit_trace.pt"

@@ -56,9 +56,9 @@ log "Test exporting to pnnx format"
   --use-averaged-model 0 \
   --pnnx 1
 
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace.pt
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace.pt
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace.pt
+./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace-pnnx.pt
+./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
+./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace-pnnx.pt
 
 ./lstm_transducer_stateless2/ncnn-decode.py \
  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
@@ -151,6 +151,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --decoding-method $method \
       --epoch 999 \
       --avg 1 \
+      --use-averaged-model 0 \
       --max-duration $max_duration \
       --exp-dir lstm_transducer_stateless2/exp
   done

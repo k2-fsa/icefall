@@ -578,7 +578,7 @@ class Conv2dSubsampling(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
-        # ncnn support only batch size == 1
+        # ncnn supports only batch size == 1
         self.is_pnnx = is_pnnx
         self.conv_out_dim = self.out.weight.shape[1]
 
