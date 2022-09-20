@@ -198,7 +198,10 @@ class ConformerEncoderLayer(nn.Module):
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(
-            d_model, channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
+            d_model, channel_dim=-1,
+            min_positive=0.45, max_positive=0.55,
+            max_abs=6.0,
+            max_var_per_eig=0.1,
         )
 
         self.dropout = nn.Dropout(dropout)
