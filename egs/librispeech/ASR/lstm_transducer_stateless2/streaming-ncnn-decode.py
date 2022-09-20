@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# flake8: noqa
 #
 # Copyright      2022  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
 #
@@ -16,6 +17,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 from typing import List, Optional
 
@@ -26,35 +28,81 @@ import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 
-class Model:
-    def __init__(self, d):
-        self.init_encoder(d)
-        self.init_decoder(d)
-        self.init_joiner(d)
+def get_args():
+    parser = argparse.ArgumentParser()
 
-    def init_encoder(self, d):
+    parser.add_argument(
+        "--bpe-model-filename",
+        type=str,
+        help="Path to bpe.model",
+    )
+
+    parser.add_argument(
+        "--encoder-param-filename",
+        type=str,
+        help="Path to encoder.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--encoder-bin-filename",
+        type=str,
+        help="Path to encoder.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "--decoder-param-filename",
+        type=str,
+        help="Path to decoder.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--decoder-bin-filename",
+        type=str,
+        help="Path to decoder.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "--joiner-param-filename",
+        type=str,
+        help="Path to joiner.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--joiner-bin-filename",
+        type=str,
+        help="Path to joiner.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "sound_filename",
+        type=str,
+        help="Path to foo.wav",
+    )
+
+    return parser.parse_args()
+
+
+class Model:
+    def __init__(self, args):
+        self.init_encoder(args)
+        self.init_decoder(args)
+        self.init_joiner(args)
+
+    def init_encoder(self, args):
         encoder_net = ncnn.Net()
         encoder_net.opt.use_packing_layout = False
         encoder_net.opt.use_fp16_storage = False
-        encoder_param = (
-            d + "/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        encoder_model = (
-            d + "/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
-        )
+        encoder_param = args.encoder_param_filename
+        encoder_model = args.encoder_bin_filename
 
         encoder_net.load_param(encoder_param)
         encoder_net.load_model(encoder_model)
 
         self.encoder_net = encoder_net
 
-    def init_decoder(self, d):
-        decoder_param = (
-            d + "/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        decoder_model = (
-            d + "/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
-        )
+    def init_decoder(self, args):
+        decoder_param = args.decoder_param_filename
+        decoder_model = args.decoder_bin_filename
 
         decoder_net = ncnn.Net()
         decoder_net.opt.use_packing_layout = False
@@ -64,11 +112,9 @@ class Model:
 
         self.decoder_net = decoder_net
 
-    def init_joiner(self, d):
-        joiner_param = (
-            d + "/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        joiner_model = d + "/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
+    def init_joiner(self, args):
+        joiner_param = args.joiner_param_filename
+        joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
         joiner_net.opt.use_packing_layout = False
         joiner_net.load_param(joiner_param)
@@ -78,7 +124,7 @@ class Model:
 
     def run_encoder(self, x, states):
         with self.encoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
             x_lens = torch.tensor([x.size(0)], dtype=torch.float32)
             ex.input("in1", ncnn.Mat(x_lens.numpy()).clone())
@@ -109,7 +155,7 @@ class Model:
         assert decoder_input.dtype == torch.int32
 
         with self.decoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(decoder_input.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
@@ -118,7 +164,7 @@ class Model:
 
     def run_joiner(self, encoder_out, decoder_out):
         with self.joiner_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(encoder_out.numpy()).clone())
             ex.input("in1", ncnn.Mat(decoder_out.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
@@ -204,28 +250,27 @@ def greedy_search(
 
 
 def main():
-    model = Model("./lstm_transducer_stateless2/exp")
+    args = get_args()
+    logging.info(vars(args))
+
+    model = Model(args)
 
     sp = spm.SentencePieceProcessor()
-    sp.load("./data/lang_bpe_500/bpe.model")
+    sp.load(args.bpe_model_filename)
 
-    sound_files = [
-        "./test_wavs/1089-134686-0001.wav",
-        #  "./test_wavs/1221-135766-0001.wav",
-        #  "./test_wavs/1221-135766-0002.wav",
-    ]
-    assert len(sound_files) == 1, "ncnn only support batch_size==1"
+    sound_file = args.sound_filename
 
     sample_rate = 16000
 
     logging.info("Constructing Fbank computer")
     online_fbank = create_streaming_feature_extractor()
 
-    logging.info(f"Reading sound files: {sound_files}")
+    logging.info(f"Reading sound files: {sound_file}")
     wave_samples = read_sound_files(
-        filenames=sound_files,
+        filenames=[sound_file],
         expected_sample_rate=sample_rate,
     )[0]
+    logging.info(wave_samples.shape)
 
     num_encoder_layers = 12
     batch_size = 1
@@ -260,7 +305,6 @@ def main():
             sampling_rate=sample_rate,
             waveform=samples,
         )
-        print(num_processed_frames)
         while online_fbank.num_frames_ready - num_processed_frames >= segment:
             frames = []
             for i in range(segment):
@@ -295,8 +339,8 @@ def main():
 
     context_size = 2
 
-    print(sound_files[0])
-    print(sp.decode(hyp[context_size:]))
+    logging.info(sound_file)
+    logging.info(sp.decode(hyp[context_size:]))
 
 
 if __name__ == "__main__":

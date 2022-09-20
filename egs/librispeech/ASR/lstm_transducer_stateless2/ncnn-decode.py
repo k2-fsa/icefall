@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# flake8: noqa
 #
 # Copyright      2022  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
 #
@@ -15,7 +16,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+  ./lstm_transducer_stateless2/ncnn-decode.py \
+   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
+   --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
+   --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
+   --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
+   --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
+   --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
+   ./test_wavs/1089-134686-0001.wav
+"""
 
+import argparse
 import logging
 from typing import List
 
@@ -26,35 +40,81 @@ import torch
 import torchaudio
 
 
-class Model:
-    def __init__(self, d):
-        self.init_encoder(d)
-        self.init_decoder(d)
-        self.init_joiner(d)
+def get_args():
+    parser = argparse.ArgumentParser()
 
-    def init_encoder(self, d):
+    parser.add_argument(
+        "--bpe-model-filename",
+        type=str,
+        help="Path to bpe.model",
+    )
+
+    parser.add_argument(
+        "--encoder-param-filename",
+        type=str,
+        help="Path to encoder.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--encoder-bin-filename",
+        type=str,
+        help="Path to encoder.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "--decoder-param-filename",
+        type=str,
+        help="Path to decoder.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--decoder-bin-filename",
+        type=str,
+        help="Path to decoder.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "--joiner-param-filename",
+        type=str,
+        help="Path to joiner.ncnn.param",
+    )
+
+    parser.add_argument(
+        "--joiner-bin-filename",
+        type=str,
+        help="Path to joiner.ncnn.bin",
+    )
+
+    parser.add_argument(
+        "sound_filename",
+        type=str,
+        help="Path to foo.wav",
+    )
+
+    return parser.parse_args()
+
+
+class Model:
+    def __init__(self, args):
+        self.init_encoder(args)
+        self.init_decoder(args)
+        self.init_joiner(args)
+
+    def init_encoder(self, args):
         encoder_net = ncnn.Net()
         encoder_net.opt.use_packing_layout = False
         encoder_net.opt.use_fp16_storage = False
-        encoder_param = (
-            d + "/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        encoder_model = (
-            d + "/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
-        )
+        encoder_param = args.encoder_param_filename
+        encoder_model = args.encoder_bin_filename
 
         encoder_net.load_param(encoder_param)
         encoder_net.load_model(encoder_model)
 
         self.encoder_net = encoder_net
 
-    def init_decoder(self, d):
-        decoder_param = (
-            d + "/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        decoder_model = (
-            d + "/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
-        )
+    def init_decoder(self, args):
+        decoder_param = args.decoder_param_filename
+        decoder_model = args.decoder_bin_filename
 
         decoder_net = ncnn.Net()
         decoder_net.opt.use_packing_layout = False
@@ -64,11 +124,9 @@ class Model:
 
         self.decoder_net = decoder_net
 
-    def init_joiner(self, d):
-        joiner_param = (
-            d + "/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.param"
-        )
-        joiner_model = d + "/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin"
+    def init_joiner(self, args):
+        joiner_param = args.joiner_param_filename
+        joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
         joiner_net.opt.use_packing_layout = False
         joiner_net.load_param(joiner_param)
@@ -178,17 +236,15 @@ def greedy_search(model: Model, encoder_out: torch.Tensor):
 
 
 def main():
-    model = Model("./lstm_transducer_stateless2/exp")
+    args = get_args()
+    logging.info(vars(args))
+
+    model = Model(args)
 
     sp = spm.SentencePieceProcessor()
-    sp.load("./data/lang_bpe_500/bpe.model")
+    sp.load(args.bpe_model_filename)
 
-    sound_files = [
-        "./test_wavs/1089-134686-0001.wav",
-        #  "./test_wavs/1221-135766-0001.wav",
-        #  "./test_wavs/1221-135766-0002.wav",
-    ]
-    assert len(sound_files) == 1, "ncnn only support batch_size==1"
+    sound_file = args.sound_filename
 
     sample_rate = 16000
 
@@ -202,9 +258,9 @@ def main():
 
     fbank = kaldifeat.Fbank(opts)
 
-    logging.info(f"Reading sound files: {sound_files}")
+    logging.info(f"Reading sound files: {sound_file}")
     wave_samples = read_sound_files(
-        filenames=sound_files,
+        filenames=[sound_file],
         expected_sample_rate=sample_rate,
     )[0]
 
@@ -224,12 +280,9 @@ def main():
     )
 
     encoder_out, encoder_out_lens, hx, cx = model.run_encoder(features, states)
-    print(encoder_out.shape)
-    print(encoder_out_lens)
     hyp = greedy_search(model, encoder_out)
-    print(sound_files[0])
-    print(sp.decode(hyp))
-    print(hyp)
+    logging.info(sound_file)
+    logging.info(sp.decode(hyp))
 
 
 if __name__ == "__main__":
