@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Transducer &mdash; icefall 0.1 documentation</title>
+  <title>LSTM Transducer &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -46,7 +46,7 @@
 <li class="toctree-l2 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
 <li class="toctree-l3"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Transducer</a><ul>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">LSTM Transducer</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#which-model-to-use">Which model to use</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
@@ -81,7 +81,7 @@
       <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
           <li><a href="../index.html">Recipes</a> &raquo;</li>
           <li><a href="index.html">LibriSpeech</a> &raquo;</li>
-      <li>Transducer</li>
+      <li>LSTM Transducer</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/recipes/librispeech/lstm_pruned_stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
@@ -91,14 +91,14 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="transducer">
-<h1>Transducer<a class="headerlink" href="#transducer" title="Permalink to this heading"></a></h1>
+  <section id="lstm-transducer">
+<h1>LSTM Transducer<a class="headerlink" href="#lstm-transducer" title="Permalink to this heading"></a></h1>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>Please scroll down to the bottom of this page to find download links
 for pretrained models if you don’t want to train a model from scratch.</p>
 </div>
-<p>This tutorial shows you how to train a transducer model
+<p>This tutorial shows you how to train an LSTM transducer model
 with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset.</p>
 <p>We use pruned RNN-T to compute the loss.</p>
 <div class="admonition note">
@@ -109,9 +109,9 @@ with the <a class="reference external" href="https://www.openslr.org/12">LibriSp
 <p>The transducer model consists of 3 parts:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>Encoder, a.k.a, transcriber. We use an LSTM model</p></li>
-<li><p>Decoder, a.k.a, predictor. We use a model consisting of <code class="docutils literal notranslate"><span class="pre">nn.Embedding</span></code>
-and <code class="docutils literal notranslate"><span class="pre">nn.Conv1d</span></code></p></li>
+<li><p>Encoder, a.k.a, the transcription network. We use an LSTM model</p></li>
+<li><p>Decoder, a.k.a, the prediction network. We use a stateless model consisting of
+<code class="docutils literal notranslate"><span class="pre">nn.Embedding</span></code> and <code class="docutils literal notranslate"><span class="pre">nn.Conv1d</span></code></p></li>
 <li><p>Joiner, a.k.a, the joint network.</p></li>
 </ul>
 </div></blockquote>
@@ -159,7 +159,11 @@ $ ./prepare_giga_speech.sh
 </div>
 <p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
 All you need to do is to run it.</p>
-<p>The data preparation contains several stages, you can use the following two
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We encourage you to read <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code>.</p>
+</div>
+<p>The data preparation contains several stages. You can use the following two
 options:</p>
 <blockquote>
 <div><ul class="simple">
@@ -344,7 +348,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 </div></blockquote>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tensorboard/</span></code></p>
-<p>This folder contains TensorBoard logs. Training loss, validation loss, learning
+<p>This folder contains tensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> lstm_transducer_stateless2/exp/tensorboard
@@ -368,7 +372,7 @@ $ tensorboard dev upload --logdir . --description <span class="s2">&quot;LSTM tr
 </pre></div>
 </div>
 </div></blockquote>
-<p>Note there is a URL in the above output, click it and you will see
+<p>Note there is a URL in the above output. Click it and you will see
 the following screenshot:</p>
 <blockquote>
 <div><figure class="align-center" id="id2">
@@ -498,7 +502,7 @@ $ ./lstm_transducer_stateless2/decode.py --help
 </section>
 <section id="export-models">
 <h2>Export models<a class="headerlink" href="#export-models" title="Permalink to this heading"></a></h2>
-<p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/export.py">lstm_transducer_stateless2/export.py</a> supports to export checkpoints from <code class="docutils literal notranslate"><span class="pre">lstm_transducer_stateless2/exp</span></code> in the following ways.</p>
+<p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/export.py">lstm_transducer_stateless2/export.py</a> supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">lstm_transducer_stateless2/exp</span></code> in the following ways.</p>
 <section id="export-model-state-dict">
 <h3>Export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code><a class="headerlink" href="#export-model-state-dict" title="Permalink to this heading"></a></h3>
 <p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">lstm_transducer_stateless2/train.py</span></code> also include
@@ -527,7 +531,7 @@ you can run:</p>
 ln -s pretrained epoch-9999.pt
 </pre></div>
 </div>
-<p>And then pass <cite>–epoch 9999 –avg 1 –use-averaged-model 0</cite> to
+<p>And then pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">9999</span> <span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code> to
 <code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/decode.py</span></code>.</p>
 </div>
 <p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/pretrained.py</span></code>, you
@@ -571,6 +575,11 @@ can run:</p>
   /path/to/foo.wav <span class="se">\</span>
   /path/to/bar.wav
 </pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Please see <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html">https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html</a>
+for how to use the exported models in <code class="docutils literal notranslate"><span class="pre">sherpa</span></code>.</p>
 </div>
 </section>
 <section id="export-model-for-ncnn">
@@ -639,25 +648,33 @@ for <code class="docutils literal notranslate"><span class="pre">pnnx</span></co
 <li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin</span></code></p></li>
 </ul>
 </div></blockquote>
-<p>To use the above generate files, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>
+<p>To use the above generated files, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/ncnn-decode.py <span class="se">\</span>
+ --bpe-model-filename ./data/lang_bpe_500/bpe.model <span class="se">\</span>
+ --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ /path/to/foo.wav
 </pre></div>
 </div>
-<dl class="simple">
-<dt>./lstm_transducer_stateless2/ncnn-decode.py </dt><dd><p>–bpe-model-filename ./data/lang_bpe_500/bpe.model –encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param –encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin –decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param –decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin –joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param –joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin /path/to/foo.wav</p>
-</dd>
-</dl>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/streaming-ncnn-decode.py <span class="se">\</span>
+ --bpe-model-filename ./data/lang_bpe_500/bpe.model <span class="se">\</span>
+ --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param <span class="se">\</span>
+ --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin <span class="se">\</span>
+ /path/to/foo.wav
 </pre></div>
 </div>
-<dl class="simple">
-<dt>./lstm_transducer_stateless2/streaming-ncnn-decode.py </dt><dd><p>–bpe-model-filename ./data/lang_bpe_500/bpe.model –encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param –encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin –decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param –decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin –joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param –joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin /path/to/foo.wav</p>
-</dd>
-</dl>
 <p>To use the above generated files in C++, please see
 <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">https://github.com/k2-fsa/sherpa-ncnn</a></p>
-<p>It is able to generate a static linked library that can be run on Linux, Windows,
-macOS, Raspberry Pi, etc.</p>
+<p>It is able to generate a static linked executable that can be run on Linux, Windows,
+macOS, Raspberry Pi, etc, without external dependencies.</p>
 </section>
 </section>
 <section id="download-pretrained-models">
