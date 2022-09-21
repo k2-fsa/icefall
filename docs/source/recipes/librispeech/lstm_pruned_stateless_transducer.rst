@@ -1,5 +1,5 @@
-Transducer
-==========
+LSTM Transducer
+===============
 
 .. hint::
 
@@ -7,7 +7,7 @@ Transducer
    for pretrained models if you don't want to train a model from scratch.
 
 
-This tutorial shows you how to train a transducer model
+This tutorial shows you how to train an LSTM transducer model
 with the `LibriSpeech <https://www.openslr.org/12>`_ dataset.
 
 We use pruned RNN-T to compute the loss.
@@ -20,9 +20,9 @@ We use pruned RNN-T to compute the loss.
 
 The transducer model consists of 3 parts:
 
-  - Encoder, a.k.a, transcriber. We use an LSTM model
-  - Decoder, a.k.a, predictor. We use a model consisting of ``nn.Embedding``
-    and ``nn.Conv1d``
+  - Encoder, a.k.a, the transcription network. We use an LSTM model
+  - Decoder, a.k.a, the prediction network. We use a stateless model consisting of
+    ``nn.Embedding`` and ``nn.Conv1d``
   - Joiner, a.k.a, the joint network.
 
 .. caution::
@@ -74,7 +74,11 @@ Data preparation
 The script ``./prepare.sh`` handles the data preparation for you, **automagically**.
 All you need to do is to run it.
 
-The data preparation contains several stages, you can use the following two
+.. note::
+
+   We encourage you to read ``./prepare.sh``.
+
+The data preparation contains several stages. You can use the following two
 options:
 
   - ``--stage``
@@ -263,7 +267,7 @@ You will find the following files in that directory:
 
   - ``tensorboard/``
 
-    This folder contains TensorBoard logs. Training loss, validation loss, learning
+    This folder contains tensorBoard logs. Training loss, validation loss, learning
     rate, etc, are recorded in these logs. You can visualize them by:
 
       .. code-block:: bash
@@ -287,7 +291,7 @@ You will find the following files in that directory:
         [2022-09-20T15:53:02] Total uploaded: 210171 scalars, 0 tensors, 0 binary objects
         Listening for new data in logdir...
 
-    Note there is a URL in the above output, click it and you will see
+    Note there is a URL in the above output. Click it and you will see
     the following screenshot:
 
       .. figure:: images/librispeech-lstm-transducer-tensorboard-log.png
@@ -422,7 +426,7 @@ The following shows two examples:
 Export models
 -------------
 
-`lstm_transducer_stateless2/export.py <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/export.py>`_ supports to export checkpoints from ``lstm_transducer_stateless2/exp`` in the following ways.
+`lstm_transducer_stateless2/export.py <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/export.py>`_ supports exporting checkpoints from ``lstm_transducer_stateless2/exp`` in the following ways.
 
 Export ``model.state_dict()``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -458,7 +462,7 @@ It will generate a file ``./lstm_transducer_stateless2/exp/pretrained.pt``.
       cd lstm_transducer_stateless2/exp
       ln -s pretrained epoch-9999.pt
 
-   And then pass `--epoch 9999 --avg 1 --use-averaged-model 0` to
+   And then pass ``--epoch 9999 --avg 1 --use-averaged-model 0`` to
    ``./lstm_transducer_stateless2/decode.py``.
 
 To use the exported model with ``./lstm_transducer_stateless2/pretrained.py``, you
@@ -505,6 +509,11 @@ To use the generated files with ``./lstm_transducer_stateless2/jit_pretrained``:
     --joiner-model-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace.pt \
     /path/to/foo.wav \
     /path/to/bar.wav
+
+.. hint::
+
+   Please see `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html>`_
+   for how to use the exported models in ``sherpa``.
 
 Export model for ncnn
 ~~~~~~~~~~~~~~~~~~~~~
@@ -576,37 +585,37 @@ It will generate the following files:
   - ``./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param``
   - ``./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin``
 
-To use the above generate files, run:
+To use the above generated files, run:
 
 .. code-block:: bash
 
-./lstm_transducer_stateless2/ncnn-decode.py \
- --bpe-model-filename ./data/lang_bpe_500/bpe.model \
- --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
- --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
- --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
- --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin \
- --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param \
- --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin \
- /path/to/foo.wav
+  ./lstm_transducer_stateless2/ncnn-decode.py \
+   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
+   --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
+   --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
+   --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin \
+   --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param \
+   --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin \
+   /path/to/foo.wav
 
 .. code-block:: bash
 
-./lstm_transducer_stateless2/streaming-ncnn-decode.py \
- --bpe-model-filename ./data/lang_bpe_500/bpe.model \
- --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
- --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
- --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
- --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin \
- --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param \
- --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin \
- /path/to/foo.wav
+  ./lstm_transducer_stateless2/streaming-ncnn-decode.py \
+   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
+   --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
+   --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
+   --decoder-bin-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin \
+   --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param \
+   --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin \
+   /path/to/foo.wav
 
 To use the above generated files in C++, please see
 `<https://github.com/k2-fsa/sherpa-ncnn>`_
 
-It is able to generate a static linked library that can be run on Linux, Windows,
-macOS, Raspberry Pi, etc.
+It is able to generate a static linked executable that can be run on Linux, Windows,
+macOS, Raspberry Pi, etc, without external dependencies.
 
 Download pretrained models
 --------------------------
