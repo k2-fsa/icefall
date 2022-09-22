@@ -358,6 +358,8 @@ class ConformerEncoder(nn.Module):
 
         output = self.combiner(outputs)
 
+        output = output + 0.0 * attn_scores.sum()  # just ensure attn_scores is used in backprop
+
         return output
 
 
