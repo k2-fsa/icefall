@@ -254,7 +254,7 @@ class ScaledAdam(Optimizer):
             if ans < 1.0:
                 state["num_clipped"] += 1
             if ans < 0.1:
-                logging.warn("Scaling gradients by {ans}, model_norm_threshold={model_norm_threshold}")
+                logging.warn(f"Scaling gradients by {ans}, model_norm_threshold={model_norm_threshold}")
             return ans
 
 

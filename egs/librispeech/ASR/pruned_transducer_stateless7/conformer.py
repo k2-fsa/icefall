@@ -173,7 +173,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ActivationBalancer(channel_dim=-1, max_abs=10.0),
+            ActivationBalancer(dim_feedforward,
+                               channel_dim=-1, max_abs=10.0),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
@@ -182,7 +183,8 @@ class ConformerEncoderLayer(nn.Module):
 
         self.feed_forward_macaron = nn.Sequential(
             nn.Linear(d_model, dim_feedforward),
-            ActivationBalancer(channel_dim=-1, max_abs=10.0),
+            ActivationBalancer(dim_feedforward,
+                               channel_dim=-1, max_abs=10.0),
             DoubleSwish(),
             nn.Dropout(dropout),
             ScaledLinear(dim_feedforward, d_model,
@@ -196,7 +198,10 @@ class ConformerEncoderLayer(nn.Module):
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(
-            channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
+            d_model, channel_dim=-1,
+            min_positive=0.45, max_positive=0.55,
+            max_abs=6.0,
+            max_var_per_eig=0.2,
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -247,8 +252,6 @@ class ConformerEncoderLayer(nn.Module):
 
         # multi-headed self-attention module
         src_att = self.self_attn(
-            src,
-            src,
             src,
             pos_emb=pos_emb,
             attn_mask=src_mask,
@@ -464,8 +467,12 @@ class RelPositionMultiheadAttention(nn.Module):
         ), "embed_dim must be divisible by num_heads"
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=True)
-        self.in_balancer = ActivationBalancer(channel_dim=-1, max_abs=5.0)
-        self.proj_balancer = ActivationBalancer(channel_dim=-1, max_abs=10.0)
+        self.in_balancer = ActivationBalancer(3 * embed_dim,
+                                              channel_dim=-1, max_abs=5.0,
+                                              max_var_per_eig=0.2)
+        self.proj_balancer = ActivationBalancer(embed_dim,
+                                                channel_dim=-1, max_abs=10.0,
+                                                min_positive=0.0, max_positive=1.0)
         self.out_proj = ScaledLinear(
             embed_dim, embed_dim, bias=True, initial_scale=0.5
         )
@@ -484,9 +491,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
     def forward(
         self,
-        query: Tensor,
-        key: Tensor,
-        value: Tensor,
+        x: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
         need_weights: bool = True,
@@ -494,7 +499,7 @@ class RelPositionMultiheadAttention(nn.Module):
     ) -> Tuple[Tensor, Optional[Tensor]]:
         r"""
         Args:
-            query, key, value: map a query and a set of key-value pairs to an output.
+            x: input to be projected to query, key, value
             pos_emb: Positional embedding tensor
             key_padding_mask: if provided, specified padding elements in the key will
                 be ignored by the attention. When given a binary mask and a value is True,
@@ -507,11 +512,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         Shape:
             - Inputs:
-            - query: :math:`(L, N, E)` where L is the target sequence length, N is the batch size, E is
-            the embedding dimension.
-            - key: :math:`(S, N, E)`, where S is the source sequence length, N is the batch size, E is
-            the embedding dimension.
-            - value: :math:`(S, N, E)` where S is the source sequence length, N is the batch size, E is
+            - x: :math:`(L, N, E)` where L is the target sequence length, N is the batch size, E is
             the embedding dimension.
             - pos_emb: :math:`(N, 2*L-1, E)` where L is the target sequence length, N is the batch size, E is
             the embedding dimension.
@@ -534,9 +535,7 @@ class RelPositionMultiheadAttention(nn.Module):
             L is the target sequence length, S is the source sequence length.
         """
         return self.multi_head_attention_forward(
-            query,
-            key,
-            value,
+            self.in_balancer(self.in_proj(x)),
             pos_emb,
             self.embed_dim,
             self.num_heads,
@@ -578,11 +577,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
     def multi_head_attention_forward(
         self,
-        query: Tensor,
-        key: Tensor,
-        value: Tensor,
+        x: Tensor,
         pos_emb: Tensor,
-        embed_dim_to_check: int,
+        embed_dim: int,
         num_heads: int,
         in_proj_weight: Tensor,
         in_proj_bias: Tensor,
@@ -598,7 +595,7 @@ class RelPositionMultiheadAttention(nn.Module):
         Args:
             query, key, value: map a query and a set of key-value pairs to an output.
             pos_emb: Positional embedding tensor
-            embed_dim_to_check: total dimension of the model.
+            embed_dim: total dimension of the model.
             num_heads: parallel attention heads.
             in_proj_weight, in_proj_bias: input projection weight and bias.
             dropout_p: probability of an element to be zeroed.
@@ -640,9 +637,7 @@ class RelPositionMultiheadAttention(nn.Module):
             L is the target sequence length, S is the source sequence length.
         """
 
-        tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == embed_dim_to_check
-        assert key.size(0) == value.size(0) and key.size(1) == value.size(1)
+        tgt_len, bsz, _ = x.size()
 
         head_dim = embed_dim // num_heads
         assert (
@@ -651,62 +646,10 @@ class RelPositionMultiheadAttention(nn.Module):
 
         scaling = float(head_dim) ** -0.5
 
-        def linear(x, w, b):
-            return self.in_balancer(nn.functional.linear(x, w, b))
 
-        if torch.equal(query, key) and torch.equal(key, value):
-            # self-attention
-            q, k, v = linear(
-                query, in_proj_weight, in_proj_bias
-            ).chunk(3, dim=-1)
+        # self-attention
+        q, k, v = x.chunk(3, dim=-1)
 
-        elif torch.equal(key, value):
-            # encoder-decoder attention
-            # This is inline in_proj function with in_proj_weight and in_proj_bias
-            _b = in_proj_bias
-            _start = 0
-            _end = embed_dim
-            _w = in_proj_weight[_start:_end, :]
-            if _b is not None:
-                _b = _b[_start:_end]
-            q = linear(query, _w, _b)
-
-            # This is inline in_proj function with in_proj_weight and in_proj_bias
-            _b = in_proj_bias
-            _start = embed_dim
-            _end = None
-            _w = in_proj_weight[_start:, :]
-            if _b is not None:
-                _b = _b[_start:]
-            k, v = linear(key, _w, _b).chunk(2, dim=-1)
-
-        else:
-            # This is inline in_proj function with in_proj_weight and in_proj_bias
-            _b = in_proj_bias
-            _start = 0
-            _end = embed_dim
-            _w = in_proj_weight[_start:_end, :]
-            if _b is not None:
-                _b = _b[_start:_end]
-            q = linear(query, _w, _b)
-
-            # This is inline in_proj function with in_proj_weight and in_proj_bias
-            _b = in_proj_bias
-            _start = embed_dim
-            _end = embed_dim * 2
-            _w = in_proj_weight[_start:_end, :]
-            if _b is not None:
-                _b = _b[_start:_end]
-            k = linear(key, _w, _b)
-
-            # This is inline in_proj function with in_proj_weight and in_proj_bias
-            _b = in_proj_bias
-            _start = embed_dim * 2
-            _end = None
-            _w = in_proj_weight[_start:, :]
-            if _b is not None:
-                _b = _b[_start:]
-            v = linear(value, _w, _b)
 
         if attn_mask is not None:
             assert (
@@ -726,15 +669,15 @@ class RelPositionMultiheadAttention(nn.Module):
 
             if attn_mask.dim() == 2:
                 attn_mask = attn_mask.unsqueeze(0)
-                if list(attn_mask.size()) != [1, query.size(0), key.size(0)]:
+                if list(attn_mask.size()) != [1, tgt_len, tgt_len]:
                     raise RuntimeError(
                         "The size of the 2D attn_mask is not correct."
                     )
             elif attn_mask.dim() == 3:
                 if list(attn_mask.size()) != [
                     bsz * num_heads,
-                    query.size(0),
-                    key.size(0),
+                    tgt_len,
+                    tgt_len,
                 ]:
                     raise RuntimeError(
                         "The size of the 3D attn_mask is not correct."
@@ -900,6 +843,7 @@ class ConvolutionModule(nn.Module):
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
         self.deriv_balancer1 = ActivationBalancer(
+            2 * channels,
             channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
         )
 
@@ -914,7 +858,7 @@ class ConvolutionModule(nn.Module):
         )
 
         self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
+            channels, channel_dim=1, min_positive=0.05, max_positive=1.0
         )
 
         self.activation = DoubleSwish()
@@ -1000,7 +944,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=1,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer1_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer1_channels,
@@ -1008,7 +953,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=2,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer2_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer2_channels,
@@ -1016,7 +962,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=2,
             ),
-            ActivationBalancer(channel_dim=1),
+            ActivationBalancer(layer3_channels,
+                               channel_dim=1),
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2 - 1) // 2)
@@ -1027,6 +974,7 @@ class Conv2dSubsampling(nn.Module):
         self.out_norm = BasicNorm(out_channels, learn_eps=False)
         # constrain median of output to be close to zero.
         self.out_balancer = ActivationBalancer(
+            out_channels,
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
