@@ -127,7 +127,7 @@ class ScaledAdam(Optimizer):
 
                 # Perform optimization step
                 grad = p.grad
-                if grad.is_sparse:
+                if grad is not None and grad.is_sparse:
                     raise RuntimeError(
                         "ScaledAdam optimizer does not support sparse gradients"
                     )
@@ -138,6 +138,8 @@ class ScaledAdam(Optimizer):
                 if i == 0:
                     clipping_scale = self._get_clipping_scale(group, p, state)
 
+                if grad is None:
+                    continue
                 self._step_one_batch(group, p, state, clipping_scale)
 
 
@@ -211,6 +213,8 @@ class ScaledAdam(Optimizer):
         for p in group["params"]:
             state = self.state[p]
             grad = p.grad
+            if grad is None:
+                continue
             if grad.is_sparse:
                 raise RuntimeError(
                     "ScaledAdam optimizer does not support sparse gradients"

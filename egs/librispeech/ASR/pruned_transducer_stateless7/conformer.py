@@ -563,9 +563,14 @@ class RelPositionMultiheadAttention(nn.Module):
             need_weights=need_weights,
             attn_mask=attn_mask,
         )
-        attn_scores_out = torch.matmul(scores, self.attn_scores_proj_out)
         if attn_scores_in is not None:
+            attn_scores_out = torch.matmul(scores, self.attn_scores_proj_out)
             attn_scores_out = attn_scores_out + attn_scores_in
+        else:
+            # Here, add self.attn_scores_proj_in in order to make sure it has
+            # a grad.
+            attn_scores_out = torch.matmul(scores, self.attn_scores_proj_out +
+                                           self.attn_scores_proj_in)
         return x, weights, attn_scores_out
 
     def rel_shift(self, x: Tensor) -> Tensor:
