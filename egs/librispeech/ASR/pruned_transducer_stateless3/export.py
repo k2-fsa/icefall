@@ -116,15 +116,19 @@ import argparse
 import logging
 from pathlib import Path
 
-import onnx
 import onnx_graphsurgeon as gs
+import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.utils import str2bool
 
 
