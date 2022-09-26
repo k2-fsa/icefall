@@ -25,12 +25,15 @@ from typing import List, Optional, Tuple
 import k2
 import numpy as np
 import sentencepiece as spm
+from tokenizer import PyonmttokProcessor
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+
+from asr_datamodule import UbiqusAsrDataModule
 from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 from emformer import LOG_EPSILON, stack_states, unstack_states
 from streaming_feature_extractor import FeatureExtractionStream
+
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -531,6 +534,7 @@ def process_features(
       sp:
         The BPE model.
     """
+    # print(features.shape)
     assert features.ndim == 3
     assert features.size(0) == len(streams)
     batch_size = features.size(0)
@@ -553,6 +557,7 @@ def process_features(
         states = stack_states(state_list)
 
     (encoder_out, encoder_out_lens, states,) = model.encoder.streaming_forward(
+        # features.squeeze(-1),
         features,
         feature_lens,
         states,
@@ -645,7 +650,7 @@ def decode_batch(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    UbiqusAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -664,7 +669,8 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
+    # sp = spm.SentencePieceProcessor()
+    sp = PyonmttokProcessor()
     sp.load(params.bpe_model)
 
     # <blk> is defined in local/train_bpe_model.py
@@ -702,7 +708,7 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = UbiqusAsrDataModule(args)
 
     test_clean_cuts = librispeech.test_clean_cuts()
 

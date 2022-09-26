@@ -223,7 +223,8 @@ class UbiqusAsrDataModule:
             # different utterances.
             transforms = [
                 CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                    duration_factor=self.args.duration_factor,
+                    gap=self.args.gap,
                 )
             ] + transforms
 
@@ -327,7 +328,8 @@ class UbiqusAsrDataModule:
         if self.args.concatenate_cuts:
             transforms = [
                 CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                    duration_factor=self.args.duration_factor,
+                    gap=self.args.gap,
                 )
             ] + transforms
 

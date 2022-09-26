@@ -22,11 +22,12 @@ Usage:
 cd icefall
 
 pip install -r requirements.txt
-pip install pyonmttok
+pip install pyonmttok websockets
+# pip install protobuf==3.20.1
 
 cd egs/ubiqus/ASR
 
-export CUDA_VISIBLE_DEVICES="1"
+export CUDA_VISIBLE_DEVICES="0"
 
 git config --global --add safe.directory /workspace/icefall
 
@@ -218,7 +219,7 @@ def get_parser():
     parser.add_argument(
         "--lr-factor",
         type=float,
-        default=5.0,
+        default=0.5,
         help="The lr_factor for Noam optimizer",
     )
 
@@ -551,6 +552,9 @@ def compute_loss(
     print(feature.shape)
     # feature = batch["inputs"]
     # at entry, Emformerfeature is (N, T, C)
+    print(batch.keys())
+    print(batch["supervisions"])
+    # raise ValueError
     assert feature.ndim == 3
     feature = feature.to(device)
 
@@ -562,7 +566,7 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
-
+    print(y)
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,

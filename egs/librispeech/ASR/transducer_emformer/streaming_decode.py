@@ -555,6 +555,7 @@ def process_features(
         state_list = [stream.states for stream in streams]
         states = stack_states(state_list)
 
+    print(features.shape, feature_lens)
     (encoder_out, encoder_out_lens, states,) = model.encoder.streaming_forward(
         features,
         feature_lens,

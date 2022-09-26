@@ -158,7 +158,6 @@ class Emformer(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
-        print(num_features, d_model, output_dim)
         if vgg_frontend:
             self.encoder_embed = VggSubsampling(num_features, d_model)
         else:

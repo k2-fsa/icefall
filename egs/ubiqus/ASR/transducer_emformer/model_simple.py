@@ -23,13 +23,9 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
+from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
-
-assert hasattr(torchaudio.functional, "rnnt_loss"), (
-    f"Current torchaudio version: {torchaudio.__version__}\n"
-    "Please install a version >= 0.10.0"
-)
 
 
 class Transducer(nn.Module):
@@ -39,7 +35,7 @@ class Transducer(nn.Module):
 
     def __init__(
         self,
-        encoder: nn.Module,
+        encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
     ):
@@ -60,6 +56,9 @@ class Transducer(nn.Module):
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
+        assert isinstance(encoder, EncoderInterface)
+        assert hasattr(decoder, "blank_id")
+
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
@@ -100,15 +99,22 @@ class Transducer(nn.Module):
         sos_y = add_sos(y, sos_id=blank_id)
 
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+        sos_y_padded = sos_y_padded.to(torch.int64)
 
-        decoder_out, _ = self.decoder(sos_y_padded)
+        decoder_out = self.decoder(sos_y_padded)
 
         logits = self.joiner(encoder_out, decoder_out)
 
         # rnnt_loss requires 0 padded targets
+        # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
 
+        assert hasattr(torchaudio.functional, "rnnt_loss"), (
+            f"Current torchaudio version: {torchaudio.__version__}\n"
+            "Please install a version >= 0.10.0"
+        )
         print(logits.shape)
+        # raise ValueError
         print(
             [
                 1
@@ -118,8 +124,11 @@ class Transducer(nn.Module):
                 for i in range(logits.size(2))
             ]
         )
+        # print(1 + torch.argmax(logits[-1, :, 1:], dim=-1))
+        # print(torch.argmax(logits[-1, :10, :], dim=-1))
         print(y_padded.shape)
         print(y_padded[-1, :])
+        print(x_lens, y_lens)
 
         loss = torchaudio.functional.rnnt_loss(
             logits=logits,
@@ -127,7 +136,7 @@ class Transducer(nn.Module):
             logit_lengths=x_lens,
             target_lengths=y_lens,
             blank=blank_id,
-            reduction="mean",
+            reduction="sum",
         )
         print(loss)
         print("end")

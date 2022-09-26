@@ -19,15 +19,31 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+cd icefall
 
-./transducer_emformer/train.py \
-  --world-size 4 \
+pip install -r requirements.txt
+pip install pyonmttok websockets
+
+cd egs/ubiqus/ASR
+
+export CUDA_VISIBLE_DEVICES="1"
+
+git config --global --add safe.directory /workspace/icefall
+
+./transducer_emformer/train_raw.py \
+  --world-size 1 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --exp-dir transducer_emformer/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --exp-dir transducer_emformer/exp_raw \
+  --on-the-fly-feats False \
+  --enable-spec-aug False \
+  --max-duration 50
+
+./transducer_emformer/train_raw_simple.py   --world-size 1   --num-epochs 30   --start-epoch 0   --exp-dir transducer_emformer/exp_t_yn_frr_s   --lr-factor 5   --max-duration 10 --on-the-fly-feats False   --enable-spec-aug False
+
+tolerance
+add <blk> to vocab
+squeeze + ontheflyfeature + no specaug
 """
 
 
@@ -40,17 +56,18 @@ from typing import Any, Dict, Optional, Tuple
 
 import k2
 import sentencepiece as spm
+from tokenizer import PyonmttokProcessor
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import UbiqusAsrDataModule
 from decoder import Decoder
-from emformer import Emformer
-from joiner import Joiner
+from emformer_raw import EmformerRaw
+from joiner_simple import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
+from model_simple import Transducer
 from noam import Noam
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -84,21 +101,21 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--nhead",
         type=int,
-        default=8,
+        default=4,
         help="Number of attention heads for the Emformer",
     )
 
     parser.add_argument(
         "--dim-feedforward",
         type=int,
-        default=2048,
+        default=1024,
         help="Feed-forward dimension for the Emformer",
     )
 
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
-        default=12,
+        default=8,
         help="Number of encoder layers for the Emformer",
     )
 
@@ -203,7 +220,7 @@ def get_parser():
     parser.add_argument(
         "--lr-factor",
         type=float,
-        default=5.0,
+        default=0.5,
         help="The lr_factor for Noam optimizer",
     )
 
@@ -272,7 +289,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=20,
+        default=1,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -356,7 +373,7 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    encoder = Emformer(
+    encoder = EmformerRaw(
         num_features=params.feature_dim,
         output_dim=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
@@ -387,7 +404,6 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
         input_dim=params.vocab_size,
-        inner_dim=params.embedding_dim,
         output_dim=params.vocab_size,
     )
     return joiner
@@ -531,28 +547,28 @@ def compute_loss(
         disables autograd.
     """
     device = model.device
-    feature = batch["inputs"]
-    # at entry, feature is (N, T, C)
+    feature = torch.unsqueeze(batch["inputs"], dim=-1)
+    # feature = batch["inputs"]
+    # print(feature.shape)
+    # feature = batch["inputs"]
+    # at entry, Emformerfeature is (N, T, C)
+    # print(batch.keys())
+    # print(batch["supervisions"])
+    # raise ValueError
     assert feature.ndim == 3
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)
+    # print(batch["supervisions"].keys())
+    feature_lens = supervisions["num_samples"].to(device)
+    # feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
-
+    # print(y)
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
-            x=feature,
-            x_lens=feature_lens,
-            y=y,
-            prune_range=params.prune_range,
-            am_scale=params.am_scale,
-            lm_scale=params.lm_scale,
-        )
-        loss = params.simple_loss_scale * simple_loss + pruned_loss
+        loss = model(x=feature, x_lens=feature_lens, y=y)
 
     assert loss.requires_grad == is_training
 
@@ -565,8 +581,8 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["simple_loss"] = simple_loss.detach().cpu().item()
-    info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    # info["simple_loss"] = simple_loss.detach().cpu().item()
+    # info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
@@ -788,9 +804,9 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 800
-        params.warm_step = 20000
+    # if params.full_libri is False:
+    #     params.valid_interval = 800
+    #     params.warm_step = 20000
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -809,10 +825,11 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
+    # sp = spm.SentencePieceProcessor()
+    sp = PyonmttokProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -844,12 +861,9 @@ def run(rank, world_size, args):
         logging.info("Loading optimizer state dict")
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    ubiqus = UbiqusAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
-    if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+    train_cuts = ubiqus.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -866,7 +880,7 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    num_left = len(train_cuts.to_eager())
+    num_left = len(train_cuts)
     num_removed = num_in_total - num_left
     removed_percent = num_removed / num_in_total * 100
 
@@ -881,13 +895,12 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = ubiqus.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_cuts = ubiqus.dev_cuts()
+    valid_dl = ubiqus.valid_dataloaders(valid_cuts)
 
     scan_pessimistic_batches_for_oom(
         model=model,
@@ -981,7 +994,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    UbiqusAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

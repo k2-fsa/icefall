@@ -217,7 +217,7 @@ def get_parser():
     parser.add_argument(
         "--lr-factor",
         type=float,
-        default=5.0,
+        default=0.5,
         help="The lr_factor for Noam optimizer",
     )
 
@@ -446,8 +446,10 @@ def load_checkpoint_if_available(
     Returns:
       Return a dict containing previously saved training info.
     """
+    print(params.start_batch)
     if params.start_batch > 0:
         filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
+        print("loading")
     elif params.start_epoch > 0:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
@@ -547,6 +549,10 @@ def compute_loss(
     device = model.device
     # feature = torch.unsqueeze(batch["inputs"], dim=-1)
     feature = batch["inputs"]
+    print(feature.shape)
+    print(batch.keys())
+    print(batch["supervisions"])
+    raise ValueError
     # at entry, Emformerfeature is (N, T, C)
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -559,7 +565,7 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
-
+    print(y)
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
@@ -703,13 +709,16 @@ def train_one_epoch(
 
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
+    print("before")
     for batch_idx, batch in enumerate(train_dl):
+        print(batch_idx)
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+        print(batch_size)
 
         loss, loss_info = compute_loss(
             params=params,
@@ -784,7 +793,8 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    print(tot_loss["loss"], tot_loss["frames"])
+    loss_value = tot_loss["loss"] / (tot_loss["frames"] or 1)
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
@@ -829,6 +839,7 @@ def run(rank, world_size, args):
     # sp = spm.SentencePieceProcessor()
     sp = PyonmttokProcessor()
     sp.load(params.bpe_model)
+    print(sp.vocab[3399])
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")

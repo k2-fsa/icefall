@@ -100,6 +100,7 @@ class FeatureExtractionStream(object):
             sampling_rate=sampling_rate,
             waveform=waveform,
         )
+        self.waveform = waveform
         self._fetch_frames()
 
     def input_finished(self) -> None:
@@ -117,8 +118,14 @@ class FeatureExtractionStream(object):
 
     def _fetch_frames(self) -> None:
         """Fetch frames from the feature extractor"""
+        # self.feature_frames = [
+        #     self.waveform[i : i + 1].unsqueeze(-1)
+        #     for i in range(self.waveform.size(0))
+        # ]
+        # return
         while self.num_fetched_frames < self.feature_extractor.num_frames_ready:
             frame = self.feature_extractor.get_frame(self.num_fetched_frames)
+            # print(frame.shape)
             self.feature_frames.append(frame)
             self.num_fetched_frames += 1
 

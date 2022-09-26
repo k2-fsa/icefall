@@ -261,6 +261,9 @@ class Emformer(EncoderInterface):
             warnings.simplefilter("ignore")
             # Caution: We assume the subsampling factor is 4!
             x_lens = ((x_lens - 1) // 2 - 1) // 2
+
+        print(x.shape)
+        raise ValueError
         emformer_out, emformer_out_lens, states = self.model.infer(
             x, x_lens, states
         )

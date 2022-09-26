@@ -168,7 +168,7 @@ class EmformerRaw(EncoderInterface):
         self.feature_extractor = components._get_feature_extractor(
             extractor_mode, extractor_conv_layer_config, extractor_conv_bias
         )
-        print(num_features, d_model, output_dim)
+        # print(num_features, d_model, output_dim)
         # if vgg_frontend:
         #     self.encoder_embed = VggSubsampling(num_features, d_model)
         # else:
@@ -185,8 +185,8 @@ class EmformerRaw(EncoderInterface):
         right_context_length = right_context_length // subsampling_factor
         segment_length = segment_length // subsampling_factor
 
-        print(extractor_conv_layer_config[-1][0])
-        print(dim_feedforward)
+        # print(extractor_conv_layer_config[-1][0])
+        # print(dim_feedforward)
         self.model = _Emformer(
             input_dim=extractor_conv_layer_config[-1][0],
             num_heads=nhead,
@@ -226,7 +226,7 @@ class EmformerRaw(EncoderInterface):
             - encoder_out_lens, a int32 tensor of shape (N,) containing the
               valid frames in `encoder_out` before padding
         """
-        print(x.shape)
+        # print(x.shape)
         x = nn.functional.pad(
             x,
             # (left, right, top, bottom)
@@ -236,10 +236,10 @@ class EmformerRaw(EncoderInterface):
             value=LOG_EPSILON,
         )  # (N, T, C) -> (N, T+right_context_length, C)
 
-        print(x.shape, x_lens)
+        # print(x.shape, x_lens)
         x, x_lens = self.feature_extractor(x.squeeze(-1), x_lens)
         x_lens -= 1
-        print(x.shape, x_lens)
+        # print(x.shape, x_lens)
 
         # with warnings.catch_warnings():
         #     warnings.simplefilter("ignore")
@@ -272,6 +272,7 @@ class EmformerRaw(EncoderInterface):
             - encoder_out_lens: a 1-D tensor of shape (N,)
             - next_state, internal model states for the next chunk
         """
+        # print(x.shape, x_lens)
         x, x_lens = self.feature_extractor(x, x_lens)
         x_lens -= 1
         # Sure about that ?
@@ -285,5 +286,5 @@ class EmformerRaw(EncoderInterface):
         )
 
         logits = self.encoder_output_layer(emformer_out)
-
+        # print("logits", logits.shape)
         return logits, emformer_out_lens, states

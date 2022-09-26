@@ -82,14 +82,14 @@ class UbiqusAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("/data1/merge_all_manifest/raw"),
-            # default=Path("/workspace/icefall/egs/yesno/ASR/data/manifests"),
+            # default=Path("/data1/merge_all_manifest/raw"),
+            default=Path("/workspace/icefall/egs/yesno/ASR/data/manifests"),
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
             "--max-duration",
             type=int,
-            default=20.0,
+            default=200.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
@@ -103,7 +103,7 @@ class UbiqusAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=300,
+            default=50,
             help="The number of buckets for the BucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -223,7 +223,8 @@ class UbiqusAsrDataModule:
             # different utterances.
             transforms = [
                 CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                    duration_factor=self.args.duration_factor,
+                    gap=self.args.gap,
                 )
             ] + transforms
 
@@ -327,7 +328,8 @@ class UbiqusAsrDataModule:
         if self.args.concatenate_cuts:
             transforms = [
                 CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                    duration_factor=self.args.duration_factor,
+                    gap=self.args.gap,
                 )
             ] + transforms
 
@@ -366,16 +368,14 @@ class UbiqusAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         rec = load_manifest(
+            # self.args.manifest_dir / "train_sp/recordings.jsonl.gz"
             self.args.manifest_dir
-            / "train_sp/recordings.jsonl.gz"
-            # self.args.manifest_dir
-            # / "recordings_train.json"
+            / "recordings_train.json"
         )
         sup = load_manifest(
+            # self.args.manifest_dir / "train_sp/supervisions.jsonl.gz"
             self.args.manifest_dir
-            / "train_sp/supervisions.jsonl.gz"
-            # self.args.manifest_dir
-            # / "supervisions_train.json"
+            / "supervisions_train.json"
         )
         return CutSet.from_manifests(
             recordings=rec,
@@ -389,15 +389,14 @@ class UbiqusAsrDataModule:
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         rec = load_manifest(
-            self.args.manifest_dir / "dev/recordings.jsonl.gz",
-            # self.args.manifest_dir
-            # / "recordings_test.json",
+            # self.args.manifest_dir / "dev/recordings.jsonl.gz",
+            self.args.manifest_dir
+            / "recordings_test.json",
         )
         sup = load_manifest(
+            # self.args.manifest_dir / "dev/supervisions.jsonl.gz"
             self.args.manifest_dir
-            / "dev/supervisions.jsonl.gz"
-            # self.args.manifest_dir
-            # / "supervisions_test.json"
+            / "supervisions_test.json"
         )
         return CutSet.from_manifests(
             recordings=rec,

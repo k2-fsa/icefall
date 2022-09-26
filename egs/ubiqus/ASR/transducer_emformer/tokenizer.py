@@ -53,5 +53,10 @@ class PyonmttokProcessor:
             ]
         raise ValueError
 
+    def decode(self, ids: List[int]) -> str:
+        print(ids)
+        print(self.tok.detokenize([self.vocab[id_] for id_ in ids]))
+        return self.tok.detokenize([self.vocab[id_] for id_ in ids])
+
     def get_piece_size(self) -> int:
         return len(self.vocab)

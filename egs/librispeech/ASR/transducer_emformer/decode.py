@@ -470,8 +470,8 @@ def main():
     logging.info("Decoding started")
 
     device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
+    # if torch.cuda.is_available():
+    #     device = torch.device("cuda", 0)
 
     logging.info(f"Device: {device}")
 
@@ -480,29 +480,30 @@ def main():
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params)
-
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-    else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+    load_checkpoint(f"{params.exp_dir}/checkpoint-336000.pt", model)
+    # if params.avg_last_n > 0:
+    #     filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
+    #     logging.info(f"averaging {filenames}")
+    #     model.to(device)
+    #     model.load_state_dict(average_checkpoints(filenames, device=device))
+    # elif params.avg == 1:
+    #     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    # else:
+    #     start = params.epoch - params.avg + 1
+    #     filenames = []
+    #     for i in range(start, params.epoch + 1):
+    #         if start >= 0:
+    #             filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+    #     logging.info(f"averaging {filenames}")
+    #     model.to(device)
+    #     model.load_state_dict(average_checkpoints(filenames, device=device))
 
     model.to(device)
     model.eval()

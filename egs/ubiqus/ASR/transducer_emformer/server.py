@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import asyncio
+
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
 import torch
+
 import websockets
+
 from streaming_decode import StreamList, get_parser, process_features
 from train import get_params, get_transducer_model
+
+from tokenizer import PyonmttokProcessor
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -127,10 +131,11 @@ def main():
     logging.info("Decoding started")
 
     device = torch.device("cpu")
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda", 0)
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
 
-    sp = spm.SentencePieceProcessor()
+    # sp = spm.SentencePieceProcessor()
+    sp = PyonmttokProcessor()
     sp.load(params.bpe_model)
 
     # <blk> and <unk> are defined in local/train_bpe_model.py
@@ -145,7 +150,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    load_checkpoint(f"{params.exp_dir}/checkpoint-424000.pt", model)
+    load_checkpoint(f"{params.exp_dir}/checkpoint-304000.pt", model)
     # if params.avg_last_n > 0:
     #     filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
     #     logging.info(f"averaging {filenames}")

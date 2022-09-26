@@ -381,6 +381,19 @@ class HypothesisList(object):
           Return the hypothesis that has the largest `log_prob`.
         """
         if length_norm:
+            # print(max(
+            #     self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
+            # ).ys)
+            # print(len(max(
+            #     self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)**5
+            # ).ys))
+            # print(len(max(
+            #     self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
+            # ).ys))
+            # print(
+            #     [len(hyp.ys) for hyp in self._data.values()]
+            # )
+            # print()
             return max(
                 self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
             )

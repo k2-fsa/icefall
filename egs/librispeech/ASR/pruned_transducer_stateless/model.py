@@ -54,6 +54,7 @@ class Transducer(nn.Module):
         assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
 
+        self.criterion_lm = nn.NLLLoss(ignore_index=-1, reduction="sum")
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
@@ -99,10 +100,12 @@ class Transducer(nn.Module):
         assert x_lens.ndim == 1, x_lens.shape
         assert y.num_axes == 2, y.num_axes
 
-        assert x.size(0) == x_lens.size(0) == y.dim0
+        assert (
+            x.size(0) == x_lens.size(0) == y.dim0
+        ), f"{x.size(0)}, {x_lens.size(0)}, {y.dim0}"
 
         encoder_out, x_lens = self.encoder(x, x_lens)
-        assert torch.all(x_lens > 0)
+        assert torch.all(x_lens > 0), x_lens
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
@@ -128,17 +131,18 @@ class Transducer(nn.Module):
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
-        simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-            lm=decoder_out,
-            am=encoder_out,
-            symbols=y_padded,
-            termination_symbol=blank_id,
-            lm_only_scale=lm_scale,
-            am_only_scale=am_scale,
-            boundary=boundary,
-            reduction="sum",
-            return_grad=True,
-        )
+        with torch.cuda.amp.autocast(enabled=False):
+            simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                lm=decoder_out.float(),
+                am=encoder_out.float(),
+                symbols=y_padded,
+                termination_symbol=blank_id,
+                lm_only_scale=lm_scale,
+                am_only_scale=am_scale,
+                boundary=boundary,
+                reduction="sum",
+                return_grad=True,
+            )
 
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
@@ -147,7 +151,6 @@ class Transducer(nn.Module):
             boundary=boundary,
             s_range=prune_range,
         )
-
         # am_pruned : [B, T, prune_range, C]
         # lm_pruned : [B, T, prune_range, C]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
@@ -157,13 +160,43 @@ class Transducer(nn.Module):
         # logits : [B, T, prune_range, C]
         logits = self.joiner(am_pruned, lm_pruned)
 
-        pruned_loss = k2.rnnt_loss_pruned(
-            logits=logits,
-            symbols=y_padded,
-            ranges=ranges,
-            termination_symbol=blank_id,
-            boundary=boundary,
-            reduction="sum",
-        )
+        # logits_lm = self.joiner.forward_lm(decoder_out)
+        # loss_lm = self.criterion_lm(logits_lm.view(-1, logits_lm.size(-1)), sos_y_padded.view(-1).type(torch.int64).to(logits_lm.device)-1)
+
+        # [B, S + 1, C]
+        # comment that
+        # ((1-p)*torch.eye(decoder_out.size(-1)) + p * self.joiner_fixed.forward_lm(decoder_out_fixed) ) * softmax(self.joiner.forward_lm(decoder_out))
+        # print(
+        #     logits.shape,
+        #     am_pruned.shape,
+        #     lm_pruned.shape,
+        #     encoder_out.shape,
+        #     decoder_out.shape,
+        # )
+        # print(torch.argmax(logits[-1, :, 0, :], dim=-1))
+        # print(1 + torch.argmax(logits[-1, :, 0, 1:], dim=-1))
+        # print(torch.argmax(logits[-1, :10, 1, :], dim=-1))
+        # print(y_padded.shape)
+        # print(y_padded[-1, :])
+        # print("end")
+        with torch.cuda.amp.autocast(enabled=False):
+            pruned_loss = k2.rnnt_loss_pruned(
+                logits=logits.float(),
+                symbols=y_padded,
+                ranges=ranges,
+                termination_symbol=blank_id,
+                boundary=boundary,
+                reduction="sum",
+            )
+            if torch.isinf(pruned_loss):
+                print(pruned_loss)
+                print(blank_id)
+                print(y_padded)
+                print(y_padded.shape)
+                print(logits)
+                print(pruned_loss)
+            elif y_padded.shape[1]==1:
+                print("one but no inf")
+                print(pruned_loss)
 
         return (simple_loss, pruned_loss)
