@@ -1,0 +1,18 @@
+FROM icefall/pytorch1.7.1-188:latest
+
+COPY requirements.txt /workspace
+RUN pip install -r requirements.txt
+RUN pip install pyonmttok websockets
+RUN pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+RUN apt install libssl-dev libasound2
+RUN pip install azure-cognitiveservices-speech
+
+COPY ./icefall /workspace/icefall
+COPY ./egs /workspace/egs
+COPY ./egs/librispeech/ASR/transducer_emformer_pyonmttok/data /data
+
+ENV PYTHONPATH $PYTHONPATH:/workspace/egs/librispeech/ASR/transducer_emformer_pyonmttok:/workspace
+ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION python
+
+WORKDIR /workspace/egs/librispeech/ASR/transducer_emformer_pyonmttok
+CMD ["python3", "server.py" , "--exp-dir", "exp_ubiqus_context_15_scratch_restart", "--beam-size", "10", "--decoding-method", "modified_beam_search" , "--context-size", "15"]

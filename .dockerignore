@@ -1,0 +1,25 @@
+**
+
+!icefall
+!egs/ubiqus/
+!egs/librispeech/ASR/transducer_emformer_pyonmttok
+!egs/librispeech/ASR/pruned_transducer_stateless
+!egs/librispeech/ASR/transducer
+!egs/librispeech/ASR/transducer_stateless
+!egs/librispeech/ASR/conformer_ctc
+!egs/librispeech/ASR/tdnn_lstm_ctc
+!egs/librispeech/ASR/transducer_emformer_pyonmttok/data
+
+!requirements.txt
+
+**/exp**
+**/*.pt
+**tensorboard**
+
+# !egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_libri_context/checkpoint-664000.pt
+# !egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_context_15_scratch_restart/backup-checkpoint-1744000.pt
+# !egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_2/backup-checkpoint-1808000.pt
+# !egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_context_15_scratch_restart/checkpoint-5032000.pt
+!egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_context_15_scratch_restart/epoch-24.pt
+!egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_en_3/epoch-22.pt
+# !egs/librispeech/ASR/transducer_emformer_pyonmttok/exp_ubiqus_en_2/checkpoint-160000.pt
