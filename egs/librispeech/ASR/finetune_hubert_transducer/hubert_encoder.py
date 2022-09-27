@@ -86,13 +86,6 @@ class HubertEncoder(EncoderInterface):
         )
 
         parser.add_argument(
-            "--hubert-output-size",
-            type=int,
-            default=768,
-            help="Output feature dimension of hubert model",
-        )
-
-        parser.add_argument(
             "--hubert-freeze-finetune-updates",
             type=int,
             default=0,

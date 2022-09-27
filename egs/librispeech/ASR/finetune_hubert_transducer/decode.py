@@ -21,19 +21,33 @@ Usage:
 (1) greedy search
 ./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless6/exp \
+    --avg 10 \
+    --exp-dir ./finetune_hubert_transducer/exp_960h \
     --max-duration 600 \
-    --decoding-method greedy_search
+    --decoding-method greedy_search \
+    --hubert-model-dir /path/to/hubert_large_ll60k.pt \
+    --hubert-output-size 1024 \
+    --encoder-dim 1024 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --use-averaged-model 1 \
+    --input-strategy AudioSamples
 
 (2) modified beam search
 ./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless6/exp \
+    --avg 10 \
+    --exp-dir ./finetune_hubert_transducer/exp_960h \
     --max-duration 600 \
     --decoding-method modified_beam_search \
-    --beam-size 4
+    --beam-size 4 \
+    --hubert-model-dir /path/to/hubert_large_ll60k.pt \
+    --hubert-output-size 1024 \
+    --encoder-dim 1024 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --use-averaged-model 1 \
+    --input-strategy AudioSamples
 """
 
 
@@ -184,66 +198,8 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
-
-    parser.add_argument(
-        "--encoder-type", type=str, default="conformer", help="Encoder type"
-    )
-
     parser.add_argument(
         "--encoder-dim", type=int, default=1024, help="Encoder output dim"
-    )
-
-    parser.add_argument(
-        "--hubert-model-dir",
-        type=str,
-        help="Path to the pretrained Hubert model",
-    )
-
-    parser.add_argument(
-        "--hubert-output-size",
-        type=int,
-        default=768,
-        help="Output feature dimension of hubert model",
-    )
-
-    parser.add_argument(
-        "--hubert-subsample-output",
-        type=str2bool,
-        default=False,
-        help="Whether subsample the hubert output to reduce frame rate",
-    )
-
-    parser.add_argument(
-        "--hubert-subsample-mode",
-        type=str,
-        default="concat_tanh",
-        choices=["concat", "concat_relu", "concat_tanh", "avgpooling"],
-    )
-
-    parser.add_argument(
-        "--hubert-freeze-finetune-updates",
-        type=int,
-        default=0,
-        help="The number of updates during which the transformer \
-            blocks in hubert are frozen.",
-    )
-
-    parser.add_argument(
-        "--hubert-mask-prob", type=float, default=0.65, help="Mask probability"
-    )
-
-    parser.add_argument(
-        "--hubert-mask-channel-prob",
-        type=float,
-        default=0.5,
-        help="Mask channel probability",
-    )
-
-    parser.add_argument(
-        "--hubert-mask-channel-length",
-        type=int,
-        default=64,
-        help="Mask channel length",
     )
 
     return parser
