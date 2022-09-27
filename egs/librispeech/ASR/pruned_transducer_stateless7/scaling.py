@@ -179,7 +179,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
         ans_direction = ans_direction / ans_direction.norm()
 
         if random.random() < 0.001:
-            logging.info(f"variance_proportion = {variance_proportion.item()}")
+            logging.info(f"variance_proportion = {variance_proportion.item()}, shape={tuple(x.shape)}")
 
         # Caution: this causes a CUDA sync, which is not ideal.
         if variance_proportion >= max_variance_proportion:
