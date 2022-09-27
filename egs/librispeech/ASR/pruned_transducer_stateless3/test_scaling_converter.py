@@ -181,7 +181,7 @@ def test_convert_scaled_to_non_scaled():
         y = torch.randint(low=1, high=vocab_size - 1, size=(N, U))
 
         d1 = model.decoder(y)
-        d2 = model.decoder(y)
+        d2 = converted_model.decoder(y)
 
         assert torch.allclose(d1, d2)
 

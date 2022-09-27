@@ -39,7 +39,7 @@ cd egs/librispeech/ASR/
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --use_fp16 1 \
+  --use-fp16 1 \
   --exp-dir pruned_transducer_stateless3/exp \
   --full-libri 1 \
   --max-duration 550
