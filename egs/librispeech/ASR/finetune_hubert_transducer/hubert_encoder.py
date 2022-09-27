@@ -5,7 +5,7 @@ import fairseq
 import torch
 from encoder_interface import EncoderInterface
 
-from icefall.utils import make_pad_mask
+from icefall.utils import make_pad_mask, str2bool
 
 
 class HubertEncoder(EncoderInterface):
@@ -53,10 +53,8 @@ class HubertEncoder(EncoderInterface):
             )
             model.mask_prob = mask_prob
 
-        self.encoders.feature_grad_mult = (
-            0.0  # CNN feature extractor is frozen during finetuning!
-        )
-        # self.pretrained_params = None
+        # CNN feature extractor is frozen during finetuning!
+        self.encoders.feature_grad_mult = 0.0
 
         self.freeze_finetune_updates = freeze_finetune_updates
         self.register_buffer("num_updates", torch.LongTensor([0]))
@@ -68,14 +66,96 @@ class HubertEncoder(EncoderInterface):
                 output_size=output_size,
             )
             self.subsample_mode = subsample_mode
+            logging.info("Subsample output!}")
+            logging.info(self.subsample)
         else:
             self.subsample = None
             self.subsample_mode = None
+            logging.info("Do not subsample output")
 
         self.training = training
         delattr(self.encoders, "final_proj")
         delattr(self.encoders, "label_embs_concat")
-        # self.conv_subsampling_factor = 1 # ESPnet required
+
+    @classmethod
+    def add_arguments(cls, parser):
+        parser.add_argument(
+            "--hubert-model-dir",
+            type=str,
+            help="Path to the pretrained Hubert model",
+        )
+
+        parser.add_argument(
+            "--hubert-output-size",
+            type=int,
+            default=768,
+            help="Output feature dimension of hubert model",
+        )
+
+        parser.add_argument(
+            "--hubert-freeze-finetune-updates",
+            type=int,
+            default=0,
+            help="The number of updates during which the transformer blocks \
+                in hubert are frozen.",
+        )
+
+        parser.add_argument(
+            "--hubert-mask-prob",
+            type=float,
+            default=0.65,
+            help="Mask probability",
+        )
+
+        parser.add_argument(
+            "--hubert-mask-channel-prob",
+            type=float,
+            default=0.5,
+            help="Mask channel probability",
+        )
+
+        parser.add_argument(
+            "--hubert-mask-channel-length",
+            type=int,
+            default=64,
+            help="Mask channel length",
+        )
+
+        parser.add_argument(
+            "--hubert-subsample-output",
+            type=str2bool,
+            default=False,
+            help="Whether subsample the hubert output to reduce frame rate",
+        )
+
+        parser.add_argument(
+            "--hubert-subsample-mode",
+            type=str,
+            default="concat_tanh",
+            choices=["concat", "concat_relu", "concat_tanh", "avgpooling"],
+        )
+
+    def normalise_input(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+    ) -> torch.Tensor:
+        """Normalize a batch of audio samples to zero mean unit variance
+
+        Args:
+            x (torch.Tensor): a batch of audio samples
+            x_lens (torch.Tensor): # audio samples
+
+        Returns:
+            torch.Tensor: normalized audio samples
+        """
+        row_mean = (x.sum(dim=-1) / x_lens).view(x.size(0), 1)
+        row_std = (
+            torch.tensor([sample[sample != 0.0].std() for sample in x])
+            .view(x.size(0), 1)
+            .to(x.device)
+        )
+        for i in range(x.size(0)):
+            x[i, : x_lens[i]] = (x[i, : x_lens[i]] - row_mean[i]) / row_std[i]
+        return x
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -98,14 +178,7 @@ class HubertEncoder(EncoderInterface):
         """
 
         mask = make_pad_mask(x_lens).to(x.device)
-        row_mean = (x.sum(dim=-1) / x_lens).view(x.size(0), 1)
-        row_std = (
-            torch.tensor([sample[sample != 0.0].std() for sample in x])
-            .view(x.size(0), 1)
-            .to(x.device)
-        )
-        for i in range(x.size(0)):
-            x[i, : x_lens[i]] = (x[i, : x_lens[i]] - row_mean[i]) / row_std[i]
+        x = self.normalise_input(x, x_lens)
 
         # check if still in freezing mode
         ft = (
@@ -114,14 +187,14 @@ class HubertEncoder(EncoderInterface):
 
         if self.num_updates <= self.freeze_finetune_updates:
             self.num_updates += 1
-        elif ft and self.num_updates == self.freeze_finetune_updates + 1:
+
+        if ft and self.num_updates == self.freeze_finetune_updates + 1:
             self.num_updates += 1
             logging.warning(
-                "Start fine-tuning Hubert parameters after {} updates!".format(
-                    self.num_updates
-                )
+                f"Start finetuning encoder after {self.num_updates} updates!"
             )
 
+        # only apply modified specaug during training
         apply_mask = self.training
         with torch.set_grad_enabled(bool(ft)):
             enc_outputs = self.encoders(
@@ -134,23 +207,25 @@ class HubertEncoder(EncoderInterface):
         masks = enc_outputs["padding_mask"]
         olens = torch.logical_not(masks).sum(dim=1)
 
-        if self.subsample:
+        if self.subsample is not None:
             if "concat" in self.subsample_mode:
                 xs_pad_1 = xs_pad[:, 0:-1:2, :]
                 xs_pad_2 = xs_pad[:, 1::2, :]
                 xs_pad = torch.cat((xs_pad_1, xs_pad_2), dim=2)
                 xs_pad = self.subsample(xs_pad)
-                olens = olens // 2
+                olens = torch.floor(olens / 2)
             else:
                 xs_pad = self.subsample(xs_pad.permute(0, 2, 1)).permute(
                     0, 2, 1
                 )
-                olens = olens // 2
+                olens = torch.floor(olens / 2)
 
         return xs_pad, olens
 
 
-def get_subsample_module(subsample_mode, input_size, output_size):
+def get_subsample_module(
+    subsample_mode: str, input_size: int, output_size: int
+) -> torch.nn.Module:
     if subsample_mode == "concat":
         subsample = torch.nn.Sequential(
             torch.nn.Dropout(p=0.1),
@@ -167,10 +242,6 @@ def get_subsample_module(subsample_mode, input_size, output_size):
             torch.nn.Dropout(p=0.1),
             torch.nn.Linear(2 * input_size, output_size),
             torch.nn.Tanh(),
-        )
-    elif subsample_mode == "avgpooling":
-        subsample = torch.nn.Sequential(
-            torch.nn.AvgPool1d(kernel_size=2, stride=2)
         )
     else:
         raise NotImplementedError(

@@ -26,16 +26,7 @@ Usage:
     --max-duration 600 \
     --decoding-method greedy_search
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless6/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless6/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
+(2) modified beam search
 ./pruned_transducer_stateless6/decode.py \
     --epoch 30 \
     --avg 15 \
@@ -43,17 +34,6 @@ Usage:
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
-
-(4) fast beam search
-./pruned_transducer_stateless6/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless6/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 4 \
-    --max-contexts 4 \
-    --max-states 8
 """
 
 
@@ -68,14 +48,9 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import (
-    beam_search,
-    fast_beam_search_one_best,
-    greedy_search,
-    greedy_search_batch,
-    modified_beam_search,
-)
-from train_hubert import get_params, get_transducer_model
+from beam_search import greedy_search, greedy_search_batch, modified_beam_search
+from hubert_encoder import HubertEncoder
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -144,13 +119,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--enable-distillation",
-        type=str2bool,
-        default=True,
-        help="Whether to eanble distillation.",
-    )
-
-    parser.add_argument(
         "--bpe-model",
         type=str,
         default="data/lang_bpe_500/bpe.model",
@@ -163,9 +131,7 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
-          - beam_search
           - modified_beam_search
-          - fast_beam_search
         """,
     )
 
@@ -337,19 +303,7 @@ def decode_one_batch(
         encoder_out = layer_results
     hyps = []
 
-    if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search_one_best(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif (
+    if (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
     ):
@@ -382,12 +336,6 @@ def decode_one_batch(
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
                 )
-            elif params.decoding_method == "beam_search":
-                hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
             else:
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
@@ -396,14 +344,6 @@ def decode_one_batch(
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
-    elif params.decoding_method == "fast_beam_search":
-        return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-            ): hyps
-        }
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -530,6 +470,7 @@ def save_results(
 def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
+    HubertEncoder.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -538,8 +479,6 @@ def main():
 
     assert params.decoding_method in (
         "greedy_search",
-        "beam_search",
-        "fast_beam_search",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
@@ -608,6 +547,7 @@ def main():
             model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
+            print(f"{params.exp_dir}/epoch-{params.epoch}.pt")
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
             start = params.epoch - params.avg + 1

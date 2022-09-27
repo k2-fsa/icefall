@@ -349,6 +349,25 @@ class TriStateScheduler(LRScheduler):
         self.warmup_factor = (warmup_lr - init_lr) / (phase[0] * total_steps)
         self.decay_factor = (warmup_lr - end_lr) / (phase[2] * total_steps)
 
+    def state_dict(self):
+        return {
+            "_step": self._step,
+            "init_lr": self.init_lr,
+            "warmup_lr": self.warmup_lr,
+            "end_lr": self.end_lr,
+            "phase": self.phase,
+            "total_steps": self.total_steps,
+        }
+
+    def load_state_dict(self, state_dict):
+
+        self._step = state_dict["_step"]
+        self.init_lr = state_dict["init_lr"]
+        self.warmup_lr = state_dict["warmup_lr"]
+        self.end_lr = state_dict["end_lr"]
+        self.phase = state_dict["phase"]
+        self.total_steps = state_dict["total_steps"]
+
     def get_lr(self):
         if self._step < self.phase[0] * self.total_steps:
             lr = self.init_lr + self._step * self.warmup_factor
