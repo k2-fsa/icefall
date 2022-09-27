@@ -1077,6 +1077,53 @@ results at:
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-stateless-emformer-rnnt2-2022-06-01>
 
 
+### LibriSpeech BPE training results (Hubert Transducer)
+
+[finetune_hubert_transducer](./finetune_hubert_transducer)
+
+See <https://github.com/k2-fsa/icefall/pull/588>
+
+A pre-trained Hubert model finetuned with pruned RNN-T loss. Note that fairseq issued
+three versions of [Hubert](https://arxiv.org/abs/2106.07447) of different sizes (base, large, xlarge).
+The first two versions are tested whereas the last one is not due to GPU memory constraint.
+
+The models are finetuned base on the instructions given in [Hubert](https://arxiv.org/abs/2106.07447)
+and [Wav2vec 2.0](https://arxiv.org/abs/2006.11477). Models are trained using Adam optimizer with
+a tri-state lr scheduler. The 960h models are trained for 320k updates using a vocab of 500. The WERs are listed below:
+| model name  | test-clean | test-other |
+| ----------- |------------|------------|
+| Hubert base |   2.82     | 7.09|
+| Hubert large|   1.90     | 3.94|
+
+Training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,"
+
+./pruned_transducer_stateless6/train.py \
+    --world-size 6\
+    --num-epochs 25 \
+    --exp-dir finetune_hubert_transducer/exp_960h_HubertL \
+    --full-libri 1 \
+    --max-duration 80 \
+    --bpe-model data/lang_bpe_500/bpe.model \
+    --input-strategy AudioSamples \
+    --hubert-model-dir /ceph-data4/yangxiaoyu/pretrained_models/hubert_large_ll60k.pt \
+    --hubert-freeze-finetune-updates 10000 \
+    --hubert-mask-channel-length 64 \
+    --hubert-mask-prob 0.25 \
+    --hubert-mask-channel-prob 0.5 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --encoder-dim 1024 \
+    --enable-spec-aug 0 \
+    --TSA-init-lr 5e-7 \
+    --TSA-warmup-lr 3e-5 \
+    --TSA-end-lr 1.5e-6 \
+    --TSA-total-steps 320000 \
+    --enable-musan 1
+```
+
+
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 5)
 
 [pruned_transducer_stateless5](./pruned_transducer_stateless5)
