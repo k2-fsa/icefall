@@ -152,7 +152,7 @@ class GradientFilterFunction(torch.autograd.Function):
 
 class GradientFilter(torch.nn.Module):
     """This is used to filter out elements that have extremely large gradients
-    in batch.
+    in batch and the module parameters with soft masks.
 
     Args:
       batch_dim (int):

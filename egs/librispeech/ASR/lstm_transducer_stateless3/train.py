@@ -22,22 +22,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless3/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 40 \
   --start-epoch 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless3/exp \
   --full-libri 1 \
-  --max-duration 300
+  --max-duration 500
 
 # For mix precision training:
 
-./lstm_transducer_stateless/train.py \
+./lstm_transducer_stateless3/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 40 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir lstm_transducer_stateless/exp \
+  --exp-dir lstm_transducer_stateless3/exp \
   --full-libri 1 \
   --max-duration 550
 """
@@ -127,7 +127,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--grad-norm-threshold",
         type=float,
-        default=10.0,
+        default=25.0,
         help="""For each sequence element in batch, its gradient will be
         filtered out if the gradient norm is larger than
         `grad_norm_threshold * median`, where `median` is the median
@@ -164,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=35,
+        default=40,
         help="Number of epochs to train.",
     )
 
@@ -795,6 +795,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
+
             scheduler.step_batch(params.batch_idx_train)
             scaler.step(optimizer)
             scaler.update()
