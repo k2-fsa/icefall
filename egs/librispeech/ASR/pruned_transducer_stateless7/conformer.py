@@ -998,10 +998,7 @@ class Conv2dSubsampling(nn.Module):
         )
         out_height = (((in_channels - 1) // 2 - 1) // 2)
         self.out = ScaledLinear(out_height * layer3_channels, out_channels)
-        # set learn_eps=False because out_norm is preceded by `out`, and `out`
-        # itself has learned scale, so the extra degree of freedom is not
-        # needed.
-        self.out_norm = BasicNorm(out_channels, learn_eps=False)
+
         # constrain median of output to be close to zero.
         self.out_balancer = ActivationBalancer(
             out_channels,
@@ -1026,8 +1023,6 @@ class Conv2dSubsampling(nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
-        x = self.out_norm(x)
-        x = self.out_balancer(x)
         return x
 
 class RandomCombine(nn.Module):
