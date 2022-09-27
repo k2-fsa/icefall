@@ -91,30 +91,38 @@ LRSchedulerType = Union[
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
-        type=int,
-        default=24,
-        help="Number of conformer encoder layers..",
+        type=str,
+        default="12,12",
+        help="Number of conformer encoder layers, comma separated.",
     )
 
     parser.add_argument(
-        "--dim-feedforward",
-        type=int,
-        default=1536,
-        help="Feedforward dimension of the conformer encoder layer.",
+        "--feedforward-dims",
+        type=str,
+        default="1536,1536",
+        help="Feedforward dimension of the conformer encoder layers, comma separated.",
     )
 
     parser.add_argument(
         "--nhead",
-        type=int,
-        default=8,
-        help="Number of attention heads in the conformer encoder layer.",
+        type=str,
+        default="8,8",
+        help="Number of attention heads in the conformer encoder layers.",
     )
 
     parser.add_argument(
-        "--encoder-dim",
+        "--encoder-dims",
+        type=str,
+        default="320,512,512",
+        help="Attention dimension in 2, blocks of conformer encoder layers, comma separated, "
+        "and the output dim of the encoder",
+    )
+
+    parser.add_argument(
+        "--conformer-subsampling-factor",
         type=int,
-        default=384,
-        help="Attention dimension in the conformer encoder layer.",
+        default=4,
+        help="Subsampling factor for 2nd stack of encoder layers.",
     )
 
     parser.add_argument(
@@ -401,13 +409,16 @@ def get_params() -> AttributeDict:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
+    def to_int_list(s: str):
+        return list(map(int, s.split(',')))
     encoder = Conformer(
         num_features=params.feature_dim,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.encoder_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
+        subsampling_factor=params.subsamplng_factor,
+        conformer_subsampling_factor=params.conformer_subsamplng_factor,
+        d_model=to_int_list(params.encoder_dims),
+        nhead=to_int_list(params.nhead),
+        feedforward_dims=to_int_list(params.feedforward_dims),
+        num_encoder_layers=to_int_list(params.num_encoder_layers),
     )
     return encoder
 
@@ -424,7 +435,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        encoder_dim=params.encoder_dim,
+        encoder_dim=int(params.encoder_dims.split(',')[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -441,7 +452,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=params.encoder_dim,
+        encoder_dim=int(params.encoder_dims.split(',')[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
