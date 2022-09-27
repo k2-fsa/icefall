@@ -999,12 +999,6 @@ class Conv2dSubsampling(nn.Module):
         out_height = (((in_channels - 1) // 2 - 1) // 2)
         self.out = ScaledLinear(out_height * layer3_channels, out_channels)
 
-        # constrain median of output to be close to zero.
-        self.out_balancer = ActivationBalancer(
-            out_channels,
-            channel_dim=-1, min_positive=0.45, max_positive=0.55
-        )
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
