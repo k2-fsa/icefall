@@ -466,6 +466,9 @@ def average_state_dict(
 
     uniqued_names = list(uniqued.values())
     for k in uniqued_names:
+        if "Long" in state_dict_1[k].type():
+            logging.info(f"Skipping loading a Long tensor {k}")
+            continue
         state_dict_1[k] *= weight_1
         state_dict_1[k] += (
             state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
