@@ -413,11 +413,11 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         return list(map(int, s.split(',')))
     encoder = Conformer(
         num_features=params.feature_dim,
-        subsampling_factor=params.subsamplng_factor,
-        conformer_subsampling_factor=params.conformer_subsamplng_factor,
+        subsampling_factor=params.subsampling_factor,
+        conformer_subsampling_factor=params.conformer_subsampling_factor,
         d_model=to_int_list(params.encoder_dims),
         nhead=to_int_list(params.nhead),
-        feedforward_dims=to_int_list(params.feedforward_dims),
+        feedforward_dim=to_int_list(params.feedforward_dims),
         num_encoder_layers=to_int_list(params.num_encoder_layers),
     )
     return encoder
