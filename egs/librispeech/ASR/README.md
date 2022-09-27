@@ -27,6 +27,7 @@ The following table lists the differences among them.
 | `conv_emformer_transducer_stateless2` | ConvEmformer | Embedding + Conv1d | Using ConvEmformer with simplified memory for streaming ASR + mechanisms in reworked model |
 | `lstm_transducer_stateless`           | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model |
 | `lstm_transducer_stateless2`           | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gigaspeech (multi-dataset setup) |
+| `finetune_hubert_transducer`     | Hubert | Embedding + Conv1d | Finetune pretrained Hubert model for ASR using pruned RNN-T loss |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
