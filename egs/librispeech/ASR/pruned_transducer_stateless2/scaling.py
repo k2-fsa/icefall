@@ -119,7 +119,7 @@ class GradientFilterFunction(torch.autograd.Function):
         batch_dim: int,  # e.g., 1
         threshold: float,  # e.g., 10.0
         *params: Tensor,  # module parameters
-    ):
+    ) -> Tuple[Tensor, ...]:
         if x.requires_grad:
             if batch_dim < 0:
                 batch_dim += x.ndim
@@ -132,7 +132,7 @@ class GradientFilterFunction(torch.autograd.Function):
         ctx,
         x_grad: Tensor,
         *param_grads: Tensor,
-    ):
+    ) -> Tuple[Tensor, ...]:
         eps = 1.0e-20
         dim = ctx.batch_dim
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
@@ -169,7 +169,7 @@ class GradientFilter(torch.nn.Module):
         self.batch_dim = batch_dim
         self.threshold = threshold
 
-    def forward(self, x: Tensor, *params: Tensor) -> Tuple[Tensor]:
+    def forward(self, x: Tensor, *params: Tensor) -> Tuple[Tensor, ...]:
         if torch.jit.is_scripting() or is_jit_tracing():
             return (x,) + params
         else:
