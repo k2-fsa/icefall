@@ -474,7 +474,6 @@ class AttentionDownsample(torch.nn.Module):
         Require out_channels > in_channels.
         """
         super(AttentionDownsample, self).__init__()
-        assert out_channels > in_channels
         self.query = nn.Parameter(torch.randn(in_channels) * (in_channels ** -0.5))
 
         # fill in the extra dimensions with a projection of the input
