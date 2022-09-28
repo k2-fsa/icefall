@@ -1,6 +1,6 @@
 ## Results
 
-#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T 3)
+#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
 [lstm_transducer_stateless3](./lstm_transducer_stateless3)
 
@@ -25,6 +25,7 @@ The WERs are:
 | modified beam search                | 3.54       | 9.25       | --epoch 40 --avg 15  | streaming            |
 
 Note: `simulated streaming` indicates feeding full utterance during decoding, while `streaming` indicates feeding certain number of frames at each time.
+
 
 The training command is:
 
@@ -86,6 +87,74 @@ done
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-lstm-transducer-stateless3-2022-09-28>
+
+
+#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + multi-dataset)
+
+[lstm_transducer_stateless2](./lstm_transducer_stateless2)
+
+See <https://github.com/k2-fsa/icefall/pull/558> for more details.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                 |
+|-------------------------------------|------------|------------|-------------------------|
+| greedy search (max sym per frame 1) | 2.78       | 7.36       | --iter 468000 --avg 16  |
+| modified_beam_search                | 2.73       | 7.15       | --iter 468000 --avg 16  |
+| fast_beam_search                    | 2.76       | 7.31       | --iter 468000 --avg 16  |
+| greedy search (max sym per frame 1) | 2.77       | 7.35       | --iter 472000 --avg 18  |
+| modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
+| fast_beam_search                    | 2.77       | 7.29       | --iter 472000 --avg 18  |
+
+#!/usr/bin/env bash
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./lstm_transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 35 \
+  --start-epoch 1 \
+  --full-libri 1 \
+  --exp-dir lstm_transducer_stateless2/exp \
+  --max-duration 500 \
+  --use-fp16 0 \
+  --lr-epochs 10 \
+  --num-workers 2 \
+  --giga-prob 0.9
+```
+**Note**: It was killed manually after getting `epoch-18.pt`. Also, we resumed
+training after getting `epoch-9.pt`.
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/1ziQ2LFmQY2mt4dlUr5dyA/>
+
+The decoding command is
+```bash
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for iter in 472000; do
+    for avg in 8 10 12 14 16 18; do
+      ./lstm_transducer_stateless2/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir lstm_transducer_stateless2/exp \
+        --max-duration 600 \
+        --num-encoder-layers 12 \
+        --rnn-hidden-size 1024 \
+        --decoding-method $m \
+        --use-averaged-model True \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8 \
+        --beam-size 4
+    done
+  done
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03>
 
 
 #### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T)
