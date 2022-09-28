@@ -498,7 +498,7 @@ def export_joiner_model_onnx(
     encoder_out = torch.rand(1, 1, 1, encoder_out_dim, dtype=torch.float32)
     decoder_out = torch.rand(1, 1, 1, decoder_out_dim, dtype=torch.float32)
 
-    project_input = False
+    project_input = True
     # Note: It uses torch.jit.trace() internally
     torch.onnx.export(
         joiner_model,
