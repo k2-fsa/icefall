@@ -5,7 +5,7 @@
 [lstm_transducer_stateless3](./lstm_transducer_stateless3)
 
 It implements LSTM model with mechanisms in reworked model for streaming ASR.
-Gradient filter is applied inside each lstm module.
+Gradient filter is applied inside each lstm module to stabilize the training.
 
 See <https://github.com/k2-fsa/icefall/pull/564> for more details.
 
@@ -106,9 +106,12 @@ The WERs are:
 | modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
 | fast_beam_search                    | 2.77       | 7.29       | --iter 472000 --avg 18  |
 
-#!/usr/bin/env bash
+
+The training command is:
 
 ```
+#!/usr/bin/env bash
+
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 ./lstm_transducer_stateless2/train.py \
