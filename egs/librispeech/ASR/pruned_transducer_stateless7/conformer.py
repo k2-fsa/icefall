@@ -456,6 +456,8 @@ class DownsampledConformerEncoder(nn.Module):
             src, src_key_padding_mask=mask, warmup=warmup
         )
         src = self.upsample(src)
+        # remove any extra frames that are not a multiple of downsample_factor
+        src = src[:src_orig.shape[0]]
 
         return src
 
