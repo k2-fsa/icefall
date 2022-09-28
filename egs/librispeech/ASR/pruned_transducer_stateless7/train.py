@@ -113,7 +113,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dims",
         type=str,
-        default="320,512,512",
+        default="384,384",
         help="Attention dimension in 2, blocks of conformer encoder layers, comma separated, "
         "and the output dim of the encoder",
     )
@@ -121,7 +121,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--conformer-subsampling-factor",
         type=int,
-        default=4,
+        default=1,
         help="Subsampling factor for 2nd stack of encoder layers.",
     )
 
