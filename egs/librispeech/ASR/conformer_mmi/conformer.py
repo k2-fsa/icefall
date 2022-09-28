@@ -247,7 +247,9 @@ class ConformerEncoderLayer(nn.Module):
         residual = src
         if self.normalize_before:
             src = self.norm_conv(src)
-        src = residual + self.dropout(self.conv_module(src))
+        src = residual + self.dropout(
+            self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
+        )
         if not self.normalize_before:
             src = self.norm_conv(src)
 
@@ -878,11 +880,16 @@ class ConvolutionModule(nn.Module):
         )
         self.activation = Swish()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
+    ) -> Tensor:
         """Compute convolution module.
 
         Args:
             x: Input tensor (#time, batch, channels).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
 
         Returns:
             Tensor: Output tensor (#time, batch, channels).
@@ -896,6 +903,8 @@ class ConvolutionModule(nn.Module):
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
+        if src_key_padding_mask is not None:
+            x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
         x = self.depthwise_conv(x)
         x = self.activation(self.norm(x))
 
