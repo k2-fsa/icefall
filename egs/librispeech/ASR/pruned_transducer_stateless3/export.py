@@ -222,6 +222,9 @@ def get_parser():
             - encoder.onnx
             - decoder.onnx
             - joiner.onnx
+            - joiner_encoder_proj.onnx
+            - joiner_decoder_proj.onnx
+            - all_in_one.onnx
 
         Check ./onnx_check.py and ./onnx_pretrained.py for how to use them.
         """,
