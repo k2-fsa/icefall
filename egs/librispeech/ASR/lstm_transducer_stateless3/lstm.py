@@ -264,6 +264,9 @@ class RNN(EncoderInterface):
 class RNNEncoderLayer(nn.Module):
     """
     RNNEncoderLayer is made up of lstm and feedforward networks.
+    For stable training, in each lstm module, gradient filter
+    is applied to filter out extremely large elements in batch gradients
+    and also the module parameters with soft masks.
 
     Args:
       d_model:

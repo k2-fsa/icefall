@@ -19,19 +19,19 @@ This script loads torchscript models, either exported by `torch.jit.trace()`
 or by `torch.jit.script()`, and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./lstm_transducer_stateless/export.py \
-  --exp-dir ./lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/export.py \
+  --exp-dir ./lstm_transducer_stateless3/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10 \
+  --epoch 40 \
+  --avg 15 \
   --jit-trace 1
 
 Usage of this script:
 
-./lstm_transducer_stateless/jit_pretrained.py \
-  --encoder-model-filename ./lstm_transducer_stateless/exp/encoder_jit_trace.pt \
-  --decoder-model-filename ./lstm_transducer_stateless/exp/decoder_jit_trace.pt \
-  --joiner-model-filename ./lstm_transducer_stateless/exp/joiner_jit_trace.pt \
+./lstm_transducer_stateless3/jit_pretrained.py \
+  --encoder-model-filename ./lstm_transducer_stateless3/exp/encoder_jit_trace.pt \
+  --decoder-model-filename ./lstm_transducer_stateless3/exp/decoder_jit_trace.pt \
+  --joiner-model-filename ./lstm_transducer_stateless3/exp/joiner_jit_trace.pt \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   /path/to/foo.wav \
   /path/to/bar.wav

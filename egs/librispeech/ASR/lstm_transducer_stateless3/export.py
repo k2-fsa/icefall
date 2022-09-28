@@ -24,11 +24,11 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.trace()
 
-./lstm_transducer_stateless/export.py \
-  --exp-dir ./lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/export.py \
+  --exp-dir ./lstm_transducer_stateless3/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 35 \
-  --avg 10 \
+  --epoch 40 \
+  --avg 20 \
   --jit-trace 1
 
 It will generate 3 files: `encoder_jit_trace.pt`,
@@ -36,24 +36,24 @@ It will generate 3 files: `encoder_jit_trace.pt`,
 
 (2) Export `model.state_dict()`
 
-./lstm_transducer_stateless/export.py \
-  --exp-dir ./lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/export.py \
+  --exp-dir ./lstm_transducer_stateless3/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 35 \
-  --avg 10
+  --epoch 40 \
+  --avg 20
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `lstm_transducer_stateless/decode.py`,
+To use the generated file with `lstm_transducer_stateless3/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./lstm_transducer_stateless/decode.py \
-        --exp-dir ./lstm_transducer_stateless/exp \
+    ./lstm_transducer_stateless3/decode.py \
+        --exp-dir ./lstm_transducer_stateless3/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \

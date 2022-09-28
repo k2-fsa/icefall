@@ -1,5 +1,93 @@
 ## Results
 
+#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T 3)
+
+[lstm_transducer_stateless3](./lstm_transducer_stateless3)
+
+It implements LSTM model with mechanisms in reworked model for streaming ASR.
+Gradient filter is applied inside each lstm module.
+
+See <https://github.com/k2-fsa/icefall/pull/564> for more details.
+
+#### training on full librispeech
+
+This model contains 12 encoder layers (LSTM module + Feedforward module). The number of model parameters is 84689496.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment              | decoding mode        |
+|-------------------------------------|------------|------------|----------------------|----------------------|
+| greedy search (max sym per frame 1) | 3.66       | 9.51       | --epoch 40 --avg 15  | simulated streaming  |
+| greedy search (max sym per frame 1) | 3.66       | 9.48       | --epoch 40 --avg 15  | streaming            |
+| fast beam search                    | 3.55       | 9.33       | --epoch 40 --avg 15  | simulated streaming  |
+| fast beam search                    | 3.57       | 9.25       | --epoch 40 --avg 15  | streaming            |
+| modified beam search                | 3.55       | 9.28       | --epoch 40 --avg 15  | simulated streaming  |
+| modified beam search                | 3.54       | 9.25       | --epoch 40 --avg 15  | streaming            |
+
+Note: `simulated streaming` indicates feeding full utterance during decoding, while `streaming` indicates feeding certain number of frames at each time.
+
+The training command is:
+
+```bash
+./lstm_transducer_stateless3/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --exp-dir lstm_transducer_stateless3/exp \
+  --full-libri 1 \
+  --max-duration 500 \
+  --master-port 12325 \
+  --num-encoder-layers 12 \
+  --grad-norm-threshold 25.0 \
+  --rnn-hidden-size 1024
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/caNPyr5lT8qAl9qKsXEeEQ/>
+
+The simulated streaming decoding command using greedy search, fast beam search, and modified beam search is:
+```bash
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless3/decode.py \
+    --epoch 40 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless3/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
+```
+
+The streaming decoding command using greedy search, fast beam search, and modified beam search is:
+```bash
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless3/streaming_decode.py \
+    --epoch 40 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless3/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-lstm-transducer-stateless3-2022-09-28>
+
+
 #### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T)
 
 [lstm_transducer_stateless](./lstm_transducer_stateless)

@@ -19,10 +19,10 @@
 """
 Usage:
 (1) greedy search
-./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 35 \
-      --avg 10 \
-      --exp-dir lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/streaming_decode.py \
+      --epoch 40 \
+      --avg 20 \
+      --exp-dir lstm_transducer_stateless3/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --rnn-hidden-size 1024 \
@@ -30,10 +30,10 @@ Usage:
       --use-averaged-model True
 
 (2) modified beam search
-./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 35 \
-      --avg 10 \
-      --exp-dir lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/streaming_decode.py \
+      --epoch 40 \
+      --avg 20 \
+      --exp-dir lstm_transducer_stateless3/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --rnn-hidden-size 1024 \
@@ -42,10 +42,10 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./lstm_transducer_stateless/streaming_decode.py \
-      --epoch 35 \
-      --avg 10 \
-      --exp-dir lstm_transducer_stateless/exp \
+./lstm_transducer_stateless3/streaming_decode.py \
+      --epoch 40 \
+      --avg 20 \
+      --exp-dir lstm_transducer_stateless3/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --rnn-hidden-size 1024 \
@@ -100,7 +100,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
+        default=40,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
@@ -118,7 +118,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=20,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -138,7 +138,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="transducer_emformer/exp",
+        default="lstm_transducer_stateless3/exp",
         help="The experiment dir",
     )
 
