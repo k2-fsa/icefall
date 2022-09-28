@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang
-#                                                  Mingshuang Luo)
+#                                                  Wei Kang,
+#                                                  Mingshuang Luo,)
+#                                                  Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,29 +26,28 @@ cd egs/librispeech/ASR/
 ./prepare.sh
 ./prepare_giga_speech.sh
 
-./pruned_transducer_stateless3/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
-  --start-epoch 0 \
-  --exp-dir pruned_transducer_stateless3/exp \
+  --start-epoch 1 \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless3/train.py \
+./lstm_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
-  --start-epoch 0 \
+  --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless3/exp \
+  --exp-dir lstm_transducer_stateless2/exp \
   --full-libri 1 \
   --max-duration 550
-
 """
 
-
 import argparse
+import copy
 import logging
 import random
 import warnings
@@ -62,7 +62,6 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import AsrDataModule
-from conformer import Conformer
 from decoder import Decoder
 from gigaspeech import GigaSpeech
 from joiner import Joiner
@@ -71,6 +70,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from librispeech import LibriSpeech
+from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -81,7 +81,10 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import save_checkpoint_with_global_batch_idx
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
+)
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import (
@@ -99,37 +102,34 @@ LRSchedulerType = Union[
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        """,
-    )
-
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
+        "--num-encoder-layers",
         type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
+        default=12,
+        help="Number of RNN encoder layers..",
     )
 
     parser.add_argument(
-        "--num-left-chunks",
+        "--encoder-dim",
         type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
+        default=512,
+        help="Encoder output dimesion.",
+    )
+
+    parser.add_argument(
+        "--rnn-hidden-size",
+        type=int,
+        default=1024,
+        help="Hidden dim for LSTM layers.",
+    )
+
+    parser.add_argument(
+        "--aux-layer-period",
+        type=int,
+        default=0,
+        help="""Peroid of auxiliary layers used for randomly combined during training.
+        If set to 0, will not use the random combiner (Default).
+        You can set a positive integer to use the random combiner, e.g., 3.
+        """,
     )
 
 
@@ -170,17 +170,17 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=30,
+        default=35,
         help="Number of epochs to train.",
     )
 
     parser.add_argument(
         "--start-epoch",
         type=int,
-        default=0,
-        help="""Resume training from from this epoch.
-        If it is positive, it will load checkpoint from
-        transducer_stateless3/exp/epoch-{start_epoch-1}.pt
+        default=1,
+        help="""Resume training from this epoch. It should be positive.
+        If larger than 1, it will load checkpoint from
+        exp-dir/epoch-{start_epoch-1}.pt
         """,
     )
 
@@ -196,7 +196,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="lstm_transducer_stateless2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -214,8 +214,8 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        help="""The initial learning rate. This value should not need to be
+        changed.""",
     )
 
     parser.add_argument(
@@ -229,7 +229,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=4,
+        default=10,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -293,7 +293,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=2000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -315,6 +315,19 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--average-period",
+        type=int,
+        default=100,
+        help="""Update the averaged model, namely `model_avg`, after processing
+        this number of batches. `model_avg` is a separate version of model,
+        in which each floating-point parameter is the average of all the
+        parameters from the start of training. Each time we take the average,
+        we do: `model_avg = model * (average_period / batch_idx_train) +
+            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
+        """,
+    )
+
+    parser.add_argument(
         "--use-fp16",
         type=str2bool,
         default=False,
@@ -327,6 +340,8 @@ def get_parser():
         default=0.5,
         help="The probability to select a batch from the GigaSpeech dataset",
     )
+
+    add_model_arguments(parser)
 
     return parser
 
@@ -369,8 +384,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - encoder_dim: Hidden dim for multi-head attention model.
-
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
         - warm_step: The warm_step for Noam optimizer.
@@ -388,14 +401,13 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
             "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
             "joiner_dim": 512,
+            # True to generate a model that can be exported via PNNX
+            "is_pnnx": False,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
@@ -406,18 +418,15 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = RNN(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
-        nhead=params.nhead,
+        rnn_hidden_size=params.rnn_hidden_size,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        dynamic_chunk_training=params.dynamic_chunk_training,
-        short_chunk_size=params.short_chunk_size,
-        num_left_chunks=params.num_left_chunks,
-        causal=params.causal_convolution,
+        aux_layer_period=params.aux_layer_period,
+        is_pnnx=params.is_pnnx,
     )
     return encoder
 
@@ -476,6 +485,7 @@ def get_transducer_model(
 def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
+    model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -483,7 +493,7 @@ def load_checkpoint_if_available(
 
     If params.start_batch is positive, it will load the checkpoint from
     `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
-    params.start_epoch is positive, it will load the checkpoint from
+    params.start_epoch is larger than 1, it will load the checkpoint from
     `params.start_epoch - 1`.
 
     Apart from loading state dict for `model` and `optimizer` it also updates
@@ -495,6 +505,8 @@ def load_checkpoint_if_available(
         The return value of :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer that we are using.
       scheduler:
@@ -504,7 +516,7 @@ def load_checkpoint_if_available(
     """
     if params.start_batch > 0:
         filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
-    elif params.start_epoch > 0:
+    elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
         return None
@@ -514,6 +526,7 @@ def load_checkpoint_if_available(
     saved_params = load_checkpoint(
         filename,
         model=model,
+        model_avg=model_avg,
         optimizer=optimizer,
         scheduler=scheduler,
     )
@@ -537,7 +550,8 @@ def load_checkpoint_if_available(
 
 def save_checkpoint(
     params: AttributeDict,
-    model: nn.Module,
+    model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
@@ -551,6 +565,8 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer used in the training.
       sampler:
@@ -564,6 +580,7 @@ def save_checkpoint(
     save_checkpoint_impl(
         filename=filename,
         model=model,
+        model_avg=model_avg,
         params=params,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -594,7 +611,7 @@ def is_libri(c: Cut) -> bool:
 
 def compute_loss(
     params: AttributeDict,
-    model: nn.Module,
+    model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
@@ -618,7 +635,11 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = model.device
+    device = (
+        model.device
+        if isinstance(model, DDP)
+        else next(model.parameters()).device
+    )
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -716,7 +737,7 @@ def compute_loss(
 
 def compute_validation_loss(
     params: AttributeDict,
-    model: nn.Module,
+    model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -750,7 +771,7 @@ def compute_validation_loss(
 
 def train_one_epoch(
     params: AttributeDict,
-    model: nn.Module,
+    model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
@@ -759,6 +780,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
     scaler: GradScaler,
+    model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -788,6 +810,8 @@ def train_one_epoch(
         For selecting which dataset to use.
       scaler:
         The scaler used for mix precision training.
+      model_avg:
+        The stored model averaged from the start of training.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -830,39 +854,54 @@ def train_one_epoch(
 
         libri = is_libri(batch["supervisions"]["cut"][0])
 
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
-            loss, loss_info = compute_loss(
-                params=params,
-                model=model,
-                sp=sp,
-                batch=batch,
-                is_training=True,
-                warmup=(params.batch_idx_train / params.model_warm_step),
-            )
-        # summary stats
-        tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+        try:
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                loss, loss_info = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=True,
+                    warmup=(params.batch_idx_train / params.model_warm_step),
+                )
+            # summary stats
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
-        if libri:
-            libri_tot_loss = (
-                libri_tot_loss * (1 - 1 / params.reset_interval)
-            ) + loss_info
-            prefix = "libri"  # for logging only
-        else:
-            giga_tot_loss = (
-                giga_tot_loss * (1 - 1 / params.reset_interval)
-            ) + loss_info
-            prefix = "giga"
+            if libri:
+                libri_tot_loss = (
+                    libri_tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+                prefix = "libri"  # for logging only
+            else:
+                giga_tot_loss = (
+                    giga_tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+                prefix = "giga"
 
-        # NOTE: We use reduction==sum and loss is computed over utterances
-        # in the batch and there is no normalization to it so far.
-        scaler.scale(loss).backward()
-        scheduler.step_batch(params.batch_idx_train)
-        scaler.step(optimizer)
-        scaler.update()
-        optimizer.zero_grad()
+            # NOTE: We use reduction==sum and loss is computed over utterances
+            # in the batch and there is no normalization to it so far.
+            scaler.scale(loss).backward()
+            scheduler.step_batch(params.batch_idx_train)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+        except:  # noqa
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise
 
         if params.print_diagnostics and batch_idx == 30:
             return
+
+        if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
 
         if (
             params.batch_idx_train > 0
@@ -872,6 +911,7 @@ def train_one_epoch(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
                 model=model,
+                model_avg=model_avg,
                 params=params,
                 optimizer=optimizer,
                 scheduler=scheduler,
@@ -972,7 +1012,7 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
     if params.full_libri is False:
-        params.valid_interval = 1600
+        params.valid_interval = 800
 
     fix_random_seed(params.seed)
     rng = random.Random(params.seed)
@@ -999,11 +1039,6 @@ def run(rank, world_size, args):
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
-    if params.dynamic_chunk_training:
-        assert (
-            params.causal_convolution
-        ), "dynamic_chunk_training requires causal convolution"
-
     logging.info(params)
 
     logging.info("About to create model")
@@ -1012,13 +1047,21 @@ def run(rank, world_size, args):
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model)
+
+    assert params.start_epoch > 0, params.start_epoch
+    checkpoints = load_checkpoint_if_available(
+        params=params, model=model, model_avg=model_avg
+    )
 
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
-    model.device = device
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
@@ -1035,6 +1078,10 @@ def run(rank, world_size, args):
     ):
         logging.info("Loading scheduler state dict")
         scheduler.load_state_dict(checkpoints["scheduler"])
+
+    # # overwrite it
+    # scheduler.base_lrs = [params.initial_lr for _ in scheduler.base_lrs]
+    # print(scheduler.base_lrs)
 
     if params.print_diagnostics:
         diagnostic = diagnostics.attach_diagnostics(model)
@@ -1094,7 +1141,12 @@ def run(rank, world_size, args):
     # It's time consuming to include `giga_train_dl` here
     #  for dl in [train_dl, giga_train_dl]:
     for dl in [train_dl]:
-        if params.start_batch <= 0:
+        if (
+            params.start_batch <= 0
+            and params.start_epoch == 1
+            and not params.print_diagnostics
+            and False
+        ):
             scan_pessimistic_batches_for_oom(
                 model=model,
                 train_dl=dl,
@@ -1103,16 +1155,18 @@ def run(rank, world_size, args):
                 params=params,
                 warmup=0.0 if params.start_epoch == 0 else 1.0,
             )
+        else:
+            logging.info("Skip scan_pessimistic_batches_for_oom")
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    for epoch in range(params.start_epoch, params.num_epochs):
-        scheduler.step_epoch(epoch)
-        fix_random_seed(params.seed + epoch)
-        train_dl.sampler.set_epoch(epoch)
+    for epoch in range(params.start_epoch, params.num_epochs + 1):
+        scheduler.step_epoch(epoch - 1)
+        fix_random_seed(params.seed + epoch - 1)
+        train_dl.sampler.set_epoch(epoch - 1)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
@@ -1122,6 +1176,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
@@ -1142,6 +1197,7 @@ def run(rank, world_size, args):
         save_checkpoint(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             sampler=train_dl.sampler,
@@ -1157,7 +1213,7 @@ def run(rank, world_size, args):
 
 
 def scan_pessimistic_batches_for_oom(
-    model: nn.Module,
+    model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
@@ -1167,7 +1223,7 @@ def scan_pessimistic_batches_for_oom(
     from lhotse.dataset import find_pessimistic_batches
 
     logging.info(
-        "Sanity check -- see if any of the batches in epoch 0 would cause OOM."
+        "Sanity check -- see if any of the batches in epoch 1 would cause OOM."
     )
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():

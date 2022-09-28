@@ -11,4 +11,5 @@ log
 *.bak
 *-bak
 *bak.py
-switch_icefall.sh
+*.param
+*.bin
