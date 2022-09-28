@@ -121,7 +121,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--conformer-subsampling-factor",
         type=int,
-        default=1,
+        default=2,
         help="Subsampling factor for 2nd stack of encoder layers.",
     )
 
