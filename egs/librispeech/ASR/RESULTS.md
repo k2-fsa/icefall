@@ -109,7 +109,7 @@ The WERs are:
 
 The training command is:
 
-```
+```bash
 #!/usr/bin/env bash
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
