@@ -58,7 +58,9 @@ log "Decode with ONNX models"
   --jit-filename $repo/exp/cpu_jit.pt \
   --onnx-encoder-filename $repo/exp/encoder.onnx \
   --onnx-decoder-filename $repo/exp/decoder.onnx \
-  --onnx-joiner-filename $repo/exp/joiner.onnx
+  --onnx-joiner-filename $repo/exp/joiner.onnx \
+  --onnx-joiner-filename $repo/exp/joiner_encoder_proj.onnx \
+  --onnx-joiner-filename $repo/exp/joiner_decoder_proj.onnx
 
 ./pruned_transducer_stateless3/onnx_check_all_in_one.py \
   --jit-filename $repo/exp/cpu_jit.pt \
