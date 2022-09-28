@@ -62,12 +62,14 @@ It will generates 3 files: `encoder_jit_trace.pt`,
   --avg 10 \
   --onnx 1
 
-It will generate the following three files in the given `exp_dir`.
+It will generate the following six files in the given `exp_dir`.
 Check `onnx_check.py` for how to use them.
 
     - encoder.onnx
     - decoder.onnx
     - joiner.onnx
+    - joiner_encoder_proj.onnx
+    - joiner_decoder_proj.onnx
     - all_in_one.onnx
 
 
