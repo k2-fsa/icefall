@@ -125,7 +125,7 @@ class GradientFilterFunction(torch.autograd.Function):
                 batch_dim += x.ndim
             ctx.batch_dim = batch_dim
             ctx.threshold = threshold
-        return x, *params
+        return (x,) + params
 
     @staticmethod
     def backward(
@@ -147,7 +147,7 @@ class GradientFilterFunction(torch.autograd.Function):
         avg_mask = 1.0 / (inv_mask.mean() + eps)
         param_grads = [avg_mask * g for g in param_grads]
 
-        return x_grad, None, None, *param_grads
+        return (x_grad, None, None) + tuple(param_grads)
 
 
 class GradientFilter(torch.nn.Module):
@@ -171,7 +171,7 @@ class GradientFilter(torch.nn.Module):
 
     def forward(self, x: Tensor, *params: Tensor) -> Tuple[Tensor]:
         if torch.jit.is_scripting() or is_jit_tracing():
-            return x, *params
+            return (x,) + params
         else:
             return GradientFilterFunction.apply(
                 x,
