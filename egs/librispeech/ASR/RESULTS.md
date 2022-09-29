@@ -1,14 +1,174 @@
 ## Results
 
-#### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T)
+### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
-[lstm_transducer_stateless](./lstm_transducer_stateless)
+#### [lstm_transducer_stateless3](./lstm_transducer_stateless3)
+
+It implements LSTM model with mechanisms in reworked model for streaming ASR.
+Gradient filter is applied inside each lstm module to stabilize the training.
+
+See <https://github.com/k2-fsa/icefall/pull/564> for more details.
+
+##### training on full librispeech
+
+This model contains 12 encoder layers (LSTM module + Feedforward module). The number of model parameters is 84689496.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment              | decoding mode        |
+|-------------------------------------|------------|------------|----------------------|----------------------|
+| greedy search (max sym per frame 1) | 3.66       | 9.51       | --epoch 40 --avg 15  | simulated streaming  |
+| greedy search (max sym per frame 1) | 3.66       | 9.48       | --epoch 40 --avg 15  | streaming            |
+| fast beam search                    | 3.55       | 9.33       | --epoch 40 --avg 15  | simulated streaming  |
+| fast beam search                    | 3.57       | 9.25       | --epoch 40 --avg 15  | streaming            |
+| modified beam search                | 3.55       | 9.28       | --epoch 40 --avg 15  | simulated streaming  |
+| modified beam search                | 3.54       | 9.25       | --epoch 40 --avg 15  | streaming            |
+
+Note: `simulated streaming` indicates feeding full utterance during decoding, while `streaming` indicates feeding certain number of frames at each time.
+
+
+The training command is:
+
+```bash
+./lstm_transducer_stateless3/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --exp-dir lstm_transducer_stateless3/exp \
+  --full-libri 1 \
+  --max-duration 500 \
+  --master-port 12325 \
+  --num-encoder-layers 12 \
+  --grad-norm-threshold 25.0 \
+  --rnn-hidden-size 1024
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/caNPyr5lT8qAl9qKsXEeEQ/>
+
+The simulated streaming decoding command using greedy search, fast beam search, and modified beam search is:
+```bash
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless3/decode.py \
+    --epoch 40 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless3/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
+```
+
+The streaming decoding command using greedy search, fast beam search, and modified beam search is:
+```bash
+for decoding_method in greedy_search fast_beam_search modified_beam_search; do
+  ./lstm_transducer_stateless3/streaming_decode.py \
+    --epoch 40 \
+    --avg 15 \
+    --exp-dir lstm_transducer_stateless3/exp \
+    --max-duration 600 \
+    --num-encoder-layers 12 \
+    --rnn-hidden-size 1024 \
+    --decoding-method $decoding_method \
+    --use-averaged-model True \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --beam-size 4
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-lstm-transducer-stateless3-2022-09-28>
+
+
+### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + multi-dataset)
+
+#### [lstm_transducer_stateless2](./lstm_transducer_stateless2)
+
+See <https://github.com/k2-fsa/icefall/pull/558> for more details.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment                 |
+|-------------------------------------|------------|------------|-------------------------|
+| greedy search (max sym per frame 1) | 2.78       | 7.36       | --iter 468000 --avg 16  |
+| modified_beam_search                | 2.73       | 7.15       | --iter 468000 --avg 16  |
+| fast_beam_search                    | 2.76       | 7.31       | --iter 468000 --avg 16  |
+| greedy search (max sym per frame 1) | 2.77       | 7.35       | --iter 472000 --avg 18  |
+| modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
+| fast_beam_search                    | 2.77       | 7.29       | --iter 472000 --avg 18  |
+
+
+The training command is:
+
+```bash
+#!/usr/bin/env bash
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./lstm_transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 35 \
+  --start-epoch 1 \
+  --full-libri 1 \
+  --exp-dir lstm_transducer_stateless2/exp \
+  --max-duration 500 \
+  --use-fp16 0 \
+  --lr-epochs 10 \
+  --num-workers 2 \
+  --giga-prob 0.9
+```
+**Note**: It was killed manually after getting `epoch-18.pt`. Also, we resumed
+training after getting `epoch-9.pt`.
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/1ziQ2LFmQY2mt4dlUr5dyA/>
+
+The decoding command is
+```bash
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for iter in 472000; do
+    for avg in 8 10 12 14 16 18; do
+      ./lstm_transducer_stateless2/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir lstm_transducer_stateless2/exp \
+        --max-duration 600 \
+        --num-encoder-layers 12 \
+        --rnn-hidden-size 1024 \
+        --decoding-method $m \
+        --use-averaged-model True \
+        --beam 4 \
+        --max-contexts 4 \
+        --max-states 8 \
+        --beam-size 4
+    done
+  done
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03>
+
+
+### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T)
+
+#### [lstm_transducer_stateless](./lstm_transducer_stateless)
 
 It implements LSTM model with mechanisms in reworked model for streaming ASR.
 
 See <https://github.com/k2-fsa/icefall/pull/479> for more details.
 
-#### training on full librispeech
+##### training on full librispeech
 
 This model contains 12 encoder layers (LSTM module + Feedforward module). The number of model parameters is 84689496.
 
@@ -95,7 +255,7 @@ It is modified from [torchaudio](https://github.com/pytorch/audio).
 
 See <https://github.com/k2-fsa/icefall/pull/440> for more details.
 
-#### With lower latency setup, training on full librispeech
+##### With lower latency setup, training on full librispeech
 
 In this model, the lengths of chunk and right context are 32 frames (i.e., 0.32s) and 8 frames (i.e., 0.08s), respectively.
 
@@ -246,7 +406,7 @@ Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05>
 
-#### With higher latency setup, training on full librispeech
+##### With higher latency setup, training on full librispeech
 
 In this model, the lengths of chunk and right context are 64 frames (i.e., 0.64s) and 16 frames (i.e., 0.16s), respectively.
 
@@ -781,14 +941,14 @@ Pre-trained models, training and decoding logs, and decoding results are availab
 
 ### LibriSpeech BPE training results (Pruned Stateless Conv-Emformer RNN-T)
 
-[conv_emformer_transducer_stateless](./conv_emformer_transducer_stateless)
+#### [conv_emformer_transducer_stateless](./conv_emformer_transducer_stateless)
 
 It implements [Emformer](https://arxiv.org/abs/2010.10759) augmented with convolution module for streaming ASR.
 It is modified from [torchaudio](https://github.com/pytorch/audio).
 
 See <https://github.com/k2-fsa/icefall/pull/389> for more details.
 
-#### Training on full librispeech
+##### Training on full librispeech
 
 In this model, the lengths of chunk and right context are 32 frames (i.e., 0.32s) and 8 frames (i.e., 0.08s), respectively.
 
@@ -941,7 +1101,7 @@ are available at
 
 ### LibriSpeech BPE training results (Pruned Stateless Emformer RNN-T)
 
-[pruned_stateless_emformer_rnnt2](./pruned_stateless_emformer_rnnt2)
+#### [pruned_stateless_emformer_rnnt2](./pruned_stateless_emformer_rnnt2)
 
 Use <https://github.com/k2-fsa/icefall/pull/390>.
 
@@ -1009,7 +1169,7 @@ results at:
 
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 5)
 
-[pruned_transducer_stateless5](./pruned_transducer_stateless5)
+#### [pruned_transducer_stateless5](./pruned_transducer_stateless5)
 
 Same as `Pruned Stateless Transducer 2` but with more layers.
 
@@ -1022,7 +1182,7 @@ The notations `large` and `medium` below are from the [Conformer](https://arxiv.
 paper, where the large model has about 118 M parameters and the medium model
 has 30.8 M parameters.
 
-#### Large
+##### Large
 
 Number of model parameters 118129516 (i.e, 118.13 M).
 
@@ -1082,7 +1242,7 @@ results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless5-2022-07-07>
 
 
-#### Medium
+##### Medium
 
 Number of model parameters 30896748 (i.e, 30.9 M).
 
@@ -1142,7 +1302,7 @@ results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless5-M-2022-07-07>
 
 
-#### Baseline-2
+##### Baseline-2
 
 It has 88.98 M parameters. Compared to the model in pruned_transducer_stateless2, its has more
 layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder dim vs 2048 feed forward dim and 512 encoder dim).
@@ -1203,13 +1363,13 @@ results at:
 
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 4)
 
-[pruned_transducer_stateless4](./pruned_transducer_stateless4)
+#### [pruned_transducer_stateless4](./pruned_transducer_stateless4)
 
 This version saves averaged model during training, and decodes with averaged model.
 
 See <https://github.com/k2-fsa/icefall/issues/337> for details about the idea of model averaging.
 
-#### Training on full librispeech
+##### Training on full librispeech
 
 See <https://github.com/k2-fsa/icefall/pull/344>
 
@@ -1285,7 +1445,7 @@ Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless4-2022-06-03>
 
-#### Training on train-clean-100
+##### Training on train-clean-100
 
 See <https://github.com/k2-fsa/icefall/pull/344>
 
@@ -1322,7 +1482,7 @@ The tensorboard log can be found at
 
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 3, 2022-04-29)
 
-[pruned_transducer_stateless3](./pruned_transducer_stateless3)
+#### [pruned_transducer_stateless3](./pruned_transducer_stateless3)
 Same as `Pruned Stateless Transducer 2` but using the XL subset from
 [GigaSpeech](https://github.com/SpeechColab/GigaSpeech) as extra training data.
 
@@ -1536,10 +1696,10 @@ can be found at
 
 ### LibriSpeech BPE training results (Pruned Transducer 2)
 
-[pruned_transducer_stateless2](./pruned_transducer_stateless2)
+#### [pruned_transducer_stateless2](./pruned_transducer_stateless2)
 This is with a reworked version of the conformer encoder, with many changes.
 
-#### Training on fulll librispeech
+##### Training on full librispeech
 
 Using commit `34aad74a2c849542dd5f6359c9e6b527e8782fd6`.
 See <https://github.com/k2-fsa/icefall/pull/288>
@@ -1588,7 +1748,7 @@ can be found at
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless2-2022-04-29>
 
 
-#### Training on train-clean-100:
+##### Training on train-clean-100:
 
 Trained with 1 job:
 ```
