@@ -427,8 +427,10 @@ class LibriSpeechAsrDataModule:
 
     @lru_cache()
     def train_all_shuf_cuts(self) -> CutSet:
-        logging.info("About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts")
+        logging.info(
+            "About to get the shuffled train-clean-100, \
+            train-clean-360 and train-other-500 cuts"
+        )
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
         )
