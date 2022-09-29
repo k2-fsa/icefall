@@ -131,7 +131,6 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
       train-clean-100
       train-clean-360
       train-other-500
-      train-all-shuf
       test-clean
       test-other
       dev-clean

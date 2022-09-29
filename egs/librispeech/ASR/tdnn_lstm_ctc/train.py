@@ -38,7 +38,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
 from asr_datamodule import LibriSpeechAsrDataModule
-from lhotse.cut import Cut, CutSet
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from model import TdnnLstm
 from torch import Tensor
@@ -578,9 +578,6 @@ def run(rank, world_size, args):
         return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    train_cuts = CutSet.from_cuts(train_cuts)
-    train_cuts = train_cuts.shuffle()
 
     train_dl = librispeech.train_dataloaders(train_cuts)
 
