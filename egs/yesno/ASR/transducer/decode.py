@@ -165,6 +165,7 @@ def decode_dataset(
     results = []
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps = decode_one_batch(
             params=params,
@@ -174,9 +175,9 @@ def decode_dataset(
 
         this_batch = []
         assert len(hyps) == len(texts)
-        for hyp_words, ref_text in zip(hyps, texts):
+        for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
             ref_words = ref_text.split()
-            this_batch.append((ref_words, hyp_words))
+            this_batch.append((cut_id, ref_words, hyp_words))
 
         results.extend(this_batch)
 
@@ -222,6 +223,7 @@ def save_results(
       Return None.
     """
     recog_path = exp_dir / f"recogs-{test_set_name}.txt"
+    results = sorted(results)
     store_transcripts(filename=recog_path, texts=results)
     logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -291,6 +293,8 @@ def main():
     model.eval()
     model.device = device
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     yes_no = YesNoAsrDataModule(args)
     test_dl = yes_no.test_dataloaders()
     results = decode_dataset(

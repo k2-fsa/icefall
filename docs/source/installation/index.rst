@@ -474,3 +474,19 @@ The decoding log is:
 **Congratulations!** You have successfully setup the environment and have run the first recipe in ``icefall``.
 
 Have fun with ``icefall``!
+
+YouTube Video
+-------------
+
+We provide the following YouTube video showing how to install ``icefall``.
+It also shows how to debug various problems that you may encounter while
+using ``icefall``.
+
+.. note::
+
+   To get the latest news of `next-gen Kaldi <https://github.com/k2-fsa>`_, please subscribe
+   the following YouTube channel by `Nadira Povey <https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_:
+
+      `<https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_
+
+..  youtube:: LVmrBD0tLfE
