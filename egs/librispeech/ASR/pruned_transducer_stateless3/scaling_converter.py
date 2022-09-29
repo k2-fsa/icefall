@@ -30,12 +30,36 @@ from typing import List
 import torch
 import torch.nn as nn
 from scaling import (
+    BasicNorm,
     ScaledConv1d,
     ScaledConv2d,
     ScaledEmbedding,
     ScaledLinear,
     ScaledLSTM,
 )
+
+
+class NonScaledNorm(nn.Module):
+    """See BasicNorm for doc"""
+
+    def __init__(
+        self,
+        num_channels: int,
+        eps_exp: float,
+        channel_dim: int = -1,  # CAUTION: see documentation.
+    ):
+        super().__init__()
+        self.num_channels = num_channels
+        self.channel_dim = channel_dim
+        self.eps_exp = eps_exp
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if not torch.jit.is_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
+        scales = (
+            torch.mean(x * x, dim=self.channel_dim, keepdim=True) + self.eps_exp
+        ).pow(-0.5)
+        return x * scales
 
 
 def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
@@ -174,6 +198,16 @@ def scaled_embedding_to_embedding(
     return embedding
 
 
+def convert_basic_norm(basic_norm: BasicNorm) -> NonScaledNorm:
+    assert isinstance(basic_norm, BasicNorm), type(BasicNorm)
+    norm = NonScaledNorm(
+        num_channels=basic_norm.num_channels,
+        eps_exp=basic_norm.eps.data.exp().item(),
+        channel_dim=basic_norm.channel_dim,
+    )
+    return norm
+
+
 def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
     """Convert an instance of ScaledLSTM to nn.LSTM.
 
@@ -256,6 +290,8 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
             d[name] = scaled_conv2d_to_conv2d(m)
         elif isinstance(m, ScaledEmbedding):
             d[name] = scaled_embedding_to_embedding(m)
+        elif isinstance(m, BasicNorm):
+            d[name] = convert_basic_norm(m)
         elif isinstance(m, ScaledLSTM):
             d[name] = scaled_lstm_to_lstm(m)
 

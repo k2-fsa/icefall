@@ -527,7 +527,9 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
-        conv, _ = self.conv_module(src)
+        conv, _ = self.conv_module(
+            src, src_key_padding_mask=src_key_padding_mask
+        )
         src = src + self.dropout(conv)
 
         # feed forward module
@@ -1457,6 +1459,7 @@ class ConvolutionModule(nn.Module):
         x: Tensor,
         cache: Optional[Tensor] = None,
         right_context: int = 0,
+        src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
@@ -1467,6 +1470,7 @@ class ConvolutionModule(nn.Module):
             right_context:
               How many future frames the attention can see in current chunk.
               Note: It's not that each individual frame has `right_context` frames
+            src_key_padding_mask: the mask for the src keys per batch (optional).
               of right context, some have more.
 
         Returns:
@@ -1486,6 +1490,8 @@ class ConvolutionModule(nn.Module):
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
+        if src_key_padding_mask is not None:
+            x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
         if self.causal and self.lorder > 0:
             if cache is None:
                 # Make depthwise_conv causal by
