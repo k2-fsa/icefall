@@ -311,7 +311,7 @@ class ConformerEncoder(nn.Module):
         self.combiner = AttentionCombine(
             num_channels=encoder_layer.d_model,
             num_inputs=len(self.aux_layers),
-            random_prob=0.5,
+            random_prob=0.333,
         )
 
     def forward(
@@ -1039,7 +1039,7 @@ class AttentionCombine(nn.Module):
         self,
         num_channels: int,
         num_inputs: int,
-        random_prob: float = 0.5,
+        random_prob: float = 0.333,
     ) -> None:
         """
         Args:
