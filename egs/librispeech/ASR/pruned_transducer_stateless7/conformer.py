@@ -21,6 +21,7 @@ import warnings
 from typing import List, Optional, Tuple
 import logging
 import torch
+import random
 from encoder_interface import EncoderInterface
 from scaling import (
     ActivationBalancer,
@@ -1089,6 +1090,9 @@ class AttentionCombine(nn.Module):
         )
 
         weights = (stacked_inputs * self.weight).sum(dim=(1,)) + self.bias
+
+        if random.random() < 0.002:
+            logging.info(f"Average weights are {weights.softmax(dim=1).mean(dim=0)}")
 
         if self.training:
             # random masking..
