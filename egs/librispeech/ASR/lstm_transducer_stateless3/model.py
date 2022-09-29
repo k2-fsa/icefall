@@ -81,7 +81,8 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         reduction: str = "sum",
-        delay_penalty: float = 0.0,
+        delay_penalty_simple: float = 0.0,
+        delay_penalty_pruned: float = 0.0,
         return_sym_delay: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -110,8 +111,10 @@ class Transducer(nn.Module):
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
-          delay_penalty:
-            A constant value to penalize symbol delay.
+          delay_penalty_simple:
+            A constant value to penalize symbol delay for simple loss.
+          delay_penalty_pruned:
+            A constant value to penalize symbol delay for pruned loss.
           return_sym_delay:
             Whether to return `sym_delay` during training, this is a stat
             to measure symbols emission delay.
@@ -172,7 +175,7 @@ class Transducer(nn.Module):
                 boundary=boundary,
                 reduction=reduction,
                 return_grad=True,
-                delay_penalty=delay_penalty,
+                delay_penalty=delay_penalty_simple,
             )
 
         # calculate the symbol delay measure in simple loss
@@ -227,7 +230,7 @@ class Transducer(nn.Module):
                 termination_symbol=blank_id,
                 boundary=boundary,
                 reduction=reduction,
-                delay_penalty=delay_penalty,
+                delay_penalty=delay_penalty_pruned,
             )
 
         return (simple_loss, pruned_loss, sym_delay, total_syms)
