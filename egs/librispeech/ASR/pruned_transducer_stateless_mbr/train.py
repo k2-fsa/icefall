@@ -335,6 +335,20 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--path-length",
+        type=int,
+        default=20,
+        help="The length of the sampled paths for MBR training.",
+    )
+
+    parser.add_argument(
+        "--delta-wer-scale",
+        type=float,
+        default=0.1,
+        help="The scale applying to delta_wer when it adds to the loss",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -391,7 +405,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 50,
+            "log_interval": 1,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for conformer
@@ -628,13 +642,14 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, delta_wer, wer_diff, pred_wer_diff = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            path_length=params.path_length,
             warmup=warmup,
             reduction="none",
         )
@@ -663,6 +678,9 @@ def compute_loss(
 
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
+        delta_wer = delta_wer.sum()
+        wer_diff = wer_diff.sum()
+        pred_wer_diff = pred_wer_diff.sum()
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -675,6 +693,7 @@ def compute_loss(
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
+            + params.delta_wer_scale * delta_wer
         )
 
     assert loss.requires_grad == is_training
@@ -703,6 +722,9 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["delta_wer"] = delta_wer.detach().cpu().item()
+    info["wer_diff"] = wer_diff.detach().cpu().item()
+    info["pred_wer_diff"] = pred_wer_diff.detach().cpu().item()
 
     return loss, info
 
