@@ -1093,8 +1093,10 @@ a tri-state lr scheduler. The 960h models are trained for 320k updates using a v
 | model name  | test-clean | test-other |
 | ----------- |------------|------------|
 | Hubert base |   2.82     | 7.09|
-| Hubert large|   1.90     | 3.94|
+| Hubert large|   1.93     | 3.93|
 
+you can find the pre-trained model, tensorboard logs and decoding results in:
+<https://huggingface.co/marcoyang/icefall_finetuned_hubert>
 Training commands are:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,"
