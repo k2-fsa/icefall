@@ -16,6 +16,28 @@ def get_args():
     return parser.parse_args()
 
 
+# replacement function to convert lowercase letter to uppercase
+def to_upper(match_obj):
+    if match_obj.group() is not None:
+        return match_obj.group().upper()
+
+
+def insert_groups_and_capitalize_3(match):
+    return f"{match.group(1)} {match.group(2)} {match.group(3)}".upper()
+
+
+def insert_groups_and_capitalize_2(match):
+    return f"{match.group(1)} {match.group(2)}".upper()
+
+
+def insert_groups_and_capitalize_1(match):
+    return f"{match.group(1)}".upper()
+
+
+def insert_groups_and_capitalize_1s(match):
+    return f"{match.group(1)}".upper() + "'s"
+
+
 # fmt: off
 class FisherSwbdNormalizer:
     """Note: the functions "normalize" and "keep" implement the logic
@@ -31,23 +53,23 @@ class FisherSwbdNormalizer:
         self.remove_regexp_before = re.compile(
             r"|".join([
                 # special symbols
-                r"\[\[SKIP.*\]\]",
-                r"\[SKIP.*\]",
-                r"\[PAUSE.*\]",
-                r"\[SILENCE\]",
-                r"<B_ASIDE>",
-                r"<E_ASIDE>",
+                r"\[\[skip.*\]\]",
+                r"\[skip.*\]",
+                r"\[pause.*\]",
+                r"\[silence\]",
+                r"<b_aside>",
+                r"<e_aside>",
             ])
         )
 
         # tuples of (pattern, replacement)
         # note: Kaldi replaces sighs, coughs, etc with [noise].
         #       We don't do that here.
-        #       We also uppercase the text as the first operation.
+        #       We also lowercase the text as the first operation.
         self.replace_regexps: Tuple[re.Pattern, str] = [
             # SWBD:
             # [LAUGHTER-STORY] -> STORY
-            (re.compile(r"\[LAUGHTER-(.*?)\]"), r"\1"),
+            (re.compile(r"\[laughter-(.*?)\]"), r"\1"),
             # [WEA[SONABLE]-/REASONABLE]
             (re.compile(r"\[\S+/(\S+)\]"), r"\1"),
             # -[ADV]AN[TAGE]- -> AN
@@ -58,19 +80,22 @@ class FisherSwbdNormalizer:
             # -[AN]Y- -> Y-
             (re.compile(r"-?\[.*?\](\w+)-?"), r"\1-"),
             # special tokens
-            (re.compile(r"\[LAUGH.*?\]"), r"[LAUGHTER]"),
-            (re.compile(r"\[SIGH.*?\]"), r"[SIGH]"),
-            (re.compile(r"\[COUGH.*?\]"), r"[COUGH]"),
-            (re.compile(r"\[MN.*?\]"), r"[VOCALIZED-NOISE]"),
-            (re.compile(r"\[BREATH.*?\]"), r"[BREATH]"),
-            (re.compile(r"\[LIPSMACK.*?\]"), r"[LIPSMACK]"),
-            (re.compile(r"\[SNEEZE.*?\]"), r"[SNEEZE]"),
+            (re.compile(r"\[laugh.*?\]"), r"[laughter]"),
+            (re.compile(r"\[sigh.*?\]"), r"[sigh]"),
+            (re.compile(r"\[cough.*?\]"), r"[cough]"),
+            (re.compile(r"\[mn.*?\]"), r"[vocalized-noise]"),
+            (re.compile(r"\[breath.*?\]"), r"[breath]"),
+            (re.compile(r"\[lipsmack.*?\]"), r"[lipsmack]"),
+            (re.compile(r"\[sneeze.*?\]"), r"[sneeze]"),
             # abbreviations
-            (re.compile(r"(\w)\.(\w)\.(\w)",), r"\1 \2 \3"),
-            (re.compile(r"(\w)\.(\w)",), r"\1 \2"),
+            (re.compile(r"(\w)\.(\w)\.(\w)",), insert_groups_and_capitalize_3),
+            (re.compile(r"(\w)\.(\w)",), insert_groups_and_capitalize_2),
+            (re.compile(r"([a-h,j-z])\.",), insert_groups_and_capitalize_1),
             (re.compile(r"\._",), r" "),
-            (re.compile(r"_(\w)",), r"\1"),
-            (re.compile(r"(\w)\.s",), r"\1's"),
+            (re.compile(r"_(\w)",), insert_groups_and_capitalize_1),
+            (re.compile(r"(\w)\.s",), insert_groups_and_capitalize_1s),
+            (re.compile(r"([A-Z])\'s",), insert_groups_and_capitalize_1s),
+            (re.compile(r"(\s\w\b|^\w\b)",), insert_groups_and_capitalize_1),
             # words between apostrophes
             (re.compile(r"'(\S*?)'"), r"\1"),
             # dangling dashes (2 passes)
@@ -78,6 +103,8 @@ class FisherSwbdNormalizer:
             (re.compile(r"\s-\s"), r" "),
             # special symbol with trailing dash
             (re.compile(r"(\[.*?\])-"), r"\1"),
+            # Just remove all dashes
+            (re.compile(r"-"), r" "),
         ]
 
         # unwanted symbols in the transcripts
@@ -97,7 +124,7 @@ class FisherSwbdNormalizer:
         self.whitespace_regexp = re.compile(r"\s+")
 
     def normalize(self, text: str) -> str:
-        text = text.upper()
+        text = text.lower()
 
         # first remove
         text = self.remove_regexp_before.sub("", text)
@@ -153,10 +180,11 @@ def main():
 def test():
     normalizer = FisherSwbdNormalizer()
     for text in [
-        "[laughterr]",
+        "[laughterr] [SILENCE]",
         "[laugh] oh this is great [silence] <B_ASIDE> yes",
         "[laugh] oh this is [laught] this is great [silence] <B_ASIDE> yes",
-        "i don't kn- - know a.b.c's",
+        "i don't kn- - know A.B.C's",
+        "so x. corp is good?",
         "'absolutely yes",
         "absolutely' yes",
         "'absolutely' yes",
@@ -172,6 +200,9 @@ def test():
         "[WEA[SONABLE]-/REASONABLE]",
         "[VOCALIZED-NOISE]-",
         "~BULL",
+        "Frank E Peretti P E R E T T I",
+        "yeah yeah like Double O Seven he’s supposed to do it",
+        "P A P E R paper",
     ]:
         print(text)
         print(normalizer.normalize(text))
@@ -179,5 +210,5 @@ def test():
 
 
 if __name__ == "__main__":
-    # test()
-    main()
+    test()
+#    main()
