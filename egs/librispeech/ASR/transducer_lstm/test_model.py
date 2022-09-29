@@ -20,41 +20,24 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./transducer_lstm/test_encoder.py
+    python ./transducer_lstm/test_model.py
 """
 
-import torch
-from train import get_encoder_model, get_params
+from train import get_params, get_transducer_model
 
 
-def test_encoder_model():
+def test_model():
     params = get_params()
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
-    encoder = get_encoder_model(params)
-    num_param = sum([p.numel() for p in encoder.parameters()])
-    print(f"Number of encoder model parameters: {num_param}")
-
-    N = 3
-    T = 500
-    C = 80
-
-    x = torch.rand(N, T, C)
-    x_lens = torch.tensor([100, 500, 300])
-
-    y, y_lens = encoder(x, x_lens)
-    print(y.shape)
-    expected_y_lens = (((x_lens - 1) >> 1) - 1) >> 1
-
-    assert torch.all(torch.eq(y_lens, expected_y_lens)), (
-        y_lens,
-        expected_y_lens,
-    )
+    model = get_transducer_model(params)
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
 
 
 def main():
-    test_encoder_model()
+    test_model()
 
 
 if __name__ == "__main__":

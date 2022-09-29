@@ -1,4 +1,4 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -14,18 +14,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Note we use `rnnt_loss` from torchaudio, which exists only in
-torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
-"""
+
+from typing import Optional
+
 import k2
 import torch
 import torch.nn as nn
-import torchaudio
-import torchaudio.functional
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear
 
-from icefall.utils import add_sos
+from icefall.utils import add_sos, make_pad_mask
+
+
+def compute_teacher_student_loss(
+    encoder_out: torch.Tensor,
+    teacher_encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Args:
+      encoder_out:
+        Encoder output of the student. Its shape is (N, T, C)
+      teacher_encoder_out:
+        Encoder output of the teacher. Its shape is also (N, T, C)
+      encoder_out_lens:
+        A 1-D tensor containing the number of valid frames in encoder_out before
+        padding.
+    Returns:
+      Return the l1 loss between encoder_out and teacher_encoder_out.
+    """
+    loss = (encoder_out - teacher_encoder_out).abs().sum(dim=-1)
+    mask = make_pad_mask(encoder_out_lens)
+    loss.masked_fill_(mask, 0)
+
+    return loss.sum() / encoder_out.size(-1)
 
 
 class Transducer(nn.Module):
@@ -38,37 +60,50 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        encoder_dim: int,
+        decoder_dim: int,
+        joiner_dim: int,
+        vocab_size: int,
     ):
         """
         Args:
           encoder:
             It is the transcription network in the paper. Its accepts
-            two inputs: `x` of (N, T, C) and `x_lens` of shape (N,).
-            It returns two tensors: `logits` of shape (N, T, C) and
+            two inputs: `x` of (N, T, encoder_dim) and `x_lens` of shape (N,).
+            It returns two tensors: `logits` of shape (N, T, encoder_dm) and
             `logit_lens` of shape (N,).
           decoder:
             It is the prediction network in the paper. Its input shape
-            is (N, U) and its output shape is (N, U, C). It should contain
-            two attributes: `blank_id` and `sos_id`.
+            is (N, U) and its output shape is (N, U, decoder_dim).
+            It should contain one attribute: `blank_id`.
           joiner:
-            It has two inputs with shapes: (N, T, C) and (N, U, C). Its
-            output shape is (N, T, U, C). Note that its output contains
-            unnormalized probs, i.e., not processed by log-softmax.
+            It has two inputs with shapes: (N, T, encoder_dim) and
+            (N, U, decoder_dim).
+            Its output shape is (N, T, U, vocab_size). Note that its output
+            contains unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
-        assert isinstance(encoder, EncoderInterface)
+        assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
-        assert hasattr(decoder, "sos_id")
 
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+
+        self.simple_am_proj = ScaledLinear(
+            encoder_dim, vocab_size, initial_speed=0.5
+        )
+        self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        prune_range: int = 5,
+        am_scale: float = 0.0,
+        lm_scale: float = 0.0,
+        teacher_model: Optional[torch.jit.ScriptModule] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -80,8 +115,25 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          prune_range:
+            The prune range for rnnt loss, it means how many symbols(context)
+            we are considering for each frame to compute the loss.
+          am_scale:
+            The scale to smooth the loss with am (output of encoder network)
+            part
+          lm_scale:
+            The scale to smooth the loss with lm (output of predictor network)
+            part
+          teacher_model:
+            The teacher model.
         Returns:
           Return the transducer loss.
+
+        Note:
+           Regarding am_scale & lm_scale, it will make the loss-function one of
+           the form:
+              lm_scale * lm_probs + am_scale * am_probs +
+              (1-lm_scale-am_scale) * combined_probs
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
@@ -89,8 +141,20 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
-        assert torch.all(x_lens > 0)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens)
+        assert torch.all(encoder_out_lens > 0)
+
+        if self.training is True:
+            with torch.no_grad():
+                teacher_encoder_out, _ = teacher_model.encoder(x, x_lens)
+
+            ts_loss = compute_teacher_student_loss(
+                encoder_out,
+                teacher_encoder_out,
+                encoder_out_lens,
+            )
+        else:
+            ts_loss = torch.tensor([0.0])
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
@@ -99,29 +163,69 @@ class Transducer(nn.Module):
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
 
+        # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
-        sos_y_padded = sos_y_padded.to(torch.int64)
 
-        decoder_out, _ = self.decoder(sos_y_padded)
+        # decoder_out: [B, S + 1, decoder_dim]
+        decoder_out = self.decoder(sos_y_padded)
 
-        logits = self.joiner(encoder_out, decoder_out)
-
-        # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
+        # y_padded : [B, S]
         y_padded = y.pad(mode="constant", padding_value=0)
 
-        assert hasattr(torchaudio.functional, "rnnt_loss"), (
-            f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0"
+        y_padded = y_padded.to(torch.int64)
+        boundary = torch.zeros(
+            (x.size(0), 4), dtype=torch.int64, device=x.device
+        )
+        boundary[:, 2] = y_lens
+        boundary[:, 3] = encoder_out_lens
+
+        lm = self.simple_lm_proj(decoder_out)
+        am = self.simple_am_proj(encoder_out)
+
+        with torch.cuda.amp.autocast(enabled=False):
+            simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                lm=lm.float(),
+                am=am.float(),
+                symbols=y_padded,
+                termination_symbol=blank_id,
+                lm_only_scale=lm_scale,
+                am_only_scale=am_scale,
+                boundary=boundary,
+                reduction="sum",
+                return_grad=True,
+            )
+
+        # ranges : [B, T, prune_range]
+        ranges = k2.get_rnnt_prune_ranges(
+            px_grad=px_grad,
+            py_grad=py_grad,
+            boundary=boundary,
+            s_range=prune_range,
         )
 
-        loss = torchaudio.functional.rnnt_loss(
-            logits=logits,
-            targets=y_padded,
-            logit_lengths=x_lens,
-            target_lengths=y_lens,
-            blank=blank_id,
-            reduction="sum",
+        # am_pruned : [B, T, prune_range, encoder_dim]
+        # lm_pruned : [B, T, prune_range, decoder_dim]
+        am_pruned, lm_pruned = k2.do_rnnt_pruning(
+            am=self.joiner.encoder_proj(encoder_out),
+            lm=self.joiner.decoder_proj(decoder_out),
+            ranges=ranges,
         )
 
-        return loss
+        # logits : [B, T, prune_range, vocab_size]
+
+        # project_input=False since we applied the decoder's input projections
+        # prior to do_rnnt_pruning (this is an optimization for speed).
+        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+
+        with torch.cuda.amp.autocast(enabled=False):
+            pruned_loss = k2.rnnt_loss_pruned(
+                logits=logits.float(),
+                symbols=y_padded,
+                ranges=ranges,
+                termination_symbol=blank_id,
+                boundary=boundary,
+                reduction="sum",
+            )
+
+        return (simple_loss, pruned_loss, ts_loss)
