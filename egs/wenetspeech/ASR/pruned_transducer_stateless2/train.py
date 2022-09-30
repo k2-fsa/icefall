@@ -81,7 +81,6 @@ For training with the S subset:
 
 import argparse
 import logging
-import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -119,8 +118,6 @@ from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
-
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 def get_parser():
@@ -361,8 +358,8 @@ def get_params() -> AttributeDict:
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
-            "batch_idx_train": 10,
-            "log_interval": 1,
+            "batch_idx_train": 0,
+            "log_interval": 50,
             "reset_interval": 200,
             # parameters for conformer
             "feature_dim": 80,
@@ -545,7 +542,7 @@ def compute_loss(
     warmup: float = 1.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNN-T loss given the model and its inputs.
     Args:
       params:
         Parameters for training. See :func:`get_params`.
@@ -573,7 +570,7 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
 
     y = graph_compiler.texts_to_ids(texts)
-    if type(y) == list:
+    if isinstance(y, list):
         y = k2.RaggedTensor(y).to(device)
     else:
         y = y.to(device)
@@ -697,7 +694,6 @@ def train_one_epoch(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(train_dl):
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 

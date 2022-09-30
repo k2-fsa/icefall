@@ -111,6 +111,76 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x_grad - neg_delta_grad, None, None, None, None, None, None
 
 
+class GradientFilterFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        batch_dim: int,  # e.g., 1
+        threshold: float,  # e.g., 10.0
+        *params: Tensor,  # module parameters
+    ) -> Tuple[Tensor, ...]:
+        if x.requires_grad:
+            if batch_dim < 0:
+                batch_dim += x.ndim
+            ctx.batch_dim = batch_dim
+            ctx.threshold = threshold
+        return (x,) + params
+
+    @staticmethod
+    def backward(
+        ctx,
+        x_grad: Tensor,
+        *param_grads: Tensor,
+    ) -> Tuple[Tensor, ...]:
+        eps = 1.0e-20
+        dim = ctx.batch_dim
+        norm_dims = [d for d in range(x_grad.ndim) if d != dim]
+        norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
+        median_norm = norm_of_batch.median()
+
+        cutoff = median_norm * ctx.threshold
+        inv_mask = (cutoff + norm_of_batch) / (cutoff + eps)
+        mask = 1.0 / (inv_mask + eps)
+        x_grad = x_grad * mask
+
+        avg_mask = 1.0 / (inv_mask.mean() + eps)
+        param_grads = [avg_mask * g for g in param_grads]
+
+        return (x_grad, None, None) + tuple(param_grads)
+
+
+class GradientFilter(torch.nn.Module):
+    """This is used to filter out elements that have extremely large gradients
+    in batch and the module parameters with soft masks.
+
+    Args:
+      batch_dim (int):
+        The batch dimension.
+      threshold (float):
+        For each element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
+    """
+
+    def __init__(self, batch_dim: int = 1, threshold: float = 10.0):
+        super(GradientFilter, self).__init__()
+        self.batch_dim = batch_dim
+        self.threshold = threshold
+
+    def forward(self, x: Tensor, *params: Tensor) -> Tuple[Tensor, ...]:
+        if torch.jit.is_scripting() or is_jit_tracing():
+            return (x,) + params
+        else:
+            return GradientFilterFunction.apply(
+                x,
+                self.batch_dim,
+                self.threshold,
+                *params,
+            )
+
+
 class BasicNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
@@ -195,7 +265,7 @@ class ScaledLinear(nn.Linear):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -242,7 +312,7 @@ class ScaledConv1d(nn.Conv1d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -314,7 +384,7 @@ class ScaledConv2d(nn.Conv2d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -389,7 +459,8 @@ class ScaledLSTM(nn.LSTM):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        grad_norm_threshold: float = 10.0,
+        **kwargs,
     ):
         if "bidirectional" in kwargs:
             assert kwargs["bidirectional"] is False
@@ -403,6 +474,10 @@ class ScaledLSTM(nn.LSTM):
             param = nn.Parameter(initial_scale.clone().detach())
             setattr(self, scale_name, param)
             self._scales.append(param)
+
+        self.grad_filter = GradientFilter(
+            batch_dim=1, threshold=grad_norm_threshold
+        )
 
         self._reset_parameters(
             initial_speed
@@ -513,10 +588,14 @@ class ScaledLSTM(nn.LSTM):
             hx = (h_zeros, c_zeros)
 
         self.check_forward_args(input, hx, None)
+
+        flat_weights = self._get_flat_weights()
+        input, *flat_weights = self.grad_filter(input, *flat_weights)
+
         result = _VF.lstm(
             input,
             hx,
-            self._get_flat_weights(),
+            flat_weights,
             self.bias,
             self.num_layers,
             self.dropout,
@@ -891,9 +970,54 @@ def _test_scaled_lstm():
     assert c.shape == (1, N, dim_hidden)
 
 
+def _test_grad_filter():
+    threshold = 50.0
+    time, batch, channel = 200, 5, 128
+    grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
+
+    for i in range(2):
+        x = torch.randn(time, batch, channel, requires_grad=True)
+        w = nn.Parameter(torch.ones(5))
+        b = nn.Parameter(torch.zeros(5))
+
+        x_out, w_out, b_out = grad_filter(x, w, b)
+
+        w_out_grad = torch.randn_like(w)
+        b_out_grad = torch.randn_like(b)
+        x_out_grad = torch.rand_like(x)
+        if i % 2 == 1:
+            # The gradient norm of the first element must be larger than
+            # `threshold * median`, where `median` is the median value
+            # of gradient norms of all elements in batch.
+            x_out_grad[:, 0, :] = torch.full((time, channel), threshold)
+
+        torch.autograd.backward(
+            [x_out, w_out, b_out], [x_out_grad, w_out_grad, b_out_grad]
+        )
+
+        print(
+            "_test_grad_filter: for gradient norms, the first element > median * threshold ",  # noqa
+            i % 2 == 1,
+        )
+
+        print(
+            "_test_grad_filter: x_out_grad norm = ",
+            (x_out_grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print(
+            "_test_grad_filter: x.grad norm = ",
+            (x.grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print("_test_grad_filter: w_out_grad = ", w_out_grad)
+        print("_test_grad_filter: w.grad = ", w.grad)
+        print("_test_grad_filter: b_out_grad = ", b_out_grad)
+        print("_test_grad_filter: b.grad = ", b.grad)
+
+
 if __name__ == "__main__":
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
     _test_scaled_lstm()
+    _test_grad_filter()
