@@ -1075,7 +1075,7 @@ class AttentionCombine(nn.Module):
         num_channels: int,
         num_inputs: int,
         random_prob: float = 0.333,
-        single_prob: float = 0.5,
+        single_prob: float = 0.25,
     ) -> None:
         """
         Args:
