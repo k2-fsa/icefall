@@ -405,6 +405,8 @@ def get_params() -> AttributeDict:
             "decoder_dim": 512,
             # parameters for joiner
             "joiner_dim": 512,
+            # True to generate a model that can be exported via PNNX
+            "is_pnnx": False,
             "env_info": get_env_info(),
         }
     )
@@ -421,6 +423,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
+        is_pnnx=params.is_pnnx,
     )
     return encoder
 
