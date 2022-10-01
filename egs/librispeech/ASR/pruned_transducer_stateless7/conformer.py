@@ -205,8 +205,6 @@ class ConformerEncoderLayer(nn.Module):
             max_var_per_eig=0.2,
         )
 
-        self.dropout = nn.Dropout(dropout)
-
 
     def forward(
         self,
@@ -256,7 +254,7 @@ class ConformerEncoderLayer(nn.Module):
             alpha = 1.0
 
         # macaron style feed forward module
-        src = src + self.dropout(self.feed_forward_macaron(src))
+        src = src + self.feed_forward_macaron(src)
 
         # multi-headed self-attention module
         src_att, _, attn_scores_out = self.self_attn(
@@ -266,17 +264,16 @@ class ConformerEncoderLayer(nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )
-        src = src + self.dropout(src_att)
+        src = src + src_att
 
         # convolution module
-        src = src + self.dropout(
-            self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
-        )
+        src = src + self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
+
 
 
 
         # feed forward module
-        src = src + self.dropout(self.feed_forward(src))
+        src = src + self.feed_forward(src)
 
         src = self.norm_final(self.balancer(src))
 
