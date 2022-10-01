@@ -356,7 +356,7 @@ class ConformerEncoder(nn.Module):
         if self.training:
             # feature mask.
             # on 0.25 of the frames, drop out the extra features [force a bottleneck.]
-            feature_mask_dropout_prob = 0.15
+            feature_mask_dropout_prob = 0.2
             feature_unmasked_dim = 256 #  hardcode dim for now, 1st 256 are non-masked.
 
             feature_mask = torch.ones_like(src)  # S, N, E
