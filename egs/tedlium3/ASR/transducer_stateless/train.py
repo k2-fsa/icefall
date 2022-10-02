@@ -627,8 +627,6 @@ def run(rank, world_size, args):
         # Keep only utterances with duration between 1 second and 17 seconds
         return 1.0 <= c.duration <= 17.0
 
-    num_in_total = len(train_cuts)
-
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     train_dl = tedlium.train_dataloaders(train_cuts)
