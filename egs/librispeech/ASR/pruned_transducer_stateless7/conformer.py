@@ -391,10 +391,12 @@ class ConformerEncoder(nn.Module):
             )
             if i in self.aux_layers:
                 outputs.append(output)
+            if i == num_layers - 1:
+                final_output = output
 
         output = self.combiner(outputs)
 
-        output = output + 0.0 * attn_scores.sum()  # just ensure attn_scores is used in backprop
+        output = final_output + 0.0 * attn_scores.sum()  # just ensure attn_scores is used in backprop
 
         return output
 
