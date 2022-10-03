@@ -838,7 +838,7 @@ def train_one_epoch(
                     tb_writer, "train/tot_", params.batch_idx_train
                 )
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+        if batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
