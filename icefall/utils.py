@@ -24,9 +24,10 @@ import re
 import subprocess
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
 import k2
 import k2.version
@@ -248,6 +249,86 @@ def get_texts(
         return aux_labels.tolist()
 
 
+@dataclass
+class DecodingResults:
+    # Decoded token IDs for each utterance in the batch
+    tokens: List[List[int]]
+
+    # timestamps[i][k] contains the frame number on which tokens[i][k]
+    # is decoded
+    timestamps: List[List[int]]
+
+    # hyps[i] is the recognition results, i.e., word IDs
+    # for the i-th utterance with fast_beam_search_nbest_LG.
+    hyps: Union[List[List[int]], k2.RaggedTensor] = None
+
+
+def get_tokens_and_timestamps(labels: List[int]) -> Tuple[List[int], List[int]]:
+    tokens = []
+    timestamps = []
+    for i, v in enumerate(labels):
+        if v != 0:
+            tokens.append(v)
+            timestamps.append(i)
+
+    return tokens, timestamps
+
+
+def get_texts_with_timestamp(
+    best_paths: k2.Fsa, return_ragged: bool = False
+) -> DecodingResults:
+    """Extract the texts (as word IDs) and timestamps from the best-path FSAs.
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+      return_ragged:
+        True to return a ragged tensor with two axes [utt][word_id].
+        False to return a list-of-list word IDs.
+    Returns:
+      Returns a list of lists of int, containing the label sequences we
+      decoded.
+    """
+    if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        # remove 0's and -1's.
+        aux_labels = best_paths.aux_labels.remove_values_leq(0)
+        # TODO: change arcs.shape() to arcs.shape
+        aux_shape = best_paths.arcs.shape().compose(aux_labels.shape)
+
+        # remove the states and arcs axes.
+        aux_shape = aux_shape.remove_axis(1)
+        aux_shape = aux_shape.remove_axis(1)
+        aux_labels = k2.RaggedTensor(aux_shape, aux_labels.values)
+    else:
+        # remove axis corresponding to states.
+        aux_shape = best_paths.arcs.shape().remove_axis(1)
+        aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels)
+        # remove 0's and -1's.
+        aux_labels = aux_labels.remove_values_leq(0)
+
+    assert aux_labels.num_axes == 2
+
+    labels_shape = best_paths.arcs.shape().remove_axis(1)
+    labels_list = k2.RaggedTensor(
+        labels_shape, best_paths.labels.contiguous()
+    ).tolist()
+
+    tokens = []
+    timestamps = []
+    for labels in labels_list:
+        token, time = get_tokens_and_timestamps(labels[:-1])
+        tokens.append(token)
+        timestamps.append(time)
+
+    return DecodingResults(
+        tokens=tokens,
+        timestamps=timestamps,
+        hyps=aux_labels if return_ragged else aux_labels.tolist(),
+    )
+
+
 def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
     """Extract labels or aux_labels from the best-path FSAs.
 
@@ -352,6 +433,29 @@ def store_transcripts(
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
 
+def store_transcripts_and_timestamps(
+    filename: Pathlike,
+    texts: Iterable[Tuple[str, List[str], List[str], List[float]]],
+) -> None:
+    """Save predicted results with timestamps and reference transcripts
+    to a file.
+
+    Args:
+      filename:
+        File to save the results to.
+      texts:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+    Returns:
+      Return None.
+    """
+    with open(filename, "w") as f:
+        for cut_id, ref, hyp, timestamp in texts:
+            print(f"{cut_id}:\tref={ref}", file=f)
+            print(f"{cut_id}:\thyp={hyp}", file=f)
+            print(f"{cut_id}:\ttimestamp={timestamp}", file=f)
+
+
 def write_error_stats(
     f: TextIO,
     test_set_name: str,
@@ -447,6 +551,174 @@ def write_error_stats(
     print("", file=f)
     print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
     for cut_id, ref, hyp in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        combine_successive_errors = True
+        if combine_successive_errors:
+            ali = [[[x], [y]] for x, y in ali]
+            for i in range(len(ali) - 1):
+                if ali[i][0] != ali[i][1] and ali[i + 1][0] != ali[i + 1][1]:
+                    ali[i + 1][0] = ali[i][0] + ali[i + 1][0]
+                    ali[i + 1][1] = ali[i][1] + ali[i + 1][1]
+                    ali[i] = [[], []]
+            ali = [
+                [
+                    list(filter(lambda a: a != ERR, x)),
+                    list(filter(lambda a: a != ERR, y)),
+                ]
+                for x, y in ali
+            ]
+            ali = list(filter(lambda x: x != [[], []], ali))
+            ali = [
+                [
+                    ERR if x == [] else " ".join(x),
+                    ERR if y == [] else " ".join(y),
+                ]
+                for x, y in ali
+            ]
+
+        print(
+            f"{cut_id}:\t"
+            + " ".join(
+                (
+                    ref_word
+                    if ref_word == hyp_word
+                    else f"({ref_word}->{hyp_word})"
+                    for ref_word, hyp_word in ali
+                )
+            ),
+            file=f,
+        )
+
+    print("", file=f)
+    print("SUBSTITUTIONS: count ref -> hyp", file=f)
+
+    for count, (ref, hyp) in sorted(
+        [(v, k) for k, v in subs.items()], reverse=True
+    ):
+        print(f"{count}   {ref} -> {hyp}", file=f)
+
+    print("", file=f)
+    print("DELETIONS: count ref", file=f)
+    for count, ref in sorted([(v, k) for k, v in dels.items()], reverse=True):
+        print(f"{count}   {ref}", file=f)
+
+    print("", file=f)
+    print("INSERTIONS: count hyp", file=f)
+    for count, hyp in sorted([(v, k) for k, v in ins.items()], reverse=True):
+        print(f"{count}   {hyp}", file=f)
+
+    print("", file=f)
+    print(
+        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
+    )
+    for _, word, counts in sorted(
+        [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
+    ):
+        (corr, ref_sub, hyp_sub, ins, dels) = counts
+        tot_errs = ref_sub + hyp_sub + ins + dels
+        ref_count = corr + ref_sub + dels
+        hyp_count = corr + hyp_sub + ins
+
+        print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
+    return float(tot_err_rate)
+
+
+def write_error_stats_with_timestamps(
+    f: TextIO,
+    test_set_name: str,
+    results: List[Tuple[str, List[str], List[str], List[float]]],
+    enable_log: bool = True,
+) -> float:
+    """Write statistics based on predicted results with timestamps
+    and reference transcripts.
+
+    It will write the following to the given file:
+
+        - WER
+        - number of insertions, deletions, substitutions, corrects and total
+          reference words. For example::
+
+              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
+              reference words (2337 correct)
+
+        - The difference between the reference transcript and predicted result.
+          An instance is given below::
+
+            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
+
+          The above example shows that the reference word is `EDISON`,
+          but it is predicted to `ADDISON` (a substitution error).
+
+          Another example is::
+
+            FOR THE FIRST DAY (SIR->*) I THINK
+
+          The reference word `SIR` is missing in the predicted
+          results (a deletion error).
+      results:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+      enable_log:
+        If True, also print detailed WER to the console.
+        Otherwise, it is written only to the given file.
+    Returns:
+      Return None.
+    """
+    subs: Dict[Tuple[str, str], int] = defaultdict(int)
+    ins: Dict[str, int] = defaultdict(int)
+    dels: Dict[str, int] = defaultdict(int)
+
+    # `words` stores counts per word, as follows:
+    #   corr, ref_sub, hyp_sub, ins, dels
+    words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    num_corr = 0
+    ERR = "*"
+    for cut_id, ref, hyp, timestamp in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        for ref_word, hyp_word in ali:
+            if ref_word == ERR:
+                ins[hyp_word] += 1
+                words[hyp_word][3] += 1
+            elif hyp_word == ERR:
+                dels[ref_word] += 1
+                words[ref_word][4] += 1
+            elif hyp_word != ref_word:
+                subs[(ref_word, hyp_word)] += 1
+                words[ref_word][1] += 1
+                words[hyp_word][2] += 1
+            else:
+                words[ref_word][0] += 1
+                num_corr += 1
+    ref_len = sum([len(r) for _, r, _, _ in results])
+    sub_errs = sum(subs.values())
+    ins_errs = sum(ins.values())
+    del_errs = sum(dels.values())
+    tot_errs = sub_errs + ins_errs + del_errs
+    tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+
+    if enable_log:
+        logging.info(
+            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
+            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
+            f"{del_errs} del, {sub_errs} sub ]"
+        )
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    print(
+        f"Errors: {ins_errs} insertions, {del_errs} deletions, "
+        f"{sub_errs} substitutions, over {ref_len} reference "
+        f"words ({num_corr} correct)",
+        file=f,
+    )
+    print(
+        "Search below for sections starting with PER-UTT DETAILS:, "
+        "SUBSTITUTIONS:, DELETIONS:, INSERTIONS:, PER-WORD STATS:",
+        file=f,
+    )
+
+    print("", file=f)
+    print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
+    for cut_id, ref, hyp, timestamp in results:
         ali = kaldialign.align(ref, hyp, ERR)
         combine_successive_errors = True
         if combine_successive_errors:
@@ -976,3 +1248,122 @@ def display_and_save_batch(
     y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
+
+
+def convert_timestamp(
+    frames: List[int],
+    subsampling_factor: int,
+    frame_shift_ms: float = 10,
+) -> List[float]:
+    """Convert frame numbers to time (in seconds) given subsampling factor
+    and frame shift (in milliseconds).
+
+    Args:
+      frames:
+        A list of frame numbers after subsampling.
+      subsampling_factor:
+        The subsampling factor of the model.
+      frame_shift_ms:
+        Frame shift in milliseconds between two contiguous frames.
+    Return:
+      Return the time in seconds corresponding to each given frame.
+    """
+    frame_shift = frame_shift_ms / 1000.0
+    time = []
+    for f in frames:
+        time.append(f * subsampling_factor * frame_shift)
+
+    return time
+
+
+def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
+    """
+    Parse timestamp of each word.
+
+    Args:
+      tokens:
+        List of tokens.
+      timestamp:
+        List of timestamp of each token.
+
+    Returns:
+      List of timestamp of each word.
+    """
+    start_token = b"\xe2\x96\x81".decode()  # '_'
+    assert len(tokens) == len(timestamp)
+    ans = []
+    for token, start_time in zip(tokens, timestamp):
+        if token.startswith(start_token):
+            ans.append(start_time)
+    return ans
+
+
+def parse_hyp_and_timestamp(
+    res: DecodingResults,
+    decoding_method: str,
+    sp: spm.SentencePieceProcessor,
+    subsampling_factor: int,
+    frame_shift_ms: float = 10,
+    word_table: Optional[k2.SymbolTable] = None,
+) -> Tuple[List[List[str]], List[List[float]]]:
+    """Parse hypothesis and timestamp.
+
+    Args:
+      res:
+        A DecodingResults object.
+      decoding_method:
+        Possible values are:
+          - greedy_search
+          - beam_search
+          - modified_beam_search
+          - fast_beam_search
+          - fast_beam_search_nbest
+          - fast_beam_search_nbest_oracle
+          - fast_beam_search_nbest_LG
+      sp:
+        The BPE model.
+      subsampling_factor:
+        The integer subsampling factor.
+      frame_shift_ms:
+        The float frame shift used for feature extraction.
+      word_table:
+        The word symbol table.
+
+    Returns:
+       Return a list of hypothesis and timestamp.
+    """
+    assert decoding_method in (
+        "greedy_search",
+        "beam_search",
+        "fast_beam_search",
+        "fast_beam_search_nbest",
+        "fast_beam_search_nbest_LG",
+        "fast_beam_search_nbest_oracle",
+        "modified_beam_search",
+    )
+
+    hyps = []
+    timestamps = []
+
+    N = len(res.tokens)
+    assert len(res.timestamps) == N
+    use_word_table = False
+    if decoding_method == "fast_beam_search_nbest_LG":
+        assert word_table is not None
+        use_word_table = True
+
+    for i in range(N):
+        tokens = sp.id_to_piece(res.tokens[i])
+        if use_word_table:
+            words = [word_table[i] for i in res.hyps[i]]
+        else:
+            words = sp.decode_pieces(tokens).split()
+        time = convert_timestamp(
+            res.timestamps[i], subsampling_factor, frame_shift_ms
+        )
+        time = parse_timestamp(tokens, time)
+
+        hyps.append(words)
+        timestamps.append(time)
+
+    return hyps, timestamps

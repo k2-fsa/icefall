@@ -127,10 +127,12 @@ from icefall.checkpoint import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    DecodingResults,
+    parse_hyp_and_timestamp,
     setup_logger,
-    store_transcripts,
+    store_transcripts_and_timestamps,
     str2bool,
-    write_error_stats,
+    write_error_stats_with_timestamps,
 )
 
 LOG_EPS = math.log(1e-10)
@@ -314,7 +316,7 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[List[str]]]:
+) -> Dict[str, Tuple[List[List[str]], List[List[float]]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
 
@@ -370,10 +372,8 @@ def decode_one_batch(
         x=feature, x_lens=feature_lens
     )
 
-    hyps = []
-
     if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search_one_best(
+        res = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -381,11 +381,10 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            return_timestamps=True,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
+        res = fast_beam_search_nbest_LG(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -395,11 +394,10 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            return_timestamps=True,
         )
-        for hyp in hyp_tokens:
-            hyps.append([word_table[i] for i in hyp])
     elif params.decoding_method == "fast_beam_search_nbest":
-        hyp_tokens = fast_beam_search_nbest(
+        res = fast_beam_search_nbest(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -409,11 +407,10 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            return_timestamps=True,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
-        hyp_tokens = fast_beam_search_nbest_oracle(
+        res = fast_beam_search_nbest_oracle(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -424,56 +421,67 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=sp.encode(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            return_timestamps=True,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
     ):
-        hyp_tokens = greedy_search_batch(
+        res = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            return_timestamps=True,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search":
-        hyp_tokens = modified_beam_search(
+        res = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            return_timestamps=True,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     else:
         batch_size = encoder_out.size(0)
-
+        tokens = []
+        timestamps = []
         for i in range(batch_size):
             # fmt: off
             encoder_out_i = encoder_out[i:i + 1, :encoder_out_lens[i]]
             # fmt: on
             if params.decoding_method == "greedy_search":
-                hyp = greedy_search(
+                res = greedy_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
+                    return_timestamps=True,
                 )
             elif params.decoding_method == "beam_search":
-                hyp = beam_search(
+                res = beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
+                    return_timestamps=True,
                 )
             else:
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            tokens.extend(res.tokens)
+            timestamps.extend(res.timestamps)
+        res = DecodingResults(tokens=tokens, timestamps=timestamps)
+
+    hyps, timestamps = parse_hyp_and_timestamp(
+        decoding_method=params.decoding_method,
+        res=res,
+        sp=sp,
+        subsampling_factor=params.subsampling_factor,
+        frame_shift_ms=params.frame_shift_ms,
+        word_table=word_table,
+    )
 
     if params.decoding_method == "greedy_search":
-        return {"greedy_search": hyps}
+        return {"greedy_search": (hyps, timestamps)}
     elif "fast_beam_search" in params.decoding_method:
         key = f"beam_{params.beam}_"
         key += f"max_contexts_{params.max_contexts}_"
@@ -484,9 +492,9 @@ def decode_one_batch(
             if "LG" in params.decoding_method:
                 key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
-        return {key: hyps}
+        return {key: (hyps, timestamps)}
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}": (hyps, timestamps)}
 
 
 def decode_dataset(
@@ -496,7 +504,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str], List[float]]]]:
     """Decode dataset.
 
     Args:
@@ -547,12 +555,14 @@ def decode_dataset(
             batch=batch,
         )
 
-        for name, hyps in hyps_dict.items():
+        for name, (hyps, timestamps) in hyps_dict.items():
             this_batch = []
-            assert len(hyps) == len(texts)
-            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+            assert len(hyps) == len(texts) and len(timestamps) == len(texts)
+            for cut_id, hyp_words, ref_text, time in zip(
+                cut_ids, hyps, texts, timestamps
+            ):
                 ref_words = ref_text.split()
-                this_batch.append((cut_id, ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words, time))
 
             results[name].extend(this_batch)
 
@@ -570,7 +580,9 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[
+        str, List[Tuple[List[str], List[str], List[str], List[float]]]
+    ],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -578,7 +590,7 @@ def save_results(
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts_and_timestamps(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -587,7 +599,7 @@ def save_results(
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(
+            wer = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
