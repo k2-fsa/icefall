@@ -366,7 +366,20 @@ class ConformerEncoder(nn.Module):
         else:
             feature_mask = None
 
-        for i, mod in enumerate(self.layers):
+
+        num_layers = len(self.layers)
+        indexes = list(range(num_layers))
+        if self.training:
+            num_to_swap = int((num_layers - 1) * 0.1)
+            for i in range(num_to_swap):
+                j = random.randint(0, num_layers - 2)
+                a,b = indexes[j], indexes[j+1]
+                indexes[j] = b
+                indexes[j+1] = a
+
+
+        for i in indexes:
+            mod = self.layers[i]
             output, attn_scores = mod(
                 output,
                 pos_emb,
