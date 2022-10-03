@@ -482,7 +482,7 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
                 layerdrop_mask=layerdrop_mask[i].tolist(), # [ 1.0, 1.0 ], [0.0, 1.0] or [1.0, 0.0]
-                layerdrop_scales=layerdrop_scales[i],  # tensor of scales of shape (batch_size, 1)
+                layerdrop_scales=None if layerdrop_scales is None else layerdrop_scales[i],  # tensor of scales of shape (batch_size, 1)
             )
             output = output * feature_mask
             if i in self.aux_layers:
