@@ -343,7 +343,7 @@ class ConformerEncoder(nn.Module):
         self.num_layers = num_layers
 
         self.layerdrop_scale_mat = nn.Parameter(0.01 * torch.randn(num_layers, num_layers))
-
+        self.layerdrop_scale_offset = nn.Parameter(torch.ones(num_layers))
 
         assert num_layers - 1 not in aux_layers
         self.aux_layers = set(aux_layers + [num_layers - 1])
@@ -384,33 +384,32 @@ class ConformerEncoder(nn.Module):
 
         layerdrop_mask = torch.ones(num_layers, 2, device='cpu')
 
-        if not self.training or batch_size == 1:
-            return layerdrop_mask, None
-
-        halves_to_drop = int(2 * num_layers * self.layer_dropout)
-        for _ in range(halves_to_drop):
-            while True:
-                r = random.randrange(0, 2 * num_layers)
-                i = r // 2
-                j = r % 2
-                if layerdrop_mask[i, j - 1] == 0.0:
-                    # This position cannot be set to 0.0 because the other
-                    # half of the batch is already 0.0 (not computed).  This would lead to
-                    # one layer not having a gradient.
-                    continue
-                if ((i > 0 and layerdrop_mask[i-1, j] == 0.0) or
-                    (i + 1 < num_layers and layerdrop_mask[i+1, j] == 0.0)):
-                    # This position cannot be set to False because the preceding
-                    # or following position for this same half of the batch is
-                    # already set to False
-                    continue
-                layerdrop_mask[i, j] = 0.0
-                break
+        if self.training and batch_size != 1:
+            halves_to_drop = int(2 * num_layers * self.layer_dropout)
+            for _ in range(halves_to_drop):
+                while True:
+                    r = random.randrange(0, 2 * num_layers)
+                    i = r // 2
+                    j = r % 2
+                    if layerdrop_mask[i, j - 1] == 0.0:
+                        # This position cannot be set to 0.0 because the other
+                        # half of the batch is already 0.0 (not computed).  This would lead to
+                        # one layer not having a gradient.
+                        continue
+                    if ((i > 0 and layerdrop_mask[i-1, j] == 0.0) or
+                        (i + 1 < num_layers and layerdrop_mask[i+1, j] == 0.0)):
+                        # This position cannot be set to False because the preceding
+                        # or following position for this same half of the batch is
+                        # already set to False
+                        continue
+                    layerdrop_mask[i, j] = 0.0
+                    break
 
         # layerdrop_scales: currently shape is (2, num_layers)
         device = self.layerdrop_scale_mat.device
-        layerdrop_scales_tmp = 1.0 + torch.matmul(self.layerdrop_scale_mat,
-                                                  1.0 - layerdrop_mask.to(device))
+        layerdrop_scales_tmp = (self.layerdrop_scale_offset.unsqueeze(1) +
+                                torch.matmul(self.layerdrop_scale_mat,
+                                             1.0 - layerdrop_mask.to(device)))
 
         layerdrop_scales = torch.empty(num_layers, batch_size, 1, device=device)
         mid = batch_size // 2
@@ -482,7 +481,7 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
                 layerdrop_mask=layerdrop_mask[i].tolist(), # [ 1.0, 1.0 ], [0.0, 1.0] or [1.0, 0.0]
-                layerdrop_scales=None if layerdrop_scales is None else layerdrop_scales[i],  # tensor of scales of shape (batch_size, 1)
+                layerdrop_scales=layerdrop_scales[i],  # tensor of scales of shape (batch_size, 1)
             )
             output = output * feature_mask
             if i in self.aux_layers:
