@@ -348,7 +348,7 @@ class ConformerEncoder(nn.Module):
         def get_random_mask():
             # 1.0 means don't drop the layer, 0.0 means drop the layer
             mask = torch.ones(num_layers, device='cpu')
-            if self.training:
+            if not self.training:
                 return mask
             r = rng.random()
             if r < 0.1:
