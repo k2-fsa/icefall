@@ -1102,7 +1102,7 @@ Training commands are:
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,"
 
 ./pruned_transducer_stateless6/train.py \
-    --world-size 6\
+    --world-size 6 \
     --num-epochs 25 \
     --exp-dir finetune_hubert_transducer/exp_960h_HubertL \
     --full-libri 1 \
