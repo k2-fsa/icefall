@@ -362,7 +362,7 @@ class ConformerEncoder(nn.Module):
                 mask[-final_layers_dropped:] = 0.0
 
             layer_drop_prob = 0.075
-            for i in range(final_layers_dropped):
+            for i in range(num_layers - final_layers_dropped):
                 mask[i] = (rng.random() > layer_drop_prob)
             if mask.sum() == 0.0:
                 mask[0] = 1.0
