@@ -303,6 +303,13 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--use-giga-branch",
+        type=str2bool,
+        default=False,
+        help="If True, use the branch from the gigaspeech dataset for decoding",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -639,6 +646,9 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
+    if params.use_giga_branch:
+        params.suffix += "-use-giga-branch"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -679,7 +689,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params, enable_giga=False)
+    model = get_transducer_model(params, enable_giga=params.use_giga_branch)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -764,6 +774,18 @@ def main():
                 ),
                 strict=False,
             )
+
+    if params.use_giga_branch:
+        logging.info("Use the giga branch for decoding")
+        model.decoder = model.decoder_giga
+        model.joiner = model.joiner_giga
+        model.simple_am_proj = model.simple_am_proj_giga
+        model.simple_lm_proj = model.simple_lm_proj_giga
+
+        del model.decoder_giga
+        del model.joiner_giga
+        del model.simple_am_proj_giga
+        del model.simple_lm_proj_giga
 
     model.to(device)
     model.eval()

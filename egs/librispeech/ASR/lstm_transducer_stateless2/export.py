@@ -189,6 +189,13 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--use-giga-branch",
+        type=str2bool,
+        default=False,
+        help="If True, use the branch from the gigaspeech dataset for decoding",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -294,7 +301,7 @@ def main():
         logging.info("For PNNX")
 
     logging.info("About to create model")
-    model = get_transducer_model(params, enable_giga=False)
+    model = get_transducer_model(params, enable_giga=params.use_giga_branch)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -384,36 +391,51 @@ def main():
                 strict=False,
             )
 
+    if params.use_giga_branch:
+        logging.info("Use the giga branch for decoding")
+        model.decoder = model.decoder_giga
+        model.joiner = model.joiner_giga
+        model.simple_am_proj = model.simple_am_proj_giga
+        model.simple_lm_proj = model.simple_lm_proj_giga
+
+        del model.decoder_giga
+        del model.joiner_giga
+        del model.simple_am_proj_giga
+        del model.simple_lm_proj_giga
+        suffix = "-giga"
+    else:
+        suffix = ""
+
     model.to("cpu")
     model.eval()
 
     if params.pnnx:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
-        encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
+        encoder_filename = params.exp_dir / f"encoder_jit_trace-pnnx{suffix}.pt"
         export_encoder_model_jit_trace(model.encoder, encoder_filename)
 
-        decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
+        decoder_filename = params.exp_dir / f"decoder_jit_trace-pnnx{suffix}.pt"
         export_decoder_model_jit_trace(model.decoder, decoder_filename)
 
-        joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
+        joiner_filename = params.exp_dir / f"joiner_jit_trace-pnnx{suffix}.pt"
         export_joiner_model_jit_trace(model.joiner, joiner_filename)
     elif params.jit_trace is True:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
-        encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
+        encoder_filename = params.exp_dir / f"encoder_jit_trace{suffix}.pt"
         export_encoder_model_jit_trace(model.encoder, encoder_filename)
 
-        decoder_filename = params.exp_dir / "decoder_jit_trace.pt"
+        decoder_filename = params.exp_dir / f"decoder_jit_trace{suffix}.pt"
         export_decoder_model_jit_trace(model.decoder, decoder_filename)
 
-        joiner_filename = params.exp_dir / "joiner_jit_trace.pt"
+        joiner_filename = params.exp_dir / f"joiner_jit_trace{suffix}.pt"
         export_joiner_model_jit_trace(model.joiner, joiner_filename)
     else:
         logging.info("Not using torchscript")
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
-        filename = params.exp_dir / "pretrained.pt"
+        filename = params.exp_dir / f"pretrained{suffix}.pt"
         torch.save({"model": model.state_dict()}, str(filename))
         logging.info(f"Saved to {filename}")
 
