@@ -83,7 +83,7 @@ class Transducer(nn.Module):
         reduction: str = "sum",
         delay_penalty: float = 0.0,
         return_sym_delay: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -110,6 +110,11 @@ class Transducer(nn.Module):
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
+          delay_penalty:
+            A constant value to penalize symbol delay.
+          return_sym_delay:
+            Whether to return `sym_delay` during training, this is a stat
+            to measure symbols emission delay.
         Returns:
           Return the transducer loss.
 
@@ -171,6 +176,7 @@ class Transducer(nn.Module):
             )
 
         sym_delay = None
+        total_syms = None
         if return_sym_delay:
             B, S, T0 = px_grad.shape
             T = T0 - 1
@@ -188,7 +194,7 @@ class Transducer(nn.Module):
                 T0, device=px_grad.device
             ).reshape(1, 1, T0) - offset.reshape(B, 1, 1)
             sym_delay = px_grad * offset
-            sym_delay = torch.sum(sym_delay) / total_syms
+            sym_delay = torch.sum(sym_delay)
 
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
@@ -223,4 +229,4 @@ class Transducer(nn.Module):
                 reduction=reduction,
             )
 
-        return (simple_loss, pruned_loss, sym_delay)
+        return (simple_loss, pruned_loss, sym_delay, total_syms)

@@ -649,7 +649,7 @@ def compute_loss(
     delay_penalty = 0.0 if warmup < 2.0 else params.delay_penalty
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, sym_delay = model(
+        simple_loss, pruned_loss, sym_delay, total_syms = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -728,6 +728,7 @@ def compute_loss(
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     if params.return_sym_delay:
+        info["symbols"] = total_syms.detach().cpu().item()
         info["sym_delay"] = sym_delay.detach().cpu().item()
 
     return loss, info
