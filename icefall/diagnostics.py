@@ -211,7 +211,7 @@ class TensorDiagnostic(object):
                         print(
                             "Error getting eigenvalues, trying another method."
                         )
-                        eigs = torch.linalg.eigvals(stats)
+                        eigs, _ = torch.eig(stats)
                         stats = eigs.abs().sqrt()
                         # sqrt so it reflects data magnitude, like stddev- not variance
 
