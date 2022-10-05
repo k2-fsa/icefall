@@ -371,6 +371,8 @@ class ConformerEncoder(nn.Module):
         mask = get_random_mask()
         device = self.to_layerdrop_scales[0].weight.device
         layerdrop_scales = 1.0 + self.to_layerdrop_scales(mask.to(device))
+        if random.random() < 0.05:
+            logging.info(f"mask={mask}, layerdrop_scales = {layerdrop_scales.to('cpu')}")
         return mask, layerdrop_scales
 
 
