@@ -329,7 +329,17 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--delay-penalty",
+        "--delay-penalty-simple",
+        type=float,
+        default=0.0,
+        help="""A constant value to penalize symbol delay, this may be
+         needed when training with time masking, to avoid the time masking
+         encouraging the network to delay symbols.
+         """,
+    )
+
+    parser.add_argument(
+        "--delay-penalty-pruned",
         type=float,
         default=0.0,
         help="""A constant value to penalize symbol delay, this may be
@@ -646,7 +656,8 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
-    delay_penalty = 0.0 if warmup < 2.0 else params.delay_penalty
+    delay_penalty_simple = 0.0 if warmup < 2.0 else params.delay_penalty_simple
+    delay_penalty_pruned = 0.0 if warmup < 2.0 else params.delay_penalty_pruned
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, sym_delay, total_syms = model(
@@ -657,7 +668,8 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
-            delay_penalty=delay_penalty,
+            delay_penalty_simple=delay_penalty_simple,
+            delay_penalty_pruned=delay_penalty_pruned,
             return_sym_delay=params.return_sym_delay,
             reduction="none",
         )
