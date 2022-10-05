@@ -130,7 +130,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=25,
         help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        max sequence length of current batch or uniformly sampled from
+        (1, short_chunk_size).
         """,
     )
 
@@ -138,7 +139,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-left-chunks",
         type=int,
         default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
+        help="""How many left context can be seen in chunks when calculating
+        attention.""",
     )
 
 
@@ -980,7 +982,7 @@ def run(rank, world_size, args):
         ), "dynamic_chunk_training requires causal convolution"
     else:
         assert (
-            params.delay_penalty_simple == 0.0 &&
+            params.delay_penalty_simple == 0.0 and
             params.delay_penalty_pruned == 0.0
         ), "delay_penalty is intended for dynamic_chunk_training"
 
