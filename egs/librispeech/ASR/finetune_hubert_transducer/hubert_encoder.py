@@ -82,7 +82,7 @@ class HubertEncoder(EncoderInterface):
                 output_size=output_size,
             )
             self.subsample_mode = subsample_mode
-            logging.info("Subsample output!}")
+            logging.info("Subsample output!")
             logging.info(self.subsample)
         else:
             self.subsample = None
