@@ -1089,7 +1089,7 @@ The first two versions are tested whereas the last one is not due to GPU memory 
 
 The models are finetuned base on the instructions given in [Hubert](https://arxiv.org/abs/2106.07447)
 and [Wav2vec 2.0](https://arxiv.org/abs/2006.11477). Models are trained using Adam optimizer with
-a tri-state lr scheduler. The 960h models are trained for 320k updates using a vocab of 500. The WERs are listed below:
+a tri-state lr scheduler. The 960h models are trained for 320k updates using a vocab of 500. The WERs obtained using `modified_beam_search` are listed below:
 | model name  | test-clean | test-other |
 | ----------- |------------|------------|
 | Hubert base |   2.82     | 7.09|
