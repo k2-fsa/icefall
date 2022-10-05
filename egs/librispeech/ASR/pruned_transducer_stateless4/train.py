@@ -980,8 +980,9 @@ def run(rank, world_size, args):
         ), "dynamic_chunk_training requires causal convolution"
     else:
         assert (
-                params.delay_penalty == 0.0
-            ), "delay_penalty is intended for dynamic_chunk_training"
+            params.delay_penalty_simple == 0.0 &&
+            params.delay_penalty_pruned == 0.0
+        ), "delay_penalty is intended for dynamic_chunk_training"
 
     logging.info(params)
 
