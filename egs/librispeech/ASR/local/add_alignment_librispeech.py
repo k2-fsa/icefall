@@ -18,7 +18,8 @@
 
 """
 This file adds alignments from https://github.com/CorentinJ/librispeech-alignments  # noqa
-to the existing fbank features dir data/fbank.
+to the existing fbank features dir (e.g., data/fbank)
+and save cuts to a new dir (e.g., data/fbank_ali).
 """
 
 import argparse

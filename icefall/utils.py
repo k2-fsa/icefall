@@ -435,9 +435,9 @@ def store_transcripts(
 
 def store_transcripts_and_timestamps(
     filename: Pathlike,
-    texts: Iterable[Tuple[str, List[str], List[str], List[float]]],
+    texts: Iterable[Tuple[str, List[str], List[str], List[float], List[float]]],
 ) -> None:
-    """Save predicted results with timestamps and reference transcripts
+    """Save predicted results and reference transcripts as well as their timestamps
     to a file.
 
     Args:
@@ -450,10 +450,14 @@ def store_transcripts_and_timestamps(
       Return None.
     """
     with open(filename, "w") as f:
-        for cut_id, ref, hyp, timestamp in texts:
+        for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
-            print(f"{cut_id}:\ttimestamp={timestamp}", file=f)
+            if len(time_ref) > 0:
+                s = "[" + ", ".join(["%0.3f" % i for i in time_ref]) + "]"
+                print(f"{cut_id}:\ttimestamp_ref={s}", file=f)
+            s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
+            print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
 
 
 def write_error_stats(
@@ -626,11 +630,11 @@ def write_error_stats(
 def write_error_stats_with_timestamps(
     f: TextIO,
     test_set_name: str,
-    results: List[Tuple[str, List[str], List[str], List[float]]],
+    results: List[Tuple[str, List[str], List[str], List[float], List[float]]],
     enable_log: bool = True,
-) -> float:
-    """Write statistics based on predicted results with timestamps
-    and reference transcripts.
+) -> Tuple[float, float]:
+    """Write statistics based on predicted results and reference transcripts
+    as well as their timestamps.
 
     It will write the following to the given file:
 
@@ -661,8 +665,9 @@ def write_error_stats_with_timestamps(
       enable_log:
         If True, also print detailed WER to the console.
         Otherwise, it is written only to the given file.
+
     Returns:
-      Return None.
+      Return total word error rate and mean delay.
     """
     subs: Dict[Tuple[str, str], int] = defaultdict(int)
     ins: Dict[str, int] = defaultdict(int)
@@ -673,34 +678,67 @@ def write_error_stats_with_timestamps(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
-    for cut_id, ref, hyp, timestamp in results:
+    # Compute mean alignment delay on the correct words
+    all_delay = []
+    for cut_id, ref, hyp, time_ref, time_hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
+        has_time_ref = len(time_ref) > 0
+        if has_time_ref:
+            # pointer to timestamp_hyp
+            p_hyp = 0
+            # pointer to timestamp_ref
+            p_ref = 0
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
                 ins[hyp_word] += 1
                 words[hyp_word][3] += 1
+                if has_time_ref:
+                    p_hyp += 1
             elif hyp_word == ERR:
                 dels[ref_word] += 1
                 words[ref_word][4] += 1
+                if has_time_ref:
+                    p_ref += 1
             elif hyp_word != ref_word:
                 subs[(ref_word, hyp_word)] += 1
                 words[ref_word][1] += 1
                 words[hyp_word][2] += 1
+                if has_time_ref:
+                    p_hyp += 1
+                    p_ref += 1
             else:
                 words[ref_word][0] += 1
                 num_corr += 1
-    ref_len = sum([len(r) for _, r, _, _ in results])
+                if has_time_ref:
+                    all_delay.append(time_hyp[p_hyp] - time_ref[p_ref])
+                    p_hyp += 1
+                    p_ref += 1
+        if has_time_ref:
+            assert p_hyp == len(hyp), (p_hyp, len(hyp))
+            assert p_ref == len(ref), (p_ref, len(ref))
+
+    ref_len = sum([len(r) for _, r, _, _, _ in results])
     sub_errs = sum(subs.values())
     ins_errs = sum(ins.values())
     del_errs = sum(dels.values())
     tot_errs = sub_errs + ins_errs + del_errs
     tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
 
+    mean_delay = "inf"
+    sum_delay = sum(all_delay)
+    num_delay = len(all_delay)
+    if num_delay > 0:
+        mean_delay = "%.3f" % (sum_delay / num_delay)
+
     if enable_log:
         logging.info(
             f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
             f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
             f"{del_errs} del, {sub_errs} sub ]"
+        )
+        logging.info(
+            f"[{test_set_name}] %symbol-delay {mean_delay} "
+            f"computed on {num_delay} words"
         )
 
     print(f"%WER = {tot_err_rate}", file=f)
@@ -718,7 +756,7 @@ def write_error_stats_with_timestamps(
 
     print("", file=f)
     print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
-    for cut_id, ref, hyp, timestamp in results:
+    for cut_id, ref, hyp, _, _ in results:
         ali = kaldialign.align(ref, hyp, ERR)
         combine_successive_errors = True
         if combine_successive_errors:
@@ -788,7 +826,7 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-    return float(tot_err_rate)
+    return float(tot_err_rate), float(mean_delay)
 
 
 class MetricsTracker(collections.defaultdict):
@@ -1292,9 +1330,9 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
     start_token = b"\xe2\x96\x81".decode()  # '_'
     assert len(tokens) == len(timestamp)
     ans = []
-    for token, start_time in zip(tokens, timestamp):
-        if token.startswith(start_token):
-            ans.append(start_time)
+    for i in range(len(tokens)):
+        if i == 0 or tokens[i].startswith(start_token):
+            ans.append(timestamp[i])
     return ans
 
 
@@ -1362,6 +1400,7 @@ def parse_hyp_and_timestamp(
             res.timestamps[i], subsampling_factor, frame_shift_ms
         )
         time = parse_timestamp(tokens, time)
+        assert len(time) == len(words), (tokens, words)
 
         hyps.append(words)
         timestamps.append(time)

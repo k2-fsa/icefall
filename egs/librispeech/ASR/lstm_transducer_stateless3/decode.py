@@ -504,7 +504,9 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str], List[float]]]]:
+) -> Dict[
+    str, List[Tuple[str, List[str], List[str], List[float], List[float]]]
+]:
     """Decode dataset.
 
     Args:
@@ -546,6 +548,18 @@ def decode_dataset(
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
+        timestamps_ref = []
+        for cut in batch["supervisions"]["cut"]:
+            for s in cut.supervisions:
+                time = []
+                if s.alignment is not None and "word" in s.alignment:
+                    time = [
+                        aliword.start
+                        for aliword in s.alignment["word"]
+                        if aliword.symbol != ""
+                    ]
+                timestamps_ref.append(time)
+
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
@@ -555,14 +569,18 @@ def decode_dataset(
             batch=batch,
         )
 
-        for name, (hyps, timestamps) in hyps_dict.items():
+        for name, (hyps, timestamps_hyp) in hyps_dict.items():
             this_batch = []
-            assert len(hyps) == len(texts) and len(timestamps) == len(texts)
-            for cut_id, hyp_words, ref_text, time in zip(
-                cut_ids, hyps, texts, timestamps
+            assert len(hyps) == len(texts) and len(timestamps_hyp) == len(
+                timestamps_ref
+            )
+            for cut_id, hyp_words, ref_text, time_hyp, time_ref in zip(
+                cut_ids, hyps, texts, timestamps_hyp, timestamps_ref
             ):
                 ref_words = ref_text.split()
-                this_batch.append((cut_id, ref_words, hyp_words, time))
+                this_batch.append(
+                    (cut_id, ref_words, hyp_words, time_ref, time_hyp)
+                )
 
             results[name].extend(this_batch)
 
@@ -581,10 +599,12 @@ def save_results(
     params: AttributeDict,
     test_set_name: str,
     results_dict: Dict[
-        str, List[Tuple[List[str], List[str], List[str], List[float]]]
+        str,
+        List[Tuple[List[str], List[str], List[str], List[float], List[float]]],
     ],
 ):
     test_set_wers = dict()
+    test_set_delays = dict()
     for key, results in results_dict.items():
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
@@ -599,10 +619,11 @@ def save_results(
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         with open(errs_filename, "w") as f:
-            wer = write_error_stats_with_timestamps(
+            wer, delay = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
+            test_set_delays[key] = delay
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
@@ -616,9 +637,28 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
+    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1])
+    delays_info = (
+        params.res_dir
+        / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
+    with open(delays_info, "w") as f:
+        print("settings\tsymbol-delay", file=f)
+        for key, val in test_set_delays:
+            print("{}\t{}".format(key, val), file=f)
+
     s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
+        s += "{}\t{}{}\n".format(key, val, note)
+        note = ""
+    logging.info(s)
+
+    s = "\nFor {}, symbol-delay of different settings are:\n".format(
+        test_set_name
+    )
+    note = "\tbest for {}".format(test_set_name)
+    for key, val in test_set_delays:
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
