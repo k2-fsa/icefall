@@ -330,6 +330,14 @@ class ConformerEncoder(nn.Module):
             # frame_mask is 0 with probability `feature_mask_dropout_prob`
             # frame_mask shape: (S, N, 1)
             frame_mask = (torch.rand_like(src[...,:1]) > feature_mask_dropout_prob).to(src.dtype)
+
+            # for 10% of sequences, make the frame mask always-1, i.e. don't drop out any of
+            # the frames.  This is to make sure the model sometimes "sees" the same types of
+            # un-perturbed sequences that it will see in test time.
+            frame_mask = torch.logical_or(frame_mask,
+                                          torch.rand_like(src[:,:1,:1]) < 0.1)
+
+
             feature_mask[..., feature_unmasked_dim:] *= frame_mask
 
 
