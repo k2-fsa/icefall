@@ -355,8 +355,8 @@ class ConformerEncoder(nn.Module):
                 indexes[j+1] = a
 
 
-        for i,j in enumerate(indexes):
-            mod = self.layers[j]
+        for i in indexes:
+            mod = self.layers[i]
             output, attn_scores = mod(
                 output,
                 pos_emb,
