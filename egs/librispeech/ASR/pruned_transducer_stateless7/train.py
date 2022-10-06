@@ -119,6 +119,15 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--encoder-unmasked-dim",
+        type=int,
+        default=256,
+        help="Unmasked dimension in the encoder, relates to augmentation during training.  "
+        "Must be <= each of encoder_dims.  Empirically, less than 256 seems to make performance "
+        " worse."
+    )
+
+    parser.add_argument(
         "--conformer-subsampling-factor",
         type=int,
         default=2,
@@ -416,6 +425,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         subsampling_factor=params.subsampling_factor,
         conformer_subsampling_factor=params.conformer_subsampling_factor,
         d_model=to_int_list(params.encoder_dims),
+        encoder_unmasked_dim=params.encoder_unmasked_dim,
         nhead=to_int_list(params.nhead),
         feedforward_dim=to_int_list(params.feedforward_dims),
         num_encoder_layers=to_int_list(params.num_encoder_layers),
