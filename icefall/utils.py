@@ -559,8 +559,9 @@ class MetricsTracker(collections.defaultdict):
                 ans_symbols += str(k) + "=" + str(norm_value) + ", "
             else:
                 ans_frames += str(k) + "=" + str(norm_value) + ", "
-        frames = "%.2f" % self["frames"]
-        ans_frames += "over " + str(frames) + " frames. "
+        if ans_frames != "":
+            frames = "%.2f" % self["frames"]
+            ans_frames += "over " + str(frames) + " frames. "
         if ans_symbols != "":
             symbols = "%.2f" % self["symbols"]
             ans_symbols += "over " + str(symbols) + " symbols. "

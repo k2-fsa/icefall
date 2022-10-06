@@ -414,7 +414,7 @@ def save_results(
     results_delay: MetricsTracker,
 ):
     delay_path = (
-        params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        params.res_dir / f"symbol-delay-{test_set_name}-{params.suffix}.txt"
     )
     with open(delay_path, "w") as f:
         print(f"{results_delay}", file=f)
@@ -446,7 +446,7 @@ def main():
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
 
-    setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
+    setup_logger(f"{params.res_dir}/symbol-delay-{params.suffix}")
 
     logging.info("Start to calculate symbol delay.")
 
