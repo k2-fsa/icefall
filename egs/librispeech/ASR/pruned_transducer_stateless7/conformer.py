@@ -170,8 +170,6 @@ class Conformer(EncoderInterface):
         frame_mask0 = frame_mask1.unsqueeze(1).expand(num_frames1, ds, batch_size, 1).reshape(
             num_frames1 * ds, batch_size, 1)[:num_frames0]
 
-        print("frame_mask0 = ", frame_mask0.squeeze(-1))
-
         feature_mask0 = torch.ones(num_frames0, batch_size, self.d_model[0],
                                    dtype=x.dtype, device=x.device)
         feature_mask0[:, :, self.encoder_unmasked_dim:] *= frame_mask0
