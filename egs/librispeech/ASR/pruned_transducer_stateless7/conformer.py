@@ -447,8 +447,12 @@ class ConformerEncoder(nn.Module):
                          warmup: float,
                          min_output_scale: float = 0.1,
                          max_output_scale: float = 1.0):
-            output_scale = max(warmup * max_output_scale,
-                               min_output_scale)
+            layer_dropout_prob = 0.075
+            if self.training and random.random() < layer_dropout_prob:
+                output_scale = 0.1
+            else:
+                output_scale = max(warmup * max_output_scale,
+                                   min_output_scale)
             if output_scale == 1.0:
                 return output
             else:
