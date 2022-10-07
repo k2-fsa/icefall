@@ -466,8 +466,10 @@ def average_state_dict(
 
     uniqued_names = list(uniqued.values())
     for k in uniqued_names:
-        state_dict_1[k] *= weight_1
-        state_dict_1[k] += (
-            state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
-        )
-        state_dict_1[k] *= scaling_factor
+        v = state_dict_1[k]
+        if torch.is_floating_point(v):
+            v *= weight_1
+            v += (
+                state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
+            )
+            v *= scaling_factor
