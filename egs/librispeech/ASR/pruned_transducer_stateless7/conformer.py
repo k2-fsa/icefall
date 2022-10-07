@@ -49,7 +49,7 @@ class Conformer(EncoderInterface):
         layer_dropout (float): layer-dropout rate.
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
-        warmup (float): number of batches to warm up over (gradually skip
+        warmup_batches (float): number of batches to warm up over (gradually skip
                     layer bypass)
     """
 
@@ -467,12 +467,12 @@ class ConformerEncoder(nn.Module):
             output = apply_bypass(outputs[-1], output,
                                   warmup, 0.1, 0.5)
             # also apply bypass to twos and fours of layers.
-            if i > 0 and i % 2 == 0:
-                output = apply_bypass(outputs[-2], output,
-                                      warmup, 0.25, 1.0)
-            if i > 0 and i % 4 == 0:
-                output = apply_bypass(outputs[-4], output,
-                                      warmup, 0.25, 1.0)
+            #if i > 0 and i % 2 == 0:
+            #    output = apply_bypass(outputs[-2], output,
+            #                          warmup, 0.25, 1.0)
+            #if i > 0 and i % 4 == 0:
+            #    output = apply_bypass(outputs[-4], output,
+            #                          warmup, 0.25, 1.0)
             output = output * feature_mask
             outputs.append(output)
 
