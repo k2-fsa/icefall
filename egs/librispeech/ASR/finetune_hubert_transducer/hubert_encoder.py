@@ -37,6 +37,39 @@ class HubertEncoder(EncoderInterface):
         subsample_mode: str = None,
         training: bool = True,
     ):
+        """Definition of a Hubert encoder
+
+        Args:
+            model_dir (str):
+                Path to the pretrained Hubert model issued by fairseq. Please
+                refer to `download.sh` for instructions.
+            output_size (int, optional):
+                The output dimension of HubertEncoder.
+            freeze_finetune_updates (int, optional):
+                The number of steps during which Hubert model frozen.
+            mask_prob (float, optional):
+                The probability of applying mask.
+                Please refer to (https://arxiv.org/abs/2006.11477)
+            mask_channel_prob (float, optional):
+                The probability of masking channel. Same reference as above.
+            mask_channel_length (int, optional):
+                The length of channels to be masked. Same reference as above.
+            subsample_output (bool, optional):
+                Apply subsample to HubertEncoder. Hubert model has
+                an encoder rate of 50Hz, which is twice of most E2E
+                ASR models. Set this to true apply subsampling to reduce
+                encoder rate to 25Hz.
+            subsample_mode (str, optional):
+                Which type of subsampling module to be used. If
+                `subsample_output=false` or `subsample_mode=None`, no
+                subsample module is applied. Supported subsample module
+                includes ['concat_tanh', 'concat_relu', 'concat']. All these
+                methods concatenate each two successive frames and then
+                apply a linear layer (with different activation functions)
+
+            training (bool, optional): The status of training.
+        """
+
         super().__init__()
         (
             models,
@@ -147,18 +180,23 @@ class HubertEncoder(EncoderInterface):
     def normalise_input(
         self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> torch.Tensor:
-        """Normalize a batch of audio samples to zero mean unit variance
+        """
+        Normalize a batch of audio samples to zero mean unit variance
 
         Args:
-            x (torch.Tensor): a batch of audio samples
-            x_lens (torch.Tensor): # audio samples
+            x (torch.Tensor):
+                a batch of zero-padded audio samples shape: (B,T)
+            x_lens (torch.Tensor):
+                length of each audio sample in x, shape: (B)
 
         Returns:
-            torch.Tensor: normalized audio samples
+            torch.Tensor: normalized audio samples, zero-padded
         """
         row_mean = (x.sum(dim=-1) / x_lens).view(x.size(0), 1)
         row_std = (
-            torch.tensor([sample[sample != 0.0].std() for sample in x])
+            torch.tensor(
+                [sample[: x_lens[i]].std() for i, sample in enumerate(x)]
+            )
             .view(x.size(0), 1)
             .to(x.device)
         )
@@ -169,21 +207,22 @@ class HubertEncoder(EncoderInterface):
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Forward Fairseq Hubert Encoder
+        """Forward function of Fairseq Hubert Encoder
 
         Args:
-            xs_pad (torch.Tensor):
-                Input padded tensor of shape (B,T,C)
-            ilens (torch.Tensor):
-                The number of frames of input (xs_pad) before padding
+            x (torch.Tensor):
+                Input padded tensor of shape (B,T)
+            x_lens (torch.Tensor):
+                The number of frames of input (x) before padding
             warmup (float, optional):
                 A floating point value that gradually increases from 0
                 throughout training; when it is >= 1.0 we are "fully
                 warmed up".  It is used to turn modules on sequentially.
+                Actually not used in this function, just for consistency.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: A tuple of two tensors:
-            Embedding and Embedding's length
+            Tuple[torch.Tensor, torch.Tensor]:
+            A tuple of two tensors: Embedding and Embedding's length
         """
 
         mask = make_pad_mask(x_lens).to(x.device)
@@ -235,6 +274,22 @@ class HubertEncoder(EncoderInterface):
 def get_subsample_module(
     subsample_mode: str, input_size: int, output_size: int
 ) -> torch.nn.Module:
+    """A subsample module to be added at the end of Hubert model
+
+    Args:
+        subsample_mode (str):
+            Which subsample module to be selected
+        input_size (int):
+            Input size to the subsample module
+        output_size (int):
+            Output size of the subsample module
+
+    Raises:
+        NotImplementedError: _description_
+
+    Returns:
+        torch.nn.Module: _description_
+    """
     if subsample_mode == "concat":
         subsample = torch.nn.Sequential(
             torch.nn.Dropout(p=0.1),
