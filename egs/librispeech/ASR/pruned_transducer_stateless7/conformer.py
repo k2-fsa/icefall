@@ -101,8 +101,8 @@ class Conformer(EncoderInterface):
             encoder_layer1,
             num_encoder_layers[0],
             dropout,
-            warmup_begin=warmup_batches / 3,
-            warmup_end=2 * warmup_batches / 3,
+            warmup_begin=0,
+            warmup_end=warmup_batches / 2,
         )
         encoder_layer2 = ConformerEncoderLayer(
             d_model[1],
@@ -117,7 +117,7 @@ class Conformer(EncoderInterface):
                 encoder_layer2,
                 num_encoder_layers[1],
                 dropout,
-                warmup_begin=2 * warmup_batches / 3,
+                warmup_begin=warmup_batches / 2,
                 warmup_end=warmup_batches,
             ),
             input_dim=d_model[0],
