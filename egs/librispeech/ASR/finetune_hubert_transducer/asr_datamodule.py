@@ -1,1 +1,1 @@
-pruned_transducer_stateless2/asr_datamodule.py
+/ceph-data4/yangxiaoyu/softwares/icefall_development/icefall_forked/egs/librispeech/ASR/tdnn_lstm_ctc/asr_datamodule.py
