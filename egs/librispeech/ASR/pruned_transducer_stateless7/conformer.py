@@ -46,7 +46,6 @@ class Conformer(EncoderInterface):
         dim_feedforward (int): feedforward dimention
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
-        layer_dropout (float): layer-dropout rate.
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
         warmup_batches (float): number of batches to warm up over
@@ -403,8 +402,12 @@ class ConformerEncoder(nn.Module):
         super().__init__()
 
         # keep track of how many times forward() has been called, for purposes of
-        # warmup
+        # warmup.  do this with a floating-point count because integer counts can
+        # fail to survive model averaging.
         self.register_buffer('warmup_count', torch.tensor(0.0))
+
+        # if this assert fails, increase the numbers in get_warmup_count().
+        assert warmup_end <= 1000000.0
 
         self.encoder_pos = RelPositionalEncoding(encoder_layer.d_model,
                                                  dropout)
@@ -432,9 +435,37 @@ class ConformerEncoder(nn.Module):
         """
         ans = self.warmup_count.item()
         if self.training:
-            self.warmup_count += 1
+            if ans > 1000000.0:
+                # this ensures that as the number of batches gets large, the warmup count cycles rather
+                # than getting stuck at the smallest floating point value x such that x + 1 == x.
+                # this is necessary because get_layers_to_drop() relies on the warmup count changing
+                # on every batch.
+                next_count = 500000.0
+            else:
+                next_count = ans + 1.0
+            self.warmup_count.fill_(next_count)
         return ans
 
+
+    def get_layers_to_drop(self, warmup_count: float):
+        ans = set()
+        if not self.training:
+            return ans
+        # We use a random number generator seeded from warmup_count because
+        # if there are multiple training processes we want them to all drop the
+        # same number of layers (not necessarily the same layers though).  This
+        # will tend to minimize training time.
+        rng = random.Random(int(warmup_count))
+        num_layers = len(self.layers)
+
+        # x is the expected number of layers to drop
+        x = 0.075 * num_layers
+        # integerize x in a way that preserves sxpectations.
+        num_layers_to_drop = int(x) + int(rng.random() < (x - int(x)))
+        while (len(ans) < num_layers_to_drop):
+            # use random, not rng here, because we don't want the same specific layers to be dropped.
+            ans.add(random.randrange(0, num_layers))
+        return ans
 
     def forward(
         self,
@@ -468,9 +499,13 @@ class ConformerEncoder(nn.Module):
         outputs = []
         attn_scores = None
 
+        layers_to_drop = self.get_layers_to_drop(warmup_count)
+
         output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
+            if i in layers_to_drop:
+                continue
             next_output, attn_scores = mod(
                 output,
                 pos_emb,
