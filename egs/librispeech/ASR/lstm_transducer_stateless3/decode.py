@@ -619,11 +619,11 @@ def save_results(
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         with open(errs_filename, "w") as f:
-            wer, delay = write_error_stats_with_timestamps(
+            wer, mean_delay, var_delay = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
-            test_set_delays[key] = delay
+            test_set_delays[key] = (mean_delay, var_delay)
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
@@ -637,7 +637,7 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1])
+    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0])
     delays_info = (
         params.res_dir
         / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
@@ -645,7 +645,10 @@ def save_results(
     with open(delays_info, "w") as f:
         print("settings\tsymbol-delay", file=f)
         for key, val in test_set_delays:
-            print("{}\t{}".format(key, val), file=f)
+            print(
+                "{}\tmean: {}s, variance: {}".format(key, val[0], val[1]),
+                file=f,
+            )
 
     s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
@@ -659,7 +662,7 @@ def save_results(
     )
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_delays:
-        s += "{}\t{}{}\n".format(key, val, note)
+        s += "{}\tmean: {}s, variance: {}{}\n".format(key, val[0], val[1], note)
         note = ""
     logging.info(s)
 

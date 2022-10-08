@@ -632,7 +632,7 @@ def write_error_stats_with_timestamps(
     test_set_name: str,
     results: List[Tuple[str, List[str], List[str], List[float], List[float]]],
     enable_log: bool = True,
-) -> Tuple[float, float]:
+) -> Tuple[float, float, float]:
     """Write statistics based on predicted results and reference transcripts
     as well as their timestamps.
 
@@ -725,10 +725,13 @@ def write_error_stats_with_timestamps(
     tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
 
     mean_delay = "inf"
-    sum_delay = sum(all_delay)
+    var_delay = "inf"
     num_delay = len(all_delay)
     if num_delay > 0:
-        mean_delay = "%.3f" % (sum_delay / num_delay)
+        mean_delay = sum(all_delay) / num_delay
+        var_delay = sum([(i - mean_delay) ** 2 for i in all_delay]) / num_delay
+        mean_delay = "%.3f" % mean_delay
+        var_delay = "%.3f" % var_delay
 
     if enable_log:
         logging.info(
@@ -737,8 +740,8 @@ def write_error_stats_with_timestamps(
             f"{del_errs} del, {sub_errs} sub ]"
         )
         logging.info(
-            f"[{test_set_name}] %symbol-delay {mean_delay} "
-            f"computed on {num_delay} words"
+            f"[{test_set_name}] %symbol-delay mean: {mean_delay}s, variance: {var_delay} "  # noqa
+            f"computed on {num_delay} correct words"
         )
 
     print(f"%WER = {tot_err_rate}", file=f)
@@ -826,7 +829,7 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-    return float(tot_err_rate), float(mean_delay)
+    return float(tot_err_rate), float(mean_delay), float(var_delay)
 
 
 class MetricsTracker(collections.defaultdict):
