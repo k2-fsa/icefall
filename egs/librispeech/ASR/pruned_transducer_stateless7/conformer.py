@@ -483,8 +483,6 @@ class ConformerEncoder(nn.Module):
 
             output = output * feature_mask
             output_mean = output.abs().mean().item()
-            if random.random() < 0.01:
-                logging.info(f"i={i}, output_mean={output_mean}")
 
         return output
 
