@@ -19,13 +19,13 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless6/decode.py \
+./finetune_hubert_transducer/decode.py \
     --epoch 30 \
     --avg 10 \
     --exp-dir ./finetune_hubert_transducer/exp_960h \
     --max-duration 600 \
     --decoding-method greedy_search \
-    --hubert-model-dir /path/to/hubert_large_ll60k.pt \
+    --hubert-model-dir ./path/to/pretrained_hubert_model \
     --hubert-output-size 1024 \
     --encoder-dim 1024 \
     --hubert-subsample-output 1 \
@@ -34,14 +34,14 @@ Usage:
     --input-strategy AudioSamples
 
 (2) modified beam search
-./pruned_transducer_stateless6/decode.py \
+./finetune_hubert_transducer/decode.py \
     --epoch 30 \
     --avg 10 \
     --exp-dir ./finetune_hubert_transducer/exp_960h \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4 \
-    --hubert-model-dir /path/to/hubert_large_ll60k.pt \
+    --hubert-model-dir ./path/to/pretrained_hubert_model \
     --hubert-output-size 1024 \
     --encoder-dim 1024 \
     --hubert-subsample-output 1 \
