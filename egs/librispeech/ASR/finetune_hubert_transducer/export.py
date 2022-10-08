@@ -20,28 +20,43 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless5/export.py \
-  --exp-dir ./pruned_transducer_stateless5/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10
+./finetune_hubert_transducer/export.py \
+    --epoch 12 \
+    --avg 7 \
+    --exp-dir ./finetune_hubert_transducer/exp_dir \
+    --bpe-model data/lang_bpe_500/bpe.model \
+    --hubert-model-dir /path/to/pretrained/hubert \
+    --hubert-mask-channel-length 64 \
+    --hubert-mask-prob 0.25 \
+    --hubert-mask-channel-prob 0.5 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --encoder-dim 1024
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless5/decode.py`,
+To use the generated file with `finetune_hubert_transducer/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless5/decode.py \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+    ./finetune_hubert_transducer/decode.py \
+        --exp-dir ./finetune_hubert_transducer/exp_dir \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_500/bpe.model \
+        --hubert-model-dir /path/to/pretrained/hubert \
+        --hubert-mask-channel-length 64 \
+        --hubert-mask-prob 0.25 \
+        --hubert-mask-channel-prob 0.5 \
+        --hubert-subsample-output 1 \
+        --hubert-subsample-mode concat_tanh \
+        --encoder-dim 1024 \
+        --input-strategy AudioSamples
 """
 
 import argparse
@@ -50,7 +65,8 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from train import add_model_arguments, get_params, get_transducer_model
+from hubert_encoder import HubertEncoder
+from train import get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -146,13 +162,17 @@ def get_parser():
         """,
     )
 
-    add_model_arguments(parser)
+    parser.add_argument(
+        "--encoder-dim", type=int, default=1024, help="Encoder output dim"
+    )
 
     return parser
 
 
 def main():
-    args = get_parser().parse_args()
+    parser = get_parser()
+    HubertEncoder.add_arguments(parser)
+    args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
     params = get_params()
