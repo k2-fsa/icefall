@@ -49,8 +49,7 @@ class Conformer(EncoderInterface):
         layer_dropout (float): layer-dropout rate.
         cnn_module_kernel (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
-        warmup_batches (float): number of batches to warm up over (gradually skip
-                    layer bypass)
+        warmup_batches (float): number of batches to warm up over
     """
 
     def __init__(
@@ -65,7 +64,7 @@ class Conformer(EncoderInterface):
         num_encoder_layers: Tuple[int] = (12, 12),
         dropout: float = 0.1,
         cnn_module_kernel: Tuple[int] = (31, 31),
-        warmup_batches: float = 3000,
+        warmup_batches: float = 6000.0,
     ) -> None:
         super(Conformer, self).__init__()
 
