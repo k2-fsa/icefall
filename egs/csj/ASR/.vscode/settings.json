@@ -1,0 +1,8 @@
+{
+    "files.watcherExclude": {
+        "**.json": true,
+        "**.jsonl.gz": true,
+        "**.pt": true
+    },
+    "python.analysis.typeCheckingMode": "off"
+}
