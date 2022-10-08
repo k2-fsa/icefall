@@ -274,7 +274,11 @@ class HubertEncoder(EncoderInterface):
 def get_subsample_module(
     subsample_mode: str, input_size: int, output_size: int
 ) -> torch.nn.Module:
-    """A subsample module to be added at the end of Hubert model
+    """
+    A subsample module to be added at the end of Hubert model.
+    The subsample module concats two successive frames and
+    apply a linear transformation. Afterwards, different activations
+    can be used.
 
     Args:
         subsample_mode (str):
