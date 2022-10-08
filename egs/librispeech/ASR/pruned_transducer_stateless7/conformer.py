@@ -369,7 +369,7 @@ class ConformerEncoderLayer(nn.Module):
 
         warmup_value = self.get_warmup_value(warmup_count)
         if warmup_value < 1.0 and self.training:
-            delta = src_orig - src
+            delta = src - src_orig
             keep_prob = 0.5 * (1. + warmup_value)
             delta = delta * (torch.rand_like(delta) < keep_prob)
             src = src_orig + delta
@@ -482,6 +482,9 @@ class ConformerEncoder(nn.Module):
             output = 0.5 * (next_output + output)
 
             output = output * feature_mask
+            output_mean = output.abs().mean().item()
+            if random.random() < 0.01:
+                logging.info(f"i={i}, output_mean={output_mean}")
 
         return output
 
