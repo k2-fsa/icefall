@@ -375,6 +375,9 @@ class ConformerEncoderLayer(nn.Module):
             keep_prob = 0.5 + 0.5 * warmup_value
             # the :1 means the mask is chosen per frame.
             delta = delta * (torch.rand_like(delta[...,:1]) < keep_prob)
+        bypass_scale = self.bypass_scale
+        if random.random() > 0.1:
+            bypass_scale = bypass_scale.clamp(min=0.1)
         src = src_orig + delta * self.bypass_scale
 
         return src, attn_scores_out
