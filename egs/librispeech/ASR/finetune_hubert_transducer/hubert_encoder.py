@@ -115,7 +115,7 @@ class HubertEncoder(EncoderInterface):
                 output_size=output_size,
             )
             self.subsample_mode = subsample_mode
-            logging.info("Subsample output!}")
+            logging.info("Subsample output!")
             logging.info(self.subsample)
         else:
             self.subsample = None
@@ -192,7 +192,7 @@ class HubertEncoder(EncoderInterface):
         Returns:
             torch.Tensor: normalized audio samples, zero-padded
         """
-        row_mean = (x.sum(dim=-1) / x_lens).view(x.size(0), 1)
+        row_mean = x.sum(dim=-1, keepdim=True) / x_lens
         row_std = (
             torch.tensor(
                 [sample[: x_lens[i]].std() for i, sample in enumerate(x)]
