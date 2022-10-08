@@ -508,7 +508,7 @@ class ConformerEncoder(nn.Module):
         for i, mod in enumerate(self.layers):
             if i in layers_to_drop:
                 continue
-            next_output, attn_scores = mod(
+            output, attn_scores = mod(
                 output,
                 pos_emb,
                 attn_scores,
