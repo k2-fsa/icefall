@@ -382,10 +382,13 @@ class ConformerEncoder(nn.Module):
     ) -> None:
         super().__init__()
 
-        # keep track of how many times forward() has been called, for purposes of
-        # warmup.  do this with a floating-point count because integer counts can
-        # fail to survive model averaging.
-        self.register_buffer('warmup_count', torch.tensor(0.0))
+        # keep track of how many times forward() has been called, for purposes
+        # of warmup.  do this with a floating-point count because integer counts
+        # can fail to survive model averaging.  initialize with a smallish
+        # random number so that different encoders use different random seeds in
+        # shared_rng get_layers_to_drop() while using the same random seeds
+        # across jobs.
+        self.register_buffer('warmup_count', torch.tensor(float(10.0 * random.random())))
 
         self.warmup_begin = warmup_begin
         self.warmup_end = warmup_end
@@ -455,13 +458,31 @@ class ConformerEncoder(nn.Module):
         if not self.training:
             return ans
 
-        rng = random.Random(rnd_seed)
+        shared_rng = random.Random(int(warmup_count * 1000))
+        independent_rng = random.Random(rnd_seed)
 
-        for layer in range(num_layers):
-            if rng.random() < get_layerdrop_prob(layer):
+        layerdrop_probs = [ get_layerdrop_prob(i) for i in range(num_layers) ]
+        tot = sum(layerdrop_probs)
+        # Instead of drawing the samples independently, we first randomly decide
+        # how many layers to drop out, using the same random number generator between
+        # jobs so that all jobs drop out the same number (this is for speed).
+        # Then we use an approximate approach to drop out the individual layers
+        # with their specified probs while reaching this exact target.
+        num_to_drop = int(tot) + int(shared_rng.random() < (tot - int(tot)))
+
+
+        layers = list(range(num_layers))
+        independent_rng.shuffle(layers)
+        # go through the shuffled layers twice, in case, the first time round,
+        # we did not drop out the target number of layers.
+        layers = layers + layers
+        for layer in layers:
+            if independent_rng.random() < get_layerdrop_prob(layer):
                 ans.add(layer)
-        if random.random() < 0.005 or __name__ == "__main__":
-            logging.info(f"warmup_begin={warmup_begin}, warmup_end={warmup_end}, warmup_count={warmup_count}, layers_to_drop={ans}")
+            if len(ans) == num_to_drop:
+                break
+        if shared_rng.random() < 0.005 or __name__ == "__main__":
+            logging.info(f"warmup_begin={warmup_begin}, warmup_end={warmup_end}, warmup_count={warmup_count:.1f}, num_to_drop={num_to_drop}, layers_to_drop={ans}")
         return ans
 
 
