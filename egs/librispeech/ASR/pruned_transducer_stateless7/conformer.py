@@ -29,7 +29,6 @@ from s import (
     DoubleSwish,
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-    LearnedScale,
 )
 from torch import Tensor, nn
 
