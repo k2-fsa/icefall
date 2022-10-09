@@ -63,7 +63,7 @@ class Conformer(EncoderInterface):
         num_encoder_layers: Tuple[int] = (12, 12),
         dropout: float = 0.1,
         cnn_module_kernel: Tuple[int] = (31, 31),
-        warmup_batches: float = 6000.0,
+        warmup_batches: float = 4000.0,
     ) -> None:
         super(Conformer, self).__init__()
 
