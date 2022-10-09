@@ -178,7 +178,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
         ans_direction = direction + new_direction  # ensure nonzero even if x == 0
         ans_direction = ans_direction / ans_direction.norm()
 
-        if random.random() < 0.001:
+        if random.random() < 0.0005:
             logging.info(f"variance_proportion = {variance_proportion.item()}, shape={tuple(x.shape)}")
 
         # Caution: this causes a CUDA sync, which is not ideal.
