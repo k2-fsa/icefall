@@ -288,11 +288,8 @@ def get_subsample_module(
         output_size (int):
             Output size of the subsample module
 
-    Raises:
-        NotImplementedError: _description_
-
     Returns:
-        torch.nn.Module: _description_
+        torch.nn.Module: A subsampling module
     """
     if subsample_mode == "concat":
         subsample = torch.nn.Sequential(
