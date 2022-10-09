@@ -96,13 +96,14 @@ class Conformer(EncoderInterface):
 
         )
         # for the first third of the warmup period, we let the Conv2dSubsampling
-        # layer learn something
+        # layer learn something.  then start warmup up the first and then the second
+        # encoder.
         self.encoder1 = ConformerEncoder(
             encoder_layer1,
             num_encoder_layers[0],
             dropout,
-            warmup_begin=0,
-            warmup_end=warmup_batches / 2,
+            warmup_begin=warmup_batches / 3,
+            warmup_end=warmup_batches * 2 / 3,
         )
         encoder_layer2 = ConformerEncoderLayer(
             d_model[1],
@@ -117,7 +118,7 @@ class Conformer(EncoderInterface):
                 encoder_layer2,
                 num_encoder_layers[1],
                 dropout,
-                warmup_begin=warmup_batches / 2,
+                warmup_begin=warmup_batches * 2 / 3,
                 warmup_end=warmup_batches,
             ),
             input_dim=d_model[0],
