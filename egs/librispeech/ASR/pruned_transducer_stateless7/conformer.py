@@ -428,7 +428,7 @@ class ConformerEncoder(nn.Module):
         return ans
 
 
-    def get_layers_to_drop(self, warmup_count: float):
+    def get_layers_to_drop(self, rnd_seed: int, warmup_count: float):
 
         num_layers = len(self.layers)
         warmup_begin = self.warmup_begin
@@ -455,8 +455,10 @@ class ConformerEncoder(nn.Module):
         if not self.training:
             return ans
 
+        rng = random.Random(rnd_seed)
+
         for layer in range(num_layers):
-            if random.random() < get_layerdrop_prob(layer):
+            if rng.random() < get_layerdrop_prob(layer):
                 ans.add(layer)
         if random.random() < 0.005 or __name__ == "__main__":
             logging.info(f"warmup_begin={warmup_begin}, warmup_end={warmup_end}, warmup_count={warmup_count}, layers_to_drop={ans}")
@@ -494,7 +496,9 @@ class ConformerEncoder(nn.Module):
         outputs = []
         attn_scores = None
 
-        layers_to_drop = self.get_layers_to_drop(self.get_warmup_count())
+
+        rnd_seed = src.numel() + random.randint(0, 1000)
+        layers_to_drop = self.get_layers_to_drop(rnd_seed, self.get_warmup_count())
 
         output = output * feature_mask
 
