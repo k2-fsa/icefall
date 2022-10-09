@@ -440,7 +440,7 @@ class ConformerEncoder(nn.Module):
         def get_layerdrop_prob(layer: int) -> float:
             layer_warmup_delta = (warmup_end - warmup_begin) / num_layers
             layer_warmup_begin = warmup_begin + layer * layer_warmup_delta
-            initial_layerdrop_prob = 0.75
+            initial_layerdrop_prob = 0.5
             final_layerdrop_prob = 0.05
 
             layer_warmup_end = layer_warmup_begin + layer_warmup_delta
