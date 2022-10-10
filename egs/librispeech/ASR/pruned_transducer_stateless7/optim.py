@@ -323,7 +323,6 @@ class ScaledAdam(BatchedOptimizer):
         first_state["model_norms"][step % clipping_update_period] = tot_norm
 
         if step % clipping_update_period == 0:
-            print(f"step = {step}")
             # Print some stats.
             # We don't reach here if step == 0 because we would have returned
             # above.

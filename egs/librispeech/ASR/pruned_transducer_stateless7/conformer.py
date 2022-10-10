@@ -18,6 +18,7 @@
 import copy
 import math
 import warnings
+import itertools
 from typing import List, Optional, Tuple, Union
 import logging
 import torch
@@ -473,11 +474,10 @@ class ConformerEncoder(nn.Module):
 
         layers = list(range(num_layers))
         independent_rng.shuffle(layers)
-        # go through the shuffled layers twice, in case, the first time round,
-        # we did not drop out the target number of layers.
-        layers = layers + layers
-        for layer in layers:
-            if independent_rng.random() < get_layerdrop_prob(layer):
+
+        # go through the shuffled layers until we get the required number of samples.
+        for layer in itertools.cycle(layers):
+            if independent_rng.random() < layerdrop_probs[layer]:
                 ans.add(layer)
             if len(ans) == num_to_drop:
                 break
