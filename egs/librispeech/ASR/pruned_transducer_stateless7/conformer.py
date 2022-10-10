@@ -441,7 +441,7 @@ class ConformerEncoder(nn.Module):
             layer_warmup_delta = (warmup_end - warmup_begin) / num_layers
             layer_warmup_begin = warmup_begin + layer * layer_warmup_delta
             initial_layerdrop_prob = 0.5
-            final_layerdrop_prob = 0.05
+            final_layerdrop_prob = 0.075
 
             layer_warmup_end = layer_warmup_begin + layer_warmup_delta
             if warmup_count < layer_warmup_begin:
