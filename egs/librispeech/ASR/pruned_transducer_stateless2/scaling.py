@@ -578,7 +578,7 @@ class ActivationBalancer(torch.nn.Module):
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
-        assert balance_prob > 0 and balance_prob <= 1, balance_prob
+        assert 0 < balance_prob <= 1, balance_prob
         self.balance_prob = balance_prob
 
     def forward(self, x: Tensor) -> Tensor:
