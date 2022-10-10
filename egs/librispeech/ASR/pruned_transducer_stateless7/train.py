@@ -92,7 +92,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="12,12",
+        default="7,7",
         help="Number of conformer encoder layers, comma separated.",
     )
 
