@@ -471,16 +471,16 @@ class ConformerEncoder(nn.Module):
         # with their specified probs while reaching this exact target.
         num_to_drop = int(tot) + int(shared_rng.random() < (tot - int(tot)))
 
-
         layers = list(range(num_layers))
         independent_rng.shuffle(layers)
 
         # go through the shuffled layers until we get the required number of samples.
-        for layer in itertools.cycle(layers):
-            if independent_rng.random() < layerdrop_probs[layer]:
-                ans.add(layer)
-            if len(ans) == num_to_drop:
-                break
+        if num_to_drop > 0:
+            for layer in itertools.cycle(layers):
+                if independent_rng.random() < layerdrop_probs[layer]:
+                    ans.add(layer)
+                if len(ans) == num_to_drop:
+                    break
         if shared_rng.random() < 0.005 or __name__ == "__main__":
             logging.info(f"warmup_begin={warmup_begin}, warmup_end={warmup_end}, warmup_count={warmup_count:.1f}, num_to_drop={num_to_drop}, layers_to_drop={ans}")
         return ans
