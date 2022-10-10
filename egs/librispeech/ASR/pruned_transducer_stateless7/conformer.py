@@ -23,7 +23,7 @@ import logging
 import torch
 import random
 from encoder_interface import EncoderInterface
-from s import (
+from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
