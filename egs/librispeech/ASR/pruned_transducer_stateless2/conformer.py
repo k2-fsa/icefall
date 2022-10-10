@@ -930,7 +930,7 @@ class RelPositionMultiheadAttention(nn.Module):
         value: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:
@@ -1057,7 +1057,7 @@ class RelPositionMultiheadAttention(nn.Module):
         out_proj_bias: Tensor,
         training: bool = True,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:
