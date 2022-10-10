@@ -65,3 +65,5 @@ from .utils import (
     subsequent_chunk_mask,
     write_error_stats,
 )
+
+from .ngram_lm import NgramLm
