@@ -1086,7 +1086,7 @@ See <https://github.com/k2-fsa/icefall/pull/588>
 A pre-trained Hubert model finetuned with pruned RNN-T loss. Note that fairseq issued
 three versions of [Hubert](https://arxiv.org/abs/2106.07447) of different sizes (base, large, xlarge).
 The first two versions are tested whereas the last one is not due to GPU memory constraint. Before
-trying this recipe, you may need to first download the fairseq pretrained HuBert models. See (./finetune_hubert_transducer/download.sh) for instructions.
+trying this recipe, you may need to first download the fairseq pretrained HuBert models. See [./finetune_hubert_transducer/download.sh](./finetune_hubert_transducer/download.sh) for instructions.
 
 The models are finetuned base on the instructions given in [Hubert](https://arxiv.org/abs/2106.07447)
 and [Wav2vec 2.0](https://arxiv.org/abs/2006.11477). Models are trained using Adam optimizer with
