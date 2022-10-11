@@ -278,6 +278,8 @@ class TensorDiagnostic(object):
         """
         combined_name = _summarize_two_names(self.name, other.name)
         # e.g. combined_name == 'foo.{param_value,param_grad}' or just 'foo.param_value' if self.name == other.name.
+        if self.stats is None:
+            return
         for dim, this_dim_stats in enumerate(self.stats):
             try:
                 other_dim_stats = other.stats[dim]
