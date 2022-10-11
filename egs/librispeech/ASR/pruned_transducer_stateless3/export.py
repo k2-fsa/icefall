@@ -62,12 +62,15 @@ It will generates 3 files: `encoder_jit_trace.pt`,
   --avg 10 \
   --onnx 1
 
-It will generate the following three files in the given `exp_dir`.
+It will generate the following six files in the given `exp_dir`.
 Check `onnx_check.py` for how to use them.
 
     - encoder.onnx
     - decoder.onnx
     - joiner.onnx
+    - joiner_encoder_proj.onnx
+    - joiner_decoder_proj.onnx
+    - all_in_one.onnx
 
 
 (4) Export `model.state_dict()`
@@ -115,6 +118,7 @@ import argparse
 import logging
 from pathlib import Path
 
+import onnx_graphsurgeon as gs
 import onnx
 import sentencepiece as spm
 import torch
@@ -218,6 +222,9 @@ def get_parser():
             - encoder.onnx
             - decoder.onnx
             - joiner.onnx
+            - joiner_encoder_proj.onnx
+            - joiner_decoder_proj.onnx
+            - all_in_one.onnx
 
         Check ./onnx_check.py and ./onnx_pretrained.py for how to use them.
         """,
@@ -485,14 +492,11 @@ def export_joiner_model_onnx(
 
         - joiner_out: a tensor of shape (N, vocab_size)
 
-    Note: The argument project_input is fixed to True. A user should not
-    project the encoder_out/decoder_out by himself/herself. The exported joiner
-    will do that for the user.
     """
     encoder_out_dim = joiner_model.encoder_proj.weight.shape[1]
     decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
-    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
-    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+    encoder_out = torch.rand(1, 1, 1, encoder_out_dim, dtype=torch.float32)
+    decoder_out = torch.rand(1, 1, 1, decoder_out_dim, dtype=torch.float32)
 
     project_input = True
     # Note: It uses torch.jit.trace() internally
@@ -510,10 +514,63 @@ def export_joiner_model_onnx(
             "logit": {0: "N"},
         },
     )
+    torch.onnx.export(
+        joiner_model.encoder_proj,
+        (encoder_out.squeeze(0).squeeze(0)),
+        str(joiner_filename).replace(".onnx", "_encoder_proj.onnx"),
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["encoder_out"],
+        output_names=["encoder_proj"],
+        dynamic_axes={
+            "encoder_out": {0: "N"},
+            "encoder_proj": {0: "N"},
+        },
+    )
+    torch.onnx.export(
+        joiner_model.decoder_proj,
+        (decoder_out.squeeze(0).squeeze(0)),
+        str(joiner_filename).replace(".onnx", "_decoder_proj.onnx"),
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["decoder_out"],
+        output_names=["decoder_proj"],
+        dynamic_axes={
+            "decoder_out": {0: "N"},
+            "decoder_proj": {0: "N"},
+        },
+    )
     logging.info(f"Saved to {joiner_filename}")
 
 
+def add_variables(
+    model: nn.Module, combined_model: onnx.ModelProto
+) -> onnx.ModelProto:
+    graph = gs.import_onnx(combined_model)
+
+    blank_id = model.decoder.blank_id
+    unk_id = getattr(model, "unk_id", blank_id)
+    context_size = model.decoder.context_size
+
+    node = gs.Node(
+        op="Identity",
+        name="constants_lm",
+        attrs={
+            "blank_id": blank_id,
+            "unk_id": unk_id,
+            "context_size": context_size,
+        },
+        inputs=[],
+        outputs=[],
+    )
+    graph.nodes.append(node)
+
+    graph = gs.export_onnx(graph)
+    return graph
+
+
 def export_all_in_one_onnx(
+    model: nn.Module,
     encoder_filename: str,
     decoder_filename: str,
     joiner_filename: str,
@@ -522,10 +579,22 @@ def export_all_in_one_onnx(
     encoder_onnx = onnx.load(encoder_filename)
     decoder_onnx = onnx.load(decoder_filename)
     joiner_onnx = onnx.load(joiner_filename)
+    joiner_encoder_proj_onnx = onnx.load(
+        str(joiner_filename).replace(".onnx", "_encoder_proj.onnx")
+    )
+    joiner_decoder_proj_onnx = onnx.load(
+        str(joiner_filename).replace(".onnx", "_decoder_proj.onnx")
+    )
 
     encoder_onnx = onnx.compose.add_prefix(encoder_onnx, prefix="encoder/")
     decoder_onnx = onnx.compose.add_prefix(decoder_onnx, prefix="decoder/")
     joiner_onnx = onnx.compose.add_prefix(joiner_onnx, prefix="joiner/")
+    joiner_encoder_proj_onnx = onnx.compose.add_prefix(
+        joiner_encoder_proj_onnx, prefix="joiner_encoder_proj/"
+    )
+    joiner_decoder_proj_onnx = onnx.compose.add_prefix(
+        joiner_decoder_proj_onnx, prefix="joiner_decoder_proj/"
+    )
 
     combined_model = onnx.compose.merge_models(
         encoder_onnx, decoder_onnx, io_map={}
@@ -533,6 +602,13 @@ def export_all_in_one_onnx(
     combined_model = onnx.compose.merge_models(
         combined_model, joiner_onnx, io_map={}
     )
+    combined_model = onnx.compose.merge_models(
+        combined_model, joiner_encoder_proj_onnx, io_map={}
+    )
+    combined_model = onnx.compose.merge_models(
+        combined_model, joiner_decoder_proj_onnx, io_map={}
+    )
+    combined_model = add_variables(model, combined_model)
     onnx.save(combined_model, all_in_one_filename)
     logging.info(f"Saved to {all_in_one_filename}")
 
@@ -631,6 +707,7 @@ def main():
 
         all_in_one_filename = params.exp_dir / "all_in_one.onnx"
         export_all_in_one_onnx(
+            model,
             encoder_filename,
             decoder_filename,
             joiner_filename,

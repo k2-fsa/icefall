@@ -27,7 +27,7 @@ You can use the following command to get the exported models:
 
 Usage of this script:
 
-./pruned_transducer_stateless3/jit_trace_pretrained.py \
+./pruned_transducer_stateless3/onnx_pretrained.py \
   --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
   --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
   --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
@@ -194,6 +194,7 @@ def greedy_search(
             decoder_input_nodes[0].name: decoder_input.numpy(),
         },
     )[0].squeeze(1)
+    decoder_out = torch.from_numpy(decoder_out)
 
     offset = 0
     for batch_size in batch_size_list:
@@ -209,11 +210,17 @@ def greedy_search(
         logits = joiner.run(
             [joiner_output_nodes[0].name],
             {
-                joiner_input_nodes[0].name: current_encoder_out.numpy(),
-                joiner_input_nodes[1].name: decoder_out,
+                joiner_input_nodes[0]
+                .name: current_encoder_out.unsqueeze(1)
+                .unsqueeze(1)
+                .numpy(),
+                joiner_input_nodes[1]
+                .name: decoder_out.unsqueeze(1)
+                .unsqueeze(1)
+                .numpy(),
             },
         )[0]
-        logits = torch.from_numpy(logits)
+        logits = torch.from_numpy(logits).squeeze(1).squeeze(1)
         # logits'shape (batch_size, vocab_size)
 
         assert logits.ndim == 2, logits.shape
@@ -236,6 +243,7 @@ def greedy_search(
                     decoder_input_nodes[0].name: decoder_input.numpy(),
                 },
             )[0].squeeze(1)
+            decoder_out = torch.from_numpy(decoder_out)
 
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []

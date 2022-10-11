@@ -63,6 +63,20 @@ def get_parser():
         help="Path to the onnx joiner model",
     )
 
+    parser.add_argument(
+        "--onnx-joiner-encoder-proj-filename",
+        required=True,
+        type=str,
+        help="Path to the onnx joiner encoder projection model",
+    )
+
+    parser.add_argument(
+        "--onnx-joiner-decoder-proj-filename",
+        required=True,
+        type=str,
+        help="Path to the onnx joiner decoder projection model",
+    )
+
     return parser
 
 
@@ -126,17 +140,27 @@ def test_decoder(
 def test_joiner(
     model: torch.jit.ScriptModule,
     joiner_session: ort.InferenceSession,
+    joiner_encoder_proj_session: ort.InferenceSession,
+    joiner_decoder_proj_session: ort.InferenceSession,
 ):
     joiner_inputs = joiner_session.get_inputs()
     assert joiner_inputs[0].name == "encoder_out"
-    assert joiner_inputs[0].shape == ["N", 512]
+    assert joiner_inputs[0].shape == ["N", 1, 1, 512]
 
     assert joiner_inputs[1].name == "decoder_out"
-    assert joiner_inputs[1].shape == ["N", 512]
+    assert joiner_inputs[1].shape == ["N", 1, 1, 512]
+
+    joiner_encoder_proj_inputs = joiner_encoder_proj_session.get_inputs()
+    assert joiner_encoder_proj_inputs[0].name == "encoder_out"
+    assert joiner_encoder_proj_inputs[0].shape == ["N", 512]
+
+    joiner_decoder_proj_inputs = joiner_decoder_proj_session.get_inputs()
+    assert joiner_decoder_proj_inputs[0].name == "decoder_out"
+    assert joiner_decoder_proj_inputs[0].shape == ["N", 512]
 
     for N in [1, 5, 10]:
-        encoder_out = torch.rand(N, 512)
-        decoder_out = torch.rand(N, 512)
+        encoder_out = torch.rand(N, 1, 1, 512)
+        decoder_out = torch.rand(N, 1, 1, 512)
 
         joiner_inputs = {
             "encoder_out": encoder_out.numpy(),
@@ -152,6 +176,44 @@ def test_joiner(
         )
         assert torch.allclose(joiner_out, torch_joiner_out, atol=1e-5), (
             (joiner_out - torch_joiner_out).abs().max()
+        )
+
+        joiner_encoder_proj_inputs = {
+            "encoder_out": encoder_out.squeeze(1).squeeze(1).numpy()
+        }
+        joiner_encoder_proj_out = joiner_encoder_proj_session.run(
+            ["encoder_proj"], joiner_encoder_proj_inputs
+        )[0]
+        joiner_encoder_proj_out = torch.from_numpy(joiner_encoder_proj_out)
+
+        torch_joiner_encoder_proj_out = model.joiner.encoder_proj(
+            encoder_out.squeeze(1).squeeze(1)
+        )
+        assert torch.allclose(
+            joiner_encoder_proj_out, torch_joiner_encoder_proj_out, atol=1e-5
+        ), (
+            (joiner_encoder_proj_out - torch_joiner_encoder_proj_out)
+            .abs()
+            .max()
+        )
+
+        joiner_decoder_proj_inputs = {
+            "decoder_out": decoder_out.squeeze(1).squeeze(1).numpy()
+        }
+        joiner_decoder_proj_out = joiner_decoder_proj_session.run(
+            ["decoder_proj"], joiner_decoder_proj_inputs
+        )[0]
+        joiner_decoder_proj_out = torch.from_numpy(joiner_decoder_proj_out)
+
+        torch_joiner_decoder_proj_out = model.joiner.decoder_proj(
+            decoder_out.squeeze(1).squeeze(1)
+        )
+        assert torch.allclose(
+            joiner_decoder_proj_out, torch_joiner_decoder_proj_out, atol=1e-5
+        ), (
+            (joiner_decoder_proj_out - torch_joiner_decoder_proj_out)
+            .abs()
+            .max()
         )
 
 
@@ -185,7 +247,20 @@ def main():
         args.onnx_joiner_filename,
         sess_options=options,
     )
-    test_joiner(model, joiner_session)
+    joiner_encoder_proj_session = ort.InferenceSession(
+        args.onnx_joiner_encoder_proj_filename,
+        sess_options=options,
+    )
+    joiner_decoder_proj_session = ort.InferenceSession(
+        args.onnx_joiner_decoder_proj_filename,
+        sess_options=options,
+    )
+    test_joiner(
+        model,
+        joiner_session,
+        joiner_encoder_proj_session,
+        joiner_decoder_proj_session,
+    )
     logging.info("Finished checking ONNX models")
 
 
