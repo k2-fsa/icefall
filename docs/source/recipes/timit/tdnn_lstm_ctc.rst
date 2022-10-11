@@ -220,7 +220,7 @@ After downloading, you will have the following files:
       |       `-- G_4_gram.pt
       |-- exp
       |   `-- pretrained_average_16_25.pt
-      `-- test_waves
+      `-- test_wavs
           |-- FDHC0_SI1559.WAV
           |-- FELC0_SI756.WAV
           |-- FMGD0_SI1564.WAV

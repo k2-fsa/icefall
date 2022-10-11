@@ -465,7 +465,7 @@ After downloading, you will have the following files:
   |   `-- pretrained.pt
   |-- log
   |   `-- log-decode-2021-11-09-17-38-28
-  `-- test_waves
+  `-- test_wavs
       |-- 1089-134686-0001.wav
       |-- 1221-135766-0001.wav
       |-- 1221-135766-0002.wav
@@ -508,21 +508,21 @@ After downloading, you will have the following files:
 
       It contains torch scripted model that can be deployed in C++.
 
-  - ``test_waves/*.wav``
+  - ``test_wavs/*.wav``
 
       It contains some test sound files from LibriSpeech ``test-clean`` dataset.
 
-  - ``test_waves/trans.txt``
+  - ``test_wavs/trans.txt``
 
-      It contains the reference transcripts for the sound files in ``test_waves/``.
+      It contains the reference transcripts for the sound files in ``test_wavs/``.
 
 The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/*.wav
+  $ soxi icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/*.wav
 
-  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav'
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -532,7 +532,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit Signed Integer PCM
 
 
-  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav'
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -542,7 +542,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit Signed Integer PCM
 
 
-  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav'
+  Input File     : 'icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -586,30 +586,30 @@ The command to run CTC decoding is:
      --bpe-model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model \
      --method ctc-decoding \
      --num-classes 500 \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is given below:
 
 .. code-block::
 
-  2021-11-10 12:12:29,554 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': None, 'HLG': None, 'bpe_model': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model', 'method': 'ctc-decoding', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 12:12:29,554 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': None, 'HLG': None, 'bpe_model': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model', 'method': 'ctc-decoding', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
   2021-11-10 12:12:29,554 INFO [pretrained.py:266] device: cuda:0
   2021-11-10 12:12:29,554 INFO [pretrained.py:268] Creating model
   2021-11-10 12:12:35,600 INFO [pretrained.py:285] Constructing Fbank computer
-  2021-11-10 12:12:35,601 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav']
+  2021-11-10 12:12:35,601 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
   2021-11-10 12:12:35,758 INFO [pretrained.py:301] Decoding started
   2021-11-10 12:12:36,025 INFO [pretrained.py:319] Use CTC decoding
   2021-11-10 12:12:36,204 INFO [pretrained.py:425]
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROFFELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED B
   OSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
   2021-11-10 12:12:36,204 INFO [pretrained.py:427] Decoding Done
@@ -630,30 +630,30 @@ The command to run HLG decoding is:
      --method 1best \
      --num-classes 500 \
      --HLG ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is given below:
 
 .. code-block::
 
-  2021-11-10 13:33:03,723 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': '1best', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:33:03,723 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': '1best', 'G': None, 'num_paths': 100, 'ngram_lm_scale': 1.3, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
   2021-11-10 13:33:03,723 INFO [pretrained.py:266] device: cuda:0
   2021-11-10 13:33:03,723 INFO [pretrained.py:268] Creating model
   2021-11-10 13:33:09,775 INFO [pretrained.py:285] Constructing Fbank computer
-  2021-11-10 13:33:09,776 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav']
+  2021-11-10 13:33:09,776 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
   2021-11-10 13:33:09,881 INFO [pretrained.py:301] Decoding started
   2021-11-10 13:33:09,951 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
   2021-11-10 13:33:13,234 INFO [pretrained.py:384] Use HLG decoding
   2021-11-10 13:33:13,571 INFO [pretrained.py:425]
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
   2021-11-10 13:33:13,571 INFO [pretrained.py:427] Decoding Done
@@ -678,31 +678,31 @@ The command to run HLG decoding + LM rescoring is:
      --HLG ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
      --G ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
      --ngram-lm-scale 1.0 \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 Its output is:
 
 .. code-block::
 
-  2021-11-10 13:39:55,857 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'whole-lattice-rescoring', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 1.0, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-$it-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:39:55,857 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 0, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'whole-lattice-rescoring', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 1.0, 'attention_decoder_scale': 1.2, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-$it-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
   2021-11-10 13:39:55,858 INFO [pretrained.py:266] device: cuda:0
   2021-11-10 13:39:55,858 INFO [pretrained.py:268] Creating model
   2021-11-10 13:40:01,979 INFO [pretrained.py:285] Constructing Fbank computer
-  2021-11-10 13:40:01,980 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav']
+  2021-11-10 13:40:01,980 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
   2021-11-10 13:40:02,055 INFO [pretrained.py:301] Decoding started
   2021-11-10 13:40:02,117 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
   2021-11-10 13:40:05,051 INFO [pretrained.py:363] Loading G from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
   2021-11-10 13:40:18,959 INFO [pretrained.py:389] Use HLG decoding + LM rescoring
   2021-11-10 13:40:19,546 INFO [pretrained.py:425]
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
   2021-11-10 13:40:19,546 INFO [pretrained.py:427] Decoding Done
@@ -733,31 +733,31 @@ The command to run HLG decoding + LM rescoring + attention decoder rescoring is:
      --num-paths 100 \
      --sos-id 1 \
      --eos-id 1 \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+     ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is below:
 
 .. code-block::
 
-  2021-11-10 13:43:45,598 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'attention-decoder', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 2.0, 'attention_decoder_scale': 2.0, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
+  2021-11-10 13:43:45,598 INFO [pretrained.py:260] {'sample_rate': 16000, 'subsampling_factor': 4, 'vgg_frontend': False, 'use_feat_batchnorm': True, 'feature_dim': 80, 'nhead': 8, 'attention_dim': 512, 'num_decoder_layers': 6, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'checkpoint': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/pretrained.pt', 'words_file': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt', 'HLG': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt', 'bpe_model': None, 'method': 'attention-decoder', 'G': './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt', 'num_paths': 100, 'ngram_lm_scale': 2.0, 'attention_decoder_scale': 2.0, 'nbest_scale': 0.5, 'sos_id': 1, 'num_classes': 500, 'eos_id': 1, 'sound_files': ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav'], 'env_info': {'k2-version': '1.9', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '7178d67e594bc7fa89c2b331ad7bd1c62a6a9eb4', 'k2-git-date': 'Tue Oct 26 22:12:54 2021', 'lhotse-version': '0.11.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.1', 'python-version': '3.8', 'icefall-git-branch': 'bpe-500', 'icefall-git-sha1': '8d93169-dirty', 'icefall-git-date': 'Wed Nov 10 11:52:44 2021', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-fix', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-bpe-500/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-bpe-500/lhotse/__init__.py'}}
   2021-11-10 13:43:45,599 INFO [pretrained.py:266] device: cuda:0
   2021-11-10 13:43:45,599 INFO [pretrained.py:268] Creating model
   2021-11-10 13:43:51,833 INFO [pretrained.py:285] Constructing Fbank computer
-  2021-11-10 13:43:51,834 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav']
+  2021-11-10 13:43:51,834 INFO [pretrained.py:295] Reading sound files: ['./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav', './icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav']
   2021-11-10 13:43:51,915 INFO [pretrained.py:301] Decoding started
   2021-11-10 13:43:52,076 INFO [pretrained.py:352] Loading HLG from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt
   2021-11-10 13:43:55,110 INFO [pretrained.py:363] Loading G from ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt
   2021-11-10 13:44:09,329 INFO [pretrained.py:397] Use HLG + LM rescoring + attention decoder rescoring
   2021-11-10 13:44:10,192 INFO [pretrained.py:425]
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav:
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
   2021-11-10 13:44:10,192 INFO [pretrained.py:427] Decoding Done
@@ -896,9 +896,9 @@ CTC decoding
     --use_gpu true \
     --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
     --bpe_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/bpe.model \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 Its output is:
 
@@ -916,13 +916,13 @@ Its output is:
   2021-11-10 13:58:02.708 [I] k2/torch/bin/ctc_decode.cu:207:int main(int, char**)
   Decoding result:
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROFFELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 HLG decoding
@@ -935,9 +935,9 @@ HLG decoding
     --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt \
     --hlg ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/HLG.pt \
     --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is:
 
@@ -955,13 +955,13 @@ The output is:
   2021-11-10 13:59:13.268 [I] k2/torch/bin/hlg_decode.cu:216:int main(int, char**)
   Decoding result:
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
@@ -977,9 +977,9 @@ HLG decoding + n-gram LM rescoring
     --g ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lm/G_4_gram.pt \
     --ngram_lm_scale 1.0 \
     --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is:
 
@@ -1001,13 +1001,13 @@ The output is:
   2021-11-10 14:01:08.68 [I] k2/torch/bin/ngram_lm_rescore.cu:242:int main(int, char**)
   Decoding result:
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
@@ -1028,9 +1028,9 @@ HLG decoding + n-gram LM rescoring + attention decoder rescoring
     --word_table ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/data/lang_bpe_500/words.txt \
     --sos_id 1 \
     --eos_id 1 \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav \
-    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav \
+    ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
 
 The output is:
 
@@ -1054,13 +1054,13 @@ The output is:
   2021-11-10 14:02:57.179 [I] k2/torch/bin/attention_rescore.cu:369:int main(int, char**)
   Decoding result:
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1089-134686-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1089-134686-0001.wav
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0001.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0001.wav
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_waves/1221-135766-0002.wav
+  ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/test_wavs/1221-135766-0002.wav
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 There is a Colab notebook showing you how to run a torch scripted model in C++.

@@ -224,7 +224,7 @@ After downloading, you will have the following files:
       |       `-- G_4_gram.pt
       |-- exp
       |   `-- pretrained.pt
-      `-- test_waves
+      `-- test_wavs
           |-- 1089-134686-0001.flac
           |-- 1221-135766-0001.flac
           |-- 1221-135766-0002.flac
@@ -268,9 +268,9 @@ The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/*.flac
+  $ soxi tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/*.flac
 
-  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac'
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -280,7 +280,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit FLAC
 
 
-  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac'
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -290,7 +290,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit FLAC
 
 
-  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac'
+  Input File     : 'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -320,9 +320,9 @@ To decode with ``1best`` method, we can use:
     --checkpoint ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/exp/pretraind.pt \
     --words-file ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/words.txt \
     --HLG ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/HLG.pt \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac \
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac \
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac
 
 The output is:
 
@@ -332,17 +332,17 @@ The output is:
   2021-08-24 16:57:13,315 INFO [pretrained.py:170] Creating model
   2021-08-24 16:57:18,331 INFO [pretrained.py:182] Loading HLG from ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/HLG.pt
   2021-08-24 16:57:27,581 INFO [pretrained.py:199] Constructing Fbank computer
-  2021-08-24 16:57:27,584 INFO [pretrained.py:209] Reading sound files: ['./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac']
+  2021-08-24 16:57:27,584 INFO [pretrained.py:209] Reading sound files: ['./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac']
   2021-08-24 16:57:27,599 INFO [pretrained.py:215] Decoding started
   2021-08-24 16:57:27,791 INFO [pretrained.py:245] Use HLG decoding
   2021-08-24 16:57:28,098 INFO [pretrained.py:266]
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
@@ -360,9 +360,9 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
     --method whole-lattice-rescoring \
     --G ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 0.8 \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac \
-    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac \
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac \
+    ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac
 
 The decoding output is:
 
@@ -373,17 +373,17 @@ The decoding output is:
   2021-08-24 16:39:29,403 INFO [pretrained.py:182] Loading HLG from ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lang_phone/HLG.pt
   2021-08-24 16:39:40,631 INFO [pretrained.py:190] Loading G from ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/data/lm/G_4_gram.pt
   2021-08-24 16:39:53,098 INFO [pretrained.py:199] Constructing Fbank computer
-  2021-08-24 16:39:53,107 INFO [pretrained.py:209] Reading sound files: ['./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac']
+  2021-08-24 16:39:53,107 INFO [pretrained.py:209] Reading sound files: ['./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac', './tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac']
   2021-08-24 16:39:53,121 INFO [pretrained.py:215] Decoding started
   2021-08-24 16:39:53,443 INFO [pretrained.py:250] Use HLG decoding + LM rescoring
   2021-08-24 16:39:54,010 INFO [pretrained.py:266]
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1089-134686-0001.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac:
   AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
 
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0001.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac:
   GOD AS A DIRECT CONSEQUENCE OF THE SIN WHICH MAN THUS PUNISHED HAD GIVEN HER A LOVELY CHILD WHOSE PLACE WAS ON THAT SAME DISHONORED BOSOM TO CONNECT HER PARENT FOREVER WITH THE RACE AND DESCENT OF MORTALS AND TO BE FINALLY A BLESSED SOUL IN HEAVEN
 
-  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_waves/1221-135766-0002.flac:
+  ./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 
