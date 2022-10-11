@@ -187,6 +187,15 @@ def greedy_search(
         enforce_sorted=False,
     )
 
+    projected_encoder_out = joiner_encoder_proj.run(
+        [joiner_encoder_proj.get_outputs()[0].name],
+        {
+            joiner_encoder_proj.get_inputs()[
+                0
+            ].name: packed_encoder_out.data.numpy()
+        },
+    )[0]
+
     blank_id = 0  # hard-code to 0
 
     batch_size_list = packed_encoder_out.batch_sizes.tolist()
@@ -225,18 +234,8 @@ def greedy_search(
     for batch_size in batch_size_list:
         start = offset
         end = offset + batch_size
-        current_encoder_out = packed_encoder_out.data[start:end]
-        projected_encoder_out = joiner_encoder_proj.run(
-            [joiner_encoder_proj.get_outputs()[0].name],
-            {
-                joiner_encoder_proj.get_inputs()[
-                    0
-                ].name: current_encoder_out.numpy()
-            },
-        )[0]
-
-        projected_encoder_out = torch.from_numpy(projected_encoder_out)
-        # projected_encoder_out's shape: (batch_size, encoder_out_dim)
+        current_encoder_out = projected_encoder_out[start:end]
+        # current_encoder_out's shape: (batch_size, encoder_out_dim)
         offset = end
 
         projected_decoder_out = projected_decoder_out[:batch_size]
@@ -244,7 +243,7 @@ def greedy_search(
         logits = joiner.run(
             [joiner_output_nodes[0].name],
             {
-                joiner_input_nodes[0].name: projected_encoder_out.numpy(),
+                joiner_input_nodes[0].name: current_encoder_out,
                 joiner_input_nodes[1].name: projected_decoder_out.numpy(),
             },
         )[0]
