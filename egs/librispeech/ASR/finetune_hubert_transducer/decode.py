@@ -158,31 +158,6 @@ def get_parser():
         modified_beam_search.""",
     )
 
-    parser.add_argument(
-        "--beam",
-        type=float,
-        default=4,
-        help="""A floating point value to calculate the cutoff score during beam
-        search (i.e., `cutoff = max-score - beam`), which is the same as the
-        `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-contexts",
-        type=int,
-        default=4,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-states",
-        type=int,
-        default=8,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
-    )
 
     parser.add_argument(
         "--context-size",
