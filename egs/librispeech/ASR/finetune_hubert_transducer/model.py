@@ -85,7 +85,7 @@ class Transducer(nn.Module):
         """
         Args:
           x:
-            A 3-D tensor of shape (N, T, C).
+            A 2-D tensor of shape (N, T).
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
@@ -118,7 +118,6 @@ class Transducer(nn.Module):
               (1-lm_scale-am_scale) * combined_probs
         """
         assert reduction in ("sum", "none"), reduction
-        # assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
         assert y.num_axes == 2, y.num_axes
 
