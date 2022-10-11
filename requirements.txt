@@ -8,3 +8,4 @@ onnx
 onnxruntime
 --extra-index-url https://pypi.ngc.nvidia.com
 onnx_graphsurgeon
+dill
