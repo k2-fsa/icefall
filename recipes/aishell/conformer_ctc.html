@@ -500,7 +500,7 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 </ul>
 </div></blockquote>
 <p>The information of the test sound files is listed below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_aishell_conformer_ctc/test_wavs/*.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_aishell_conformer_ctc/test_waves/*.wav
 
 Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
 Channels       : <span class="m">1</span>
@@ -559,9 +559,9 @@ $ ./conformer_ctc/pretrained.py <span class="se">\</span>
   --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt <span class="se">\</span>
   --tokens-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt <span class="se">\</span>
   --method ctc-decoding <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is given below:</p>
@@ -597,9 +597,9 @@ $ ./conformer_ctc/pretrained.py <span class="se">\</span>
   --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt <span class="se">\</span>
   --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt <span class="se">\</span>
   --method 1best <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is given below:</p>
@@ -637,9 +637,9 @@ $ ./conformer_ctc/pretrained.py <span class="se">\</span>
   --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt <span class="se">\</span>
   --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt <span class="se">\</span>
   --method attention-decoder <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
+  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is below:</p>
