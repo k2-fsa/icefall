@@ -481,7 +481,7 @@ After downloading, you will have the following files:
   |   |-- log-decode-epoch-64-avg-33-context-2-max-sym-per-frame-1-2022-02-28-18-13-07
   |   |-- recogs-test-beam_4-epoch-64-avg-33-beam-4.txt
   |   `-- recogs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
-  `-- test_waves
+  `-- test_wavs
       |-- BAC009S0764W0121.wav
       |-- BAC009S0764W0122.wav
       |-- BAC009S0764W0123.wav
@@ -506,7 +506,7 @@ After downloading, you will have the following files:
 
       It contains decoding logs and decoded results.
 
-  - ``test_waves``
+  - ``test_wavs``
 
       It contains some test sound files from Aishell ``test`` dataset.
 
@@ -514,9 +514,9 @@ The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/*.wav
+  $ soxi tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
 
-  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav'
+  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -526,7 +526,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit Signed Integer PCM
 
 
-  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav'
+  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -536,7 +536,7 @@ The information of the test sound files is listed below:
   Sample Encoding: 16-bit Signed Integer PCM
 
 
-  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav'
+  Input File     : 'tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav'
   Channels       : 1
   Sample Rate    : 16000
   Precision      : 16-bit
@@ -583,9 +583,9 @@ The command to run greedy search is given below:
       --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt \
       --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
       --method greedy_search \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 
 The output is as follows:
 
@@ -593,21 +593,21 @@ The output is as follows:
 
   2022-03-03 15:35:26,531 INFO [pretrained.py:239] device: cuda:0
   2022-03-03 15:35:26,994 INFO [lexicon.py:176] Loading pre-compiled tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char/Linv.pt
-  2022-03-03 15:35:27,027 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'greedy_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
+  2022-03-03 15:35:27,027 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'greedy_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
   2022-03-03 15:35:27,027 INFO [pretrained.py:248] About to create model
   2022-03-03 15:35:36,878 INFO [pretrained.py:257] Constructing Fbank computer
-  2022-03-03 15:35:36,880 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav']
+  2022-03-03 15:35:36,880 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav']
   2022-03-03 15:35:36,891 INFO [pretrained.py:273] Decoding started
   /ceph-fj/fangjun/open-source-2/icefall-aishell/egs/aishell/ASR/transducer_stateless_modified/conformer.py:113: UserWarning: __floordiv__ is deprecated, and its behavior will change in a future version of pytorch. It currently rounds toward 0 (like the 'trunc' function NOT 'floor'). This results in incorrect rounding for negative values. To keep the current behavior, use torch.div(a, b, rounding_mode='trunc'), or for actual floor division, use torch.div(a, b, rounding_mode='floor').
     lengths = ((x_lens - 1) // 2 - 1) // 2
   2022-03-03 15:35:37,163 INFO [pretrained.py:320]
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav:
   甚 至 出 现 交 易 几 乎 停 滞 的 情 况
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav:
   一 二 线 城 市 虽 然 也 处 于 调 整 中
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav:
   但 因 为 聚 集 了 过 多 公 共 资 源
 
   2022-03-03 15:35:37,163 INFO [pretrained.py:322] Decoding Done
@@ -627,9 +627,9 @@ The command to run beam search is given below:
       --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
       --method beam_search \
       --beam-size 4 \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 
 The output is as follows:
 
@@ -637,21 +637,21 @@ The output is as follows:
 
   2022-03-03 15:39:09,285 INFO [pretrained.py:239] device: cuda:0
   2022-03-03 15:39:09,708 INFO [lexicon.py:176] Loading pre-compiled tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char/Linv.pt
-  2022-03-03 15:39:09,759 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'beam_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
+  2022-03-03 15:39:09,759 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'beam_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
   2022-03-03 15:39:09,760 INFO [pretrained.py:248] About to create model
   2022-03-03 15:39:18,919 INFO [pretrained.py:257] Constructing Fbank computer
-  2022-03-03 15:39:18,922 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav']
+  2022-03-03 15:39:18,922 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav']
   2022-03-03 15:39:18,929 INFO [pretrained.py:273] Decoding started
   /ceph-fj/fangjun/open-source-2/icefall-aishell/egs/aishell/ASR/transducer_stateless_modified/conformer.py:113: UserWarning: __floordiv__ is deprecated, and its behavior will change in a future version of pytorch. It currently rounds toward 0 (like the 'trunc' function NOT 'floor'). This results in incorrect rounding for negative values. To keep the current behavior, use torch.div(a, b, rounding_mode='trunc'), or for actual floor division, use torch.div(a, b, rounding_mode='floor').
     lengths = ((x_lens - 1) // 2 - 1) // 2
   2022-03-03 15:39:21,046 INFO [pretrained.py:320]
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav:
   甚 至 出 现 交 易 几 乎 停 滞 的 情 况
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav:
   一 二 线 城 市 虽 然 也 处 于 调 整 中
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav:
   但 因 为 聚 集 了 过 多 公 共 资 源
 
   2022-03-03 15:39:21,047 INFO [pretrained.py:322] Decoding Done
@@ -671,9 +671,9 @@ The command to run modified beam search is given below:
       --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char \
       --method modified_beam_search \
       --beam-size 4 \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav \
-      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav \
+      ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 
 The output is as follows:
 
@@ -681,23 +681,23 @@ The output is as follows:
 
   2022-03-03 15:41:23,319 INFO [pretrained.py:239] device: cuda:0
   2022-03-03 15:41:23,798 INFO [lexicon.py:176] Loading pre-compiled tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char/Linv.pt
-  2022-03-03 15:41:23,831 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'modified_beam_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
+  2022-03-03 15:41:23,831 INFO [pretrained.py:246] {'feature_dim': 80, 'encoder_out_dim': 512, 'subsampling_factor': 4, 'attention_dim': 512, 'nhead': 8, 'dim_feedforward': 2048, 'num_encoder_layers': 12, 'vgg_frontend': False, 'env_info': {'k2-version': '1.13', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': 'f4fefe4882bc0ae59af951da3f47335d5495ef71', 'k2-git-date': 'Thu Feb 10 15:16:02 2022', 'lhotse-version': '1.0.0.dev+missing.version.file', 'torch-cuda-available': True, 'torch-cuda-version': '10.2', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '50d2281-clean', 'icefall-git-date': 'Wed Mar 2 16:02:38 2022', 'icefall-path': '/ceph-fj/fangjun/open-source-2/icefall-aishell', 'k2-path': '/ceph-fj/fangjun/open-source-2/k2-multi-datasets/k2/python/k2/__init__.py', 'lhotse-path': '/ceph-fj/fangjun/open-source-2/lhotse-aishell/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-2-0815224919-75d558775b-mmnv8', 'IP address': '10.177.72.138'}, 'sample_rate': 16000, 'checkpoint': './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt', 'lang_dir': PosixPath('tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char'), 'method': 'modified_beam_search', 'sound_files': ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav'], 'beam_size': 4, 'context_size': 2, 'max_sym_per_frame': 3, 'blank_id': 0, 'vocab_size': 4336}
   2022-03-03 15:41:23,831 INFO [pretrained.py:248] About to create model
   2022-03-03 15:41:32,214 INFO [pretrained.py:257] Constructing Fbank computer
-  2022-03-03 15:41:32,215 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav']
+  2022-03-03 15:41:32,215 INFO [pretrained.py:267] Reading sound files: ['./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav', './tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav']
   2022-03-03 15:41:32,220 INFO [pretrained.py:273] Decoding started
   /ceph-fj/fangjun/open-source-2/icefall-aishell/egs/aishell/ASR/transducer_stateless_modified/conformer.py:113: UserWarning: __floordiv__ is deprecated, and its behavior will change in a future version of pytorch. It currently rounds toward 0 (like the 'trunc' function NOT 'floor'). This results in incorrect rounding for negative values. To keep the current behavior, use torch.div(a, b, rounding_mode='trunc'), or for actual floor division, use torch.div(a, b, rounding_mode='floor').
     lengths = ((x_lens - 1) // 2 - 1) // 2
   /ceph-fj/fangjun/open-source-2/icefall-aishell/egs/aishell/ASR/transducer_stateless_modified/beam_search.py:402: UserWarning: __floordiv__ is deprecated, and its behavior will change in a future version of pytorch. It currently rounds toward 0 (like the 'trunc' function NOT 'floor'). This results in incorrect rounding for negative values. To keep the current behavior, use torch.div(a, b, rounding_mode='trunc'), or for actual floor division, use torch.div(a, b, rounding_mode='floor').
     topk_hyp_indexes = topk_indexes // logits.size(-1)
   2022-03-03 15:41:32,583 INFO [pretrained.py:320]
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0121.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav:
   甚 至 出 现 交 易 几 乎 停 滞 的 情 况
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0122.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav:
   一 二 线 城 市 虽 然 也 处 于 调 整 中
 
-  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_waves/BAC009S0764W0123.wav:
+  ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav:
   但 因 为 聚 集 了 过 多 公 共 资 源
 
   2022-03-03 15:41:32,583 INFO [pretrained.py:322] Decoding Done
