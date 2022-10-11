@@ -92,9 +92,14 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         # In ./pruned_transducer_stateless2/conformer.py, the
         # conv module uses the following expression
         # for subsampling
-        T = ((c.num_frames - 1) // 2 - 1) // 2
+        if c.num_frames is None:
+            num_frames = c.duration * 100  # approximate
+        else:
+            num_frames = c.num_frames
+
+        T = ((num_frames - 1) // 2 - 1) // 2
         # Note: for ./lstm_transducer_stateless/lstm.py, the formula is
-        #  T = ((c.num_frames - 3) // 2 - 1) // 2
+        #  T = ((num_frames - 3) // 2 - 1) // 2
 
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
@@ -113,7 +118,7 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         return True
 
     # We use to_eager() here so that we can print out the value of total
-    # and removed below
+    # and removed below.
     ans = cut_set.filter(remove_short_and_long_utterances).to_eager()
     ratio = removed / total * 100
     logging.info(
