@@ -73,8 +73,7 @@ fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then 
     log "Stage 1: Prepare CSJ manifest"
-    python local/lhotse_prepare_csj.py --trans-dir $trans_dir \
-        --manifest-dir $csj_manifest_dir --split 4000
+    lhotse prepare csj $trans_dir $csj_manifest_dir 4000
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
