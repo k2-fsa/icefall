@@ -27,6 +27,7 @@ from encoder_interface import EncoderInterface
 from scaling import (
     ActivationBalancer,
     BasicNorm,
+    MaxEig,
     DoubleSwish,
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
@@ -293,8 +294,11 @@ class ConformerEncoderLayer(nn.Module):
             d_model, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
             max_abs=6.0,
-            max_var_per_eig=0.2,
         )
+        self.max_eig = MaxEig(
+            d_model, channel_dim=-1,
+        )
+
 
     def forward(
         self,
@@ -350,7 +354,7 @@ class ConformerEncoderLayer(nn.Module):
 
         src = src + self.feed_forward3(src)
 
-        src = self.norm_final(self.balancer(src))
+        src = self.norm_final(self.max_eig(self.balancer(src)))
 
         delta = src - src_orig
         bypass_scale = self.bypass_scale
@@ -838,8 +842,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim // 2, bias=True)
         self.in_balancer = ActivationBalancer(3 * embed_dim // 2,
-                                              channel_dim=-1, max_abs=5.0,
-                                              max_var_per_eig=0.2)
+                                              channel_dim=-1, max_abs=5.0)
+        self.in_max_eig = MaxEig(3 * embed_dim // 2,
+                                 channel_dim=-1)
         self.proj_balancer = ActivationBalancer(embed_dim // 2,
                                                 channel_dim=-1, max_abs=10.0,
                                                 min_positive=0.0, max_positive=1.0)
@@ -915,7 +920,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 before softmax.
         """
         x, weights, scores = self.multi_head_attention_forward(
-            self.in_balancer(self.in_proj(x)),
+            self.in_max_eig(self.in_balancer(self.in_proj(x))),
             pos_emb,
             None if attn_scores_in is None else torch.matmul(attn_scores_in, self.attn_scores_proj_in),
             self.embed_dim,
