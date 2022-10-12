@@ -3,6 +3,25 @@ from pathlib import Path
 from lhotse import CutSet
 import logging
 
+ARGPARSE_DESCRIPTION = """
+This script gathers all training transcripts of the specified {trans_mode} type and 
+produces a token_list that would be output set of the ASR system. 
+
+It splits transcripts by whitespace into lists, then, for each word in the 
+list, if the word does not appear in the list of user-defined multicharacter strings, 
+it further splits that word into individual characters to be counted into the output 
+token set. 
+
+It outputs 4 files:
+- trans_mode: the name of transcript mode. If trans_mode was not specified, this will be 
+   an empty file.
+- userdef_string: a list of user defined strings that should not be split further into 
+   individual characters. By default, it contains "<unk>", "<blk>", "<sos/eos>"
+- words_len: the total number of tokens in the output set. 
+- words.txt: a list of tokens in the output set. The length matches words_len.
+
+"""
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -50,13 +69,17 @@ def main():
     if args.debug:
         args.trans_mode = "disfluent"
         args.train_cuts = Path("data/manifests/cuts_train.jsonl.gz")
+    
     logging.basicConfig(
         format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
         level=logging.INFO,        
         )
         
     if not args.lang_dir:
-        args.lang_dir = Path(f"lang_char_{args.trans_mode}")
+        p = "lang_char"
+        if args.trans_mode:
+            p += f"_{args.trans_mode}"
+        args.lang_dir = Path(p)
     
     if args.userdef_string:
         args.userdef_string = args.userdef_string.read_text().split()
@@ -69,7 +92,8 @@ def main():
     words = set()
     logging.info(f"Creating vocabulary from {args.train_cuts.name} at {args.trans_mode} mode.")
     for cut in train_set:
-        for t in cut.supervisions[0].custom[args.trans_mode].split():
+        text = cut.supervisions[0].custom[args.trans_mode] if args.trans_mode else cut.supervisions[0].text
+        for t in text.split():
             if t in args.userdef_string:
                 words.add(t)
             else:

@@ -9,6 +9,28 @@ stop_stage=100
 # We assume the following directories are downloaded.
 #
 #  - $csj_dir
+#     CSJ is assumed to be the USB-type directory, which should contain the following subdirectories:- 
+#     - DATA (not used in this script)
+#     - DOC (not used in this script)
+#     - MODEL (not used in this script)
+#     - MORPH
+#       - LDB (not used in this script)
+#       - SUWDIC (not used in this script)
+#       - SDB
+#         - core
+#           - ...
+#         - noncore
+#           - ...
+#     - PLABEL (not used in this script)
+#     - SUMMARY (not used in this script)
+#     - TOOL (not used in this script)
+#     - WAV
+#       - core
+#         - ...
+#       - noncore
+#         - ...
+#     - XML (not used in this script)
+#
 #  - $musan_dir
 #      This directory contains the following directories downloaded from
 #       http://www.openslr.org/17/
@@ -19,9 +41,10 @@ stop_stage=100
 csj_dir=/mnt/minami_data_server/t2131178/corpus/CSJ
 musan_dir=/mnt/minami_data_server/t2131178/corpus/musan/musan
 trans_dir=$csj_dir/retranscript_new
-fbank_dir=$csj_dir/fbank_new
+csj_fbank_dir=$csj_dir/fbank_new
+musan_fbank_dir=$musan_dir/fbank
 csj_manifest_dir=data/manifests
-# exp_dir=conv_emformer_transducer_stateless2/exp_espnet
+musan_manifest_dir=$musan_dir/manifests
 
 . shared/parse_options.sh || exit 1
 
@@ -51,15 +74,15 @@ fi
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then 
     log "Stage 1: Prepare CSJ manifest"
     python local/lhotse_prepare_csj.py --trans-dir $trans_dir \
-        --manifest-dir data/manifests --split 4000
+        --manifest-dir $csj_manifest_dir --split 4000
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     log "Stage 2: Prepare musan manifest"
-    mkdir -p $musan_dir/manifests
-    if [ ! -e $musan_dir/manifests/.musan.done ]; then
-        lhotse prepare musan $musan_dir $musan_dir/manifests
-        touch $musan_dir/manifests/.musan.done
+    mkdir -p $musan_manifest_dir
+    if [ ! -e $musan_manifest_dir/.musan.done ]; then
+        lhotse prepare musan $musan_dir $musan_manifest_dir
+        touch $musan_manifest_dir/.musan.done
     fi
 fi
 
@@ -73,15 +96,15 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     )
     for mode in ${modes[@]}; do
         python local/prepare_lang_char.py --trans-mode $mode \
-            --train-cuts data/manifests/cuts_train.jsonl.gz \
+            --train-cuts $csj_manifest_dir/cuts_train.jsonl.gz \
             --lang-dir lang_char_$mode
     done
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     log "Stage 4: Compute CSJ fbank"
-    python local/compute_fbank_csj.py --manifest-dir data/manifests \
-        --fbank-dir $fbank_dir
+    python local/compute_fbank_csj.py --manifest-dir $csj_manifest_dir \
+        --fbank-dir $csj_fbank_dir
     parts=(
         train 
         valid
@@ -90,17 +113,17 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
         eval3
     )
     for part in ${parts[@]}; do 
-        python local/validate_manifest.py --manifest data/manifests/cuts_$part.jsonl.gz
+        python local/validate_manifest.py --manifest $csj_manifest_dir/cuts_$part.jsonl.gz
     done
-    touch $fbank_dir/.csj-validated.done
+    touch $csj_fbank_dir/.csj-validated.done
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for musan"
-    mkdir -p $musan_dir/fbank
+    mkdir -p $musan_fbank_dir
 
-    if [ ! -e $musan_dir/fbank/.musan.done ]; then 
-        python -O local/compute_fbank_musan.py --manifest-dir $musan_dir/manifests --fbank-dir $musan_dir/fbank
-        touch $musan_dir/fbank/.musan.done
+    if [ ! -e $musan_fbank_dir/.musan.done ]; then 
+        python -O local/compute_fbank_musan.py --manifest-dir $musan_manifest_dir --fbank-dir $musan_fbank_dir
+        touch $musan_fbank_dir/.musan.done
     fi
 fi

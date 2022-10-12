@@ -4,19 +4,52 @@ from copy import copy
 from io import TextIOWrapper
 import logging
 from typing import Dict, List, Tuple
-# from CSJSDB_Word import CSJSDB_Word, make_text, modify_text
 from pathlib import Path
 import re
 
-FULL_DATA_PARTS = ['core', 'noncore', 'eval/eval1', 'eval/eval2', 'eval/eval3', 'excluded']
+ARGPARSE_DESCRIPTION = """
+This script accesses the CSJ/SDB/{core,noncore} directories and generates transcripts
+in accordance to the tag decisions listed in the .ini file. 
+
+It does the following in sequence:-
+
+**MOVE**
+1. Copies each .sdb files from /SDB into its own directory in the designated `trans_dir`, 
+   i.e. {trans_dir}/{spk_id}/{spk_id}.sdb
+2. Verifies that the corresponding wav file exists in the /WAV directory, and outputs that 
+   absolute path into {spk_id}-wav.list
+3. Moves the predefined datasets for eval1, eval2, eval3, and excluded, into its own dataset 
+   directory
+4. Touches a .done_mv in `trans_dir`.
+
+**PARSE**
+1. Takes in an .ini file which - among others - contains the behaviour for each tag and 
+   the segment details.
+2. Parses all .sdb files it can find within `trans_dir`, and optionally outputs a segment file. 
+3. Touches a .done in `trans_dir`. 
+
+Differences to kaldi include:-
+1. The evaluation datasets do not follow `trans_dir`/eval/eval{i}, but are instead saved 
+    in the same level as core, noncore, and excluded. 
+2. Morphology tags are parsed, but not included in the final transcript. The original morpheme  
+    segmentations are preserved by spacing, i.e. 分かち書き, so removal, if required, has to be 
+    done at a later stage. 
+3. Kana pronunciations are parsed, but not included in the final transcript. 
+
+"""
+
+FULL_DATA_PARTS = ['core', 'noncore', 'eval1', 'eval2', 'eval3', 'excluded']
 
 # Exclude speaker ID
 A01M0056 = ["S05M0613", "R00M0187", "D01M0019", "D04M0056", "D02M0028", "D03M0017"]
 
 # Evaluation set ID
 EVAL = [
+    # eval1
     ['A01M0110', 'A01M0137', 'A01M0097', 'A04M0123', 'A04M0121', 'A04M0051', 'A03M0156', 'A03M0112', 'A03M0106', 'A05M0011'],
+    # eval2
     ['A01M0056', 'A03F0072', 'A02M0012', 'A03M0016', 'A06M0064', 'A06F0135', 'A01F0034', 'A01F0063', 'A01F0001', 'A01M0141'],
+    # eval3
     ['S00M0112', 'S00F0066', 'S00M0213', 'S00F0019', 'S00M0079', 'S01F0105', 'S00F0152', 'S00M0070', 'S00M0008', 'S00F0148'],
     ]
 
@@ -374,6 +407,24 @@ class CSJSDB_Word:
         return ret
 
 def modify_text(word_list : List[CSJSDB_Word], segments : List[str], gap_sym : str, gap : float) -> List[Dict[str, List[str]]]:
+    """Takes a list of parsed CSJSDB words and a list of time boundaries for each segment, and outputs them in transcript format
+
+    Args:
+        word_list (List[CSJSDB_Word]): List of parsed words from CSJ SDB
+        segments (List[str]): List of time boundaries for each segment
+        gap (float): Permissible period of nonverbal noise. If exceeded, a new segment is created. 
+        gap_sym (str): Use this symbol to represent gap, if nonverbal noise does not exceed `gap`. Pass
+                        an empty string to avoid adding any symbol.
+
+    Returns:
+        List[Dict[str, List[str]]]: A list of maximum two elements. 
+                If len == 2, first element is Left channel, and second element is Right channel
+                Available fields: 
+                
+                'spk_id': the speaker ID, including the trailing 'L' and 'R' if two-channeled 
+                'text': the output text
+
+    """   
 
     last_end = word_list[0].start
     
@@ -447,7 +498,8 @@ def make_text(word_list : List[CSJSDB_Word], gap : float, maxlen : float, minlen
     Args:
         word_list (List[CSJSDB_Word]): List of parsed words from CSJ SDB
         gap (float): Permissible period of nonverbal noise. If exceeded, a new segment is created. 
-        maxlen (float): Maximum length of segment.
+        maxlen (float): Maximum length of the segment.
+        minlen (float): Minimum length of the segment. Segments shorter than this will be silently dropped.
         gap_sym (str): Use this symbol to represent gap, if nonverbal noise does not exceed `gap`. Pass
                         an empty string to avoid adding any symbol.
 
@@ -617,10 +669,7 @@ def load_config(config_file : Path):
     return config
 
 def get_args():
-    #TODO: fill in parser
-    parser = argparse.ArgumentParser(description="""
-             TODO"""
-    )
+    parser = argparse.ArgumentParser(description=ARGPARSE_DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter)
     
     parser.add_argument("--corpus-dir", type=Path, 
                         help="Path to corpus")
@@ -637,14 +686,6 @@ def get_args():
     
     return parser.parse_args()
 
-def debug():
-    with open("/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript_new/eval1/A04M0051/A04M0051.sdb", encoding="shift_jis") as fin:
-        result = CSJSDB_Word.from_file(fin)
-    with open("/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript_new/eval1/A04M0051/A04M0051-segments") as fin:
-        segments = fin.read().split('\n')
-    # transcripts = make_text(result, 0.5, 10, 0.02, "")
-    transcripts = modify_text(result, segments, "", 0.5)
-
 def main():
     args = get_args()
     
@@ -654,30 +695,25 @@ def main():
         )
     
     if args.debug:
-        args.config = Path('local/conf/fluent.ini')
-        config = load_config(args.config)
-        debug()
-        return
-        # args.corpus_dir = '/mnt/minami_data_server/t2131178/corpus/CSJ'
-        # args.trans_dir = '/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript_new'
-        # args.trans_name = "space"
-        # args.use_segments = True
-        # args.write_segments = True
+        args.corpus_dir = Path('/mnt/minami_data_server/t2131178/corpus/CSJ')
+        args.trans_dir = Path('/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript_new')
+        args.trans_name = "disfluent"
+        args.write_segments = True
     
     config = load_config(args.config)
     trans_mode = config['CONSTANTS']['MODE']
     
-    # args.corpus_dir = Path(args.corpus_dir)
     assert args.corpus_dir.is_dir()
-    # args.trans_dir = Path(args.trans_dir)
     args.trans_dir.mkdir(parents=True, exist_ok=True)    
     
     logging.info("Creating transcript directories now.")
     create_trans_dir(args.corpus_dir, args.trans_dir)
-    
-    if (args.trans_dir / ".done").exists():
-        logging.info("Transcripts already created. Exiting.")
-        return
+
+    segment_config = config['SEGMENTS']
+    gap = float(segment_config['gap'])
+    maxlen = float(segment_config['maxlen'])
+    minlen = float(segment_config['minlen'])
+    gap_sym = segment_config['gap_sym']
     
     logging.info("Parsing sdbs now.")
     for sdb in args.trans_dir.glob("*/*/*.sdb"):
@@ -685,7 +721,7 @@ def main():
             result = CSJSDB_Word.from_file(fin)
         
         if not args.use_segments:
-            transcripts = make_text(result, 0.5, 10, 0.02, "")
+            transcripts = make_text(result, gap, maxlen, minlen, gap_sym)
         else:
             channels = ['-L-segments', '-R-segments'] if sdb.name[0] == 'D' else ['-segments']
             transcripts = []
@@ -699,7 +735,6 @@ def main():
         for transcript in transcripts:
             spk_id = transcript.pop('spk_id')
             segments = transcript.pop('segments')
-            # for k,v in transcript.items():
             (sdb.parent / f'{spk_id}-{trans_mode}.txt').write_text('\n'.join(transcript['text']), encoding='utf8')
             if args.write_segments:
                 (sdb.parent / f'{spk_id}-segments').write_text('\n'.join(f"{s[0]} {s[1]} {s[2]}" for s in segments), encoding='utf8')
