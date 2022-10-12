@@ -27,7 +27,7 @@ You can use the following command to get the exported models:
 
 Usage of this script:
 
-./pruned_transducer_stateless3/jit_trace_pretrained.py \
+./pruned_transducer_stateless3/onnx_pretrained.py \
   --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
   --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
   --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
@@ -59,21 +59,35 @@ def get_parser():
         "--encoder-model-filename",
         type=str,
         required=True,
-        help="Path to the encoder torchscript model. ",
+        help="Path to the encoder onnx model. ",
     )
 
     parser.add_argument(
         "--decoder-model-filename",
         type=str,
         required=True,
-        help="Path to the decoder torchscript model. ",
+        help="Path to the decoder onnx model. ",
     )
 
     parser.add_argument(
         "--joiner-model-filename",
         type=str,
         required=True,
-        help="Path to the joiner torchscript model. ",
+        help="Path to the joiner onnx model. ",
+    )
+
+    parser.add_argument(
+        "--joiner-encoder-proj-model-filename",
+        type=str,
+        required=True,
+        help="Path to the joiner encoder_proj onnx model. ",
+    )
+
+    parser.add_argument(
+        "--joiner-decoder-proj-model-filename",
+        type=str,
+        required=True,
+        help="Path to the joiner decoder_proj onnx model. ",
     )
 
     parser.add_argument(
@@ -136,6 +150,8 @@ def read_sound_files(
 def greedy_search(
     decoder: ort.InferenceSession,
     joiner: ort.InferenceSession,
+    joiner_encoder_proj: ort.InferenceSession,
+    joiner_decoder_proj: ort.InferenceSession,
     encoder_out: np.ndarray,
     encoder_out_lens: np.ndarray,
     context_size: int,
@@ -146,6 +162,10 @@ def greedy_search(
         The decoder model.
       joiner:
         The joiner model.
+      joiner_encoder_proj:
+        The joiner encoder projection model.
+      joiner_decoder_proj:
+        The joiner decoder projection model.
       encoder_out:
         A 3-D tensor of shape (N, T, C)
       encoder_out_lens:
@@ -166,6 +186,15 @@ def greedy_search(
         batch_first=True,
         enforce_sorted=False,
     )
+
+    projected_encoder_out = joiner_encoder_proj.run(
+        [joiner_encoder_proj.get_outputs()[0].name],
+        {
+            joiner_encoder_proj.get_inputs()[
+                0
+            ].name: packed_encoder_out.data.numpy()
+        },
+    )[0]
 
     blank_id = 0  # hard-code to 0
 
@@ -194,26 +223,31 @@ def greedy_search(
             decoder_input_nodes[0].name: decoder_input.numpy(),
         },
     )[0].squeeze(1)
+    projected_decoder_out = joiner_decoder_proj.run(
+        [joiner_decoder_proj.get_outputs()[0].name],
+        {joiner_decoder_proj.get_inputs()[0].name: decoder_out},
+    )[0]
+
+    projected_decoder_out = torch.from_numpy(projected_decoder_out)
 
     offset = 0
     for batch_size in batch_size_list:
         start = offset
         end = offset + batch_size
-        current_encoder_out = packed_encoder_out.data[start:end]
-        current_encoder_out = current_encoder_out
+        current_encoder_out = projected_encoder_out[start:end]
         # current_encoder_out's shape: (batch_size, encoder_out_dim)
         offset = end
 
-        decoder_out = decoder_out[:batch_size]
+        projected_decoder_out = projected_decoder_out[:batch_size]
 
         logits = joiner.run(
             [joiner_output_nodes[0].name],
             {
-                joiner_input_nodes[0].name: current_encoder_out.numpy(),
-                joiner_input_nodes[1].name: decoder_out,
+                joiner_input_nodes[0].name: current_encoder_out,
+                joiner_input_nodes[1].name: projected_decoder_out.numpy(),
             },
         )[0]
-        logits = torch.from_numpy(logits)
+        logits = torch.from_numpy(logits).squeeze(1).squeeze(1)
         # logits'shape (batch_size, vocab_size)
 
         assert logits.ndim == 2, logits.shape
@@ -236,6 +270,11 @@ def greedy_search(
                     decoder_input_nodes[0].name: decoder_input.numpy(),
                 },
             )[0].squeeze(1)
+            projected_decoder_out = joiner_decoder_proj.run(
+                [joiner_decoder_proj.get_outputs()[0].name],
+                {joiner_decoder_proj.get_inputs()[0].name: decoder_out},
+            )[0]
+            projected_decoder_out = torch.from_numpy(projected_decoder_out)
 
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []
@@ -268,6 +307,16 @@ def main():
 
     joiner = ort.InferenceSession(
         args.joiner_model_filename,
+        sess_options=session_opts,
+    )
+
+    joiner_encoder_proj = ort.InferenceSession(
+        args.joiner_encoder_proj_model_filename,
+        sess_options=session_opts,
+    )
+
+    joiner_decoder_proj = ort.InferenceSession(
+        args.joiner_decoder_proj_model_filename,
         sess_options=session_opts,
     )
 
@@ -315,6 +364,8 @@ def main():
     hyps = greedy_search(
         decoder=decoder,
         joiner=joiner,
+        joiner_encoder_proj=joiner_encoder_proj,
+        joiner_decoder_proj=joiner_decoder_proj,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
         context_size=args.context_size,
