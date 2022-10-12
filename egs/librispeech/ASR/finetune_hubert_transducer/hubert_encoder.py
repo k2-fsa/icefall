@@ -192,7 +192,7 @@ class HubertEncoder(EncoderInterface):
         Returns:
             torch.Tensor: normalized audio samples, zero-padded
         """
-        row_mean = x.sum(dim=-1, keepdim=True) / x_lens
+        row_mean = (x.sum(dim=-1) / x_lens).view(-1, 1)
         row_std = (
             torch.tensor(
                 [sample[: x_lens[i]].std() for i, sample in enumerate(x)]

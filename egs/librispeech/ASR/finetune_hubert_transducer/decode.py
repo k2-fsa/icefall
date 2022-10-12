@@ -158,7 +158,6 @@ def get_parser():
         modified_beam_search.""",
     )
 
-
     parser.add_argument(
         "--context-size",
         type=int,
@@ -166,6 +165,7 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -173,6 +173,7 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
+
     parser.add_argument(
         "--encoder-dim", type=int, default=1024, help="Encoder output dim"
     )
