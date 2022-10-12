@@ -376,7 +376,7 @@ class ActivationBalancer(torch.nn.Module):
             # Instead we make the min_positive constraint stronger, so it first makes the value
             # sometimes negative, and only when that is satisfied, can deal with the absolute-value
             # constraint.
-            scale_factor_scale = 0.5
+            scale_factor_scale = 0.8
             below_threshold = (self.abs_mean < self.min_abs)
             above_threshold = (self.abs_mean > self.max_abs)
             scale_factor[:] = ((below_threshold.to(torch.float32) -
