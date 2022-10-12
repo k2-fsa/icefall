@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -62,15 +64,13 @@ log "Decode with ONNX models"
   --onnx-joiner-encoder-proj-filename $repo/exp/joiner_encoder_proj.onnx \
   --onnx-joiner-decoder-proj-filename $repo/exp/joiner_decoder_proj.onnx
 
-./pruned_transducer_stateless3/onnx_check_all_in_one.py \
-  --jit-filename $repo/exp/cpu_jit.pt \
-  --onnx-all-in-one-filename $repo/exp/all_in_one.onnx
-
 ./pruned_transducer_stateless3/onnx_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --encoder-model-filename $repo/exp/encoder.onnx \
   --decoder-model-filename $repo/exp/decoder.onnx \
   --joiner-model-filename $repo/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
