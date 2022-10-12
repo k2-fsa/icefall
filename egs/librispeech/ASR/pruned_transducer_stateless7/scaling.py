@@ -444,8 +444,8 @@ class MaxEig(torch.nn.Module):
 
         with torch.cuda.amp.autocast(enabled=False):
             eps = 1.0e-20
-            assert x.dtype != torch.float16
             orig_x = x
+            x = x.to(torch.float32)
             with torch.no_grad():
                 x = x.transpose(self.channel_dim, -1).reshape(-1, self.num_channels)
                 x = x - x.mean(dim=0)
@@ -461,7 +461,7 @@ class MaxEig(torch.nn.Module):
                 # ensure new direction is nonzero even if x == 0, by including `direction`.
                 self._set_direction(0.1 * self.max_eig_direction + new_direction)
 
-            if random.random() < 0.0005 or __name__ == "__main__":
+            if random.random() < 0.01 or __name__ == "__main__":
                 logging.info(f"variance_proportion = {variance_proportion.item()}, shape={tuple(orig_x.shape)}, cur_prob={self.cur_prob}")
 
             if variance_proportion >= self.max_var_per_eig:

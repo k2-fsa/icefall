@@ -487,7 +487,7 @@ class ConformerEncoder(nn.Module):
                 if len(ans) == num_to_drop:
                     break
         if shared_rng.random() < 0.005 or __name__ == "__main__":
-            logging.info(f"warmup_begin={warmup_begin}, warmup_end={warmup_end}, warmup_count={warmup_count:.1f}, num_to_drop={num_to_drop}, layers_to_drop={ans}")
+            logging.info(f"warmup_begin={warmup_begin:.1f}, warmup_end={warmup_end:.1f}, warmup_count={warmup_count:.1f}, num_to_drop={num_to_drop}, layers_to_drop={ans}")
         return ans
 
 
