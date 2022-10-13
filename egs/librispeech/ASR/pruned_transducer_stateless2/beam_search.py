@@ -70,7 +70,9 @@ def fast_beam_search_one_best(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     lattice = fast_beam_search(
         model=model,
@@ -144,7 +146,9 @@ def fast_beam_search_nbest_LG(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     lattice = fast_beam_search(
         model=model,
@@ -268,7 +272,9 @@ def fast_beam_search_nbest(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     lattice = fast_beam_search(
         model=model,
@@ -361,7 +367,9 @@ def fast_beam_search_nbest_oracle(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     lattice = fast_beam_search(
         model=model,
@@ -510,7 +518,9 @@ def greedy_search(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return the decoded result and corresponding timestamp.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     assert encoder_out.ndim == 3
 
@@ -608,8 +618,9 @@ def greedy_search_batch(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return a list-of-list of token IDs containing the decoded results.
-      len(ans) equals to encoder_out.size(0).
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     assert encoder_out.ndim == 3
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
@@ -883,8 +894,9 @@ def modified_beam_search(
       return_timestamps:
         Whether to return timestamps.
     Returns:
-      Return a list-of-list of token IDs. ans[i] is the decoding results
-      for the i-th utterance.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
@@ -1052,8 +1064,11 @@ def _deprecated_modified_beam_search(
         Beam size.
       return_timestamps:
         Whether to return timestamps.
+
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
 
     assert encoder_out.ndim == 3
@@ -1175,8 +1190,11 @@ def beam_search(
         Softmax temperature.
       return_timestamps:
         Whether to return timestamps.
+
     Returns:
-      Return the decoded result.
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
     """
     assert encoder_out.ndim == 3
 
@@ -1373,8 +1391,9 @@ def fast_beam_search_with_nbest_rescoring(
         Whether to return timestamps.
     Returns:
       Return the decoded result in a dict, where the key has the form
-      'ngram_lm_scale_xx' and the value is the decoded results. `xx` is the
-      ngram LM scale value used during decoding, i.e., 0.1.
+      'ngram_lm_scale_xx' and the value is the decoded results
+      optionally with timestamps. `xx` is the ngram LM scale value
+      used during decoding, i.e., 0.1.
     """
     lattice = fast_beam_search(
         model=model,
@@ -1538,8 +1557,9 @@ def fast_beam_search_with_nbest_rnn_rescoring(
         Whether to return timestamps.
     Returns:
       Return the decoded result in a dict, where the key has the form
-      'ngram_lm_scale_xx' and the value is the decoded results. `xx` is the
-      ngram LM scale value used during decoding, i.e., 0.1.
+      'ngram_lm_scale_xx' and the value is the decoded results
+      optionally with timestamps. `xx` is the ngram LM scale value
+      used during decoding, i.e., 0.1.
     """
     lattice = fast_beam_search(
         model=model,

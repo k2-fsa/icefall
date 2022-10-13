@@ -324,9 +324,11 @@ def decode_one_batch(
                if greedy_search is used, it would be "greedy_search"
                If beam search with a beam size of 7 is used, it would be
                "beam_7"
-        - value: It contains the decoding result. `len(value)` equals to
-                 batch size. `value[i]` is the decoding result for the i-th
-                 utterance in the given batch.
+        - value: It is a tuple. `len(value[0])` and `len(value[1])` are both
+                 equal to the batch size. `value[0][i]` and `value[1][i]`
+                 are the decoding result and timestamps for the i-th utterance
+                 in the given batch respectively.
+
     Args:
       params:
         It's the return value of :func:`get_params`.

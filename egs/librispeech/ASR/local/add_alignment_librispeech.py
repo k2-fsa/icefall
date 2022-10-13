@@ -165,6 +165,9 @@ def add_alignment(
                     if origin_id in alignments:
                         ali = alignments[origin_id]
                     else:
+                        logging.info(
+                            f"Warning: {origin_id} does not has alignment."
+                        )
                         ali = []
                     subcut.alignment = {"word": ali}
                 writer.write(cut, flush=True)
