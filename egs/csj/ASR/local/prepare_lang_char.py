@@ -1,8 +1,3 @@
-import argparse
-from pathlib import Path
-from lhotse import CutSet
-import logging
-
 ARGPARSE_DESCRIPTION = """
 This script gathers all training transcripts of the specified {trans_mode} type and 
 produces a token_list that would be output set of the ASR system. 
@@ -12,7 +7,7 @@ list, if the word does not appear in the list of user-defined multicharacter str
 it further splits that word into individual characters to be counted into the output 
 token set. 
 
-It outputs 4 files:
+It outputs 4 files into the lang directory:
 - trans_mode: the name of transcript mode. If trans_mode was not specified, this will be 
    an empty file.
 - userdef_string: a list of user defined strings that should not be split further into 
@@ -22,8 +17,14 @@ It outputs 4 files:
 
 """
 
+import argparse
+from pathlib import Path
+from lhotse import CutSet
+import logging
+
 def get_parser():
     parser = argparse.ArgumentParser(
+        description=ARGPARSE_DESCRIPTION, 
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
@@ -39,13 +40,16 @@ def get_parser():
         "--lang-dir",
         type=Path,
         default=None,
-        help="Name of lang dir"
+        help=(
+            "Name of lang dir. "
+            "If not set, this will default to lang_char_{trans-mode}"
+            )
     )
 
     parser.add_argument(
-        "--train-cuts",
+        "--train-cut",
         type=Path,
-        help="Path to train cuts"
+        help="Path to the train cut"
     )
     
     parser.add_argument(
@@ -87,12 +91,15 @@ def main():
         args.userdef_string = []
     
     
-    train_set : CutSet = CutSet.from_jsonl_lazy(args.train_cuts)
+    train_set : CutSet = CutSet.from_jsonl_lazy(args.train_cut)
     
     words = set()
-    logging.info(f"Creating vocabulary from {args.train_cuts.name} at {args.trans_mode} mode.")
+    logging.info(f"Creating vocabulary from {args.train_cut.name} at {args.trans_mode} mode.")
     for cut in train_set:
-        text = cut.supervisions[0].custom[args.trans_mode] if args.trans_mode else cut.supervisions[0].text
+        try:
+            text : str = cut.supervisions[0].custom[args.trans_mode] if args.trans_mode else cut.supervisions[0].text
+        except KeyError:
+            raise KeyError(f"Could not find {args.trans_mode} in {cut.supervisions[0].custom}")
         for t in text.split():
             if t in args.userdef_string:
                 words.add(t)
@@ -110,13 +117,9 @@ def main():
         )
     )
 
-    (args.lang_dir / "words_len").write_text(
-        f"{len(words)}"
-    )
+    (args.lang_dir / "words_len").write_text(f"{len(words)}")
     
-    (args.lang_dir / "userdef_string").write_text(
-        '\n'.join(args.userdef_string)
-    )
+    (args.lang_dir / "userdef_string").write_text('\n'.join(args.userdef_string))
     
     (args.lang_dir / "trans_mode").write_text(args.trans_mode)
     logging.info("Done.")

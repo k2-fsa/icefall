@@ -1,10 +1,30 @@
+ARGPARSE_DESCRIPTION = """
+This script follows the espnet method of splitting the remaining core+noncore utterances 
+into valid and train cutsets at an index which is by default 4000.
+
+In other words, the core+noncore utterances are shuffled, where 4000 utterances of the 
+shuffled set go to the `valid` cutset and are not subjected to speed perturbation. The 
+remaining utterances become the `train` cutset and are speed-perturbed (0.9x, 1.0x, 1.1x).  
+
+"""
+
 import argparse
+from itertools import islice
 import logging
 import os
 from pathlib import Path
+from random import Random
+from typing import List, Tuple
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, ChunkedLilcomHdf5Writer
+from lhotse import (
+    CutSet, 
+    RecordingSet,
+    SupervisionSet,
+    Fbank, 
+    FbankConfig, 
+    ChunkedLilcomHdf5Writer,
+    )
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -13,16 +33,65 @@ from lhotse import CutSet, Fbank, FbankConfig, ChunkedLilcomHdf5Writer
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
+RNG_SEED = 42 
+
+def make_cutset_blueprints(
+    manifest_dir : Path, 
+    split : int,
+) -> List[Tuple[str, CutSet]]:
+    
+    # Create train and valid cuts 
+    logging.info(f"Loading, trimming, and shuffling the remaining core+noncore cuts.")
+    recording_set = RecordingSet.from_file(manifest_dir / "csj_recordings_core.jsonl.gz") \
+        + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
+    supervision_set = SupervisionSet.from_file(manifest_dir / "csj_supervisions_core.jsonl.gz") \
+        + SupervisionSet.from_file(manifest_dir / "csj_supervisions_noncore.jsonl.gz")
+    
+    cut_set = CutSet.from_manifests(
+        recordings=recording_set, 
+        supervisions=supervision_set,
+    )
+    cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
+    cut_set = cut_set.shuffle(Random(RNG_SEED))
+    
+    logging.info(f"Creating valid and train cuts from core and noncore, split at {split}.")
+    valid_set = CutSet.from_cuts(islice(cut_set, 0, split))
+    
+    train_set = CutSet.from_cuts(islice(cut_set, split, None))
+    train_set = (
+        train_set 
+        + train_set.perturb_speed(0.9) 
+        + train_set.perturb_speed(1.1)
+    )
+    
+    cut_sets = [("valid", valid_set), ("train", train_set)]
+    
+    # Create eval datasets
+    logging.info("Creating eval cuts.")
+    for i in range(1, 4):
+        cut_set = CutSet.from_manifests(
+            recordings=RecordingSet.from_file(manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"),
+            supervisions=SupervisionSet.from_file(manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz")
+        )
+        cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
+        cut_sets.append((f"eval{i}", cut_set))
+        
+    return cut_sets
+    
+
 def get_args():
     #TODO: fill in parser
-    parser = argparse.ArgumentParser(description="""
-             TODO"""
+    parser = argparse.ArgumentParser(
+        description=ARGPARSE_DESCRIPTION,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     
     parser.add_argument("--manifest-dir", type=Path,
                         help="Path to save manifests")    
     parser.add_argument("--fbank-dir", type=Path,
                         help="Path to save fbank features")    
+    parser.add_argument("--split", type=int, default=4000,
+                        help="Split at this index")
     parser.add_argument("--debug", action="store_true",
                         help="Use hardcoded parameters")
     
@@ -34,6 +103,7 @@ def main():
     if args.debug:
         args.manifest_dir = Path("data/manifests")
         args.fbank_dir = Path("/mnt/minami_data_server/t2131178/corpus/CSJ/fbank_new")
+        args.split = 4000
     
     extractor = Fbank(FbankConfig(num_mel_bins=80))
     num_jobs = min(16, os.cpu_count())
@@ -44,24 +114,25 @@ def main():
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    if not (args.fbank_dir / ".done").exists():
-        for cutfile in args.manifest_dir.glob("cuts_*.jsonl.gz"):
-            part = cutfile.name.replace('cuts_', '').replace('.jsonl.gz', '')
-            cut_set : CutSet = CutSet.from_file(cutfile)
+    if (args.fbank_dir / ".done").exists():
+        logging.info(
+            "Previous fbank computed for CSJ found. "
+            f"Delete {args.fbank_dir / '.done'} to allow recomputing fbank."
+            )
+        return
+    else:
+        cut_sets = make_cutset_blueprints(args.manifest_dir, args.split)
+        for part, cut_set in cut_sets:
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 num_jobs=num_jobs,
                 storage_path=(args.fbank_dir / f"feats_{part}").as_posix(),
                 storage_type=ChunkedLilcomHdf5Writer
             )
-            cut_set.to_json(args.manifest_dir / f"cuts_{part}.json")
-            cut_set.to_jsonl(args.manifest_dir / f"cuts_{part}.jsonl.gz")
+            cut_set.to_file(args.manifest_dir / f"csj_cuts_{part}.jsonl.gz")
             
         logging.info("All fbank computed for CSJ.")
         (args.fbank_dir / ".done").touch()
-    
-    else:
-        logging.info("Previous fbank computed for CSJ found.")
     
 if __name__ == '__main__':
     main()  
