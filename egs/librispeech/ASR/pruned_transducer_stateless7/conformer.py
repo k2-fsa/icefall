@@ -263,7 +263,7 @@ class ConformerEncoderLayer(nn.Module):
         self.d_model = d_model
 
         self.self_attn = RelPositionMultiheadAttention(
-            d_model, nhead, dropout=dropout,
+            d_model, nhead, dropout=0.0,
         )
 
         self.feed_forward1 = FeedforwardModule(d_model,
