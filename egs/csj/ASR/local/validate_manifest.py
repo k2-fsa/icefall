@@ -62,9 +62,9 @@ def validate_one_supervision_per_cut(c: Cut):
 
 def validate_supervision_and_cut_time_bounds(c: Cut):
     s = c.supervisions[0]
-    
-    # Removed because when the cuts were trimmed from supervisions, 
-    # the start time of the supervision can be lesser than cut start time. 
+
+    # Removed because when the cuts were trimmed from supervisions,
+    # the start time of the supervision can be lesser than cut start time.
     # https://github.com/lhotse-speech/lhotse/issues/813
     # if s.start < c.start:
     #     raise ValueError(
