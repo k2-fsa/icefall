@@ -1,28 +1,29 @@
 import argparse
-from itertools import islice
 import logging
 import os
+from itertools import islice
 from pathlib import Path
 from random import Random
 from typing import List, Tuple
 
 import torch
 from lhotse import (
+    ChunkedLilcomHdf5Writer,
     CutSet,
-    RecordingSet,
-    SupervisionSet,
     Fbank,
     FbankConfig,
-    ChunkedLilcomHdf5Writer,
+    RecordingSet,
+    SupervisionSet,
 )
 
 ARGPARSE_DESCRIPTION = """
-This script follows the espnet method of splitting the remaining core+noncore utterances
-into valid and train cutsets at an index which is by default 4000.
+This script follows the espnet method of splitting the remaining core+noncore
+utterances into valid and train cutsets at an index which is by default 4000.
 
-In other words, the core+noncore utterances are shuffled, where 4000 utterances of the
-shuffled set go to the `valid` cutset and are not subjected to speed perturbation. The
-remaining utterances become the `train` cutset and are speed-perturbed (0.9x, 1.0x, 1.1x).
+In other words, the core+noncore utterances are shuffled, where 4000 utterances
+of the shuffled set go to the `valid` cutset and are not subjected to speed
+perturbation. The remaining utterances become the `train` cutset and are speed-
+perturbed (0.9x, 1.0x, 1.1x).
 
 """
 
@@ -37,16 +38,22 @@ RNG_SEED = 42
 
 
 def make_cutset_blueprints(
-    manifest_dir : Path,
-    split : int,
+    manifest_dir: Path,
+    split: int,
 ) -> List[Tuple[str, CutSet]]:
 
     # Create train and valid cuts
-    logging.info("Loading, trimming, and shuffling the remaining core+noncore cuts.")
-    recording_set = RecordingSet.from_file(manifest_dir / "csj_recordings_core.jsonl.gz") \
-        + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
-    supervision_set = SupervisionSet.from_file(manifest_dir / "csj_supervisions_core.jsonl.gz") \
-        + SupervisionSet.from_file(manifest_dir / "csj_supervisions_noncore.jsonl.gz")
+    logging.info(
+        "Loading, trimming, and shuffling the remaining core+noncore cuts."
+    )
+    recording_set = RecordingSet.from_file(
+        manifest_dir / "csj_recordings_core.jsonl.gz"
+    ) + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
+    supervision_set = SupervisionSet.from_file(
+        manifest_dir / "csj_supervisions_core.jsonl.gz"
+    ) + SupervisionSet.from_file(
+        manifest_dir / "csj_supervisions_noncore.jsonl.gz"
+    )
 
     cut_set = CutSet.from_manifests(
         recordings=recording_set,
@@ -55,14 +62,15 @@ def make_cutset_blueprints(
     cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
     cut_set = cut_set.shuffle(Random(RNG_SEED))
 
-    logging.info(f"Creating valid and train cuts from core and noncore, split at {split}.")
+    logging.info(
+        "Creating valid and train cuts from core and noncore,"
+        f"split at {split}."
+    )
     valid_set = CutSet.from_cuts(islice(cut_set, 0, split))
 
     train_set = CutSet.from_cuts(islice(cut_set, split, None))
     train_set = (
-        train_set
-        + train_set.perturb_speed(0.9)
-        + train_set.perturb_speed(1.1)
+        train_set + train_set.perturb_speed(0.9) + train_set.perturb_speed(1.1)
     )
 
     cut_sets = [("valid", valid_set), ("train", train_set)]
@@ -71,8 +79,12 @@ def make_cutset_blueprints(
     logging.info("Creating eval cuts.")
     for i in range(1, 4):
         cut_set = CutSet.from_manifests(
-            recordings=RecordingSet.from_file(manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"),
-            supervisions=SupervisionSet.from_file(manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz")
+            recordings=RecordingSet.from_file(
+                manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"
+            ),
+            supervisions=SupervisionSet.from_file(
+                manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz"
+            ),
         )
         cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
         cut_sets.append((f"eval{i}", cut_set))
@@ -86,14 +98,18 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("--manifest-dir", type=Path,
-                        help="Path to save manifests")
-    parser.add_argument("--fbank-dir", type=Path,
-                        help="Path to save fbank features")
-    parser.add_argument("--split", type=int, default=4000,
-                        help="Split at this index")
-    parser.add_argument("--debug", action="store_true",
-                        help="Use hardcoded parameters")
+    parser.add_argument(
+        "--manifest-dir", type=Path, help="Path to save manifests"
+    )
+    parser.add_argument(
+        "--fbank-dir", type=Path, help="Path to save fbank features"
+    )
+    parser.add_argument(
+        "--split", type=int, default=4000, help="Split at this index"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Use hardcoded parameters"
+    )
 
     return parser.parse_args()
 
@@ -103,7 +119,9 @@ def main():
 
     if args.debug:
         args.manifest_dir = Path("data/manifests")
-        args.fbank_dir = Path("/mnt/minami_data_server/t2131178/corpus/CSJ/fbank_new")
+        args.fbank_dir = Path(
+            "/mnt/minami_data_server/t2131178/corpus/CSJ/fbank_new"
+        )
         args.split = 4000
 
     extractor = Fbank(FbankConfig(num_mel_bins=80))
@@ -128,7 +146,7 @@ def main():
                 extractor=extractor,
                 num_jobs=num_jobs,
                 storage_path=(args.fbank_dir / f"feats_{part}").as_posix(),
-                storage_type=ChunkedLilcomHdf5Writer
+                storage_type=ChunkedLilcomHdf5Writer,
             )
             cut_set.to_file(args.manifest_dir / f"csj_cuts_{part}.jsonl.gz")
 
@@ -136,5 +154,5 @@ def main():
         (args.fbank_dir / ".done").touch()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

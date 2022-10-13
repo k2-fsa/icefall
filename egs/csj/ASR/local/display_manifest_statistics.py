@@ -15,11 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from lhotse import load_manifest
-from lhotse import CutSet
 import argparse
+from pathlib import Path
 
+from lhotse import CutSet, load_manifest
 
 ARGPARSE_DESCRIPTION = """
 This file displays duration statistics of utterances in a manifest.
@@ -33,13 +32,12 @@ for usage.
 
 def get_parser():
     parser = argparse.ArgumentParser(
-        description=ARGPARSE_DESCRIPTION, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description=ARGPARSE_DESCRIPTION,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
-        "--manifest-dir",
-        type=Path,
-        help="Path to cutset manifests"
+        "--manifest-dir", type=Path, help="Path to cutset manifests"
     )
 
     return parser.parse_args()
@@ -50,7 +48,7 @@ def main():
 
     for path in args.manifest_dir.glob("csj_cuts_*.jsonl.gz"):
 
-        cuts : CutSet = load_manifest(path)
+        cuts: CutSet = load_manifest(path)
 
         print(path.name)
         cuts.describe()

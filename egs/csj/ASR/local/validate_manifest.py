@@ -47,9 +47,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Use hardcoded parameters"
+        "--debug", action="store_true", help="Use hardcoded parameters"
     )
 
     return parser.parse_args()
@@ -82,7 +80,10 @@ def validate_supervision_and_cut_time_bounds(c: Cut):
 def main():
     args = get_args()
     if args.debug:
-        args.manifest = "/mnt/minami_data_server/t2131178/corpus/JP_Speech/fbank/cuts_eval3.jsonl.gz"
+        args.manifest = (
+            "/mnt/minami_data_server/t2131178/corpus/"
+            "JP_Speech/fbank/cuts_eval3.jsonl.gz"
+        )
 
     manifest = Path(args.manifest)
     logging.info(f"Validating {manifest}")
