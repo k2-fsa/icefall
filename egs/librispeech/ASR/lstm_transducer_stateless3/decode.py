@@ -347,8 +347,8 @@ def decode_one_batch(
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
-      Return the decoding result. See above description for the format of
-      the returned dict.
+      Return the decoding result and timestamps. See above description for the
+      format of the returned dict.
     """
     device = next(model.parameters()).device
     feature = batch["inputs"]
@@ -529,9 +529,12 @@ def decode_dataset(
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
-      Its value is a list of tuples. Each tuple contains two elements:
-      The first is the reference transcript, and the second is the
-      predicted result.
+      Its value is a list of tuples. Each tuple contains five elements:
+      - cut_id
+      - reference transcript
+      - predicted result
+      - timestamp of reference transcript
+      - timestamp of predicted result
     """
     num_cuts = 0
 
