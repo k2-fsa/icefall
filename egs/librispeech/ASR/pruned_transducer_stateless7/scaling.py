@@ -258,7 +258,6 @@ class ActivationBalancer(torch.nn.Module):
         max_factor: float = 0.01,
         min_abs: float = 0.2,
         max_abs: float = 100.0,
-        max_var_per_eig: float = 0.0,
         beta: float = 0.75,
         prob: float = 0.25,
         stats_period: int = 10,
