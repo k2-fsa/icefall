@@ -440,33 +440,33 @@ class CSJAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train.jsonl.gz"
+            self.args.manifest_dir / "csj_cuts_train.jsonl.gz"
         )
     
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get valid cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_valid.jsonl.gz"
+            self.args.manifest_dir / "csj_cuts_valid.jsonl.gz"
         )
 
     @lru_cache()
     def eval1_cuts(self) -> CutSet:
         logging.info("About to get eval1 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_eval1.jsonl.gz"
+            self.args.manifest_dir / "csj_cuts_eval1.jsonl.gz"
         )
 
     @lru_cache()
     def eval2_cuts(self) -> CutSet:
         logging.info("About to get eval2 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_eval2.jsonl.gz"
+            self.args.manifest_dir / "csj_cuts_eval2.jsonl.gz"
         )
 
     @lru_cache()
     def eval3_cuts(self) -> CutSet:
         logging.info("About to get eval3 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_eval3.jsonl.gz"
+            self.args.manifest_dir / "csj_cuts_eval3.jsonl.gz"
         )

@@ -1,0 +1,18 @@
+python pruned_transducer_stateless5/train.py \
+  --exp-dir pruned_transducer_stateless5/exp_disfluent \
+  --num-encoder-layers 24 \
+  --dim-feedforward 1536 \
+  --nhead 8 \
+  --encoder-dim 384 \
+  --decoder-dim 512 \
+  --joiner-dim 512 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 20 \
+  --num-left-chunks 4 \
+  --max-duration 150 \
+  --world-size 1 \
+  --start-epoch 1 \
+  --num-epochs 10 \
+  --transcript-mode disfluent \
+  --context-size 2
