@@ -1,12 +1,3 @@
-import argparse
-from configparser import ConfigParser
-from copy import copy
-from io import TextIOWrapper
-import logging
-from typing import Dict, List, Tuple
-from pathlib import Path
-import re
-
 ARGPARSE_DESCRIPTION = """
 This script accesses the CSJ/SDB/{core,noncore} directories and generates transcripts
 in accordance to the tag decisions listed in the .ini file. 
@@ -21,6 +12,7 @@ It does the following in sequence:-
 3. Moves the predefined datasets for eval1, eval2, eval3, and excluded, into its own dataset 
    directory
 4. Touches a .done_mv in `trans_dir`.
+NOTE: If a .done_mv exists already in `trans_dir`, then this stage is skipped.
 
 **PARSE**
 1. Takes in an .ini file which - among others - contains the behaviour for each tag and 
@@ -31,12 +23,23 @@ It does the following in sequence:-
 Differences to kaldi include:-
 1. The evaluation datasets do not follow `trans_dir`/eval/eval{i}, but are instead saved 
     in the same level as core, noncore, and excluded. 
-2. Morphology tags are parsed, but not included in the final transcript. The original morpheme  
+2. Morphology tags are parsed but not included in the final transcript. The original morpheme  
     segmentations are preserved by spacing, i.e. 分かち書き, so removal, if required, has to be 
     done at a later stage. 
-3. Kana pronunciations are parsed, but not included in the final transcript. 
+3. Kana pronunciations are parsed but not included in the final transcript. 
 
 """
+
+import argparse
+from configparser import ConfigParser
+from copy import copy
+from io import TextIOWrapper
+import logging
+from multiprocessing import Queue, get_context
+import os
+from typing import Dict, List, Tuple
+from pathlib import Path
+import re
 
 FULL_DATA_PARTS = ['core', 'noncore', 'eval1', 'eval2', 'eval3', 'excluded']
 
@@ -637,8 +640,48 @@ def create_trans_dir(corpus_dir : Path, trans_dir : Path):
     (trans_dir / ".done_mv").touch()
     logging.info("Transcripts have been moved.")
 
+def parse_sdb_process(
+    jobs_queue : Queue, 
+    gap : float, 
+    maxlen : float,
+    minlen : float, 
+    gap_sym : str, 
+    trans_mode : str, 
+    use_segments : bool, 
+    write_segments : bool,
+    ):
+    
+    def parse_one_sdb(sdb : Path):
+        with sdb.open('r', encoding='shift_jis') as fin:
+            result = CSJSDB_Word.from_file(fin)
+        
+        if not use_segments:
+            transcripts = make_text(result, gap, maxlen, minlen, gap_sym)
+        else:
+            channels = ['-L-segments', '-R-segments'] if sdb.name[0] == 'D' else ['-segments']
+            transcripts = []
+            for channel in channels:
+                segments = Path(sdb.as_posix()[:-4] + channel).read_text().split('\n')
+                assert segments, segments
+                transcripts.append(
+                    modify_text(result, segments, "", 0.5)
+                )
+        
+        for transcript in transcripts:
+            spk_id = transcript.pop('spk_id')
+            segments = transcript.pop('segments')
+            (sdb.parent / f'{spk_id}-{trans_mode}.txt').write_text('\n'.join(transcript['text']), encoding='utf8')
+            if write_segments:
+                (sdb.parent / f'{spk_id}-segments').write_text('\n'.join(f"{s[0]} {s[1]} {s[2]}" for s in segments), encoding='utf8')
+    
+    while True:
+        job = jobs_queue.get()
+        if not job:
+            break
+        parse_one_sdb(sdb=job)
+
 def load_config(config_file : Path):
-    assert config_file.is_dir()
+    assert config_file.exists()
     config = ConfigParser()
     config.optionxform = str
     config.read(config_file)
@@ -677,12 +720,14 @@ def get_args():
                         help="Path to output transcripts")
     parser.add_argument("--config", type=Path,
                         help="Path to config")  
-    parser.add_argument("--debug", action="store_true",
-                        help="Use hardcoded parameters")
+    parser.add_argument("-j", "--num-jobs", type=int,
+                        default=16, help="Number of jobs to start")
     parser.add_argument("--write-segments", action="store_true",
                     help="Write segment info into a separate file")
     parser.add_argument("--use-segments", action="store_true",
                 help="Use existing segments in the directory")
+    parser.add_argument("--debug", action="store_true",
+                        help="Use hardcoded parameters")
     
     return parser.parse_args()
 
@@ -696,9 +741,11 @@ def main():
     
     if args.debug:
         args.corpus_dir = Path('/mnt/minami_data_server/t2131178/corpus/CSJ')
-        args.trans_dir = Path('/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript_new')
+        args.trans_dir = Path('/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript')
         args.trans_name = "disfluent"
-        args.write_segments = True
+        args.use_segments = True
+        args.num_jobs = 8
+        args.config = Path("local/conf/number.ini")
     
     config = load_config(args.config)
     trans_mode = config['CONSTANTS']['MODE']
@@ -715,29 +762,38 @@ def main():
     minlen = float(segment_config['minlen'])
     gap_sym = segment_config['gap_sym']
     
-    logging.info("Parsing sdbs now.")
+    Process = get_context("fork").Process
+    num_jobs = min(args.num_jobs, os.cpu_count())
+    maxsize = 10 * num_jobs
+    
+    jobs_queue = Queue(maxsize=maxsize)
+    
+    workers : List[Process] = []
+    
+    for _ in range(num_jobs):
+        worker = Process(
+            target=parse_sdb_process, 
+            args=(jobs_queue, gap, maxlen, minlen, gap_sym, trans_mode, args.use_segments, args.write_segments)
+            )
+        worker.daemon = True
+        worker.start()
+        workers.append(worker)
+    
+    num_sdb = 0
+    logging.info(f"Gathering sdbs to be parsed in {trans_mode} mode now.")
     for sdb in args.trans_dir.glob("*/*/*.sdb"):
-        with sdb.open('r', encoding='shift_jis') as fin:
-            result = CSJSDB_Word.from_file(fin)
+        jobs_queue.put(sdb)
+        num_sdb += 1 
+    
+    logging.info(f"Parsing found {num_sdb} sdbs now.")
+    # signal termination
+    for _ in workers:
+        jobs_queue.put(None)
         
-        if not args.use_segments:
-            transcripts = make_text(result, gap, maxlen, minlen, gap_sym)
-        else:
-            channels = ['-L-segments', '-R-segments'] if sdb.name[0] == 'D' else ['-segments']
-            transcripts = []
-            for channel in channels:
-                segments = Path(sdb.as_posix()[:-4] + channel).read_text().split('\n')
-                assert segments, segments
-                transcripts.append(
-                    modify_text(result, segments, "", 0.5)
-                )
-        
-        for transcript in transcripts:
-            spk_id = transcript.pop('spk_id')
-            segments = transcript.pop('segments')
-            (sdb.parent / f'{spk_id}-{trans_mode}.txt').write_text('\n'.join(transcript['text']), encoding='utf8')
-            if args.write_segments:
-                (sdb.parent / f'{spk_id}-segments').write_text('\n'.join(f"{s[0]} {s[1]} {s[2]}" for s in segments), encoding='utf8')
+    # wait for workers to terminate
+    for w in workers:
+        w.join()
+
     logging.info("All done.")
     (args.trans_dir / ".done").touch()
     
