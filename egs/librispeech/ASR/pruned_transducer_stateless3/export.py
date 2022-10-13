@@ -73,6 +73,10 @@ Check `onnx_check.py` for how to use them.
 
 Please see ./onnx_pretrained.py for usage of the generated files
 
+Check
+https://github.com/k2-fsa/sherpa-onnx
+for how to use the exported models outside of icefall.
+
 (4) Export `model.state_dict()`
 
 ./pruned_transducer_stateless3/export.py \
