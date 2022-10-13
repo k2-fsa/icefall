@@ -19,6 +19,22 @@
 """
 This script checks that exported onnx models produce the same output
 with the given torchscript model for the same input.
+
+Usage:
+
+./pruned_transducer_stateless2/onnx_check.py \
+  --jit-filename ./t/cpu_jit.pt \
+  --onnx-encoder-filename ./t/encoder.onnx \
+  --onnx-decoder-filename ./t/decoder.onnx \
+  --onnx-joiner-filename ./t/joiner.onnx \
+  --onnx-joiner-encoder-proj-filename ./t/joiner_encoder_proj.onnx \
+  --onnx-joiner-decoder-proj-filename ./t/joiner_decoder_proj.onnx
+
+You can generate cpu_jit.pt, encoder.onnx, decoder.onnx, and other
+xxx.onnx files using ./export.py
+
+We provide pretrained models at:
+https://huggingface.co/luomingshuang/icefall_asr_wenetspeech_pruned_transducer_stateless2/tree/main/exp
 """
 
 import argparse
@@ -39,7 +55,7 @@ def get_parser():
         "--jit-filename",
         required=True,
         type=str,
-        help="Path to the torchscript model",
+        help="Path to the torchscript model exported by torch.jit.script",
     )
 
     parser.add_argument(

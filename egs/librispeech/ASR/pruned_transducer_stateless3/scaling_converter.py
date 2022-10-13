@@ -30,6 +30,7 @@ from typing import List
 import torch
 import torch.nn as nn
 from scaling import (
+    ActivationBalancer,
     BasicNorm,
     ScaledConv1d,
     ScaledConv2d,
@@ -294,6 +295,8 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
             d[name] = convert_basic_norm(m)
         elif isinstance(m, ScaledLSTM):
             d[name] = scaled_lstm_to_lstm(m)
+        elif isinstance(m, ActivationBalancer):
+            d[name] = nn.Identity()
 
     for k, v in d.items():
         if "." in k:
