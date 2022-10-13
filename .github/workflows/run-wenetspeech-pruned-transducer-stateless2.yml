@@ -25,7 +25,7 @@ on:
 
 jobs:
   run_librispeech_pruned_transducer_stateless3_2022_05_13:
-    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || || github.event_name == 'wenetspeech'
+    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event_name == 'wenetspeech'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
