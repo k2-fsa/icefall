@@ -18,9 +18,9 @@
 This script loads ONNX models and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless3/export.py \
+./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless3/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 20 \
   --avg 10 \
   --onnx 1
@@ -33,9 +33,12 @@ Usage of this script:
   --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
   --joiner-encoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx \
   --joiner-decoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --tokens data/lang_char/tokens.txt \
   /path/to/foo.wav \
   /path/to/bar.wav
+
+We provide pretrained models at:
+https://huggingface.co/luomingshuang/icefall_asr_wenetspeech_pruned_transducer_stateless2/tree/main/exp
 """
 
 import argparse
@@ -43,10 +46,10 @@ import logging
 import math
 from typing import List
 
+import k2
 import kaldifeat
 import numpy as np
 import onnxruntime as ort
-import sentencepiece as spm
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
@@ -93,9 +96,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to tokens.txt""",
     )
 
     parser.add_argument(
@@ -322,9 +325,6 @@ def main():
         sess_options=session_opts,
     )
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
-
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
     opts.device = "cpu"
@@ -372,9 +372,10 @@ def main():
         encoder_out_lens=encoder_out_lens,
         context_size=args.context_size,
     )
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
     s = "\n"
     for filename, hyp in zip(args.sound_files, hyps):
-        words = sp.decode(hyp)
+        words = "".join([symbol_table[i] for i in hyp])
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
