@@ -16,6 +16,7 @@
 
 
 import collections
+import random
 from itertools import repeat
 from typing import Optional, Tuple
 
@@ -636,6 +637,7 @@ class ActivationBalancer(torch.nn.Module):
            max_abs:  the maximum average-absolute-value per channel, which
                we allow, before we start to modify the derivatives to prevent
                this.
+           balance_prob: the probability to apply the ActivationBalancer.
     """
 
     def __init__(
@@ -646,6 +648,7 @@ class ActivationBalancer(torch.nn.Module):
         max_factor: float = 0.01,
         min_abs: float = 0.2,
         max_abs: float = 100.0,
+        balance_prob: float = 0.25,
     ):
         super(ActivationBalancer, self).__init__()
         self.channel_dim = channel_dim
@@ -654,9 +657,11 @@ class ActivationBalancer(torch.nn.Module):
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
+        assert 0 < balance_prob <= 1, balance_prob
+        self.balance_prob = balance_prob
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or is_jit_tracing():
+        if random.random() >= self.balance_prob:
             return x
         else:
             return ActivationBalancerFunction.apply(
@@ -664,7 +669,7 @@ class ActivationBalancer(torch.nn.Module):
                 self.channel_dim,
                 self.min_positive,
                 self.max_positive,
-                self.max_factor,
+                self.max_factor / self.balance_prob,
                 self.min_abs,
                 self.max_abs,
             )
