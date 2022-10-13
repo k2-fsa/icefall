@@ -15,7 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARGPARSE_DESCRIPTION="""
+from pathlib import Path
+from lhotse import load_manifest
+from lhotse import CutSet
+import argparse
+
+
+ARGPARSE_DESCRIPTION = """
 This file displays duration statistics of utterances in a manifest.
 You can use the displayed value to choose minimum/maximum duration
 to remove short and long utterances during the training.
@@ -25,33 +31,30 @@ for usage.
 """
 
 
-from pathlib import Path
-from lhotse import load_manifest
-from lhotse import CutSet
-import argparse
-
 def get_parser():
     parser = argparse.ArgumentParser(
         description=ARGPARSE_DESCRIPTION, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    
+
     parser.add_argument(
         "--manifest-dir",
         type=Path,
         help="Path to cutset manifests"
     )
-    
+
     return parser.parse_args()
+
 
 def main():
     args = get_parser()
-    
+
     for path in args.manifest_dir.glob("csj_cuts_*.jsonl.gz"):
-        
+
         cuts : CutSet = load_manifest(path)
-        
+
         print(path.name)
         cuts.describe()
+
 
 if __name__ == "__main__":
     main()
