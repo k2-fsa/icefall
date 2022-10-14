@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export model with torch.jit.trace() &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Export model with torch.jit.script()" href="export-with-torch-jit-script.html" />
+    <link rel="prev" title="Export model.state_dict()" href="export-model-state-dict.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Model export</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="export-model-state-dict.html">Export model.state_dict()</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Export model with torch.jit.trace()</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-use-it">When to use it</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-export">How to export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-use-the-exported-models">How to use the exported models</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn.html">Export to ncnn</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Model export</a> &raquo;</li>
+      <li>Export model with torch.jit.trace()</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/model-export/export-with-torch-jit-trace.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="export-model-with-torch-jit-trace">
+<span id="id1"></span><h1>Export model with torch.jit.trace()<a class="headerlink" href="#export-model-with-torch-jit-trace" title="Permalink to this heading"></a></h1>
+<p>In this section, we describe how to export a model via
+<code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p>
+<section id="when-to-use-it">
+<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Permalink to this heading"></a></h2>
+<p>If we want to use our trained model with torchscript,
+we can use <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>See <a class="reference internal" href="export-with-torch-jit-script.html#export-model-with-torch-jit-script"><span class="std std-ref">Export model with torch.jit.script()</span></a>
+if you want to use <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code>.</p>
+</div>
+</section>
+<section id="how-to-export">
+<h2>How to export<a class="headerlink" href="#how-to-export" title="Permalink to this heading"></a></h2>
+<p>We use
+<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/lstm_transducer_stateless2">https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/lstm_transducer_stateless2</a>
+as an example in the following.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">iter</span><span class="o">=</span><span class="m">468000</span>
+<span class="nv">avg</span><span class="o">=</span><span class="m">16</span>
+
+<span class="nb">cd</span> egs/librispeech/ASR
+
+./lstm_transducer_stateless2/export.py <span class="se">\</span>
+  --exp-dir ./lstm_transducer_stateless2/exp <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --iter <span class="nv">$iter</span> <span class="se">\</span>
+  --avg  <span class="nv">$avg</span> <span class="se">\</span>
+  --jit-trace <span class="m">1</span>
+</pre></div>
+</div>
+<p>It will generate three files inside <code class="docutils literal notranslate"><span class="pre">lstm_transducer_stateless2/exp</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">encoder_jit_trace.pt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">decoder_jit_trace.pt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">joiner_jit_trace.pt</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>You can use
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/jit_pretrained.py">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/jit_pretrained.py</a>
+to decode sound files with the following commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+./lstm_transducer_stateless2/jit_pretrained.py <span class="se">\</span>
+  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --encoder-model-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace.pt <span class="se">\</span>
+  --decoder-model-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace.pt <span class="se">\</span>
+  --joiner-model-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace.pt <span class="se">\</span>
+  /path/to/foo.wav <span class="se">\</span>
+  /path/to/bar.wav <span class="se">\</span>
+  /path/to/baz.wav
+</pre></div>
+</div>
+</section>
+<section id="how-to-use-the-exported-models">
+<h2>How to use the exported models<a class="headerlink" href="#how-to-use-the-exported-models" title="Permalink to this heading"></a></h2>
+<p>Please refer to
+<a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html">https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html</a>
+for its usage in <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html">sherpa</a>.
+You can also find pretrained models there.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="export-model-state-dict.html" class="btn btn-neutral float-left" title="Export model.state_dict()" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="export-with-torch-jit-script.html" class="btn btn-neutral float-right" title="Export model with torch.jit.script()" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Huggingface &mdash; icefall 0.1 documentation</title>
+  <title>Export to ncnn &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -20,8 +20,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Pre-trained models" href="pretrained-models.html" />
-    <link rel="prev" title="How to create a recipe" href="../contributing/how-to-create-a-recipe.html" /> 
+    <link rel="next" title="Recipes" href="../recipes/index.html" />
+    <link rel="prev" title="Export to ONNX" href="export-onnx.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -42,14 +42,17 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Huggingface</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="pretrained-models.html">Pre-trained models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="spaces.html">Huggingface spaces</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Model export</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="export-model-state-dict.html">Export model.state_dict()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ncnn</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
 </ul>
 
         </div>
@@ -66,9 +69,10 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-      <li>Huggingface</li>
+          <li><a href="index.html">Model export</a> &raquo;</li>
+      <li>Export to ncnn</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/huggingface/index.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/model-export/export-ncnn.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -76,29 +80,23 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="huggingface">
-<h1>Huggingface<a class="headerlink" href="#huggingface" title="Permalink to this heading"></a></h1>
-<p>This section describes how to find pre-trained models.
-It also demonstrates how to try them from within your browser
-without installing anything by using
-<a class="reference external" href="https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition">Huggingface spaces</a>.</p>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="pretrained-models.html">Pre-trained models</a></li>
-<li class="toctree-l1"><a class="reference internal" href="spaces.html">Huggingface spaces</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="spaces.html#youtube-video">YouTube Video</a></li>
-</ul>
-</li>
-</ul>
-</div>
+  <section id="export-to-ncnn">
+<h1>Export to ncnn<a class="headerlink" href="#export-to-ncnn" title="Permalink to this heading"></a></h1>
+<p>We support exporting LSTM transducer models to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
+<p>Please refer to <a class="reference internal" href="../recipes/librispeech/lstm_pruned_stateless_transducer.html#export-model-for-ncnn"><span class="std std-ref">Export model for ncnn</span></a> for details.</p>
+<p>We also provide <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">https://github.com/k2-fsa/sherpa-ncnn</a>
+performing speech recognition using <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> with exported models.
+It has been tested on Linux, macOS, Windows, and Raspberry Pi. The project is
+self-contained and can be statically linked to produce a binary containing
+everything needed.</p>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../contributing/how-to-create-a-recipe.html" class="btn btn-neutral float-left" title="How to create a recipe" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="pretrained-models.html" class="btn btn-neutral float-right" title="Pre-trained models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="export-onnx.html" class="btn btn-neutral float-left" title="Export to ONNX" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../recipes/index.html" class="btn btn-neutral float-right" title="Recipes" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export model.state_dict() &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Export model with torch.jit.trace()" href="export-with-torch-jit-trace.html" />
+    <link rel="prev" title="Model export" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Model export</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Export model.state_dict()</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-use-it">When to use it</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-export">How to export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-use-the-exported-model">How to use the exported model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#use-the-exported-model-to-run-decode-py">Use the exported model to run decode.py</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn.html">Export to ncnn</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="index.html">Model export</a> &raquo;</li>
+      <li>Export model.state_dict()</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/icefall/docs/source/model-export/export-model-state-dict.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="export-model-state-dict">
+<h1>Export model.state_dict()<a class="headerlink" href="#export-model-state-dict" title="Permalink to this heading"></a></h1>
+<section id="when-to-use-it">
+<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Permalink to this heading"></a></h2>
+<p>During model training, we save checkpoints periodically to disk.</p>
+<p>A checkpoint contains the following information:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">optimizer.state_dict()</span></code></p></li>
+<li><p>and some other information related to training</p></li>
+</ul>
+</div></blockquote>
+<p>When we need to resume the training process from some point, we need a checkpoint.
+However, if we want to publish the model for inference, then only
+<code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code> is needed. In this case, we need to strip all other information
+except <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code> to reduce the file size of the published model.</p>
+</section>
+<section id="how-to-export">
+<h2>How to export<a class="headerlink" href="#how-to-export" title="Permalink to this heading"></a></h2>
+<p>Every recipe contains a file <code class="docutils literal notranslate"><span class="pre">export.py</span></code> that you can use to
+export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code> by taking some checkpoints as inputs.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Each <code class="docutils literal notranslate"><span class="pre">export.py</span></code> contains well-documented usage information.</p>
+</div>
+<p>In the following, we use
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless3/export.py">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless3/export.py</a>
+as an example.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The steps for other recipes are almost the same.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+
+./pruned_transducer_stateless3/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless3/exp <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --epoch <span class="m">20</span> <span class="se">\</span>
+  --avg <span class="m">10</span>
+</pre></div>
+</div>
+<p>will generate a file <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless3/exp/pretrained.pt</span></code>, which
+is a dict containing <code class="docutils literal notranslate"><span class="pre">{&quot;model&quot;:</span> <span class="pre">model.state_dict()}</span></code> saved by <code class="docutils literal notranslate"><span class="pre">torch.save()</span></code>.</p>
+</section>
+<section id="how-to-use-the-exported-model">
+<h2>How to use the exported model<a class="headerlink" href="#how-to-use-the-exported-model" title="Permalink to this heading"></a></h2>
+<p>For each recipe, we provide pretrained models hosted on huggingface.
+You can find links to pretrained models in <code class="docutils literal notranslate"><span class="pre">RESULTS.md</span></code> of each dataset.</p>
+<p>In the following, we demonstrate how to use the pretrained model from
+<a class="reference external" href="https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13">https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+
+git lfs install
+git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+</pre></div>
+</div>
+<p>After cloning the repo with <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code>, you will find several files in the folder
+<code class="docutils literal notranslate"><span class="pre">icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp</span></code>
+that have a prefix <code class="docutils literal notranslate"><span class="pre">pretrained-</span></code>. Those files contain <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>
+exported by the above <code class="docutils literal notranslate"><span class="pre">export.py</span></code>.</p>
+<p>In each recipe, there is also a file <code class="docutils literal notranslate"><span class="pre">pretrained.py</span></code>, which can use
+<code class="docutils literal notranslate"><span class="pre">pretrained-xxx.pt</span></code> to decode waves. The following is an example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+
+./pruned_transducer_stateless3/pretrained.py <span class="se">\</span>
+   --checkpoint ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/pretrained-iter-1224000-avg-14.pt <span class="se">\</span>
+   --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/bpe.model <span class="se">\</span>
+   --method greedy_search <span class="se">\</span>
+   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav <span class="se">\</span>
+   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav <span class="se">\</span>
+   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0002.wav
+</pre></div>
+</div>
+<p>The above commands show how to use the exported model with <code class="docutils literal notranslate"><span class="pre">pretrained.py</span></code> to
+decode multiple sound files. Its output is given as follows for reference:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">233</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">265</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;best_train_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_valid_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_train_epoch&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;best_valid_epoch&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;batch_idx_train&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;log_interval&#39;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s1">&#39;reset_interval&#39;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span> <span class="s1">&#39;valid_interval&#39;</span><span class="p">:</span> <span class="mi">3000</span><span class="p">,</span> <span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;subsampling_factor&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;encoder_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;decoder_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;joiner_dim&#39;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;model_warm_step&#39;</span><span class="p">:</span> <span class="mi">3000</span><span class="p">,</span> <span class="s1">&#39;env_info&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;k2-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.21&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-build-type&#39;</span><span class="p">:</span> <span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;4810e00d8738f1a21278b0156a42ff396a2d40ac&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Fri Oct 7 19:35:03 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.3.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.10.0+cu102&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-version&#39;</span><span class="p">:</span> <span class="s1">&#39;10.2&#39;</span><span class="p">,</span> <span class="s1">&#39;python-version&#39;</span><span class="p">:</span> <span class="s1">&#39;3.8&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-branch&#39;</span><span class="p">:</span> <span class="s1">&#39;onnx-doc-1013&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;c39cba5-dirty&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Thu Oct 13 15:17:20 2022&#39;</span><span class="p">,</span> <span class="s1">&#39;icefall-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/k2-dev/fangjun/open-source/icefall-master&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/k2-dev/fangjun/open-source/k2-master/k2/python/k2/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;lhotse-path&#39;</span><span class="p">:</span> <span class="s1">&#39;/ceph-fj/fangjun/open-source-2/lhotse-jsonl/lhotse/__init__.py&#39;</span><span class="p">,</span> <span class="s1">&#39;hostname&#39;</span><span class="p">:</span> <span class="s1">&#39;de-74279-k2-test-4-0324160024-65bfd8b584-jjlbn&#39;</span><span class="p">,</span> <span class="s1">&#39;IP address&#39;</span><span class="p">:</span> <span class="s1">&#39;10.177.74.203&#39;</span><span class="p">},</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/pretrained-iter-1224000-avg-14.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;bpe_model&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/bpe.model&#39;</span><span class="p">,</span> <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="s1">&#39;greedy_search&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0002.wav&#39;</span><span class="p">],</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">16000</span><span class="p">,</span> <span class="s1">&#39;beam_size&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;beam&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;max_contexts&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;max_states&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;context_size&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;max_sym_per_frame&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;simulate_streaming&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;decode_chunk_size&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span> <span class="s1">&#39;left_context&#39;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span> <span class="s1">&#39;dynamic_chunk_training&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;causal_convolution&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;short_chunk_size&#39;</span><span class="p">:</span> <span class="mi">25</span><span class="p">,</span> <span class="s1">&#39;num_left_chunks&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;unk_id&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">500</span><span class="p">}</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">233</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">271</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">233</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">273</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">612</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">train</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">458</span><span class="p">]</span> <span class="n">Disable</span> <span class="n">giga</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">623</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">277</span><span class="p">]</span> <span class="n">Number</span> <span class="n">of</span> <span class="n">model</span> <span class="n">parameters</span><span class="p">:</span> <span class="mi">78648040</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">951</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">285</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">952</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">295</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0002.wav&#39;</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">02</span><span class="p">,</span><span class="mi">957</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">301</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">700</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">329</span><span class="p">]</span> <span class="n">Using</span> <span class="n">greedy_search</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">912</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">388</span><span class="p">]</span>
+<span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">pruned</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless3</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">05</span><span class="o">-</span><span class="mi">13</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">AFTER</span> <span class="n">EARLY</span> <span class="n">NIGHTFALL</span> <span class="n">THE</span> <span class="n">YELLOW</span> <span class="n">LAMPS</span> <span class="n">WOULD</span> <span class="n">LIGHT</span> <span class="n">UP</span> <span class="n">HERE</span> <span class="n">AND</span> <span class="n">THERE</span> <span class="n">THE</span> <span class="n">SQUALID</span> <span class="n">QUARTER</span> <span class="n">OF</span> <span class="n">THE</span> <span class="n">BROTHELS</span>
+
+<span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">pruned</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless3</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">05</span><span class="o">-</span><span class="mi">13</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">GOD</span> <span class="n">AS</span> <span class="n">A</span> <span class="n">DIRECT</span> <span class="n">CONSEQUENCE</span> <span class="n">OF</span> <span class="n">THE</span> <span class="n">SIN</span> <span class="n">WHICH</span> <span class="n">MAN</span> <span class="n">THUS</span> <span class="n">PUNISHED</span> <span class="n">HAD</span> <span class="n">GIVEN</span> <span class="n">HER</span> <span class="n">A</span> <span class="n">LOVELY</span> <span class="n">CHILD</span> <span class="n">WHOSE</span> <span class="n">PLACE</span> <span class="n">WAS</span> <span class="n">ON</span> <span class="n">THAT</span> <span class="n">SAME</span> <span class="n">DISHONORED</span> <span class="n">BOSOM</span> <span class="n">TO</span> <span class="n">CONNECT</span> <span class="n">HER</span> <span class="n">PARENT</span> <span class="n">FOREVER</span> <span class="n">WITH</span> <span class="n">THE</span> <span class="n">RACE</span> <span class="n">AND</span> <span class="n">DESCENT</span> <span class="n">OF</span> <span class="n">MORTALS</span> <span class="n">AND</span> <span class="n">TO</span> <span class="n">BE</span> <span class="n">FINALLY</span> <span class="n">A</span> <span class="n">BLESSED</span> <span class="n">SOUL</span> <span class="n">IN</span> <span class="n">HEAVEN</span>
+
+<span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">pruned</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless3</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">05</span><span class="o">-</span><span class="mi">13</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0002.</span><span class="n">wav</span><span class="p">:</span>
+<span class="n">YET</span> <span class="n">THESE</span> <span class="n">THOUGHTS</span> <span class="n">AFFECTED</span> <span class="n">HESTER</span> <span class="n">PRYNNE</span> <span class="n">LESS</span> <span class="n">WITH</span> <span class="n">HOPE</span> <span class="n">THAN</span> <span class="n">APPREHENSION</span>
+
+
+<span class="mi">2022</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span> <span class="mi">19</span><span class="p">:</span><span class="mi">09</span><span class="p">:</span><span class="mi">06</span><span class="p">,</span><span class="mi">912</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">390</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">Done</span>
+</pre></div>
+</div>
+</section>
+<section id="use-the-exported-model-to-run-decode-py">
+<h2>Use the exported model to run decode.py<a class="headerlink" href="#use-the-exported-model-to-run-decode-py" title="Permalink to this heading"></a></h2>
+<p>When we publish the model, we always note down its WERs on some test
+dataset in <code class="docutils literal notranslate"><span class="pre">RESULTS.md</span></code>. This section describes how to use the
+pretrained model to reproduce the WER.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+git lfs install
+git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+
+<span class="nb">cd</span> icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp
+ln -s pretrained-iter-1224000-avg-14.pt epoch-9999.pt
+<span class="nb">cd</span> ../..
+</pre></div>
+</div>
+<p>We create a symlink with name <code class="docutils literal notranslate"><span class="pre">epoch-9999.pt</span></code> to <code class="docutils literal notranslate"><span class="pre">pretrained-iter-1224000-avg-14.pt</span></code>,
+so that we can pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">9999</span> <span class="pre">--avg</span> <span class="pre">1</span></code> to <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> in the following
+command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless3/decode.py <span class="se">\</span>
+    --epoch <span class="m">9999</span> <span class="se">\</span>
+    --avg <span class="m">1</span> <span class="se">\</span>
+    --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp <span class="se">\</span>
+    --lang-dir ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500 <span class="se">\</span>
+    --max-duration <span class="m">600</span> <span class="se">\</span>
+    --decoding-method greedy_search
+</pre></div>
+</div>
+<p>You will find the decoding results in
+<code class="docutils literal notranslate"><span class="pre">./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/greedy_search</span></code>.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>For some recipes, you also need to pass <code class="docutils literal notranslate"><span class="pre">--use-averaged-model</span> <span class="pre">False</span></code>
+to <code class="docutils literal notranslate"><span class="pre">decode.py</span></code>. The reason is that the exported pretrained model is already
+the averaged one.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Before running <code class="docutils literal notranslate"><span class="pre">decode.py</span></code>, we assume that you have already run
+<code class="docutils literal notranslate"><span class="pre">prepare.sh</span></code> to prepare the test dataset.</p>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Model export" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="export-with-torch-jit-trace.html" class="btn btn-neutral float-right" title="Export model with torch.jit.trace()" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
