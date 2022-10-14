@@ -66,7 +66,7 @@ In the following, we demonstrate how to use the pretrained model from
 
 After cloning the repo with ``git lfs``, you will find several files in the folder
 ``icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp``
-that have a prefix ``pretrained-``. Those files contains ``model.state_dict()``
+that have a prefix ``pretrained-``. Those files contain ``model.state_dict()``
 exported by the above ``export.py``.
 
 In each recipe, there is also a file ``pretrained.py``, which can use

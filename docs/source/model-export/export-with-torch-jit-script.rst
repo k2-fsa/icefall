@@ -42,7 +42,7 @@ It will generate a file ``cpu_jit.pt`` in ``pruned_transducer_stateless3/exp``.
 .. caution::
 
    Don't be confused by ``cpu`` in ``cpu_jit.pt``. We move all parameters
-   to CPU before saving it into a ``pt`` file, that's why we use ``cpu``
+   to CPU before saving it into a ``pt`` file; that's why we use ``cpu``
    in the filename.
 
 How to use the exported model

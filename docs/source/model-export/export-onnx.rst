@@ -63,6 +63,7 @@ waves with the generated files:
 How to use the exported model
 -----------------------------
 
-Please refer to
-`<https://github.com/k2-fsa/sherpa-onnx>`_ for usage.
-You can also find pretrained models there.
+We also provide `<https://github.com/k2-fsa/sherpa-onnx>`_
+performing speech recognition using `onnxruntime <https://github.com/microsoft/onnxruntime>`_
+with exported models.
+It has been tested on Linux, macOS, and Windows.
