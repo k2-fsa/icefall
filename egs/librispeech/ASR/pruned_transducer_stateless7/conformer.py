@@ -844,7 +844,7 @@ class EntropyPenaltyFunction(torch.autograd.Function):
                 assert entropy.shape == (num_heads,)
                 excess_entropy = (entropy - entropy_limit).relu()
                 above_cutoff = (entropy > 0)  # tensor of shape (num_heads,)
-                small_grad_norm = (grad_norms < 0.5 * grad_norms.mean())
+                small_grad_norm = (grad_norms <  grad_norms.mean())
                 will_penalize = torch.logical_and(above_cutoff, small_grad_norm)
                 if random.random() < 0.005 or __name__ == "__main__":
                     logging.info(f"entropy = {entropy}, entropy_limit={entropy_limit}, above_cutoff={above_cutoff}, small_grad_norm={small_grad_norm}, will_penalize={will_penalize}")
