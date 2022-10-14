@@ -77,18 +77,11 @@ def get_parser():
         help="Multicharacter strings that do not need to be split",
     )
 
-    parser.add_argument(
-        "--debug", action="store_true", help="Use hardcoded arguments. "
-    )
-
     return parser.parse_args()
 
 
 def main():
     args = get_parser()
-    if args.debug:
-        args.trans_mode = "disfluent"
-        args.train_cuts = Path("data/manifests/cuts_train.jsonl.gz")
 
     logging.basicConfig(
         format=(
@@ -113,7 +106,7 @@ def main():
     words = set()
     logging.info(
         f"Creating vocabulary from {args.train_cut.name}"
-        "at {args.trans_mode} mode."
+        f" at {args.trans_mode} mode."
     )
     for cut in train_set:
         try:
