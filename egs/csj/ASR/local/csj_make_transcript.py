@@ -527,6 +527,8 @@ def modify_text(
             continue
         elif word.start < line_start:
             continue
+        elif "×" in word.surface:
+            continue
         elif word.end <= line_end:
             if gap_sym and gap < (word.start - last_end):
                 line.append(gap_sym)
@@ -655,7 +657,7 @@ def make_text(
     if line and "×" not in line:
         out.append(
             f"{line_spk_id}_{line_sgid} {line_start:09.3f} "
-            "{last_end:09.3f} " + line
+            f"{last_end:09.3f} " + line
         )
         segments.append((f"{line_spk_id}_{line_sgid}", line_start, last_end))
 
@@ -872,9 +874,6 @@ def get_args():
         action="store_true",
         help="Use existing segments in the directory",
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Use hardcoded parameters"
-    )
 
     return parser.parse_args()
 
@@ -888,16 +887,6 @@ def main():
         ),
         level=logging.INFO,
     )
-
-    if args.debug:
-        args.corpus_dir = Path("/mnt/minami_data_server/t2131178/corpus/CSJ")
-        args.trans_dir = Path(
-            "/mnt/minami_data_server/t2131178/corpus/CSJ/retranscript"
-        )
-        args.trans_name = "disfluent"
-        args.use_segments = True
-        args.num_jobs = 8
-        args.config = Path("local/conf/number.ini")
 
     config = load_config(args.config)
     trans_mode = config["CONSTANTS"]["MODE"]

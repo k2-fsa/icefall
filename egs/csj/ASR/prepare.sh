@@ -44,7 +44,7 @@ stop_stage=100
 csj_dir=/mnt/minami_data_server/t2131178/corpus/CSJ
 musan_dir=/mnt/minami_data_server/t2131178/corpus/musan/musan
 trans_dir=$csj_dir/retranscript
-csj_fbank_dir=$csj_dir/fbank
+csj_fbank_dir=/mnt/host/csj_data/fbank
 musan_fbank_dir=$musan_dir/fbank
 csj_manifest_dir=data/manifests
 musan_manifest_dir=$musan_dir/manifests
@@ -61,24 +61,21 @@ log() {
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then 
     log "Stage 0: Make CSJ Transcript"
-    python -O local/csj_make_transcript.py --corpus-dir $csj_dir \
+    python local/csj_make_transcript.py --corpus-dir $csj_dir \
         --trans-dir $trans_dir --config local/conf/disfluent.ini --write-segments \
         -j $nj
 
     if $parse_more_transcript_modes ; then
         for mode_file in local/conf/{fluent,symbol,number}.ini ; do
-            if [ $mode_file == "local/conf/disfluent.ini" ]; then 
-                continue
-            fi
-            python -O local/csj_make_transcript.py --corpus-dir $csj_dir \
-                --trans-dir $trans_dir --config $mode_file --use-segments \ 
-                -j $nj
+            python local/csj_make_transcript.py --corpus-dir $csj_dir \
+                --trans-dir $trans_dir --config $mode_file --use-segments -j $nj
         done
     fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then 
     log "Stage 1: Prepare CSJ manifest"
+    # python local/lhotse_prepare_csj.py --trans-dir $trans_dir --manifest-dir $csj_manifest_dir
     lhotse prepare csj $trans_dir $csj_manifest_dir
 fi
 
@@ -104,7 +101,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
             eval3
         )
         for part in ${parts[@]}; do 
-            python local/validate_manifest.py --manifest $csj_manifest_dir/cuts_$part.jsonl.gz
+            python local/validate_manifest.py --manifest $csj_manifest_dir/csj_cuts_$part.jsonl.gz
         done
         touch $csj_fbank_dir/.csj-validated.done
     fi
@@ -120,7 +117,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 
     for mode in ${modes[@]}; do
         python local/prepare_lang_char.py --trans-mode $mode \
-            --train-cuts $csj_manifest_dir/csj_cuts_train.jsonl.gz \
+            --train-cut $csj_manifest_dir/csj_cuts_train.jsonl.gz \
             --lang-dir lang_char_$mode
     done
 fi
@@ -130,7 +127,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     mkdir -p $musan_fbank_dir
 
     if [ ! -e $musan_fbank_dir/.musan.done ]; then 
-        python -O local/compute_fbank_musan.py --manifest-dir $musan_manifest_dir --fbank-dir $musan_fbank_dir
+        python local/compute_fbank_musan.py --manifest-dir $musan_manifest_dir --fbank-dir $musan_fbank_dir
         touch $musan_fbank_dir/.musan.done
     fi
 fi

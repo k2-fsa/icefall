@@ -60,6 +60,21 @@ def make_cutset_blueprints(
     split: int,
 ) -> List[Tuple[str, CutSet]]:
 
+    cut_sets = []
+    # Create eval datasets
+    logging.info("Creating eval cuts.")
+    for i in range(1, 4):
+        cut_set = CutSet.from_manifests(
+            recordings=RecordingSet.from_file(
+                manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"
+            ),
+            supervisions=SupervisionSet.from_file(
+                manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz"
+            ),
+        )
+        cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
+        cut_sets.append((f"eval{i}", cut_set))
+
     # Create train and valid cuts
     logging.info(
         "Loading, trimming, and shuffling the remaining core+noncore cuts."
@@ -91,21 +106,7 @@ def make_cutset_blueprints(
         train_set + train_set.perturb_speed(0.9) + train_set.perturb_speed(1.1)
     )
 
-    cut_sets = [("valid", valid_set), ("train", train_set)]
-
-    # Create eval datasets
-    logging.info("Creating eval cuts.")
-    for i in range(1, 4):
-        cut_set = CutSet.from_manifests(
-            recordings=RecordingSet.from_file(
-                manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"
-            ),
-            supervisions=SupervisionSet.from_file(
-                manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz"
-            ),
-        )
-        cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
-        cut_sets.append((f"eval{i}", cut_set))
+    cut_sets.extend([("valid", valid_set), ("train", train_set)])
 
     return cut_sets
 
@@ -125,22 +126,12 @@ def get_args():
     parser.add_argument(
         "--split", type=int, default=4000, help="Split at this index"
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Use hardcoded parameters"
-    )
 
     return parser.parse_args()
 
 
 def main():
     args = get_args()
-
-    if args.debug:
-        args.manifest_dir = Path("data/manifests")
-        args.fbank_dir = Path(
-            "/mnt/minami_data_server/t2131178/corpus/CSJ/fbank_new"
-        )
-        args.split = 4000
 
     extractor = Fbank(FbankConfig(num_mel_bins=80))
     num_jobs = min(16, os.cpu_count())
