@@ -959,9 +959,13 @@ class RelPositionMultiheadAttention(nn.Module):
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim // 2, bias=True)
 
         # self.whiten is applied on the values in forward()
-        self.whiten = Whiten(whitening_limit=2.0,
-                             prob=1.0 if __name__ == "__main__" else 0.1,
-                             grad_scale=0.0025)
+        self.whiten_values = Whiten(whitening_limit=2.0,
+                                    prob=1.0 if __name__ == "__main__" else 0.1,
+                                    grad_scale=0.0025)
+        # self.whiten_keys is applied on the keys in forward()
+        self.whiten_keys = Whiten(whitening_limit=2.0,
+                                  prob=1.0 if __name__ == "__main__" else 0.1,
+                                  grad_scale=0.0025)
 
 
         self.in_balancer = ActivationBalancer(3 * embed_dim // 2,
@@ -975,10 +979,10 @@ class RelPositionMultiheadAttention(nn.Module):
         self.in_proj2 = nn.Linear(embed_dim, embed_dim // 2, bias=False)
         self.out_proj2 = ScaledLinear(embed_dim // 2, embed_dim, bias=True,
                                       initial_scale=0.05)
-        # self.whiten is applied on the values in forward2()
-        self.whiten2 = Whiten(whitening_limit=2.0,
-                              prob=1.0 if __name__ == "__main__" else 0.1,
-                              grad_scale=0.0025)
+        # self.whiten_values2 is applied on the values in forward2()
+        self.whiten_values2 = Whiten(whitening_limit=2.0,
+                                     prob=1.0 if __name__ == "__main__" else 0.1,
+                                     grad_scale=0.0025)
 
 
         # linear transformation for positional encoding (projects to a scalar per head,
@@ -1203,8 +1207,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
         q = (q * scaling).contiguous().view(seq_len, bsz, num_heads, head_dim)
         k = k.contiguous().view(-1, bsz, num_heads, head_dim)
+        k = self.whiten_keys(k)  # does nothing in the forward pass.
         v = v.contiguous().view(-1, bsz, num_heads, head_dim)
-        v = self.whiten(v)  # does nothing in the forward pass.
+        v = self.whiten_values(v)  # does nothing in the forward pass.
         v = v.view(-1, bsz * num_heads, head_dim).transpose(0, 1)
 
 
@@ -1293,7 +1298,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # v: (tgt_len, bsz, embed_dim // 2)
         v = self.in_proj2(x)
         v = v.contiguous().view(-1, bsz, num_heads, head_dim)
-        v = self.whiten2(v)  # does nothing in the forward pass.
+        v = self.whiten_values2(v)  # does nothing in the forward pass.
         v = v.contiguous().view(seq_len, bsz * num_heads, head_dim).transpose(0, 1)
 
         # now v: (bsz * num_heads, seq_len, head_dim)
