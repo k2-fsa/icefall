@@ -2,6 +2,7 @@ import requests
 import logging
 from configparser import ConfigParser
 
+
 def escape_html(text : str):
     """
     Escapes all html characters in text
@@ -10,23 +11,29 @@ def escape_html(text : str):
     """
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
+
 class TelegramStreamIO(logging.Handler):
 
     API_ENDPOINT = 'https://api.telegram.org'
     MAX_MESSAGE_LEN = 4096
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s at %(funcName)s (line %(lineno)s):\n\n%(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s at %(funcName)s "
+        "(line %(lineno)s):\n\n%(message)s"
+    )
 
     def __init__(self, tg_configfile : str):
         super(TelegramStreamIO, self).__init__()
         config = ConfigParser()
         if not config.read(tg_configfile):
-            raise FileNotFoundError(f"misc.ini not found. Retry without --use-telegram flag.")
+            raise FileNotFoundError(
+                f"{tg_configfile} not found. "
+                "Retry without --telegram-cred flag."
+            )
         config = config['TELEGRAM']
-        token = config['token'] 
+        token = config['token']
         self.chat_id = config['chat_id']
         self.url = f'{self.API_ENDPOINT}/bot{token}/sendMessage'
 
-    
     def emit(self, record : logging.LogRecord):
         """
         Emit a record.
@@ -39,12 +46,10 @@ class TelegramStreamIO(logging.Handler):
         }
         try:
             requests.get(self.url, json=data)
-            #return response.json()
+            # return response.json()
         except Exception as e:
             logging.error(f"Failed to send telegram message: {repr(e)}")
             pass
-
-
 
     def mapLogRecord(self, record):
         """

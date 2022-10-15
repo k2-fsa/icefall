@@ -165,16 +165,21 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--short-chunk-size",
         type=int,
         default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
+        help=(
+            "Chunk length of dynamic training, the chunk size would be either"
+            "max sequence length of current batch or uniformly sampled from "
+            "(1, short_chunk_size)."
+        ),
     )
 
     parser.add_argument(
         "--num-left-chunks",
         type=int,
         default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
+        help=(
+            "How many left context can be seen in chunks "
+            "when calculating attention."
+        ),
     )
 
 
@@ -273,8 +278,10 @@ def get_parser():
         "--lr-epochs",
         type=float,
         default=6,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
-        """,
+        help=(
+            "Number of epochs that affects "
+            "how rapidly the learning rate decreases."
+        ),
     )
 
     parser.add_argument(
@@ -496,7 +503,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         joiner=joiner,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
-        # joiner_dim=params.joiner_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -670,7 +677,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
-            # reduction="none",
+            reduction="none",
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -688,8 +695,8 @@ def compute_loss(
             # If the batch contains more than 10 utterances AND
             # if either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
-            if torch.all(~simple_loss_is_finite) or torch.all(
-                ~pruned_loss_is_finite
+            if is_training and (torch.all(~simple_loss_is_finite) or torch.all(
+                ~pruned_loss_is_finite)
             ):
                 raise ValueError(
                     "There are too many utterances in this batch "
@@ -967,7 +974,7 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     if args.telegram_cred:
-        formatter = logging.Formatter(f'%(asctime)s \n%(message)s')
+        formatter = logging.Formatter('%(asctime)s \n%(message)s')
         tg = TelegramStreamIO(args.telegram_cred)
         tg.setLevel(logging.WARN)
         tg.setFormatter(formatter)
@@ -1052,22 +1059,11 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 15.0
+        return 1.0 <= c.duration <= 20.0
 
     csj_corpus = CSJAsrDataModule(args)
 
     train_cuts = csj_corpus.train_cuts()
-
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
-        return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1079,7 +1075,7 @@ def run(rank, world_size, args):
         sampler_state_dict = None
 
     train_dl = csj_corpus.train_dataloaders(
-        train_cuts, # sampler_state_dict=sampler_state_dict
+        train_cuts, sampler_state_dict=sampler_state_dict
     )
 
     valid_cuts = csj_corpus.valid_cuts()
@@ -1100,7 +1096,10 @@ def run(rank, world_size, args):
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    for epoch in range(params.start_epoch, params.start_epoch + params.num_epochs):
+    for epoch in range(
+        params.start_epoch,
+        params.start_epoch + params.num_epochs
+    ):
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)

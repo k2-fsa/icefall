@@ -1,18 +1,22 @@
 python pruned_transducer_stateless5/train.py \
   --exp-dir pruned_transducer_stateless5/exp_disfluent \
-  --num-encoder-layers 24 \
-  --dim-feedforward 1536 \
+  --num-encoder-layers 18 \
+  --dim-feedforward 2048 \
   --nhead 8 \
-  --encoder-dim 384 \
+  --encoder-dim 512 \
   --decoder-dim 512 \
   --joiner-dim 512 \
   --dynamic-chunk-training 1 \
   --causal-convolution 1 \
   --short-chunk-size 20 \
   --num-left-chunks 4 \
-  --max-duration 150 \
+  --max-duration 155 \
   --world-size 1 \
   --start-epoch 1 \
   --num-epochs 10 \
   --transcript-mode disfluent \
-  --context-size 2
+  --context-size 3 \
+  --telegram-cred misc.ini \
+  --word-table lang_char_disfluent/words.txt \
+  --musan-dir /mnt/minami_data_server/t2131178/corpus/musan/musan/fbank || \
+python notify_tg.py "Something went wrong during training"
