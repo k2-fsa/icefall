@@ -421,6 +421,172 @@ class ActivationBalancer(torch.nn.Module):
             return x
 
 
+
+def _diag(x: Tensor):  # like .diag(), but works for tensors with 3 dims.
+    if x.ndim == 2:
+        return x.diag()
+    else:
+        (batch, dim, dim) = x.shape
+        x = x.reshape(batch, dim * dim)
+        x = x[:, ::dim+1]
+        assert x.shape == (batch, dim)
+        return x
+
+
+def _whitening_metric(x: Tensor,
+                      num_groups: int):
+    """
+    Computes the "whitening metric", a value which will be 1.0 if all the eigenvalues of
+    of the centered feature covariance are the same within each group's covariance matrix
+    and also between groups.
+    Args:
+        x: a Tensor of shape (*, num_channels)
+     num_groups:  the number of groups of channels, a number >=1 that divides num_channels
+    Returns:
+        Returns a scalar Tensor that will be 1.0 if the data is "perfectly white" and
+    greater than 1.0 otherwise.
+    """
+    assert x.dtype != torch.float16
+    x = x.reshape(-1, x.shape[-1])
+    (num_frames, num_channels) = x.shape
+    assert num_channels % num_groups == 0
+    channels_per_group = num_channels // num_groups
+    x = x.reshape(num_frames, num_groups, channels_per_group).transpose(0, 1)
+    # x now has shape (num_groups, num_frames, channels_per_group)
+    # subtract the mean so we use the centered, not uncentered, covariance.
+    # My experience has been that when we "mess with the gradients" like this,
+    # it's better not do anything that tries to move the mean around, because
+    # that can easily cause instability.
+    x = x - x.mean(dim=1, keepdim=True)
+    # x_covar: (num_groups, channels_per_group, channels_per_group)
+    x_covar = torch.matmul(x.transpose(1, 2), x)
+    x_covar_mean_diag = _diag(x_covar).mean()
+    # the following expression is what we'd get if we took the matrix product
+    # of each covariance and measured the mean of its trace, i.e.
+    # the same as _diag(torch.matmul(x_covar, x_covar)).mean().
+    x_covarsq_mean_diag = (x_covar ** 2).sum() / (num_groups * channels_per_group)
+    # this metric will be >= 1.0; the larger it is, the less 'white' the data was.
+    metric = x_covarsq_mean_diag / (x_covar_mean_diag ** 2 + 1.0e-20)
+    return metric
+
+
+class WhiteningPenaltyFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx,
+                x: Tensor,
+                num_groups: int,
+                whitening_limit: float,
+                grad_scale: float) -> Tensor:
+        ctx.save_for_backward(x)
+        ctx.num_groups = num_groups
+        ctx.whitening_limit = whitening_limit
+        ctx.grad_scale = grad_scale
+        return x
+
+    @staticmethod
+    def backward(ctx,
+                 x_grad: Tensor):
+        x_orig, = ctx.saved_tensors
+        with torch.enable_grad():
+            with torch.cuda.amp.autocast(enabled=False):
+                x_detached = x_orig.to(torch.float32).detach()
+                x_detached.requires_grad = True
+
+                metric = _whitening_metric(x_detached, ctx.num_groups)
+
+                if random.random() < 0.005 or __name__ == "__main__":
+                    logging.info(f"Whitening: num_groups={ctx.num_groups}, num_channels={x_orig.shape[-1]}, "
+                                 f"metric={metric.item():.2f} vs. limit={ctx.whitening_limit}")
+
+                (metric - ctx.whitening_limit).relu().backward()
+                penalty_grad = x_detached.grad
+                scale = ctx.grad_scale * (x_grad.to(torch.float32).norm() /
+                                          (penalty_grad.norm() + 1.0e-20))
+                penalty_grad = penalty_grad * scale
+        return x_grad + penalty_grad.to(x_grad.dtype), None, None, None
+
+
+
+class Whiten(nn.Module):
+    def __init__(
+            self,
+            num_groups: int,
+            whitening_limit: float,
+            prob: Union[float, Tuple[float,float]],
+            grad_scale: float):
+        """
+        Args:
+          num_groups: the number of groups to divide the channel dim into before
+            whitening.  We will attempt to make the feature covariance
+            within each group, after mean subtraction, as "white" as possible,
+            while having the same trace across all groups.
+         whitening_limit: a value greater than 1.0, that dictates how much
+           freedom we have to violate the constraints.  1.0 would mean perfectly
+           white, with exactly the same trace across groups; larger values
+           give more freedom.  E.g. 2.0.
+         prob: the probability with which we apply the gradient modification
+           (also affects the grad scale).  May be supplied as a float,
+           or as a pair (min_prob, max_prob)
+
+          grad_scale: determines the scale on the gradient term from this object,
+            relative to the rest of the gradient on the attention weights.
+            E.g. 0.02 (you may want to use smaller values than this if prob is large)
+        """
+        super(Whiten, self).__init__()
+        assert num_groups >= 1
+        assert whitening_limit >= 1
+        assert grad_scale >= 0
+        self.num_groups = num_groups
+        self.whitening_limit = whitening_limit
+        if isinstance(prob, float):
+            assert 0 < prob <= 1
+            self.prob = prob
+        else:
+            (self.min_prob, self.max_prob) = prob
+            assert 0 < self.min_prob < self.max_prob <= 1
+            self.prob = self.max_prob
+
+        self.grad_scale = grad_scale
+
+    def forward(self,
+                x: Tensor) -> Tensor:
+        """
+        In the forward pass, this function just returns the input unmodified.
+        In the backward pass, it will modify the gradients to ensure that the
+        distribution in each group has close to (lambda times I) as the covariance
+        after mean subtraction, with the same lambda across groups.
+        For whitening_limit > 1, there will be more freedom to violate this
+        constraint.
+
+        Args:
+           x: the input of shape (*, num_channels)
+
+        Returns:
+            x, unmodified.   You should make sure
+        you use the returned value, or the graph will be freed
+        and nothing will happen in backprop.
+        """
+        if not x.requires_grad or random.random() > self.prob or self.grad_scale == 0:
+            return x
+        else:
+            if hasattr(self, 'min_prob') and random.random() < 0.25:
+                # occasionally switch between min_prob and max_prob, based on whether
+                # we are above or below the threshold.
+                if _whitening_metric(x, self.num_groups) > self.whitening_limit:
+                    # there would be a change to the grad.
+                    self.prob = self.max_prob
+                else:
+                    self.prob = self.min_prob
+
+            return WhiteningPenaltyFunction.apply(x,
+                                                  self.num_groups,
+                                                  self.whitening_limit,
+                                                  self.grad_scale)
+
+
+
+
+
 class MaxEig(torch.nn.Module):
     """
     Modifies the backpropped derivatives of a function to try to discourage
@@ -632,6 +798,35 @@ def _test_max_eig():
             assert not torch.allclose(x.grad, y_grad)
 
 
+def _test_whiten():
+    for proportion in [0.1, 0.5, 10.0]:
+        logging.info(f"_test_whiten(): proportion = {proportion}")
+        x = torch.randn(100, 128)
+        direction = torch.randn(128)
+        coeffs = torch.randn(100, 1)
+        x += proportion * direction * coeffs
+
+        x.requires_grad = True
+
+        num_channels = 128
+        m = Whiten(1, # num_groups
+                   5.0, # whitening_limit,
+                   prob=1.0,
+                   grad_scale=0.1) # grad_scale
+
+
+        for _ in range(4):
+            y = m(x)
+
+        y_grad = torch.randn_like(x)
+        y.backward(gradient=y_grad)
+
+        if proportion < 0.2:
+            assert torch.allclose(x.grad, y_grad)
+        elif proportion > 1.0:
+            assert not torch.allclose(x.grad, y_grad)
+
+
 
 def _test_activation_balancer_sign():
     probs = torch.arange(0, 1, 0.01)
@@ -714,6 +909,7 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    _test_whiten()
     _test_max_eig()
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
