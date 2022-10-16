@@ -32,8 +32,8 @@
 #     - speech
 # 
 # By default, this script produces the original transcript like kaldi and espnet. Optionally, you
-# can generate other transcript formats by turning on parse_more_transcript_modes. The details of 
-# these transript formats can be found in local/conf/*.ini.
+# can generate other transcript formats by supplying your own config files. A few examples of these
+# config files can be found in local/conf.
 
 set -eou pipefail
 
@@ -48,7 +48,6 @@ csj_fbank_dir=/mnt/host/csj_data/fbank
 musan_fbank_dir=$musan_dir/fbank
 csj_manifest_dir=data/manifests
 musan_manifest_dir=$musan_dir/manifests
-parse_more_transcript_modes=true
 
 . shared/parse_options.sh || exit 1
 
@@ -59,24 +58,13 @@ log() {
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
 
-if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then 
-    log "Stage 0: Make CSJ Transcript"
-    python local/csj_make_transcript.py --corpus-dir $csj_dir \
-        --trans-dir $trans_dir --config local/conf/disfluent.ini --write-segments \
-        -j $nj
-
-    if $parse_more_transcript_modes ; then
-        for mode_file in local/conf/{fluent,symbol,number}.ini ; do
-            python local/csj_make_transcript.py --corpus-dir $csj_dir \
-                --trans-dir $trans_dir --config $mode_file --use-segments -j $nj
-        done
-    fi
-fi
-
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then 
     log "Stage 1: Prepare CSJ manifest"
-    # python local/lhotse_prepare_csj.py --trans-dir $trans_dir --manifest-dir $csj_manifest_dir
-    lhotse prepare csj $trans_dir $csj_manifest_dir
+    # If you want to generate more transcript modes, append the path to those config files at c.
+    # Example: lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -c local/conf/disfluent.ini
+    # NOTE: In case multiple config files are supplied, the second config file and onwards will inherit
+    #       the segment boundaries of the first config file. 
+    lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -j 4
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -111,9 +99,9 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     log "Stage 4: Prepare CSJ lang"
     modes=disfluent
 
-    if $parse_more_transcript_modes; then 
-        modes="$modes fluent symbol number"
-    fi
+    # If you want prepare the lang directory for other transcript modes, just append
+    # the name of those modes behind. An example is shown as below:-
+    # modes="$modes fluent symbol number"
 
     for mode in ${modes[@]}; do
         python local/prepare_lang_char.py --trans-mode $mode \
