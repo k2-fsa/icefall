@@ -134,5 +134,6 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then 
     log "Stage 6: Show manifest statistics"
-    python local/display_manifest_statistics.py --manifest-dir $csj_manifest_dir
+    python local/display_manifest_statistics.py --manifest-dir $csj_manifest_dir > $csj_manifest_dir/manifest_statistics.txt
+    cat $csj_manifest_dir/manifest_statistics.txt
 fi
