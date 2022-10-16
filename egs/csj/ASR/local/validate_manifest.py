@@ -47,9 +47,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Use hardcoded parameters"
+        "--debug", action="store_true", help="Use hardcoded parameters"
     )
 
     return parser.parse_args()
@@ -62,9 +60,9 @@ def validate_one_supervision_per_cut(c: Cut):
 
 def validate_supervision_and_cut_time_bounds(c: Cut):
     s = c.supervisions[0]
-    
-    # Removed because when the cuts were trimmed from supervisions, 
-    # the start time of the supervision can be lesser than cut start time. 
+
+    # Removed because when the cuts were trimmed from supervisions,
+    # the start time of the supervision can be lesser than cut start time.
     # https://github.com/lhotse-speech/lhotse/issues/813
     # if s.start < c.start:
     #     raise ValueError(
@@ -82,7 +80,10 @@ def validate_supervision_and_cut_time_bounds(c: Cut):
 def main():
     args = get_args()
     if args.debug:
-        args.manifest = "/mnt/minami_data_server/t2131178/corpus/JP_Speech/fbank/cuts_eval3.jsonl.gz"
+        args.manifest = (
+            "/mnt/minami_data_server/t2131178/corpus/"
+            "JP_Speech/fbank/cuts_eval3.jsonl.gz"
+        )
 
     manifest = Path(args.manifest)
     logging.info(f"Validating {manifest}")

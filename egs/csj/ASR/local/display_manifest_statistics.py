@@ -15,7 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
+import argparse
+from pathlib import Path
+
+from lhotse import CutSet, load_manifest
+
+ARGPARSE_DESCRIPTION = """
 This file displays duration statistics of utterances in a manifest.
 You can use the displayed value to choose minimum/maximum duration
 to remove short and long utterances during the training.
@@ -25,30 +30,30 @@ for usage.
 """
 
 
-from pathlib import Path
-from lhotse import load_manifest
-# from lhotse import CutSet
-# import numpy as np
+def get_parser():
+    parser = argparse.ArgumentParser(
+        description=ARGPARSE_DESCRIPTION,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--manifest-dir", type=Path, help="Path to cutset manifests"
+    )
+
+    return parser.parse_args()
+
 
 def main():
-    for path in Path("data/manifests").glob("tedxjp10k_cuts_*.jsonl.gz"):
-        
-        cuts = load_manifest(path)
-        # durations = [c.duration for c in cuts]
-        
-        print(path.name)
+    args = get_parser()
+
+    for path in args.manifest_dir.glob("csj_cuts_*.jsonl.gz"):
+
+        cuts: CutSet = load_manifest(path)
+
+        print("\n---------------------------------\n")
+        print(path.name + ":")
         cuts.describe()
-        # print(f"mean\t{np.mean(durations):.1f}")
-        # print(f"std\t{np.std(durations):.1f}")
-        # print(f"min\t{np.min(durations):.1f}")
-        # print(f"1%\t{np.percentile(durations, 0.2):.1f}")
-        # print(f"25%\t{np.percentile(durations, 25):.1f}")
-        # print(f"50%\t{np.median(durations):.1f}")
-        # print(f"75%\t{np.percentile(durations, 75):.1f}")
-        # print(f"99%\t{np.percentile(durations, 99):.1f}")
-        # print(f"99.5%\t{np.percentile(durations, 99.5):.1f}")
-        # print(f"99.9%\t{np.percentile(durations, 99.9):.1f}")
-        # print(f"max\t{np.max(durations):.1f}")
+
 
 if __name__ == "__main__":
     main()
