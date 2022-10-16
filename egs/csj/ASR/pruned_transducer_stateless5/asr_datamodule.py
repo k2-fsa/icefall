@@ -50,28 +50,37 @@ class _SeedWorkers:
     def __call__(self, worker_id: int):
         fix_random_seed(self.seed + worker_id)
 
+
 class AsrVariableTranscriptDataset(K2SpeechRecognitionDataset):
     def __init__(
         self,
         *args,
         transcript_mode : str = "",
+        return_cuts : bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.transcript_mode = transcript_mode
-    
-    def __getitem__(self, cuts : CutSet) -> Dict[str, Union[torch.Tensor, List[str]]]:
+        self.return_cuts = True
+        self._return_cuts = return_cuts
+
+    def __getitem__(
+        self,
+        cuts : CutSet
+    ) -> Dict[str, Union[torch.Tensor, List[str]]]:
         batch = super().__getitem__(cuts)
-        
+
         if self.transcript_mode:
             batch["supervisions"]["text"] = [
                 supervision.custom[self.transcript_mode]
-                for cut in cuts
+                for cut in batch["supervisions"]["cut"]
                 for supervision in cut.supervisions
             ]
-            
-        return batch
 
+        if not self._return_cuts:
+            del batch["supervisions"]["cut"]
+
+        return batch
 
 
 class CSJAsrDataModule:
@@ -102,7 +111,7 @@ class CSJAsrDataModule:
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
         )
-        
+
         group.add_argument(
             "--transcript-mode",
             type=str,
@@ -119,7 +128,7 @@ class CSJAsrDataModule:
             "--musan-dir",
             type=Path,
             help="Path to directory with musan cuts. "
-        )        
+        )
         group.add_argument(
             "--max-duration",
             type=int,
@@ -442,7 +451,7 @@ class CSJAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "csj_cuts_train.jsonl.gz"
         )
-    
+
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get valid cuts")
