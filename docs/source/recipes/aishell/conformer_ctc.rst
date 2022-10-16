@@ -422,7 +422,7 @@ The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi tmp/icefall_asr_aishell_conformer_ctc/test_wavs/*.wav
+  $ soxi tmp/icefall_asr_aishell_conformer_ctc/test_waves/*.wav
 
   Input File     : 'tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav'
   Channels       : 1
@@ -485,9 +485,9 @@ The command to run CTC decoding is:
     --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt \
     --tokens-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt \
     --method ctc-decoding \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 
 The output is given below:
 
@@ -529,9 +529,9 @@ The command to run HLG decoding is:
     --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt \
     --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt \
     --method 1best \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 
 The output is given below:
 
@@ -575,9 +575,9 @@ The command to run HLG decoding + attention decoder rescoring is:
     --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt \
     --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt \
     --method attention-decoder \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0121.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_conformer_ctc/test_wavs/BAC009S0764W0123.wav
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav \
+    ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 
 The output is below:
 
