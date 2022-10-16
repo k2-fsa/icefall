@@ -50,7 +50,8 @@ def main():
 
         cuts: CutSet = load_manifest(path)
 
-        print(path.name)
+        print("\n---------------------------------\n")
+        print(path.name + ":")
         cuts.describe()
 
 
