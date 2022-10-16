@@ -839,12 +839,12 @@ class RelPositionMultiheadAttention(nn.Module):
 
         # self.whiten_values is applied on the values in forward()
         self.whiten_values = Whiten(num_groups=num_heads,
-                                    whitening_limit=1.1,
+                                    whitening_limit=2.0,
                                     prob=(0.025, 0.25),
                                     grad_scale=0.025)
         # self.whiten_keys is applied on the keys in forward()
         self.whiten_keys = Whiten(num_groups=num_heads,
-                                  whitening_limit=1.1,
+                                  whitening_limit=2.0,
                                   prob=(0.025, 0.25),
                                   grad_scale=0.025)
 
@@ -860,7 +860,7 @@ class RelPositionMultiheadAttention(nn.Module):
                                       initial_scale=0.05)
         # self.whiten_values2 is applied on the values in forward2()
         self.whiten_values2 = Whiten(num_groups=num_heads,
-                                     whitening_limit=1.1,
+                                     whitening_limit=2.0,
                                      prob=(0.025, 0.25),
                                      grad_scale=0.025)
 
