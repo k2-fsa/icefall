@@ -447,7 +447,7 @@ def main():
                 model, encoder_out.squeeze(0), decoder_out, hyp
             )
     online_fbank.accept_waveform(
-        sampling_rate=sample_rate, waveform=torch.zeros(8000, dtype=torch.int32)
+        sampling_rate=sample_rate, waveform=torch.zeros(5000, dtype=torch.float)
     )
 
     online_fbank.input_finished()

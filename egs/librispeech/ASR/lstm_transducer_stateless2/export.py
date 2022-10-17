@@ -85,7 +85,6 @@ with the following commands:
   --onnx 1
 
 It will generate the following files in the given `exp_dir`.
-Check `onnx_check.py` for how to use them.
 
     - encoder.onnx
     - decoder.onnx
@@ -93,7 +92,7 @@ Check `onnx_check.py` for how to use them.
     - joiner_encoder_proj.onnx
     - joiner_decoder_proj.onnx
 
-Please see ./onnx_pretrained.py for usage of the generated files
+Please see ./streaming-onnx-decode.py for usage of the generated files
 
 Check
 https://github.com/k2-fsa/sherpa-onnx

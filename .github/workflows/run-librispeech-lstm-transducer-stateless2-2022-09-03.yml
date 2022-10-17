@@ -1,4 +1,4 @@
-name: run-librispeech-lstm-transducer-2022-09-03
+name: run-librispeech-lstm-transducer2-2022-09-03
 
 on:
   push:
@@ -17,8 +17,8 @@ on:
     - cron: "50 15 * * *"
 
 jobs:
-  run_librispeech_pruned_transducer_stateless3_2022_05_13:
-    if: github.event.label.name == 'ncnn' || github.event_name == 'push' || github.event_name == 'schedule'
+  run_librispeech_lstm_transducer_stateless2_2022_09_03:
+    if: github.event.label.name == 'ncnn' || github.event.label.name == 'onnx' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
           .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.yml
 
       - name: Display decoding results for lstm_transducer_stateless2
-        if: github.event_name == 'schedule' || github.event.label.name == 'ncnn'
+        if: github.event_name == 'schedule' || github.event.label.name == 'ncnn' || github.event.label.name == 'onnx'
         shell: bash
         run: |
           cd egs/librispeech/ASR
@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload decoding results for lstm_transducer_stateless2
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule' || github.event.label.name == 'ncnn'
+        if: github.event_name == 'schedule'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-lstm_transducer_stateless2-2022-09-03
           path: egs/librispeech/ASR/lstm_transducer_stateless2/exp/
