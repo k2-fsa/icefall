@@ -18,7 +18,7 @@ on:
 
 jobs:
   run_librispeech_lstm_transducer_stateless2_2022_09_03:
-    if: github.event.label.name == 'ncnn' || github.event.label.name == 'onnx' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'ncnn' || github.event.label.name == 'onnx' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -110,7 +110,7 @@ jobs:
           .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.yml
 
       - name: Display decoding results for lstm_transducer_stateless2
-        if: github.event_name == 'schedule' || github.event.label.name == 'ncnn' || github.event.label.name == 'onnx'
+        if: github.event_name == 'schedule'
         shell: bash
         run: |
           cd egs/librispeech/ASR
