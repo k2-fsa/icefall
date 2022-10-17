@@ -534,7 +534,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -608,7 +608,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
