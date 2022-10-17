@@ -1539,3 +1539,81 @@ def fast_beam_search_with_nbest_rnn_rescoring(
             ans[key] = hyps
 
     return ans
+
+
+def modified_beam_search2(
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    beam: int = 4,
+):
+    """ """
+
+    encoder_out = model.joiner.encoder_proj(encoder_out)
+
+    assert encoder_out.ndim == 2, encoder_out.shape
+    blank_id = model.decoder.blank_id
+    unk_id = getattr(model, "unk_id", blank_id)
+    context_size = model.decoder.context_size
+    device = next(model.parameters()).device
+
+    B = HypothesisList()
+    B.add(
+        Hypothesis(
+            ys=[blank_id] * context_size,
+            log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+        )
+    )
+
+    T = encoder_out.shape[0]
+    for t in range(T):
+        current_encoder_out = encoder_out[t : t + 1]
+        A = list(B)
+        B = HypothesisList()
+
+        ys_log_probs = torch.cat(
+            [hyp.log_prob.reshape(1, 1) for hyp in A]
+        )  # (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyp in A],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+        decoder_out = model.decoder(decoder_input, need_pad=False).squeeze(1)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
+
+        # decoder_out is of shape (num_hyps, joiner_dim)
+        current_encoder_out = current_encoder_out.repeat(len(A), 1)
+        # current_encoder_out is of shape (num_hyps, encoder_out_dim)
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
+        )  # (num_hyps,  vocab_size)
+        log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+        log_probs = log_probs.reshape(-1)
+        topk_log_probs, topk_indexes = log_probs.topk(beam)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+            topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[hyp_idx]
+                new_ys = hyp.ys[:]
+
+                new_token = topk_token_indexes[k]
+                if new_token not in (blank_id, unk_id):
+                    new_ys.append(new_token)
+
+                new_log_prob = topk_log_probs[k]
+                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+                B.add(new_hyp)
+
+    best_hyp = B.get_most_probable(length_norm=True)
+    return best_hyp.ys[context_size:]
