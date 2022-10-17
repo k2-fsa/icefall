@@ -480,7 +480,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -577,7 +577,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[int], List[int]]]],
 ):
     if params.method in ("attention-decoder", "rnn-lm"):
         # Set it to False since there are too many logs.

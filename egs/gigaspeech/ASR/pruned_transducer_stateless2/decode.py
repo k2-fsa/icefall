@@ -203,13 +203,13 @@ def get_parser():
 
 
 def post_processing(
-    results: List[Tuple[List[str], List[str]]],
-) -> List[Tuple[List[str], List[str]]]:
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
     new_results = []
-    for ref, hyp in results:
+    for key, ref, hyp in results:
         new_ref = asr_text_post_processing(" ".join(ref)).split()
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
-        new_results.append((new_ref, new_hyp))
+        new_results.append((key, new_ref, new_hyp))
     return new_results
 
 
@@ -340,7 +340,7 @@ def decode_dataset(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -407,7 +407,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
