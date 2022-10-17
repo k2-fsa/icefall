@@ -114,8 +114,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-dims",
         type=str,
         default="384,384",
-        help="Attention dimension in 2, blocks of conformer encoder layers, comma separated, "
-        "and the output dim of the encoder",
+        help="Embedding dimension in the 2 blocks of conformer encoder layers, comma separated"
+    )
+
+    parser.add_argument(
+        "--attention-dims",
+        type=str,
+        default="256,256",
+        help="Attention dimension in the 2 blocks of conformer encoder layers, comma separated"
     )
 
     parser.add_argument(
@@ -418,17 +424,18 @@ def get_params() -> AttributeDict:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
-    def to_int_list(s: str):
-        return list(map(int, s.split(',')))
+    def to_int_tuple(s: str):
+        return tuple(map(int, s.split(',')))
     encoder = Conformer(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
         conformer_subsampling_factor=params.conformer_subsampling_factor,
-        d_model=to_int_list(params.encoder_dims),
+        d_model=to_int_tuple(params.encoder_dims),
+        attention_dim=to_int_tuple(params.attention_dims),
         encoder_unmasked_dim=params.encoder_unmasked_dim,
-        nhead=to_int_list(params.nhead),
-        feedforward_dim=to_int_list(params.feedforward_dims),
-        num_encoder_layers=to_int_list(params.num_encoder_layers),
+        nhead=to_int_tuple(params.nhead),
+        feedforward_dim=to_int_tuple(params.feedforward_dims),
+        num_encoder_layers=to_int_tuple(params.num_encoder_layers),
     )
     return encoder
 
