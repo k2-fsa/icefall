@@ -120,7 +120,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--attention-dims",
         type=str,
-        default="256,256",
+        default="192,192",
         help="Attention dimension in the 2 blocks of conformer encoder layers, comma separated"
     )
 
