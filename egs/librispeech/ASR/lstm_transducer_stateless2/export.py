@@ -345,7 +345,6 @@ def export_encoder_model_onnx(
     c = torch.rand(
         encoder_model.num_encoder_layers, N, encoder_model.rnn_hidden_size
     )
-    encoder_model = torch.jit.trace(encoder_model, (x, x_lens, (h, c)))
 
     warmup = 1.0
     torch.onnx.export(
