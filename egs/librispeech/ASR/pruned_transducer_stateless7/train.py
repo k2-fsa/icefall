@@ -230,7 +230,7 @@ def get_parser():
     parser.add_argument(
         "--initial-lr",
         type=float,
-        default=0.04,
+        default=0.05,
         help="The initial learning rate.  This value should not need "
         "to be changed.",
     )
