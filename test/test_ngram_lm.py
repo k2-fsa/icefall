@@ -18,7 +18,7 @@
 import graphviz
 import kaldifst
 
-from icefall import NgramLm
+from icefall import NgramLm, NgramLmStateCost
 
 
 def generate_fst(filename: str):
@@ -46,12 +46,22 @@ def generate_fst(filename: str):
 def main():
     filename = "test.fst"
     generate_fst(filename)
-    ngram_lm = NgramLm(filename, backoff_id=3)
+    ngram_lm = NgramLm(filename, backoff_id=3, is_binary=True)
     for label in [1, 2, 3, 4, 5]:
         print("---label---", label)
         p = ngram_lm.get_next_state_and_cost(state=5, label=label)
         print(p)
         print("---")
+
+    state_cost = NgramLmStateCost(ngram_lm)
+    s0 = state_cost.forward_one_step(1)
+    print(s0.state_cost)
+
+    s1 = s0.forward_one_step(2)
+    print(s1.state_cost)
+
+    s2 = s1.forward_one_step(2)
+    print(s2.state_cost)
 
 
 if __name__ == "__main__":

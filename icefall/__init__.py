@@ -66,4 +66,4 @@ from .utils import (
     write_error_stats,
 )
 
-from .ngram_lm import NgramLm
+from .ngram_lm import NgramLm, NgramLmStateCost

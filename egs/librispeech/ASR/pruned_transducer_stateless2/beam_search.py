@@ -23,6 +23,7 @@ import sentencepiece as spm
 import torch
 from model import Transducer
 
+from icefall import NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.utils import add_eos, add_sos, get_texts
 
@@ -655,6 +656,8 @@ class Hypothesis:
     # The log prob of ys.
     # It contains only one entry.
     log_prob: torch.Tensor
+
+    state_cost: Optional[NgramLmStateCost] = None
 
     @property
     def key(self) -> str:
@@ -1544,11 +1547,13 @@ def fast_beam_search_with_nbest_rnn_rescoring(
 def modified_beam_search2(
     model: Transducer,
     encoder_out: torch.Tensor,
+    ngram_lm: NgramLm,
+    ngram_lm_scale: float,
     beam: int = 4,
 ):
-    """ """
-
     encoder_out = model.joiner.encoder_proj(encoder_out)
+
+    lm_scale = ngram_lm_scale
 
     assert encoder_out.ndim == 2, encoder_out.shape
     blank_id = model.decoder.blank_id
@@ -1561,6 +1566,7 @@ def modified_beam_search2(
         Hypothesis(
             ys=[blank_id] * context_size,
             log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+            state_cost=NgramLmStateCost(ngram_lm),
         )
     )
 
@@ -1571,7 +1577,10 @@ def modified_beam_search2(
         B = HypothesisList()
 
         ys_log_probs = torch.cat(
-            [hyp.log_prob.reshape(1, 1) for hyp in A]
+            [
+                hyp.log_prob.reshape(1, 1) + hyp.state_cost.lm_score * lm_scale
+                for hyp in A
+            ]
         )  # (num_hyps, 1)
 
         decoder_input = torch.tensor(
@@ -1610,9 +1619,18 @@ def modified_beam_search2(
                 new_token = topk_token_indexes[k]
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
+                    state_cost = hyp.state_cost.forward_one_step(new_token)
+                else:
+                    state_cost = hyp.state_cost
 
-                new_log_prob = topk_log_probs[k]
-                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+                # We only keep AM scores in new_hyp.log_prob
+                new_log_prob = (
+                    topk_log_probs[k] - hyp.state_cost.lm_score * lm_scale
+                )
+
+                new_hyp = Hypothesis(
+                    ys=new_ys, log_prob=new_log_prob, state_cost=state_cost
+                )
                 B.add(new_hyp)
 
     best_hyp = B.get_most_probable(length_norm=True)

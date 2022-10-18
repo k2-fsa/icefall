@@ -115,10 +115,12 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
+    modified_beam_search2,
 )
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -315,6 +317,8 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -448,6 +452,17 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search2":
+        batch_size = encoder_out.size(0)
+        for i in range(batch_size):
+            encoder_out_i = encoder_out[i, : encoder_out_lens[i]]
+            hyp = modified_beam_search2(
+                model=model,
+                encoder_out=encoder_out_i,
+                ngram_lm=ngram_lm,
+                ngram_lm_scale=ngram_lm_scale,
+            )
+            hyps.append(sp.decode(hyp).split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -497,6 +512,8 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -546,6 +563,8 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
         )
 
         for name, hyps in hyps_dict.items():
@@ -631,6 +650,7 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "modified_beam_search2",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -655,6 +675,7 @@ def main():
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+    params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -768,6 +789,16 @@ def main():
     model.to(device)
     model.eval()
 
+    #  lm_filename = "bigram.fst.txt"
+    lm_filename = "trigram.fst.txt"
+    logging.info(f"lm filename: {lm_filename}")
+    ngram_lm = NgramLm(
+        str(params.lang_dir / lm_filename),
+        backoff_id=500,
+        is_binary=False,
+    )
+    logging.info(f"num states: {ngram_lm.lm.num_states}")
+
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
@@ -812,6 +843,8 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=params.ngram_lm_scale,
         )
 
         save_results(
