@@ -29,6 +29,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from lstmp import LSTMP
 from scaling import (
     ActivationBalancer,
     BasicNorm,
@@ -259,7 +260,11 @@ def get_submodule(model, target):
     return mod
 
 
-def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
+def convert_scaled_to_non_scaled(
+    model: nn.Module,
+    inplace: bool = False,
+    is_onnx: bool = False,
+):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
     and `nn.Conv2d`.
@@ -270,6 +275,9 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
       inplace:
         If True, the input model is modified inplace.
         If False, the input model is copied and we modify the copied version.
+      is_onnx:
+        If True, we are going to export the model to ONNX. In this case,
+        we will convert nn.LSTM with proj_size to LSTMP.
     Return:
       Return a model without scaled layers.
     """
@@ -294,7 +302,13 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
         elif isinstance(m, BasicNorm):
             d[name] = convert_basic_norm(m)
         elif isinstance(m, ScaledLSTM):
-            d[name] = scaled_lstm_to_lstm(m)
+            if is_onnx:
+                d[name] = LSTMP(scaled_lstm_to_lstm(m))
+                # See
+                # https://github.com/pytorch/pytorch/issues/47887
+                #  d[name] = torch.jit.script(LSTMP(scaled_lstm_to_lstm(m)))
+            else:
+                d[name] = scaled_lstm_to_lstm(m)
         elif isinstance(m, ActivationBalancer):
             d[name] = nn.Identity()
 
