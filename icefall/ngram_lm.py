@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple
+from collections import defaultdict
+from typing import List, Optional, Tuple
 
 import kaldifst
 
@@ -22,17 +23,25 @@ import kaldifst
 class NgramLm:
     def __init__(
         self,
-        binary_fst_filename: str,
+        fst_filename: str,
         backoff_id: int,
+        is_binary: bool = False,
     ):
         """
         Args:
-          binary_fst_filename:
-            Path to the binary FST.
+          fst_filename:
+            Path to the FST.
           backoff_id:
             ID of the backoff symbol.
+          is_binary:
+            True if the given file is a binary FST.
         """
-        lm = kaldifst.StdVectorFst.read(binary_fst_filename)
+        if is_binary:
+            lm = kaldifst.StdVectorFst.read(fst_filename)
+        else:
+            with open(fst_filename, "r") as f:
+                lm = kaldifst.compile(f.read(), acceptor=False)
+
         if not lm.is_ilabel_sorted:
             kaldifst.arcsort(lm, sort_type="ilabel")
 
@@ -121,3 +130,35 @@ class NgramLm:
                 next_costs.append(c + nc)
 
         return next_states, next_costs
+
+
+class NgramLmStateCost:
+    def __init__(self, ngram_lm: NgramLm, state_cost: Optional[dict] = None):
+        assert ngram_lm.lm.start == 0, ngram_lm.lm.start
+        self.ngram_lm = ngram_lm
+        if state_cost is not None:
+            self.state_cost = state_cost
+        else:
+            self.state_cost = defaultdict(lambda: float("inf"))
+
+            # At the very beginning, we are at the start state with cost 0
+            self.state_cost[0] = 0.0
+
+    def forward_one_step(self, label: int) -> "NgramLmStateCost":
+        state_cost = defaultdict(lambda: float("inf"))
+        for s, c in self.state_cost.items():
+            next_states, next_costs = self.ngram_lm.get_next_state_and_cost(
+                s,
+                label,
+            )
+            for ns, nc in zip(next_states, next_costs):
+                state_cost[ns] = min(state_cost[ns], c + nc)
+
+        return NgramLmStateCost(ngram_lm=self.ngram_lm, state_cost=state_cost)
+
+    @property
+    def lm_score(self) -> float:
+        if len(self.state_cost) == 0:
+            return float("-inf")
+
+        return -1 * min(self.state_cost.values())
