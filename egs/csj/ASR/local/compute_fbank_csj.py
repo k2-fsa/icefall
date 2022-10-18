@@ -25,10 +25,15 @@ from random import Random
 from typing import List, Tuple
 
 import torch
-from lhotse import (  # See the following for why LilcomChunkyWriter is preferred; https://github.com/k2-fsa/icefall/pull/404; https://github.com/lhotse-speech/lhotse/pull/527; ChunkedLilcomHdf5Writer,
+from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
+    # fmt: off
+    # See the following for why LilcomChunkyWriter is preferred
+    # https://github.com/k2-fsa/icefall/pull/404
+    # https://github.com/lhotse-speech/lhotse/pull/527
+    # fmt: on
     LilcomChunkyWriter,
     RecordingSet,
     SupervisionSet,
