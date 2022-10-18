@@ -43,15 +43,23 @@ It outputs 4 files into the lang directory:
 """
 
 
-def get_parser():
+def get_args():
     parser = argparse.ArgumentParser(
         description=ARGPARSE_DESCRIPTION,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
+        "--train-cut",
+        type=Path,
+        required=True,
+        help="Path to the train cut"
+    )
+
+    parser.add_argument(
         "--trans-mode",
         type=str,
+        default=None,
         help=(
             "Name of the transcript mode to use. "
             "If lang-dir is not set, this will also name the lang-dir"
@@ -68,8 +76,6 @@ def get_parser():
         ),
     )
 
-    parser.add_argument("--train-cut", type=Path, help="Path to the train cut")
-
     parser.add_argument(
         "--userdef-string",
         type=Path,
@@ -81,7 +87,7 @@ def get_parser():
 
 
 def main():
-    args = get_parser()
+    args = get_args()
 
     logging.basicConfig(
         format=(
@@ -97,11 +103,14 @@ def main():
         args.lang_dir = Path(p)
 
     if args.userdef_string:
-        args.userdef_string = args.userdef_string.read_text().split()
+        args.userdef_string = set(args.userdef_string.read_text().split())
     else:
-        args.userdef_string = []
+        args.userdef_string = set()
+    
+    sysdef_string = ["<blk>", "<unk>", "<sos/eos>"]
+    args.userdef_string.update(sysdef_string)
 
-    train_set: CutSet = CutSet.from_jsonl_lazy(args.train_cut)
+    train_set: CutSet = CutSet.from_file(args.train_cut)
 
     words = set()
     logging.info(
@@ -125,11 +134,11 @@ def main():
                 words.add(t)
             else:
                 words.update(c for c in list(t))
-
+    
+    words -= set(sysdef_string)
     words = sorted(words)
     words = ["<blk>"] + words + ["<unk>", "<sos/eos>"]
 
-    args.userdef_string += ["<blk>", "<unk>", "<sos/eos>"]
     args.lang_dir.mkdir(parents=True, exist_ok=True)
     (args.lang_dir / "words.txt").write_text(
         "\n".join(f"{word}\t{i}" for i, word in enumerate(words))

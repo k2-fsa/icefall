@@ -26,7 +26,11 @@ from typing import List, Tuple
 
 import torch
 from lhotse import (
-    ChunkedLilcomHdf5Writer,
+    # See the following for why LilcomChunkyWriter is preferred
+    # https://github.com/k2-fsa/icefall/pull/404
+    # https://github.com/lhotse-speech/lhotse/pull/527
+    # ChunkedLilcomHdf5Writer,
+    LilcomChunkyWriter,
     CutSet,
     Fbank,
     FbankConfig,
@@ -39,7 +43,7 @@ This script follows the espnet method of splitting the remaining core+noncore
 utterances into valid and train cutsets at an index which is by default 4000.
 
 In other words, the core+noncore utterances are shuffled, where 4000 utterances
-of the shuffled set go to the `valid` cutset and are not subjected to speed
+of the shuffled set go to the `valid` cutset and are not subject to speed
 perturbation. The remaining utterances become the `train` cutset and are speed-
 perturbed (0.9x, 1.0x, 1.1x).
 
@@ -151,11 +155,12 @@ def main():
     else:
         cut_sets = make_cutset_blueprints(args.manifest_dir, args.split)
         for part, cut_set in cut_sets:
+            logging.info(f"Processing {part}")
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 num_jobs=num_jobs,
                 storage_path=(args.fbank_dir / f"feats_{part}").as_posix(),
-                storage_type=ChunkedLilcomHdf5Writer,
+                storage_type=LilcomChunkyWriter,
             )
             cut_set.to_file(args.manifest_dir / f"csj_cuts_{part}.jsonl.gz")
 

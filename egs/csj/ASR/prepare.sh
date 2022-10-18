@@ -64,7 +64,10 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     # Example: lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -c local/conf/disfluent.ini
     # NOTE: In case multiple config files are supplied, the second config file and onwards will inherit
     #       the segment boundaries of the first config file. 
-    lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -j 4
+    if [ ! -e $csj_manifest_dir/.librispeech.done ]; then 
+        lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -j 4
+        touch $csj_manifest_dir/.librispeech.done
+    fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -100,7 +103,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     modes=disfluent
 
     # If you want prepare the lang directory for other transcript modes, just append
-    # the name of those modes behind. An example is shown as below:-
+    # the names of those modes behind. An example is shown as below:-
     # modes="$modes fluent symbol number"
 
     for mode in ${modes[@]}; do

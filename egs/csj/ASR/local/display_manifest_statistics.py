@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+#              2022  The University of Electro-Communications (author: Teo Wen Shen)  # noqa
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,7 +26,7 @@ This file displays duration statistics of utterances in a manifest.
 You can use the displayed value to choose minimum/maximum duration
 to remove short and long utterances during the training.
 
-See the function `remove_short_and_long_utt()` in transducer/train.py
+See the function `remove_short_and_long_utt()` in pruned_transducer_stateless5/train.py
 for usage.
 """
 
@@ -59,171 +60,123 @@ if __name__ == "__main__":
     main()
 
 """
-## train-clean-100
-Cuts count: 85617
-Total duration (hours): 303.8
-Speech duration (hours): 303.8 (100.0%)
-***
+## eval1
+Cuts count: 1272
+Total duration (hh:mm:ss): 01:50:07
+Speech duration (hh:mm:ss): 01:50:07 (100.0%)
 Duration statistics (seconds):
-mean    12.8
-std     3.8
-min     1.3
-0.1%    1.9
-0.5%    2.2
-1%      2.5
-5%      4.2
-10%     6.4
-25%     11.4
-50%     13.8
-75%     15.3
-90%     16.7
-95%     17.3
-99%     18.1
-99.5%   18.4
-99.9%   18.8
-max     27.2
+mean	5.2
+std	3.9
+min	0.2
+25%	1.9
+50%	4.0
+75%	8.1
+99%	14.3
+99.5%	14.7
+99.9%	16.0
+max	16.9
+Recordings available: 1272
+Features available: 1272
+Supervisions available: 1272
+SUPERVISION custom fields:
+- fluent (in 1272 cuts)
+- disfluent (in 1272 cuts)
+- number (in 1272 cuts)
+- symbol (in 1272 cuts)
 
-## train-clean-360
-Cuts count: 312042
-Total duration (hours): 1098.2
-Speech duration (hours): 1098.2 (100.0%)
-***
+## eval2
+Cuts count: 1292
+Total duration (hh:mm:ss): 01:56:50
+Speech duration (hh:mm:ss): 01:56:50 (100.0%)
 Duration statistics (seconds):
-mean    12.7
-std     3.8
-min     1.0
-0.1%    1.8
-0.5%    2.2
-1%      2.5
-5%      4.2
-10%     6.2
-25%     11.2
-50%     13.7
-75%     15.3
-90%     16.6
-95%     17.3
-99%     18.1
-99.5%   18.4
-99.9%   18.8
-max     33.0
+mean	5.4
+std	3.9
+min	0.1
+25%	2.1
+50%	4.6
+75%	8.6
+99%	14.1
+99.5%	15.2
+99.9%	16.1
+max	16.9
+Recordings available: 1292
+Features available: 1292
+Supervisions available: 1292
+SUPERVISION custom fields:
+- fluent (in 1292 cuts)
+- number (in 1292 cuts)
+- symbol (in 1292 cuts)
+- disfluent (in 1292 cuts)
 
-## train-other 500
-Cuts count: 446064
-Total duration (hours): 1500.6
-Speech duration (hours): 1500.6 (100.0%)
-***
+## eval3
+Cuts count: 1385
+Total duration (hh:mm:ss): 01:19:21
+Speech duration (hh:mm:ss): 01:19:21 (100.0%)
 Duration statistics (seconds):
-mean    12.1
-std     4.2
-min     0.8
-0.1%    1.7
-0.5%    2.1
-1%      2.3
-5%      3.5
-10%     5.0
-25%     9.8
-50%     13.4
-75%     15.1
-90%     16.5
-95%     17.2
-99%     18.1
-99.5%   18.4
-99.9%   18.9
-max     31.0
+mean	3.4
+std	3.0
+min	0.2
+25%	1.2
+50%	2.5
+75%	4.6
+99%	12.7
+99.5%	13.7
+99.9%	15.0
+max	15.9
+Recordings available: 1385
+Features available: 1385
+Supervisions available: 1385
+SUPERVISION custom fields:
+- number (in 1385 cuts)
+- symbol (in 1385 cuts)
+- fluent (in 1385 cuts)
+- disfluent (in 1385 cuts)
 
-## dev-clean
-Cuts count: 2703
-Total duration (hours): 5.4
-Speech duration (hours): 5.4 (100.0%)
-***
+## valid
+Cuts count: 4000
+Total duration (hh:mm:ss): 05:08:09
+Speech duration (hh:mm:ss): 05:08:09 (100.0%)
 Duration statistics (seconds):
-mean    7.2
-std     4.7
-min     1.4
-0.1%    1.6
-0.5%    1.8
-1%      1.9
-5%      2.4
-10%     2.7
-25%     3.8
-50%     5.9
-75%     9.3
-90%     13.3
-95%     16.4
-99%     23.8
-99.5%   28.5
-99.9%   32.3
-max     32.6
+mean	4.6
+std	3.8
+min	0.1
+25%	1.5
+50%	3.4
+75%	7.0
+99%	13.8
+99.5%	14.8
+99.9%	16.0
+max	17.3
+Recordings available: 4000
+Features available: 4000
+Supervisions available: 4000
+SUPERVISION custom fields:
+- fluent (in 4000 cuts)
+- symbol (in 4000 cuts)
+- disfluent (in 4000 cuts)
+- number (in 4000 cuts)
 
-## dev-other
-Cuts count: 2864
-Total duration (hours): 5.1
-Speech duration (hours): 5.1 (100.0%)
-***
+## train
+Cuts count: 1291134
+Total duration (hh:mm:ss): 1596:37:27
+Speech duration (hh:mm:ss): 1596:37:27 (100.0%)
 Duration statistics (seconds):
-mean    6.4
-std     4.3
-min     1.1
-0.1%    1.3
-0.5%    1.7
-1%      1.8
-5%      2.2
-10%     2.6
-25%     3.5
-50%     5.3
-75%     7.9
-90%     12.0
-95%     15.0
-99%     22.2
-99.5%   27.1
-99.9%   32.4
-max     35.2
-
-## test-clean
-Cuts count: 2620
-Total duration (hours): 5.4
-Speech duration (hours): 5.4 (100.0%)
-***
-Duration statistics (seconds):
-mean    7.4
-std     5.2
-min     1.3
-0.1%    1.6
-0.5%    1.8
-1%      2.0
-5%      2.3
-10%     2.7
-25%     3.7
-50%     5.8
-75%     9.6
-90%     14.6
-95%     17.8
-99%     25.5
-99.5%   28.4
-99.9%   32.8
-max     35.0
-
-## test-other
-Cuts count: 2939
-Total duration (hours): 5.3
-Speech duration (hours): 5.3 (100.0%)
-***
-Duration statistics (seconds):
-mean    6.5
-std     4.4
-min     1.2
-0.1%    1.5
-0.5%    1.8
-1%      1.9
-5%      2.3
-10%     2.6
-25%     3.4
-50%     5.2
-75%     8.2
-90%     12.6
-95%     15.8
-99%     21.4
-99.5%   23.8
-99.9%   33.5
-max     34.5
+mean	4.5
+std	3.6
+min	0.0
+25%	1.6
+50%	3.3
+75%	6.4
+99%	14.0
+99.5%	14.8
+99.9%	16.6
+max	27.8
+Recordings available: 1291134
+Features available: 1291134
+Supervisions available: 1291134
+SUPERVISION custom fields:
+- disfluent (in 1291134 cuts)
+- fluent (in 1291134 cuts)
+- symbol (in 1291134 cuts)
+- number (in 1291134 cuts)
 """
