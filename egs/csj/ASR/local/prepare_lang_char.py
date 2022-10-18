@@ -50,10 +50,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--train-cut",
-        type=Path,
-        required=True,
-        help="Path to the train cut"
+        "--train-cut", type=Path, required=True, help="Path to the train cut"
     )
 
     parser.add_argument(
@@ -106,7 +103,7 @@ def main():
         args.userdef_string = set(args.userdef_string.read_text().split())
     else:
         args.userdef_string = set()
-    
+
     sysdef_string = ["<blk>", "<unk>", "<sos/eos>"]
     args.userdef_string.update(sysdef_string)
 
@@ -134,7 +131,7 @@ def main():
                 words.add(t)
             else:
                 words.update(c for c in list(t))
-    
+
     words -= set(sysdef_string)
     words = sorted(words)
     words = ["<blk>"] + words + ["<unk>", "<sos/eos>"]

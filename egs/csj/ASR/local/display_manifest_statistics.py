@@ -26,8 +26,8 @@ This file displays duration statistics of utterances in a manifest.
 You can use the displayed value to choose minimum/maximum duration
 to remove short and long utterances during the training.
 
-See the function `remove_short_and_long_utt()` in pruned_transducer_stateless5/train.py
-for usage.
+See the function `remove_short_and_long_utt()` in
+pruned_transducer_stateless5/train.py for usage.
 """
 
 
