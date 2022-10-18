@@ -1085,7 +1085,6 @@ class RelPositionMultiheadAttention(nn.Module):
 
         q = q.permute(1, 2, 0, 3)  # (batch, head, time1, head_dim)
         p = p.permute(1, 2, 0, 3)  # (batch, head, time1, head_dim // 2)
-        # compute attention score
         k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
 
 
