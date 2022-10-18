@@ -1,0 +1,19 @@
+./pruned_transducer_stateless5/decode.py \
+        --num-encoder-layers 18 \
+        --dim-feedforward 2048 \
+        --nhead 8 \
+        --encoder-dim 512 \
+        --decoder-dim 512 \
+        --joiner-dim 512 \
+        --simulate-streaming 1 \
+        --decode-chunk-size 16 \
+        --left-context 64 \
+        --causal-convolution 1 \
+        --epoch 3 \
+        --avg 1 \
+        --exp-dir pruned_transducer_stateless5/exp_disfluent \
+        --max-sym-per-frame 1 \
+        --max-duration 155 \
+        --decoding-method modified_beam_search \
+        --beam-size 12  \
+        --word-table lang_char_disfluent/words.txt 

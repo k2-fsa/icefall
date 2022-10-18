@@ -654,6 +654,7 @@ def save_results(
 def main():
     parser = get_parser()
     CSJAsrDataModule.add_arguments(parser)
+    Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
