@@ -34,7 +34,8 @@ from scaling import (
     Whiten,
     Identity,
     _diag,
-    random_clamp
+    random_clamp,
+    softmax,
 )
 from torch import Tensor, nn
 
@@ -1148,7 +1149,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz * num_heads, seq_len, seq_len
             )
 
-        attn_output_weights = nn.functional.softmax(attn_output_weights, dim=-1)
+        attn_output_weights = softmax(attn_output_weights, dim=-1)
         attn_output_weights = nn.functional.dropout(
             attn_output_weights, p=dropout_p, training=training
         )
@@ -1561,7 +1562,7 @@ class AttentionCombine(nn.Module):
                                     single_prob_mask)
 
             weights = weights.masked_fill(mask, float('-inf'))
-        weights = weights.softmax(dim=1)
+        weights = softmax(weights, dim=1)
 
         # (num_frames, num_channels, num_inputs) * (num_frames, num_inputs, 1) -> (num_frames, num_channels, 1),
         ans = torch.matmul(stacked_inputs, weights.unsqueeze(2))
