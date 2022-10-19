@@ -34,6 +34,7 @@ from scaling import (
     Whiten,
     Identity,
     _diag,
+    random_clamp
 )
 from torch import Tensor, nn
 
@@ -941,6 +942,7 @@ class RelPositionMultiheadAttention(nn.Module):
             training=self.training,
             key_padding_mask=key_padding_mask,
             attn_mask=attn_mask,
+            attn_weights_max=5.0 if self.training else None,
         )
         return x, weights
 
@@ -959,6 +961,7 @@ class RelPositionMultiheadAttention(nn.Module):
         training: bool = True,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
+        attn_weights_max: Optional[float] = None,
     ) -> Tuple[Tensor, Optional[Tensor]]:
         r"""
         Args:
@@ -1108,6 +1111,13 @@ class RelPositionMultiheadAttention(nn.Module):
 
 
         attn_output_weights = torch.matmul(q, k) + pos_weights
+
+        if attn_weights_max is not None:
+            attn_output_weights = random_clamp(attn_output_weights,
+                                               min=-attn_weights_max,
+                                               max=attn_weights_max,
+                                               prob=0.5)
+
         # attn_output_weights: (batch, head, time1, time2)
 
         attn_output_weights = attn_output_weights.view(
