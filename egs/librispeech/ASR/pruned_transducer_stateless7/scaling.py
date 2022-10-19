@@ -165,24 +165,34 @@ class RandomClampFunction(torch.autograd.Function):
             x: Tensor,
             min: Optional[float],
             max: Optional[float],
-            prob: float) -> Tensor:
+            prob: float,
+            reflect: float) -> Tensor:
         x_clamped = torch.clamp(x, min=min, max=max)
         mask = torch.rand_like(x) < prob
         ans = torch.where(mask, x_clamped, x)
         if x.requires_grad:
             ctx.save_for_backward(ans == x)
+            ctx.reflect = reflect
+        if reflect != 0.0:
+            ans = ans * (1.0 + reflect) - (x * reflect)
+
         return ans
 
     @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None, None, None]:
         is_same, = ctx.saved_tensors
-        return ans_grad * is_same.to(ans_grad.dtype), None, None, None
+        x_grad = ans_grad * is_same.to(ans_grad.dtype)
+        reflect = ctx.reflect
+        if reflect !=  0.0:
+            x_grad = x_grad * (1.0 + reflect) - (ans_grad * reflect)
+        return ans_grad * is_same.to(ans_grad.dtype), None, None, None, None
 
 def random_clamp(x: Tensor,
                  min: Optional[float] = None,
                  max: Optional[float] = None,
-                 prob: float = 0.5):
-    return RandomClampFunction.apply(x, min, max, prob)
+                 prob: float = 0.5,
+                 reflect: float = 0.0):
+    return RandomClampFunction.apply(x, min, max, prob, reflect)
 
 
 def random_cast_to_half(x: Tensor,
