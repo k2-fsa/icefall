@@ -38,7 +38,11 @@ class Tokenizer(SymbolTable):
     def get_piece_size(self) -> int:
         return len(self)
     
-    def encode(self, texts : Union[List[str], str], out_type=int) -> Union[List[int], str]:
+    def encode(
+        self, 
+        texts : Union[List[str], str], 
+        out_type=int
+    ) -> Union[List[List[int]], List[str]]:
         ret = []
         convert = False 
         if isinstance(texts, str):
@@ -64,13 +68,13 @@ class Tokenizer(SymbolTable):
                         out.append(word)
                     else:
                         out.extend(list(word))
-                ret.append(out)
+                ret.append(' '.join(out))
         
         return ret[0] if convert else ret
     
     def decode(self, token_lists : Union[List[List[int]], List[int]], lang_char = False, sep = ' ') -> Union[List[str], str]:
         
-        convert = False 
+        convert = False
         if isinstance(token_lists[0], int):
             convert = True
             token_lists = [token_lists]
@@ -78,12 +82,12 @@ class Tokenizer(SymbolTable):
         assert isinstance(token_lists[0][0], int), type(token_lists[0][0])
         if lang_char:
             ret = [
-                [sep.join(w for token_id in token_ids for w in list(self[token_id]))]
+                sep.join(w for token_id in token_ids for w in list(self[token_id]))
                     for token_ids in token_lists
             ]
         else:
             ret = [
-                [sep.join(self[token_id] for token_id in token_ids) ]
+                sep.join(self[token_id] for token_id in token_ids)
                     for token_ids in token_lists
             ]
         

@@ -575,7 +575,7 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-
+        texts = sp.encode(texts, out_type=str)
         hyps_dict = decode_one_batch(
             params=params,
             model=model,

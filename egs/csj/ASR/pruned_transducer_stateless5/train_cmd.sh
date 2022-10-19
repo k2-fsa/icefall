@@ -12,7 +12,7 @@ python pruned_transducer_stateless5/train.py \
   --num-left-chunks 4 \
   --max-duration 155 \
   --world-size 1 \
-  --start-epoch 1 \
+  --start-epoch 11 \
   --num-epochs 10 \
   --transcript-mode disfluent \
   --context-size 3 \
