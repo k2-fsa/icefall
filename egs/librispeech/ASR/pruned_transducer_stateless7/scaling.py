@@ -196,7 +196,7 @@ def random_clamp(x: Tensor,
 
 
 def random_cast_to_half(x: Tensor,
-                        min_abs: float = 1.0e-03) -> Tensor:
+                        min_abs: float = 1.0e-04) -> Tensor:
     """
     A randomized way of casting a floating point value to half precision.
     """
