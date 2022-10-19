@@ -143,8 +143,10 @@ class Transducer(nn.Module):
         am = self.simple_am_proj(encoder_out)
 
         if self.training:
-            lm = random_clamp(lm, min=-8.0, max=2.0, prob=0.5)
-            am = random_clamp(am, min=-5.0, max=5.0, prob=0.5)
+            lm = random_clamp(lm, min=-8.0, max=2.0, prob=0.5,
+                              reflect=0.1)
+            am = random_clamp(am, min=-5.0, max=5.0, prob=0.5,
+                              reflect=0.1)
 
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
@@ -182,7 +184,8 @@ class Transducer(nn.Module):
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
         if self.training:
-            logits = random_clamp(logits, -8.0, 2.0, prob=0.5)
+            logits = random_clamp(logits, -8.0, 2.0, prob=0.5,
+                                  reflect=0.1)
 
         with torch.cuda.amp.autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(

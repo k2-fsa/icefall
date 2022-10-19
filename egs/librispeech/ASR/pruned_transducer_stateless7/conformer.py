@@ -1116,7 +1116,8 @@ class RelPositionMultiheadAttention(nn.Module):
             attn_output_weights = random_clamp(attn_output_weights,
                                                min=-attn_weights_max,
                                                max=attn_weights_max,
-                                               prob=0.5)
+                                               prob=0.5,
+                                               reflect=0.1)
 
         # attn_output_weights: (batch, head, time1, time2)
 
