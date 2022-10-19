@@ -105,7 +105,6 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import CSJAsrDataModule
-from tokenizer import Tokenizer
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -116,6 +115,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from tokenizer import Tokenizer
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -226,14 +226,14 @@ def get_parser():
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
-    
+
     parser.add_argument(
         "--beam-sizes",
         type=list,
         nargs="+",
         default=None,
-        help="""A list of integers indicating how many candidates we will keep for each
-        frame. Used only when --decoding-method is beam_search or
+        help="""A list of integers indicating how many candidates we will keep
+        for each frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
 
@@ -331,7 +331,10 @@ def get_parser():
         "--left-context",
         type=int,
         default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
+        help=(
+            "left context can be seen during decoding (in frames after "
+            "subsampling)"
+        ),
     )
 
     add_model_arguments(parser)
@@ -342,7 +345,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    sp : Tokenizer,
+    sp: Tokenizer,
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -692,9 +695,7 @@ def main():
                 params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         if params.beam_sizes:
-            params.suffix += (
-                f"-{params.decoding_method}-beam-size-{','.join(params.beam_sizes)}"
-            )
+            params.suffix += f"-{params.decoding_method}-beam-size-{','.join(params.beam_sizes)}"  # noqa
         else:
             params.suffix += (
                 f"-{params.decoding_method}-beam-size-{params.beam_size}"
@@ -837,7 +838,7 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     csj_corpus = CSJAsrDataModule(args)
-    
+
     beam_sizes = params.beam_sizes if params.beam_sizes else [params.beam_size]
 
     for b in beam_sizes:
@@ -852,7 +853,7 @@ def main():
                 model=model,
                 sp=sp,
                 word_table=word_table,
-                decoding_graph=decoding_graph
+                decoding_graph=decoding_graph,
             )
 
             save_results(

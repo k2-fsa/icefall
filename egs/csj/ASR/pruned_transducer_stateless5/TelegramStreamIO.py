@@ -1,27 +1,28 @@
-import requests
 import logging
 from configparser import ConfigParser
 
+import requests
 
-def escape_html(text : str):
+
+def escape_html(text: str):
     """
     Escapes all html characters in text
     :param str text:
     :rtype: str
     """
-    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 class TelegramStreamIO(logging.Handler):
 
-    API_ENDPOINT = 'https://api.telegram.org'
+    API_ENDPOINT = "https://api.telegram.org"
     MAX_MESSAGE_LEN = 4096
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s at %(funcName)s "
         "(line %(lineno)s):\n\n%(message)s"
     )
 
-    def __init__(self, tg_configfile : str):
+    def __init__(self, tg_configfile: str):
         super(TelegramStreamIO, self).__init__()
         config = ConfigParser()
         if not config.read(tg_configfile):
@@ -29,20 +30,20 @@ class TelegramStreamIO(logging.Handler):
                 f"{tg_configfile} not found. "
                 "Retry without --telegram-cred flag."
             )
-        config = config['TELEGRAM']
-        token = config['token']
-        self.chat_id = config['chat_id']
-        self.url = f'{self.API_ENDPOINT}/bot{token}/sendMessage'
+        config = config["TELEGRAM"]
+        token = config["token"]
+        self.chat_id = config["chat_id"]
+        self.url = f"{self.API_ENDPOINT}/bot{token}/sendMessage"
 
-    def emit(self, record : logging.LogRecord):
+    def emit(self, record: logging.LogRecord):
         """
         Emit a record.
         Send the record to the Web server as a percent-encoded dictionary
         """
         data = {
-            'chat_id': self.chat_id,
-            'text': self.format(self.mapLogRecord(record)),
-            'parse_mode': 'HTML'
+            "chat_id": self.chat_id,
+            "text": self.format(self.mapLogRecord(record)),
+            "parse_mode": "HTML",
         }
         try:
             requests.get(self.url, json=data)

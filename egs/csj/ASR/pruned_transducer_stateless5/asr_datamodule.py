@@ -24,7 +24,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    load_manifest,
+    load_manifest_lazy
+)
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
@@ -40,6 +46,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 )
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
+
 from icefall.utils import str2bool
 
 
@@ -55,8 +62,8 @@ class AsrVariableTranscriptDataset(K2SpeechRecognitionDataset):
     def __init__(
         self,
         *args,
-        transcript_mode : str = "",
-        return_cuts : bool = False,
+        transcript_mode: str = "",
+        return_cuts: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -65,8 +72,7 @@ class AsrVariableTranscriptDataset(K2SpeechRecognitionDataset):
         self._return_cuts = return_cuts
 
     def __getitem__(
-        self,
-        cuts : CutSet
+        self, cuts: CutSet
     ) -> Dict[str, Union[torch.Tensor, List[str]]]:
         batch = super().__getitem__(cuts)
 
@@ -116,7 +122,7 @@ class CSJAsrDataModule:
             "--transcript-mode",
             type=str,
             default="",
-            help="Mode of transcript in supervision to use."
+            help="Mode of transcript in supervision to use.",
         )
         group.add_argument(
             "--manifest-dir",
@@ -125,9 +131,7 @@ class CSJAsrDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
-            "--musan-dir",
-            type=Path,
-            help="Path to directory with musan cuts. "
+            "--musan-dir", type=Path, help="Path to directory with musan cuts. "
         )
         group.add_argument(
             "--max-duration",

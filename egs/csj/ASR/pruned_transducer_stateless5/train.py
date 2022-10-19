@@ -54,6 +54,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
+
 # import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
@@ -67,6 +68,8 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, Eve
+from TelegramStreamIO import TelegramStreamIO
+from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -88,9 +91,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-
-from TelegramStreamIO import TelegramStreamIO
-from tokenizer import Tokenizer
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -156,8 +156,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--causal-convolution",
         type=str2bool,
         default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
+        help="""Whether to use causal convolution, this requires to be True
+        when using dynamic_chunk_training.
         """,
     )
 
@@ -189,9 +189,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Use hardcoded arguments"
+        "--debug", action="store_true", help="Use hardcoded arguments"
     )
 
     parser.add_argument(
@@ -695,8 +693,9 @@ def compute_loss(
             # If the batch contains more than 10 utterances AND
             # if either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
-            if is_training and (torch.all(~simple_loss_is_finite) or torch.all(
-                ~pruned_loss_is_finite)
+            if is_training and (
+                torch.all(~simple_loss_is_finite)
+                or torch.all(~pruned_loss_is_finite)
             ):
                 raise ValueError(
                     "There are too many utterances in this batch "
@@ -974,7 +973,7 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     if args.telegram_cred:
-        formatter = logging.Formatter('%(asctime)s \n%(message)s')
+        formatter = logging.Formatter("%(asctime)s \n%(message)s")
         tg = TelegramStreamIO(args.telegram_cred)
         tg.setLevel(logging.WARN)
         tg.setFormatter(formatter)
@@ -1097,8 +1096,7 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(
-        params.start_epoch,
-        params.start_epoch + params.num_epochs
+        params.start_epoch, params.start_epoch + params.num_epochs
     ):
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
