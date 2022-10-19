@@ -32,6 +32,7 @@ from scaling import (
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     Whiten,
+    Identity,
     _diag,
 )
 from torch import Tensor, nn
@@ -864,8 +865,8 @@ class RelPositionMultiheadAttention(nn.Module):
                                        initial_scale=0.05)
 
         # the following are for diagnosics only, see --print-diagnostics option
-        self.copy_pos_query = nn.Identity()
-        self.copy_query = nn.Identity()
+        self.copy_pos_query = Identity()
+        self.copy_query = Identity()
 
         self.in_balancer = ActivationBalancer(3 * attention_dim,
                                               channel_dim=-1, max_abs=5.0)
