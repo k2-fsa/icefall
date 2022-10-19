@@ -31,6 +31,8 @@ Usage of this script:
   --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
   --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
   --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   /path/to/foo.wav \
   /path/to/bar.wav

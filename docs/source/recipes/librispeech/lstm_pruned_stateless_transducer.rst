@@ -515,6 +515,8 @@ To use the generated files with ``./lstm_transducer_stateless2/jit_pretrained``:
    Please see `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html>`_
    for how to use the exported models in ``sherpa``.
 
+.. _export-model-for-ncnn:
+
 Export model for ncnn
 ~~~~~~~~~~~~~~~~~~~~~
 

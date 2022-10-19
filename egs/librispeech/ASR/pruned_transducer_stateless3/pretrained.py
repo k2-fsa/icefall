@@ -271,7 +271,7 @@ def main():
     logging.info(f"device: {device}")
 
     logging.info("Creating model")
-    model = get_transducer_model(params)
+    model = get_transducer_model(params, enable_giga=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
