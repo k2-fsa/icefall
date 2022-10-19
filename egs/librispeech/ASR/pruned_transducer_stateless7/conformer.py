@@ -36,6 +36,7 @@ from scaling import (
     _diag,
     random_clamp,
     softmax,
+    RandomGrad,
 )
 from torch import Tensor, nn
 
@@ -304,7 +305,7 @@ class ConformerEncoderLayer(nn.Module):
                              whitening_limit=5.0,
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
-
+        self.random_grad = RandomGrad()
 
     def forward(
         self,
@@ -364,7 +365,7 @@ class ConformerEncoderLayer(nn.Module):
             bypass_scale = bypass_scale.clamp(min=0.1, max=1.0)
         src = src_orig + delta * self.bypass_scale
 
-        return self.whiten(src)
+        return self.random_grad(self.whiten(src))
 
 
 class ConformerEncoder(nn.Module):
