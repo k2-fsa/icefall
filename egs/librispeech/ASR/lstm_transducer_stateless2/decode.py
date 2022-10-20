@@ -115,7 +115,7 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
-    modified_beam_search2,
+    modified_beam_search_ngram_rescoring,
 )
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
@@ -216,6 +216,7 @@ def get_parser():
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
+          - modified_beam_search_ngram_rescoring
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -452,17 +453,17 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search2":
-        batch_size = encoder_out.size(0)
-        for i in range(batch_size):
-            encoder_out_i = encoder_out[i, : encoder_out_lens[i]]
-            hyp = modified_beam_search2(
-                model=model,
-                encoder_out=encoder_out_i,
-                ngram_lm=ngram_lm,
-                ngram_lm_scale=ngram_lm_scale,
-            )
-            hyps.append(sp.decode(hyp).split())
+    elif params.decoding_method == "modified_beam_search_ngram_rescoring":
+        hyp_tokens = modified_beam_search_ngram_rescoring(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -650,7 +651,7 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
-        "modified_beam_search2",
+        "modified_beam_search_ngram_rescoring",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -789,8 +790,7 @@ def main():
     model.to(device)
     model.eval()
 
-    #  lm_filename = "bigram.fst.txt"
-    lm_filename = "trigram.fst.txt"
+    lm_filename = "5ram.fst.txt"
     logging.info(f"lm filename: {lm_filename}")
     ngram_lm = NgramLm(
         str(params.lang_dir / lm_filename),
