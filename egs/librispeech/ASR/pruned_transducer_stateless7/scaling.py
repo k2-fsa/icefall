@@ -282,7 +282,6 @@ class SoftmaxFunction(torch.autograd.Function):
 
 def softmax(x: Tensor,
             dim: int):
-    logging.info(f"torch.is_autocast_enabled()={torch.is_autocast_enabled()}, x dtype={x.dtype}")
     return SoftmaxFunction.apply(x, dim)
 
 
