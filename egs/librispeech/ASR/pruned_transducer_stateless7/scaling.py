@@ -165,25 +165,124 @@ class RandomClampFunction(torch.autograd.Function):
             x: Tensor,
             min: Optional[float],
             max: Optional[float],
-            prob: float) -> Tensor:
+            prob: float,
+            reflect: float) -> Tensor:
         x_clamped = torch.clamp(x, min=min, max=max)
         mask = torch.rand_like(x) < prob
         ans = torch.where(mask, x_clamped, x)
         if x.requires_grad:
             ctx.save_for_backward(ans == x)
+            ctx.reflect = reflect
+        if reflect != 0.0:
+            ans = ans * (1.0 + reflect) - (x * reflect)
         return ans
 
     @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None, None, None]:
         is_same, = ctx.saved_tensors
-        return ans_grad * is_same.to(ans_grad.dtype), None, None, None
+        x_grad = ans_grad * is_same.to(ans_grad.dtype)
+        reflect = ctx.reflect
+        if reflect !=  0.0:
+            x_grad = x_grad * (1.0 + reflect) - (ans_grad * reflect)
+        return x_grad, None, None, None, None
 
 def random_clamp(x: Tensor,
                  min: Optional[float] = None,
                  max: Optional[float] = None,
-                 prob: float = 0.5):
-    return RandomClampFunction.apply(x, min, max, prob)
+                 prob: float = 0.5,
+                 reflect: float = 0.0):
+    return RandomClampFunction.apply(x, min, max, prob, reflect)
 
+
+def random_cast_to_half(x: Tensor,
+                        min_abs: float = 5.0e-06) -> Tensor:
+    """
+    A randomized way of casting a floating point value to half precision.
+    """
+    if x.dtype == torch.float16:
+        return x
+    x_sign = x.sign()
+    x_abs = x.abs()
+    is_too_small = (x_abs < min_abs)
+    # for elements where is_too_small is true, random_val will contain +-min_abs with
+    # probability (x.abs() / min_abs), and 0.0 otherwise.  [so this preserves expectations,
+    # for those elements].
+    random_val = min_abs * x.sign() * (torch.rand_like(x) * min_abs < x_abs)
+    return torch.where(is_too_small, random_val, x).to(torch.float16)
+
+
+class RandomGradFunction(torch.autograd.Function):
+    """
+    Does nothing in forward pass; in backward pass, gets rid of very small grads using
+    randomized approach that preserves expectations (intended to reduce roundoff).
+    """
+    @staticmethod
+    def forward(ctx, x: Tensor, min_abs: float) -> Tensor:
+        ctx.min_abs = min_abs
+        return x
+
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None]:
+        min_abs = ctx.min_abs
+        if ans_grad.dtype == torch.float16:
+            return random_cast_to_half(ans_grad.to(torch.float32),
+                                       min_abs=ctx.min_abs), None
+        else:
+            return ans_grad, None
+
+class RandomGrad(torch.nn.Module):
+    """
+    Gets rid of very small gradients using an expectation-preserving method, intended to increase
+    accuracy of training when using amp (automatic mixed precision)
+    """
+    def __init__(self,
+                 min_abs: float = 5.0e-06):
+        super(RandomGrad, self).__init__()
+        self.min_abs = min_abs
+
+    def forward(self,
+                x: Tensor):
+        if torch.jit.is_scripting() or not self.training:
+            return x
+        else:
+            return RandomGradFunction.apply(x, self.min_abs)
+
+
+
+class SoftmaxFunction(torch.autograd.Function):
+    """
+    Tries to handle half-precision derivatives in a randomized way that should
+    be more accurate for training than the default behavior.
+    """
+    @staticmethod
+    def forward(ctx, x: Tensor, dim: int):
+        ans = x.softmax(dim=dim)
+        # if x dtype is float16, x.softmax() returns a float32 because
+        # (presumably) that op does not support float16, and autocast
+        # is enabled.
+        ctx.save_for_backward(ans)
+        ctx.x_dtype = x.dtype
+        ctx.dim = dim
+        return ans
+
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor):
+        ans, = ctx.saved_tensors
+        with torch.cuda.amp.autocast(enabled=False):
+            ans_grad = ans_grad.to(torch.float32)
+            ans = ans.to(torch.float32)
+            x_grad = ans_grad * ans
+            x_grad = x_grad - ans * x_grad.sum(dim=ctx.dim, keepdim=True)
+            if ctx.x_dtype == torch.float16:
+                x_grad = random_cast_to_half(x_grad)
+
+            return x_grad, None
+
+
+
+def softmax(x: Tensor,
+            dim: int):
+    return SoftmaxFunction.apply(x, dim)
 
 
 class MaxEigLimiterFunction(torch.autograd.Function):
@@ -822,7 +921,6 @@ class DoubleSwish(torch.nn.Module):
 
 
 def _test_max_eig():
-
     for proportion in [0.1, 0.5, 10.0]:
         logging.info(f"proportion = {proportion}")
         x = torch.randn(100, 128)
@@ -846,7 +944,7 @@ def _test_max_eig():
         y.backward(gradient=y_grad)
 
         if proportion < 0.2:
-            assert torch.allclose(x.grad, y_grad)
+            assert torch.allclose(x.grad, y_grad, atol=1.0e-02)
         elif proportion > 1.0:
             assert not torch.allclose(x.grad, y_grad)
 
@@ -957,11 +1055,24 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
+def _test_softmax():
+    a = torch.randn(2, 10, dtype=torch.float64)
+    b = a.clone()
+    a.requires_grad = True
+    b.requires_grad = True
+    a.softmax(dim=1)[:,0].sum().backward()
+    print("a grad = ", a.grad)
+    softmax(b, dim=1)[:,0].sum().backward()
+    print("b grad = ", b.grad)
+    assert torch.allclose(a.grad, b.grad)
+
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    _test_softmax()
     _test_whiten()
     _test_max_eig()
     _test_activation_balancer_sign()

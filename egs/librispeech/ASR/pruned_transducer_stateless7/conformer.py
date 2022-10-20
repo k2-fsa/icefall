@@ -36,6 +36,8 @@ from scaling import (
     _diag,
     random_clamp,
     with_loss,
+    softmax,
+    RandomGrad,
 )
 from torch import Tensor, nn
 
@@ -304,7 +306,7 @@ class ConformerEncoderLayer(nn.Module):
                              whitening_limit=5.0,
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
-
+        self.random_grad = RandomGrad()
 
     def forward(
         self,
@@ -364,7 +366,7 @@ class ConformerEncoderLayer(nn.Module):
             bypass_scale = bypass_scale.clamp(min=0.1, max=1.0)
         src = src_orig + delta * self.bypass_scale
 
-        return self.whiten(src)
+        return self.random_grad(self.whiten(src))
 
 
 class ConformerEncoder(nn.Module):
@@ -870,8 +872,6 @@ class RelPositionMultiheadAttention(nn.Module):
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
 
-        self.in_balancer = ActivationBalancer(3 * attention_dim,
-                                              channel_dim=-1, max_abs=5.0)
         self.out_proj = ScaledLinear(
             attention_dim // 2, embed_dim, bias=True, initial_scale=0.05
         )
@@ -931,7 +931,7 @@ class RelPositionMultiheadAttention(nn.Module):
                  and S is the sequence length.
         """
         x, weights = self.multi_head_attention_forward(
-            self.in_balancer(self.in_proj(x)),
+            self.in_proj(x),
             self.linear_pos(pos_emb),
             self.attention_dim,
             self.num_heads,
@@ -1121,7 +1121,8 @@ class RelPositionMultiheadAttention(nn.Module):
             attn_output_weights = random_clamp(attn_output_weights,
                                                min=-attn_weights_max,
                                                max=attn_weights_max,
-                                               prob=0.5)
+                                               prob=0.5,
+                                               reflect=0.1)
 
         if training and random.random() < 0.1:
             # This is a harder way of limiting the attention scores to not be too large.
@@ -1170,7 +1171,7 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz * num_heads, seq_len, seq_len
             )
 
-        attn_output_weights = nn.functional.softmax(attn_output_weights, dim=-1)
+        attn_output_weights = softmax(attn_output_weights, dim=-1)
         attn_output_weights = nn.functional.dropout(
             attn_output_weights, p=dropout_p, training=training
         )
@@ -1583,7 +1584,7 @@ class AttentionCombine(nn.Module):
                                     single_prob_mask)
 
             weights = weights.masked_fill(mask, float('-inf'))
-        weights = weights.softmax(dim=1)
+        weights = softmax(weights, dim=1)
 
         # (num_frames, num_channels, num_inputs) * (num_frames, num_inputs, 1) -> (num_frames, num_channels, 1),
         ans = torch.matmul(stacked_inputs, weights.unsqueeze(2))
