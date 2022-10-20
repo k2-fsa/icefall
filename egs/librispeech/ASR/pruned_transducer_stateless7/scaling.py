@@ -195,7 +195,7 @@ def random_clamp(x: Tensor,
 
 
 def random_cast_to_half(x: Tensor,
-                        min_abs: float = 1.0e-04) -> Tensor:
+                        min_abs: float = 5.0e-06) -> Tensor:
     """
     A randomized way of casting a floating point value to half precision.
     """
@@ -236,7 +236,7 @@ class RandomGrad(torch.nn.Module):
     accuracy of training when using amp (automatic mixed precision)
     """
     def __init__(self,
-                 min_abs: float = 1.0e-04):
+                 min_abs: float = 5.0e-06):
         super(RandomGrad, self).__init__()
         self.min_abs = min_abs
 
