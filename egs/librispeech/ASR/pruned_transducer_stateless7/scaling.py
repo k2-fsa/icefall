@@ -608,6 +608,22 @@ class Whiten(nn.Module):
                                                   self.whitening_limit,
                                                   self.grad_scale)
 
+
+class WithLoss(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x: Tensor, y: Tensor):
+        ctx.y_shape = y.shape
+        return x
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor):
+        return ans_grad, torch.ones(ctx.y_shape,
+                                    dtype=ans_grad.dtype,
+                                    device=ans_grad.device)
+def with_loss(x, y):
+    # returns x but adds y.sum() to the loss function.
+    return WithLoss.apply(x, y)
+
+
 def _no_op(x: Tensor) -> Tensor:
     if (torch.jit.is_scripting()):
         return x
@@ -615,7 +631,6 @@ def _no_op(x: Tensor) -> Tensor:
         # a no-op function that will have a node in the autograd graph,
         # to avoid certain bugs relating to backward hooks
         return x.chunk(1, dim=-1)[0]
-
 
 
 class Identity(torch.nn.Module):

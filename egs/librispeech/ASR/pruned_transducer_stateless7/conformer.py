@@ -34,7 +34,8 @@ from scaling import (
     Whiten,
     Identity,
     _diag,
-    random_clamp
+    random_clamp,
+    with_loss,
 )
 from torch import Tensor, nn
 
@@ -1110,16 +1111,37 @@ class RelPositionMultiheadAttention(nn.Module):
                                               storage_offset=pos_weights.stride(3) * (seq_len - 1))
 
 
+        # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
 
+        # The following is a soft way of encouraging the attention scores to not be too large;
+        # in training time, once they get outside a certain range, -5.0..5.0 currently, we
+        # randomly either leave them as-is or truncate them to that range.
         if attn_weights_max is not None:
             attn_output_weights = random_clamp(attn_output_weights,
                                                min=-attn_weights_max,
                                                max=attn_weights_max,
                                                prob=0.5)
 
-        # attn_output_weights: (batch, head, time1, time2)
+        if training and random.random() < 0.1:
+            # This is a harder way of limiting the attention scores to not be too large.
+            # It incurs a penalty if any of them has an absolute value greater than 50.0.
+            # this should be outside the normal range of the attention scores.  We use
+            # this mechanism instead of, say, a limit on entropy, because once the entropy
+            # gets very small gradients through the softmax can become very small, and
+            # some mechanisms like that become ineffective.
+            attn_weights_limit = 50.0
+            # caution: this penalty will be affected by grad-scaling in amp.
+            # It's OK; this is just an emergency brake, and under normal
+            # conditions it shouldn't be active
+            attn_weights_penalty = 1.0e-04
+            aux_loss = attn_weights_penalty * (attn_output_weights.abs() -
+                                               attn_weights_limit).relu()
+            attn_output_weights = with_loss(attn_output_weights,
+                                                aux_loss)
 
+
+        # attn_output_weights: (batch, head, time1, time2)
         attn_output_weights = attn_output_weights.view(
             bsz * num_heads, seq_len, seq_len
         )
