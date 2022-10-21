@@ -1116,7 +1116,7 @@ class RelPositionMultiheadAttention(nn.Module):
             # this mechanism instead of, say, a limit on entropy, because once the entropy
             # gets very small gradients through the softmax can become very small, and
             # some mechanisms like that become ineffective.
-            attn_weights_limit = 50.0
+            attn_weights_limit = 25.0
             # caution: this penalty will be affected by grad-scaling in amp.
             # It's OK; this is just an emergency brake, and under normal
             # conditions it shouldn't be active
