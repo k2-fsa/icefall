@@ -543,11 +543,12 @@ class MetricsTracker(collections.defaultdict):
 
     def __str__(self) -> str:
         ans_frames = ""
-        ans_symbols = ""
         ans_utterances = ""
         for k, v in self.norm_items():
             norm_value = "%.4g" % v
-            if "utt_" in k:
+            if "utt_" not in k:
+                ans_frames += str(k) + "=" + str(norm_value) + ", "
+            else:
                 ans_utterances += str(k) + "=" + str(norm_value)
                 if k == "utt_duration":
                     ans_utterances += " frames, "
@@ -555,21 +556,13 @@ class MetricsTracker(collections.defaultdict):
                     ans_utterances += ", "
                 else:
                     raise ValueError(f"Unexpected key: {k}")
-            elif k == "sym_delay":
-                ans_symbols += str(k) + "=" + str(norm_value) + ", "
-            else:
-                ans_frames += str(k) + "=" + str(norm_value) + ", "
-        if ans_frames != "":
-            frames = "%.2f" % self["frames"]
-            ans_frames += "over " + str(frames) + " frames. "
-        if ans_symbols != "":
-            symbols = "%.2f" % self["symbols"]
-            ans_symbols += "over " + str(symbols) + " symbols. "
+        frames = "%.2f" % self["frames"]
+        ans_frames += "over " + str(frames) + " frames. "
         if ans_utterances != "":
             utterances = "%.2f" % self["utterances"]
             ans_utterances += "over " + str(utterances) + " utterances."
 
-        return ans_frames + ans_symbols + ans_utterances
+        return ans_frames + ans_utterances
 
     def norm_items(self) -> List[Tuple[str, float]]:
         """
@@ -577,18 +570,16 @@ class MetricsTracker(collections.defaultdict):
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
         num_frames = self["frames"] if "frames" in self else 1
-        num_symbols = self["symbols"] if "symbols" in self else 1
         num_utterances = self["utterances"] if "utterances" in self else 1
         ans = []
         for k, v in self.items():
-            if k == "frames" or k == "utterances" or k == "symbols":
+            if k == "frames" or k == "utterances":
                 continue
-            if "utt_" in k:
-                norm_value = float(v) / num_utterances
-            elif k == "sym_delay":
-                norm_value = float(v) / num_symbols
-            else:
-                norm_value = float(v) / num_frames
+            norm_value = (
+                float(v) / num_frames
+                if "utt_" not in k
+                else float(v) / num_utterances
+            )
             ans.append((k, norm_value))
         return ans
 
