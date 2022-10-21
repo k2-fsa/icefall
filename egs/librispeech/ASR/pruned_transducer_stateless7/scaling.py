@@ -482,7 +482,7 @@ class ActivationBalancer(torch.nn.Module):
             scale_gain_factor: float = 0.02,
             min_abs: float = 0.2,
             max_abs: float = 100.0,
-            min_prob: float = 0.1,
+            min_prob: float = 0.05,
     ):
         super(ActivationBalancer, self).__init__()
         self.num_channels = num_channels
