@@ -726,7 +726,7 @@ class SimpleCombiner(torch.nn.Module):
 
         if self.training and random.random() < 0.1:
             logit =  penalize_abs_values_gt(logit,
-                                            limit=10.0,
+                                            limit=25.0,
                                             penalty=1.0e-04)
         weight = logit.sigmoid()
 
