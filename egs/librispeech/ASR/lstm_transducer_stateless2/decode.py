@@ -306,6 +306,22 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--tokens-ngram",
+        type=int,
+        default=3,
+        help="""Token Ngram used for rescoring.
+            Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+    )
+
+    parser.add_argument(
+        "--backoff-id",
+        type=int,
+        default=500,
+        help="""ID of the backoff symbol.
+                Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -790,11 +806,11 @@ def main():
     model.to(device)
     model.eval()
 
-    lm_filename = "5ram.fst.txt"
+    lm_filename = f"{params.tokens_ngram}gram.fst.txt"
     logging.info(f"lm filename: {lm_filename}")
     ngram_lm = NgramLm(
         str(params.lang_dir / lm_filename),
-        backoff_id=500,
+        backoff_id=params.backoff_id,
         is_binary=False,
     )
     logging.info(f"num states: {ngram_lm.lm.num_states}")
