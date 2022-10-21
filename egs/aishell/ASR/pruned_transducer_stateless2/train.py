@@ -126,6 +126,40 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -310,6 +344,25 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value to penalize symbol delay, this may be
+         needed when training with time masking, to avoid the time masking
+         encouraging the network to delay symbols.
+         """,
+    )
+
+    parser.add_argument(
+        "--return-sym-delay",
+        type=str2bool,
+        default=False,
+        help="""Whether to return `sym_delay` during training, this is a stat
+        to measure symbols emission delay, especially for time masking training.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -390,6 +443,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -578,8 +635,10 @@ def compute_loss(
     y = graph_compiler.texts_to_ids(texts)
     y = k2.RaggedTensor(y).to(device)
 
+    delay_penalty = 0.0 if warmup < 2.0 else params.delay_penalty
+
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, sym_delay, total_syms = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -587,6 +646,9 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            delay_penalty_simple=delay_penalty,
+            delay_penalty_pruned=delay_penalty,
+            return_sym_delay=params.return_sym_delay,
         )
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
@@ -615,6 +677,9 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if params.return_sym_delay:
+        info["symbols"] = total_syms.detach().cpu().item()
+        info["sym_delay"] = sym_delay.detach().cpu().item()
 
     return loss, info
 
@@ -857,6 +922,15 @@ def run(rank, world_size, args):
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
 
+    if params.dynamic_chunk_training:
+        assert (
+            params.causal_convolution
+        ), "dynamic_chunk_training requires causal convolution"
+    else:
+        assert (
+            params.delay_penalty == 0.0
+        ), "delay_penalty is intended for dynamic_chunk_training"
+
     logging.info(params)
 
     logging.info("About to create model")
@@ -871,7 +945,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank], find_unused_parameters=False)
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
