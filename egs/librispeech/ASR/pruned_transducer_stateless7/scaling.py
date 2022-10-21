@@ -545,6 +545,24 @@ class ActivationBalancer(torch.nn.Module):
             return _no_op(x)
 
 
+def penalize_abs_values_gt(x: Tensor, limit: float, penalty: float) -> Tensor:
+    """
+    Returns x unmodified, but in backprop will put a penalty for the excess of
+    the absolute values of elements of x over the limit "limit".  E.g. if
+    limit == 10.0, then if x has any values over 10 it will get a penalty.
+
+    Caution: the value of this penalty will be affected by grad scaling used
+    in automatic mixed precision training.  For this reasons we use this,
+    it shouldn't really matter, or may even be helpful; we just use this
+    to disallow really implausible values of scores to be given to softmax.
+    """
+    aux_loss = penalty * (x.abs() - limit).relu()
+    # note: we don't do sum() here on aux)_loss, but it's as if we had done
+    # sum() due to how with_loss() works.
+    x = with_loss(x, aux_loss)
+    # you must use x for something, or this will be ineffective.
+    return x
+
 
 def _diag(x: Tensor):  # like .diag(), but works for tensors with 3 dims.
     if x.ndim == 2:
