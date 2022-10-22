@@ -230,11 +230,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--initial-lr",
+        "--base-lr",
         type=float,
-        default=0.075,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        default=0.1,
+        help="The base learning rate."
     )
 
     parser.add_argument(
@@ -977,7 +976,7 @@ def run(rank, world_size, args):
                     find_unused_parameters=True)
 
     optimizer = ScaledAdam(model.parameters(),
-                           lr=params.initial_lr,
+                           lr=params.base_lr,
                            clipping_scale=2.0)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
