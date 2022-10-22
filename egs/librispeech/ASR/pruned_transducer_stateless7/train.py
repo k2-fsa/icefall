@@ -1156,7 +1156,6 @@ def scan_pessimistic_batches_for_oom(
                     is_training=True,
                 )
             loss.backward()
-            optimizer.step()
             optimizer.zero_grad()
         except Exception as e:
             if "CUDA out of memory" in str(e):

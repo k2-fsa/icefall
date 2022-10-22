@@ -562,10 +562,10 @@ class LRScheduler(object):
         self.verbose = verbose
 
         for group in optimizer.param_groups:
-            group.setdefault("initial_lr", group["lr"])
+            group.setdefault("base_lr", group["lr"])
 
         self.base_lrs = [
-            group["initial_lr"] for group in optimizer.param_groups
+            group["base_lr"] for group in optimizer.param_groups
         ]
 
         self.epoch = 0
@@ -647,13 +647,13 @@ class Eden(LRScheduler):
     """
     Eden scheduler.
     The basic formula (before warmup) is:
-      lr = initial_lr * (((batch**2 + lr_batches**2) / lr_batches**2) ** -0.25 *
-                        (((epoch**2 + lr_epochs**2) / lr_epochs**2) ** -0.25)) * warmup
+      lr = base_lr * (((batch**2 + lr_batches**2) / lr_batches**2) ** -0.25 *
+                     (((epoch**2 + lr_epochs**2) / lr_epochs**2) ** -0.25)) * warmup
     where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
     and then stays constant at 1.
 
 
-     E.g. suggest initial-lr = 0.04 (passed to optimizer) if used with ScaledAdam
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
 
     Args:
         optimizer: the optimizer to change the learning rates on
