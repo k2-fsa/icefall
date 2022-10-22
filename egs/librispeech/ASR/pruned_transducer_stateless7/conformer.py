@@ -303,7 +303,7 @@ class ConformerEncoderLayer(nn.Module):
         self.whiten = Whiten(num_groups=1,
                              whitening_limit=5.0,
                              prob=(0.025, 0.25),
-                             grad_scale=0.02)
+                             grad_scale=0.01)
 
     def forward(
         self,
