@@ -228,6 +228,13 @@ class ScaledAdam(BatchedOptimizer):
 
         return loss
 
+    @torch.no_grad()
+    def reset(self):
+        for d in self.state.values():
+            # d should be a dict.  clear all elements from it.
+            d.clear()
+
+
     def _init_state(self,
                     group: dict,
                     p: Tensor,
@@ -899,8 +906,8 @@ def _test_scaled_adam(hidden_dim: int):
         avg_loss = 0.0
         for epoch in range(180):
             scheduler.step_epoch()
-            #if epoch == 100 and iter in [2,3]:
-            #    optim.reset_speedup()  # check it doesn't crash.
+            if epoch == 100 and iter == 1:
+                optim.reset()
 
             #if epoch == 130:
             #    opts = diagnostics.TensorDiagnosticOptions(
