@@ -1046,7 +1046,8 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16)
+    scaler = GradScaler(enabled=params.use_fp16,
+                        init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
