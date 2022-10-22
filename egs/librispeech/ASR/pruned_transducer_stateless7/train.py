@@ -851,7 +851,8 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}"
+                f"lr: {cur_lr:.2e}, " +
+                (f"grad_scale: {scaler.scale}" if params.use_fp16 else "")
             )
 
             if tb_writer is not None:
@@ -865,6 +866,12 @@ def train_one_epoch(
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
                 )
+                if params.use_fp16:
+                    tb_writer.add_scalar(
+                        "train/grad_scale", scaler.scale, params.batch_idx_train
+                    )
+
+
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
