@@ -477,7 +477,7 @@ class ActivationBalancer(torch.nn.Module):
             channel_dim: int,
             min_positive: float = 0.05,
             max_positive: float = 0.95,
-            max_factor: float = 0.02,
+            max_factor: float = 0.04,
             sign_gain_factor: float = 0.01,
             scale_gain_factor: float = 0.02,
             min_abs: float = 0.2,
