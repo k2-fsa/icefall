@@ -76,7 +76,7 @@ class Transducer(nn.Module):
         self.am_balancer = ActivationBalancer(vocab_size,
                                               channel_dim=-1,
                                               min_positive=0, max_positive=1,
-                                              min_abs=0, max_abs=50.0)
+                                              min_abs=0, max_abs=20.0)
 
     def forward(
         self,
