@@ -1260,7 +1260,8 @@ class FeedforwardModule(nn.Module):
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(d_model, feedforward_dim)
         self.balancer = ActivationBalancer(feedforward_dim,
-                                           channel_dim=-1, max_abs=10.0)
+                                           channel_dim=-1, max_abs=10.0,
+                                           min_prob=0.25)
         self.activation = DoubleSwish()
         self.dropout = nn.Dropout(dropout)
         self.out_proj = ScaledLinear(feedforward_dim, d_model,

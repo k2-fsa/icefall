@@ -520,7 +520,7 @@ class ActivationBalancer(torch.nn.Module):
 
         # the prob of doing some work exponentially decreases from 0.5 till it hits
         # a floor at min_prob (==0.1, by default)
-        prob = max(self.min_prob, 0.5 ** (1 + (count/2000.0)))
+        prob = max(self.min_prob, 0.5 ** (1 + (count/4000.0)))
 
         if random.random() < prob:
             sign_gain_factor = 0.5
