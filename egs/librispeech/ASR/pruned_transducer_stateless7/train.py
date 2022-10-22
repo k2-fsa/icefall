@@ -845,14 +845,24 @@ def train_one_epoch(
                 rank=rank,
             )
 
+        if batch_idx % 100 == 0 and params.use_fp16:
+            # If the grad scale was less than 1, try increasing it.    The _growth_interval
+            # of the grad scaler is configurable, but we can't configure it to have different
+            # behavior depending on the current grad scale.
+            cur_grad_scale = scaler._scale.item()
+            if cur_grad_scale < 1.0:
+                scaler.update(cur_grad_scale * 2.0)
+
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
+            cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
+
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, " +
-                (f"grad_scale: {scaler.scale}" if params.use_fp16 else "")
+                (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
 
             if tb_writer is not None:
@@ -868,7 +878,7 @@ def train_one_epoch(
                 )
                 if params.use_fp16:
                     tb_writer.add_scalar(
-                        "train/grad_scale", scaler.scale, params.batch_idx_train
+                        "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
 
