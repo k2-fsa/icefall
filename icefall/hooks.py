@@ -66,7 +66,7 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                         continue
                     if not torch.isfinite(o.to(torch.float32).sum()):
                         logging.warning(
-                            f"The sum of {_name}.grad[{i}] is not finite: {o}"
+                            f"The sum of {_name}.grad[{i}] is not finite"
                         )
 
         module.register_forward_hook(forward_hook)
