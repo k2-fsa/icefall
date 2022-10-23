@@ -656,6 +656,9 @@ class Hypothesis:
     # The log prob of ys.
     # It contains only one entry.
     log_prob: torch.Tensor
+        
+    # Used for cache
+    dec_out: torch.Tensor = None
 
     state_cost: Optional[NgramLmStateCost] = None
 
@@ -697,6 +700,8 @@ class HypothesisList(object):
             torch.logaddexp(
                 old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
             )
+            if hyp.dec_out is not None:
+                old_hyp.dec_out = hyp.dec_out
         else:
             self._data[key] = hyp
 
@@ -845,12 +850,24 @@ def modified_beam_search(
     assert torch.all(encoder_out_lens > 0), encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
 
+    cache = model.joiner.decoder_proj(
+        model.decoder(
+            torch.tensor(
+                [[blank_id, blank_id]],
+                device=device,
+                dtype=torch.int64,
+            ),
+            need_pad=False,
+        ).unsqueeze(1),
+    )
+    
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
         B[i].add(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                dec_out=cache,
             )
         )
 
@@ -869,25 +886,51 @@ def modified_beam_search(
         finalized_B = B[batch_size:] + finalized_B
         B = B[:batch_size]
 
-        hyps_shape = get_hyps_shape(B).to(device)
+        #hyps_shape = get_hyps_shape(B).to(device)
 
-        A = [list(b) for b in B]
+        #A = [list(b) for b in B]
+        A = []
+        for b in B:
+            b = list(b)
+            a, a_with_cache = [], []
+            for hyp in b:
+                if hyp.dec_out is not None:
+                    a_with_cache.append(hyp)
+                else:
+                    a.append(hyp)
+            A.append((a, a_with_cache))
         B = [HypothesisList() for _ in range(batch_size)]
 
         ys_log_probs = torch.cat(
-            [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
+            [hyp.log_prob.reshape(1, 1) for a, a_with_cache in A for hyp in a + a_with_cache]
         )  # (num_hyps, 1)
 
-        decoder_input = torch.tensor(
-            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
-            device=device,
-            dtype=torch.int64,
-        )  # (num_hyps, context_size)
-
-        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
-        decoder_out = model.joiner.decoder_proj(decoder_out)
+        total_dec_out = []
+        for a, a_with_cache in A:
+            a1, a2 = [], []
+            if len(a) > 0:
+                decoder_input = torch.tensor(
+                    [hyp.ys[-context_size:] for hyp in a],
+                    device=device,
+                    dtype=torch.int64,
+                )  # (num_hyps, context_size)
+                
+                decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+                decoder_out = model.joiner.decoder_proj(decoder_out)
+                a1.append(decoder_out)
+                
+            if len(a_with_cache) > 0:
+                for hyp in a_with_cache:
+                    a2.append(hyp.dec_out)
+            decoder_out = torch.cat(a1 + a2, dim=0)
+            total_dec_out.append(decoder_out)
+            
+        decoder_out = torch.cat(total_dec_out, dim=0)
         # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
 
+        A = [a + a_with_cache for a, a_with_cache in A]
+        hyps_shape = get_hyps_shape(A).to(device)
+        
         # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
         # as index, so we use `to(torch.int64)` below.
         current_encoder_out = torch.index_select(
@@ -938,9 +981,13 @@ def modified_beam_search(
                 new_token = topk_token_indexes[k]
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
+                    cache = None
+                else:
+                    cache_idx = hyps_shape.row_splits(1)[i] + hyp_idx
+                    cache = decoder_out[cache_idx: cache_idx+1]
 
                 new_log_prob = topk_log_probs[k]
-                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob, dec_out=cache)
                 B[i].add(new_hyp)
 
     B = B + finalized_B
@@ -991,12 +1038,24 @@ def _deprecated_modified_beam_search(
     T = encoder_out.size(1)
 
     B = HypothesisList()
-    B.add(
+    B_with_cache = HypothesisList()
+    B_with_cache.add(
         Hypothesis(
             ys=[blank_id] * context_size,
             log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+            dec_out=model.joiner.decoder_proj(
+                model.decoder(
+                    torch.tensor(
+                        [[blank_id, blank_id]],
+                        device=device,
+                        dtype=torch.int64,
+                    ),
+                    need_pad=False,
+                ).unsqueeze(1)
+            )
         )
     )
+    
     encoder_out = model.joiner.encoder_proj(encoder_out)
 
     for t in range(T):
@@ -1004,22 +1063,34 @@ def _deprecated_modified_beam_search(
         current_encoder_out = encoder_out[:, t:t+1, :].unsqueeze(2)
         # current_encoder_out is of shape (1, 1, 1, encoder_out_dim)
         # fmt: on
-        A = list(B)
-        B = HypothesisList()
+        A = list(B) + list(B_with_cache)
+        beam_size = len(A)
 
         ys_log_probs = torch.cat([hyp.log_prob.reshape(1, 1) for hyp in A])
         # ys_log_probs is of shape (num_hyps, 1)
 
-        decoder_input = torch.tensor(
-            [hyp.ys[-context_size:] for hyp in A],
-            device=device,
-            dtype=torch.int64,
-        )
-        # decoder_input is of shape (num_hyps, context_size)
-
-        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
-        decoder_out = model.joiner.decoder_proj(decoder_out)
-        # decoder_output is of shape (num_hyps, 1, 1, joiner_dim)
+        a1, a2 = [], []
+        if len(B) > 0:
+            decoder_input = torch.tensor(
+                [hyp.ys[-context_size:] for hyp in B],
+                device=device,
+                dtype=torch.int64,
+            )
+            # decoder_input is of shape (num_hyps, context_size)
+            decoder_out = model.decoder(decoder_input, need_pad=False).unsquueze(1)
+            decoder_out = model.joiner.decoder_proj(decoder_out)
+            a1.append(decoder_out)
+            
+        if len(B_with_cache) > 0:
+            decoder_out_cached = torch.cat(
+                [hyp.dec_out for hyp in B_with_cache],
+                dim=0,
+            )
+            a2.append(decoder_out_cached)
+            
+        decoder_out = torch.cat(a1 + a2, dim=0)
+        # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
+        del a1, a2
 
         current_encoder_out = current_encoder_out.expand(
             decoder_out.size(0), 1, 1, -1
@@ -1050,16 +1121,30 @@ def _deprecated_modified_beam_search(
             topk_hyp_indexes = topk_hyp_indexes.tolist()
             topk_token_indexes = topk_token_indexes.tolist()
 
+        total_hyps = HypothesisList()
         for i in range(len(topk_hyp_indexes)):
             hyp = A[topk_hyp_indexes[i]]
             new_ys = hyp.ys[:]
             new_token = topk_token_indexes[i]
             if new_token not in (blank_id, unk_id):
                 new_ys.append(new_token)
+                cache = None
+            else:
+                cache = decoder_out[hyp_idx: hyp_dix+1]
+                
             new_log_prob = topk_log_probs[i]
-            new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
-            B.add(new_hyp)
+            new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob, dec_out=cache)
+            total_hyps.add(new_hyp)
+            
+        B, B_with_cache = HypothesisList(), HypothesisList()
+        for hyp in total_hyps:
+            if hyp.dec_out is not None:
+                B_with_cache.add(hyp)
+            else:
+                B.add(hyp)
 
+    for hyp in B_with_cache:
+        B.add(hyp)
     best_hyp = B.get_most_probable(length_norm=True)
     ys = best_hyp.ys[context_size:]  # [context_size:] to remove blanks
 
