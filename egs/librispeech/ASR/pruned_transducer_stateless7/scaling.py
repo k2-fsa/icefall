@@ -922,7 +922,8 @@ class DoubleSwishFunction(torch.autograd.Function):
         if requires_grad:
             # discretize s.  This should be expectation-preserving if we just divide the
             # result by 255.
-            s = ((s * 255) + torch.rand_like(s)).to(torch.uint8)
+            s = s.to(torch.float)
+            s = ((s * 254.99) + torch.rand_like(s)).to(torch.uint8)
             ctx.save_for_backward(s, y)
         return y
 
