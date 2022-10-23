@@ -260,6 +260,8 @@ class SoftmaxFunction(torch.autograd.Function):
         # if x dtype is float16, x.softmax() returns a float32 because
         # (presumably) that op does not support float16, and autocast
         # is enabled.
+        if torch.is_autocast_enabled():
+            ans = ans.to(torch.float16)
         ctx.save_for_backward(ans)
         ctx.x_dtype = x.dtype
         ctx.dim = dim
@@ -273,9 +275,6 @@ class SoftmaxFunction(torch.autograd.Function):
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
             x_grad = x_grad - ans * x_grad.sum(dim=ctx.dim, keepdim=True)
-            if ctx.x_dtype == torch.float16:
-                x_grad = random_cast_to_half(x_grad)
-
             return x_grad, None
 
 

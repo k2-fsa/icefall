@@ -36,6 +36,7 @@ from scaling import (
     _diag,
     random_clamp,
     penalize_abs_values_gt,
+    softmax,
 )
 from torch import Tensor, nn
 
@@ -1161,7 +1162,12 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz * num_heads, seq_len, seq_len
             )
 
-        attn_output_weights = attn_output_weights.softmax(dim=-1)
+        # Using this version of softmax, defined in scaling.py,
+        # should save a little of the memory used in backprop by, if
+        # we are in automatic mixed precision mode (amp) == autocast,
+        # only storing the half-precision output for backprop purposes.
+        attn_output_weights = softmax(attn_output_weights, dim=-1)
+
         attn_output_weights = nn.functional.dropout(
             attn_output_weights, p=dropout_p, training=training
         )
