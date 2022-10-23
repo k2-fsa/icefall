@@ -1336,7 +1336,7 @@ class ConvolutionModule(nn.Module):
         self.deriv_balancer2 = ActivationBalancer(
             channels, channel_dim=1,
             min_positive=0.05, max_positive=1.0,
-            max_abs=50.0,
+            max_abs=20.0,
         )
 
         self.activation = DoubleSwish()
