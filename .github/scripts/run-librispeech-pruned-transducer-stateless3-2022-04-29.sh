@@ -13,9 +13,12 @@ cd egs/librispeech/ASR
 repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-04-29
 
 log "Downloading pre-trained model from $repo_url"
-git lfs install
-git clone $repo_url
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-epoch-25-avg-6.pt"
+popd
 
 log "Display test files"
 tree $repo/
