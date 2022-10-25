@@ -558,10 +558,12 @@ def penalize_abs_values_gt(x: Tensor, limit: float, penalty: float) -> Tensor:
     x_sign = x.sign()
     over_limit = (x.abs() - limit) > 0
     # The following is a memory efficient way to penalize the absolute values of
-    # x that's over the limit.  the numerical value of aux_loss as computed here will actually be
-    # larger than it should be, but it has the same derivative as
-    #  penalty * (x.abs() - limit).relu()
-    # which is what we really want to penalize
+    # x that's over the limit.  (The memory efficiency comes when you think
+    # about which items torch needs to cache for the autograd, and which ones it
+    # can throw away).  The numerical value of aux_loss as computed here will
+    # actually be larger than it should be, by limit * over_limit.sum(), but it
+    # has the same derivative as the real aux_loss which is penalty * (x.abs() -
+    # limit).relu().
     aux_loss = penalty * ((x_sign * over_limit).to(torch.int8) * x)
     # note: we don't do sum() here on aux)_loss, but it's as if we had done
     # sum() due to how with_loss() works.

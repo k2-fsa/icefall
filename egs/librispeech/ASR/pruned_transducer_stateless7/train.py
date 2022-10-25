@@ -901,6 +901,7 @@ def train_one_epoch(
             )
             model.train()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            logging.info(f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB")
             if tb_writer is not None:
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
