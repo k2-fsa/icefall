@@ -159,7 +159,7 @@ class ScaledAdam(BatchedOptimizer):
             eps=1.0e-08,
             param_min_rms=1.0e-05,
             param_max_rms=3.0,
-            scalar_max=2.0,
+            scalar_max=5.0,
             size_update_period=4,
             clipping_update_period=100,
     ):
