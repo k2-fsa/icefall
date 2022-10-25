@@ -450,8 +450,8 @@ class ConformerEncoder(nn.Module):
             initial_layerdrop_prob = 0.5
             final_layerdrop_prob = 0.05
 
-            if warmup_count < 100.0:
-                # As a special case, if warmup_count < 100.0 return 0 (drop no
+            if warmup_count < 5.0:
+                # As a special case, if warmup_count < 5.0 return 0 (drop no
                 # layers).  This is rather ugly, I'm afraid; it is intended to
                 # enable our scan_pessimistic_batches_for_oom() code to work correctly
                 # so if we are going to get OOM it will happen early.
