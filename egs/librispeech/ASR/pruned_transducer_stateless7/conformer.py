@@ -360,7 +360,11 @@ class ConformerEncoderLayer(nn.Module):
 
         delta = src - src_orig
         bypass_scale = self.bypass_scale
-        if random.random() > 0.1:
+        if self.training and random.random() < 0.25:
+            # with probability 0.25, in training mode, clamp bypass_scale to [
+            # 0.1, 1.0 ]; this will encourage it to learn parameters within this
+            # range by making parameters that are outside that range range
+            # noisy.
             bypass_scale = bypass_scale.clamp(min=0.1, max=1.0)
         src = src_orig + delta * self.bypass_scale
 

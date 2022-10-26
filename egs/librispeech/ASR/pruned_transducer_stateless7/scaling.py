@@ -348,6 +348,8 @@ class BasicNorm(torch.nn.Module):
           to indicate the connection with conventional LayerNorm.
        learn_eps: if true, we learn epsilon; if false, we keep it
          at the initial value.
+    eps_min: float
+    eps_max: float
     """
 
     def __init__(
@@ -356,6 +358,8 @@ class BasicNorm(torch.nn.Module):
         channel_dim: int = -1,  # CAUTION: see documentation.
         eps: float = 0.25,
         learn_eps: bool = True,
+        eps_min: float = -3.0,
+        eps_max: float = 3.0,
     ) -> None:
         super(BasicNorm, self).__init__()
         self.num_channels = num_channels
@@ -364,9 +368,21 @@ class BasicNorm(torch.nn.Module):
             self.eps = nn.Parameter(torch.tensor(eps).log().detach())
         else:
             self.register_buffer("eps", torch.tensor(eps).log().detach())
+        self.eps_min = eps_min
+        self.eps_max = eps_max
 
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
+        eps = self.eps
+        if self.training and random.random() < 0.25:
+            # with probability 0.25, in training mode, clamp eps between the min
+            # and max; this will encourage it to learn parameters within the
+            # allowed range by making parameters that are outside the allowed
+            # range noisy.
+
+            # gradients to allow the parameter to get back into the allowed
+            # region if it happens to exit it.
+            eps = eps.clamp(min=self.eps_min, max=self.eps_max)
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
