@@ -96,14 +96,14 @@ def get_parser():
 
         - labels_xxx.h5
         - aux_labels_xxx.h5
-        - cuts_xxx.json.gz
+        - librispeech_cuts_xxx.jsonl.gz
 
         where xxx is the value of `--dataset`. For instance, if
         `--dataset` is `train-clean-100`, it will contain 3 files:
 
         - `labels_train-clean-100.h5`
         - `aux_labels_train-clean-100.h5`
-        - `cuts_train-clean-100.json.gz`
+        - `librispeech_cuts_train-clean-100.jsonl.gz`
 
         Note: Both labels_xxx.h5 and aux_labels_xxx.h5 contain framewise
         alignment. The difference is that labels_xxx.h5 contains repeats.
@@ -289,7 +289,9 @@ def main():
 
     out_labels_ali_filename = out_dir / f"labels_{params.dataset}.h5"
     out_aux_labels_ali_filename = out_dir / f"aux_labels_{params.dataset}.h5"
-    out_manifest_filename = out_dir / f"cuts_{params.dataset}.json.gz"
+    out_manifest_filename = (
+        out_dir / f"librispeech_cuts_{params.dataset}.jsonl.gz"
+    )
 
     for f in (
         out_labels_ali_filename,

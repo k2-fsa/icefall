@@ -1,4 +1,4 @@
-# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey)
+# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey, Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -16,14 +16,16 @@
 
 
 import collections
+import random
 from itertools import repeat
 from typing import Optional, Tuple
-import logging
 
-import random
 import torch
+import torch.backends.cudnn.rnn as rnn
 import torch.nn as nn
-from torch import Tensor
+from torch import _VF, Tensor
+
+from icefall.utils import is_jit_tracing
 
 
 def _ntuple(n):
@@ -54,7 +56,15 @@ class ActivationBalancerFunction(torch.autograd.Function):
         if x.requires_grad:
             if channel_dim < 0:
                 channel_dim += x.ndim
-            sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+
+            #  sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+            # The above line is not torch scriptable for torch 1.6.0
+            # torch.jit.frontend.NotSupportedError: comprehension ifs not supported yet:  # noqa
+            sum_dims = []
+            for d in range(x.ndim):
+                if d != channel_dim:
+                    sum_dims.append(d)
+
             xgt0 = x > 0
             proportion_positive = torch.mean(
                 xgt0.to(x.dtype), dim=sum_dims, keepdim=True
@@ -102,6 +112,76 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x_grad - neg_delta_grad, None, None, None, None, None, None
 
 
+class GradientFilterFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        batch_dim: int,  # e.g., 1
+        threshold: float,  # e.g., 10.0
+        *params: Tensor,  # module parameters
+    ) -> Tuple[Tensor, ...]:
+        if x.requires_grad:
+            if batch_dim < 0:
+                batch_dim += x.ndim
+            ctx.batch_dim = batch_dim
+            ctx.threshold = threshold
+        return (x,) + params
+
+    @staticmethod
+    def backward(
+        ctx,
+        x_grad: Tensor,
+        *param_grads: Tensor,
+    ) -> Tuple[Tensor, ...]:
+        eps = 1.0e-20
+        dim = ctx.batch_dim
+        norm_dims = [d for d in range(x_grad.ndim) if d != dim]
+        norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
+        median_norm = norm_of_batch.median()
+
+        cutoff = median_norm * ctx.threshold
+        inv_mask = (cutoff + norm_of_batch) / (cutoff + eps)
+        mask = 1.0 / (inv_mask + eps)
+        x_grad = x_grad * mask
+
+        avg_mask = 1.0 / (inv_mask.mean() + eps)
+        param_grads = [avg_mask * g for g in param_grads]
+
+        return (x_grad, None, None) + tuple(param_grads)
+
+
+class GradientFilter(torch.nn.Module):
+    """This is used to filter out elements that have extremely large gradients
+    in batch and the module parameters with soft masks.
+
+    Args:
+      batch_dim (int):
+        The batch dimension.
+      threshold (float):
+        For each element in batch, its gradient will be
+        filtered out if the gradient norm is larger than
+        `grad_norm_threshold * median`, where `median` is the median
+        value of gradient norms of all elememts in batch.
+    """
+
+    def __init__(self, batch_dim: int = 1, threshold: float = 10.0):
+        super(GradientFilter, self).__init__()
+        self.batch_dim = batch_dim
+        self.threshold = threshold
+
+    def forward(self, x: Tensor, *params: Tensor) -> Tuple[Tensor, ...]:
+        if torch.jit.is_scripting() or is_jit_tracing():
+            return (x,) + params
+        else:
+            return GradientFilterFunction.apply(
+                x,
+                self.batch_dim,
+                self.threshold,
+                *params,
+            )
+
+
 class BasicNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
@@ -146,7 +226,8 @@ class BasicNorm(torch.nn.Module):
             self.register_buffer("eps", torch.tensor(eps).log().detach())
 
     def forward(self, x: Tensor) -> Tensor:
-        assert x.shape[self.channel_dim] == self.num_channels
+        if not is_jit_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
         scales = (
             torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
@@ -185,7 +266,7 @@ class ScaledLinear(nn.Linear):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -216,8 +297,8 @@ class ScaledLinear(nn.Linear):
     def get_bias(self):
         if self.bias is None or self.bias_scale is None:
             return None
-
-        return self.bias * self.bias_scale.exp()
+        else:
+            return self.bias * self.bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         return torch.nn.functional.linear(
@@ -232,10 +313,13 @@ class ScaledConv1d(nn.Conv1d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
+
+        self.bias_scale: Optional[nn.Parameter]  # for torchscript
+
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
@@ -264,7 +348,8 @@ class ScaledConv1d(nn.Conv1d):
         bias_scale = self.bias_scale
         if bias is None or bias_scale is None:
             return None
-        return bias * bias_scale.exp()
+        else:
+            return bias * bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
         F = torch.nn.functional
@@ -300,7 +385,7 @@ class ScaledConv2d(nn.Conv2d):
         *args,
         initial_scale: float = 1.0,
         initial_speed: float = 1.0,
-        **kwargs
+        **kwargs,
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -333,7 +418,8 @@ class ScaledConv2d(nn.Conv2d):
         bias_scale = self.bias_scale
         if bias is None or bias_scale is None:
             return None
-        return bias * bias_scale.exp()
+        else:
+            return bias * bias_scale.exp()
 
     def _conv_forward(self, input, weight):
         F = torch.nn.functional
@@ -365,6 +451,165 @@ class ScaledConv2d(nn.Conv2d):
         return self._conv_forward(input, self.get_weight())
 
 
+class ScaledLSTM(nn.LSTM):
+    # See docs for ScaledLinear.
+    # This class implements LSTM with scaling mechanism, using `torch._VF.lstm`
+    # Please refer to https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        grad_norm_threshold: float = 10.0,
+        **kwargs,
+    ):
+        if "bidirectional" in kwargs:
+            assert kwargs["bidirectional"] is False
+        super(ScaledLSTM, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self._scales_names = []
+        self._scales = []
+        for name in self._flat_weights_names:
+            scale_name = name + "_scale"
+            self._scales_names.append(scale_name)
+            param = nn.Parameter(initial_scale.clone().detach())
+            setattr(self, scale_name, param)
+            self._scales.append(param)
+
+        self.grad_filter = GradientFilter(
+            batch_dim=1, threshold=grad_norm_threshold
+        )
+
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        scale = self.hidden_size ** -0.5
+        v = scale / std
+        for idx, name in enumerate(self._flat_weights_names):
+            if "weight" in name:
+                nn.init.uniform_(self._flat_weights[idx], -a, a)
+                with torch.no_grad():
+                    self._scales[idx] += torch.tensor(v).log()
+            elif "bias" in name:
+                nn.init.constant_(self._flat_weights[idx], 0.0)
+
+    def _flatten_parameters(self, flat_weights) -> None:
+        """Resets parameter data pointer so that they can use faster code paths.
+
+        Right now, this works only if the module is on the GPU and cuDNN is enabled.
+        Otherwise, it's a no-op.
+
+        This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
+        """
+        # Short-circuits if _flat_weights is only partially instantiated
+        if len(flat_weights) != len(self._flat_weights_names):
+            return
+
+        for w in flat_weights:
+            if not isinstance(w, Tensor):
+                return
+        # Short-circuits if any tensor in flat_weights is not acceptable to cuDNN
+        # or the tensors in flat_weights are of different dtypes
+
+        first_fw = flat_weights[0]
+        dtype = first_fw.dtype
+        for fw in flat_weights:
+            if (
+                not isinstance(fw.data, Tensor)
+                or not (fw.data.dtype == dtype)
+                or not fw.data.is_cuda
+                or not torch.backends.cudnn.is_acceptable(fw.data)
+            ):
+                return
+
+        # If any parameters alias, we fall back to the slower, copying code path. This is
+        # a sufficient check, because overlapping parameter buffers that don't completely
+        # alias would break the assumptions of the uniqueness check in
+        # Module.named_parameters().
+        unique_data_ptrs = set(p.data_ptr() for p in flat_weights)
+        if len(unique_data_ptrs) != len(flat_weights):
+            return
+
+        with torch.cuda.device_of(first_fw):
+
+            # Note: no_grad() is necessary since _cudnn_rnn_flatten_weight is
+            # an inplace operation on self._flat_weights
+            with torch.no_grad():
+                if torch._use_cudnn_rnn_flatten_weight():
+                    num_weights = 4 if self.bias else 2
+                    if self.proj_size > 0:
+                        num_weights += 1
+                    torch._cudnn_rnn_flatten_weight(
+                        flat_weights,
+                        num_weights,
+                        self.input_size,
+                        rnn.get_cudnn_mode(self.mode),
+                        self.hidden_size,
+                        self.proj_size,
+                        self.num_layers,
+                        self.batch_first,
+                        bool(self.bidirectional),
+                    )
+
+    def _get_flat_weights(self):
+        """Get scaled weights, and resets their data pointer."""
+        flat_weights = []
+        for idx in range(len(self._flat_weights_names)):
+            flat_weights.append(
+                self._flat_weights[idx] * self._scales[idx].exp()
+            )
+        self._flatten_parameters(flat_weights)
+        return flat_weights
+
+    def forward(
+        self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
+    ):
+        # This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
+        # The change for calling `_VF.lstm()` is:
+        # self._flat_weights -> self._get_flat_weights()
+        if hx is None:
+            h_zeros = torch.zeros(
+                self.num_layers,
+                input.size(1),
+                self.proj_size if self.proj_size > 0 else self.hidden_size,
+                dtype=input.dtype,
+                device=input.device,
+            )
+            c_zeros = torch.zeros(
+                self.num_layers,
+                input.size(1),
+                self.hidden_size,
+                dtype=input.dtype,
+                device=input.device,
+            )
+            hx = (h_zeros, c_zeros)
+
+        self.check_forward_args(input, hx, None)
+
+        flat_weights = self._get_flat_weights()
+        input, *flat_weights = self.grad_filter(input, *flat_weights)
+
+        result = _VF.lstm(
+            input,
+            hx,
+            flat_weights,
+            self.bias,
+            self.num_layers,
+            self.dropout,
+            self.training,
+            self.bidirectional,
+            self.batch_first,
+        )
+
+        output = result[0]
+        hidden = result[1:]
+        return output, hidden
+
+
 class ActivationBalancer(torch.nn.Module):
     """
     Modifies the backpropped derivatives of a function to try to encourage, for
@@ -392,6 +637,7 @@ class ActivationBalancer(torch.nn.Module):
            max_abs:  the maximum average-absolute-value per channel, which
                we allow, before we start to modify the derivatives to prevent
                this.
+           balance_prob: the probability to apply the ActivationBalancer.
     """
 
     def __init__(
@@ -402,6 +648,7 @@ class ActivationBalancer(torch.nn.Module):
         max_factor: float = 0.01,
         min_abs: float = 0.2,
         max_abs: float = 100.0,
+        balance_prob: float = 0.25,
     ):
         super(ActivationBalancer, self).__init__()
         self.channel_dim = channel_dim
@@ -410,20 +657,22 @@ class ActivationBalancer(torch.nn.Module):
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
+        assert 0 < balance_prob <= 1, balance_prob
+        self.balance_prob = balance_prob
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting():
+        if random.random() >= self.balance_prob:
             return x
-
-        return ActivationBalancerFunction.apply(
-            x,
-            self.channel_dim,
-            self.min_positive,
-            self.max_positive,
-            self.max_factor,
-            self.min_abs,
-            self.max_abs,
-        )
+        else:
+            return ActivationBalancerFunction.apply(
+                x,
+                self.channel_dim,
+                self.min_positive,
+                self.max_positive,
+                self.max_factor / self.balance_prob,
+                self.min_abs,
+                self.max_abs,
+            )
 
 
 class DoubleSwishFunction(torch.autograd.Function):
@@ -461,9 +710,10 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or is_jit_tracing():
             return x * torch.sigmoid(x - 1.0)
-        return DoubleSwishFunction.apply(x)
+        else:
+            return DoubleSwishFunction.apply(x)
 
 
 class ScaledEmbedding(nn.Module):
@@ -482,9 +732,6 @@ class ScaledEmbedding(nn.Module):
         embedding_dim (int): the size of each embedding vector
         padding_idx (int, optional): If given, pads the output with the embedding vector at :attr:`padding_idx`
                                          (initialized to zeros) whenever it encounters the index.
-        max_norm (float, optional): If given, each embedding vector with norm larger than :attr:`max_norm`
-                                    is renormalized to have norm :attr:`max_norm`.
-        norm_type (float, optional): The p of the p-norm to compute for the :attr:`max_norm` option. Default ``2``.
         scale_grad_by_freq (boolean, optional): If given, this will scale gradients by the inverse of frequency of
                                                 the words in the mini-batch. Default ``False``.
         sparse (bool, optional): If ``True``, gradient w.r.t. :attr:`weight` matrix will be a sparse tensor.
@@ -493,7 +740,7 @@ class ScaledEmbedding(nn.Module):
         initial_speed (float, optional):  This affects how fast the parameter will
            learn near the start of training; you can set it to a value less than
            one if you suspect that a module is contributing to instability near
-           the start of training.  Nnote: regardless of the use of this option,
+           the start of training.  Note: regardless of the use of this option,
            it's best to use schedulers like Noam that have a warm-up period.
            Alternatively you can set it to more than 1 if you want it to
            initially train faster.  Must be greater than 0.
@@ -631,7 +878,8 @@ class ScaledEmbedding(nn.Module):
             )
 
     def extra_repr(self) -> str:
-        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        # s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        s = "{num_embeddings}, {embedding_dim}"
         if self.padding_idx is not None:
             s += ", padding_idx={padding_idx}"
         if self.scale_grad_by_freq is not False:
@@ -639,263 +887,6 @@ class ScaledEmbedding(nn.Module):
         if self.sparse is not False:
             s += ", sparse=True"
         return s.format(**self.__dict__)
-
-
-class GaussProjDrop(torch.nn.Module):
-    """
-    This has an effect similar to torch.nn.Dropout, but does not privilege the on-axis directions.
-    The directions of dropout are fixed when the class is initialized, and are orthogonal.
-
-    dropout_rate: the dropout probability (actually will define the number of zeroed-out directions)
-     channel_dim: the axis corresponding to the channel, e.g. -1, 0, 1, 2.
-    """
-    def __init__(self,
-                 num_channels: int,
-                 dropout_rate: float = 0.1,
-                 channel_dim: int = -1):
-        super(GaussProjDrop, self).__init__()
-        self.dropout_rate = dropout_rate
-        # this formula for rand_scale was found empirically, trying to match the
-        # statistics of dropout in terms of cross-correlation with the input, see
-        # _test_gauss_proj_drop()
-        self.rand_scale = (dropout_rate / (1-dropout_rate)) ** 0.5 # * (num_channels ** -0.5)
-
-        self.channel_dim = channel_dim
-
-        rand_mat = torch.randn(num_channels, num_channels)
-        U, _, _ = rand_mat.svd()
-        self.register_buffer('U', U)  # a random orthogonal square matrix.  will be a buffer.
-
-
-    def _randperm_like(self, x: Tensor):
-        """
-        Returns random permutations of the integers [0,1,..x.shape[-1]-1],
-        with the same shape as x.  All dimensions of x other than the last dimension
-        will be treated as batch dimensions.
-
-        Torch's randperm does not support a batch dimension, so we pseudo-randomly simulate it.
-
-        For now, requires x.shape[-1] to be either a power of 2 or 3 times a power of 2, as
-        we normally set channel dims.  This is required for some number theoretic stuff.
-        """
-        n = x.shape[-1]
-
-        assert n & (n-1) == 0 or (n//3 & (n//3 - 1)) == 0
-
-        b = x.numel() // n
-        randint = random.randint(0, 1000)
-        perm = torch.randperm(n, device=x.device)
-        # ensure all elements of batch_rand are coprime to n; this will ensure
-        # that multiplying the permutation by batch_rand and taking modulo
-        # n leaves us with permutations.
-        batch_rand = torch.arange(b, device=x.device) * (randint * 6) + 1
-        batch_rand = batch_rand.unsqueeze(-1)
-        ans = (perm * batch_rand) % n
-        ans = ans.reshape(x.shape)
-        return ans
-
-
-    def forward(self, x: Tensor) -> Tensor:
-        if not self.training:
-            return x
-        else:
-            x = x.transpose(self.channel_dim, -1)  # (..., num_channels)
-            x_bypass = x # will be used for "+ I"
-            perm = self._randperm_like(x)
-            x = torch.gather(x, -1, perm)
-            # self.U will act like a different matrix for every row of x, because of the random
-            # permutation.
-            x = torch.matmul(x, self.U)
-            x_next = torch.empty_like(x)
-            # scatter_ uses perm in opposite way
-            # from gather, inverting it.
-            x_next.scatter_(-1, perm, x)
-            x = (x_next * self.rand_scale + x_bypass)
-            return x
-
-
-def _compute_correlation_loss(cov: Tensor,
-                              eps: float) -> Tensor:
-    """
-    Computes the correlation `loss`, which would be zero if the channel dimensions
-    are un-correlated, and equals num_channels if they are maximally correlated
-    (i.e., they all point in the same direction)
-    Args:
-       cov: Uncentered covariance matrix of shape (num_channels, num_channels),
-            does not have to be normalized by count.
-    """
-    inv_sqrt_diag = (cov.diag() + eps) ** -0.5
-    norm_cov = cov * (inv_sqrt_diag * inv_sqrt_diag.unsqueeze(-1))
-    num_channels = cov.shape[0]
-    loss = ((norm_cov - norm_cov.diag().diag()) ** 2).sum() / num_channels
-    return loss
-
-def _update_cov_stats(cov: Tensor,
-                      x: Tensor,
-                      beta: float) -> Tensor:
-    """
-    Updates covariance stats as a decaying sum, returning the result.
-      cov: Old covariance stats, to be added to and returned, of shape
-           (num_channels, num_channels)
-        x: Tensor of features/activations, of shape (num_frames, num_channels)
-     beta: The decay constant for the stats, e.g. 0.8.
-    """
-    new_cov = torch.matmul(x.t(), x)
-    return cov * beta + new_cov * (1-beta)
-
-
-class DecorrelateFunction(torch.autograd.Function):
-    """
-    Function object for a function that does nothing in the forward pass;
-    but, in the backward pass, adds derivatives that encourage the channel dimensions
-    to be un-correlated with each other.
-    This should not be used in a half-precision-enabled area, use
-    with torch.cuda.amp.autocast(enabled=False).
-
-    Args:
-           x: The input tensor, which is also the function output.  It can have
-               arbitrary shape, but its dimension `channel_dim` (e.g. -1) will be
-               interpreted as the channel dimension.
-     old_cov: Covariance statistics from previous frames, accumulated as a decaying
-              sum over frames (not average), decaying by beta each time.
-       scale: The scale on the derivatives arising from this, expressed as
-              a fraction of the norm of the derivative at the output (applied per
-              frame).  We will further scale down the derivative if the normalized
-              loss is less than 1.
-         eps: Epsilon value to prevent division by zero when estimating diagonal
-              covariance.
-        beta: Decay constant that determines how we combine stats from x with
-              stats from cov; e.g. 0.8.
- channel_dim: The dimension/axis of x corresponding to the channel, e.g. 0, 1, 2, -1.
-    """
-    @staticmethod
-    def forward(ctx, x: Tensor, old_cov: Tensor,
-                scale: float, eps: float, beta: float,
-                channel_dim: int) -> Tensor:
-        ctx.save_for_backward(x.detach(), old_cov.detach())
-        ctx.scale = scale
-        ctx.eps = eps
-        ctx.beta = beta
-        ctx.channel_dim = channel_dim
-        return x
-
-    @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None, None, None]:
-        x, old_cov = ctx.saved_tensors
-
-        # Reshape x and x_grad to be (num_frames, num_channels)
-        x = x.transpose(-1, ctx.channel_dim)
-        x_grad = x_grad.transpose(-1, ctx.channel_dim)
-        num_channels = x.shape[-1]
-        full_shape = x.shape
-        x = x.reshape(-1, num_channels)
-        x_grad = x_grad.reshape(-1, num_channels)
-        x.requires_grad = True
-
-        # Now, normalize the contributions of frames/pixels x to the covariance,
-        # to have magnitudes proportional to the norm of the gradient on that
-        # frame; the goal is to exclude "don't-care" frames such as padding frames from
-        # the computation.
-        x_grad_sqrt_norm = (x_grad ** 2).sum(dim=1) ** 0.25
-        x_grad_sqrt_norm /= x_grad_sqrt_norm.mean()
-        x_grad_sqrt_norm_is_inf = (x_grad_sqrt_norm - x_grad_sqrt_norm != 0)
-        x_grad_sqrt_norm.masked_fill_(x_grad_sqrt_norm_is_inf, 1.0)
-
-        with torch.enable_grad():
-            # scale up frames with larger grads.
-            x_scaled = x * x_grad_sqrt_norm.unsqueeze(-1)
-
-            cov = _update_cov_stats(old_cov, x_scaled, ctx.beta)
-            assert old_cov.dtype != torch.float16
-            old_cov[:] = cov  # update the stats outside!  This is not really
-                              # how backprop is supposed to work, but this input
-                              # is not differentiable..
-            loss = _compute_correlation_loss(cov, ctx.eps)
-            assert loss.dtype == torch.float32
-
-            if random.random() < 0.05:
-                logging.info(f"Decorrelate: loss = {loss}")
-
-            loss.backward()
-
-        decorr_x_grad = x.grad
-
-        scale = ctx.scale * ((x_grad ** 2).mean()  / ((decorr_x_grad ** 2).mean() + 1.0e-20)) ** 0.5
-        decorr_x_grad = decorr_x_grad * scale
-
-        x_grad = x_grad + decorr_x_grad
-
-        # reshape back to original shape
-        x_grad = x_grad.reshape(full_shape)
-        x_grad = x_grad.transpose(-1, ctx.channel_dim)
-
-        return x_grad, None, None, None, None, None
-
-
-
-class Decorrelate(torch.nn.Module):
-    """
-    This module does nothing in the forward pass, but in the backward pass, modifies
-    the derivatives in such a way as to encourage the dimensions of its input to become
-    decorrelated.
-
-    Args:
-            num_channels:  The number of channels, e.g. 256.
-          apply_prob_decay:  The probability with which we apply this each time, in
-                           training mode, will decay as apply_prob_decay/(apply_prob_decay + step).
-                   scale: This number determines the scale of the gradient contribution from
-                          this module, relative to whatever the gradient was before;
-                          this is applied per frame or pixel, by scaling gradients.
-                     eps: An epsilon used to prevent division by zero.
-                    beta: A value 0 < beta < 1 that controls decay of covariance stats
-             channel_dim: The dimension of the input corresponding to the channel, e.g.
-                          -1, 0, 1, 2.
-
-    """
-    def __init__(self,
-                 num_channels: int,
-                 scale: float = 0.1,
-                 apply_prob_decay: int = 1000,
-                 eps: float = 1.0e-05,
-                 beta: float = 0.95,
-                 channel_dim: int = -1):
-        super(Decorrelate, self).__init__()
-        self.scale = scale
-        self.apply_prob_decay = apply_prob_decay
-        self.eps = eps
-        self.beta = beta
-        self.channel_dim = channel_dim
-
-        self.register_buffer('cov', torch.zeros(num_channels, num_channels))
-        # step_buf is a copy of step, included so it will be loaded/saved with
-        # the model.
-        self.register_buffer('step_buf', torch.tensor(0.0))
-        self.step = 0
-
-
-    def load_state_dict(self, *args, **kwargs):
-        super(Decorrelate, self).load_state_dict(*args, **kwargs)
-        self.step = int(self.step_buf.item())
-
-
-    def forward(self, x: Tensor) -> Tensor:
-        if not self.training:
-            return x
-        else:
-            apply_prob = self.apply_prob_decay / (self.step + self.apply_prob_decay)
-            self.step += 1
-            self.step_buf.fill_(float(self.step))
-            if random.random() > apply_prob:
-                return x
-            with torch.cuda.amp.autocast(enabled=False):
-                x = x.to(torch.float32)
-                # the function updates self.cov in its backward pass (it needs the gradient
-                # norm, for frame weighting).
-                ans = DecorrelateFunction.apply(x, self.cov,
-                                                self.scale, self.eps, self.beta,
-                                                self.channel_dim)  # == x.
-                return ans
-
 
 
 def _test_activation_balancer_sign():
@@ -907,7 +898,7 @@ def _test_activation_balancer_sign():
     m = ActivationBalancer(
         channel_dim=0,
         min_positive=0.05,
-        max_positive=0.98,
+        max_positive=0.95,
         max_factor=0.2,
         min_abs=0.0,
     )
@@ -971,57 +962,67 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
-def _test_gauss_proj_drop():
-    D = 384
-    x = torch.randn(30000, D)
+def _test_scaled_lstm():
+    N, L = 2, 30
+    dim_in, dim_hidden = 10, 20
+    m = ScaledLSTM(input_size=dim_in, hidden_size=dim_hidden, bias=True)
+    x = torch.randn(L, N, dim_in)
+    h0 = torch.randn(1, N, dim_hidden)
+    c0 = torch.randn(1, N, dim_hidden)
+    y, (h, c) = m(x, (h0, c0))
+    assert y.shape == (L, N, dim_hidden)
+    assert h.shape == (1, N, dim_hidden)
+    assert c.shape == (1, N, dim_hidden)
 
 
-    for dropout_rate in [0.2, 0.1, 0.01, 0.05]:
-        m1 = torch.nn.Dropout(dropout_rate)
-        m2 = GaussProjDrop(D, dropout_rate)
-        for mode in ['train', 'eval']:
-            y1 = m1(x)
-            y2 = m2(x)
-            xmag = (x*x).mean()
-            y1mag = (y1*y1).mean()
-            cross1 = (x*y1).mean()
-            y2mag = (y2*y2).mean()
-            cross2 = (x*y2).mean()
-            print(f"rate={dropout_rate}, mode={mode}, xmag = {xmag}, y1mag = {y1mag}, y2mag = {y2mag}, cross1={cross1}, cross2={cross2}")
-            m1.eval()
-            m2.eval()
+def _test_grad_filter():
+    threshold = 50.0
+    time, batch, channel = 200, 5, 128
+    grad_filter = GradientFilter(batch_dim=1, threshold=threshold)
 
+    for i in range(2):
+        x = torch.randn(time, batch, channel, requires_grad=True)
+        w = nn.Parameter(torch.ones(5))
+        b = nn.Parameter(torch.zeros(5))
 
-def _test_decorrelate():
-    D = 384
-    x = torch.randn(30000, D)
-    # give it a non-unit covariance.
-    m = torch.randn(D, D) * (D ** -0.5)
-    _, S, _ = m.svd()
-    print("M eigs = ", S[::10])
-    x = torch.matmul(x, m)
+        x_out, w_out, b_out = grad_filter(x, w, b)
 
+        w_out_grad = torch.randn_like(w)
+        b_out_grad = torch.randn_like(b)
+        x_out_grad = torch.rand_like(x)
+        if i % 2 == 1:
+            # The gradient norm of the first element must be larger than
+            # `threshold * median`, where `median` is the median value
+            # of gradient norms of all elements in batch.
+            x_out_grad[:, 0, :] = torch.full((time, channel), threshold)
 
-    # check that class Decorrelate does not crash when running..
-    decorrelate = Decorrelate(D)
-    x.requires_grad = True
-    y = decorrelate(x)
-    y.sum().backward()
+        torch.autograd.backward(
+            [x_out, w_out, b_out], [x_out_grad, w_out_grad, b_out_grad]
+        )
 
-    decorrelate2 = Decorrelate(D)
-    decorrelate2.load_state_dict(decorrelate.state_dict())
-    assert decorrelate2.step == decorrelate.step
+        print(
+            "_test_grad_filter: for gradient norms, the first element > median * threshold ",  # noqa
+            i % 2 == 1,
+        )
 
-
+        print(
+            "_test_grad_filter: x_out_grad norm = ",
+            (x_out_grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print(
+            "_test_grad_filter: x.grad norm = ",
+            (x.grad ** 2).mean(dim=(0, 2)).sqrt(),
+        )
+        print("_test_grad_filter: w_out_grad = ", w_out_grad)
+        print("_test_grad_filter: w.grad = ", w.grad)
+        print("_test_grad_filter: b_out_grad = ", b_out_grad)
+        print("_test_grad_filter: b.grad = ", b.grad)
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
-    torch.set_num_threads(1)
-    torch.set_num_interop_threads(1)
-    _test_decorrelate()
-    _test_gauss_proj_drop()
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
+    _test_scaled_lstm()
+    _test_grad_filter()

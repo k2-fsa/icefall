@@ -21,7 +21,7 @@ Usage:
 ./pruned_transducer_stateless2/pretrained.py \
         --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
         --lang-dir ./data/lang_char \
-        --method greedy_search \
+        --decoding-method greedy_search \
         --max-sym-per-frame 1 \
         /path/to/foo.wav \
         /path/to/bar.wav
@@ -29,7 +29,7 @@ Usage:
 ./pruned_transducer_stateless2/pretrained.py \
         --checkpoint ./pruned_transducer_stateless2/exp/pretrained.pt \
         --lang-dir ./data/lang_char \
-        --method modified_beam_search \
+        --decoding-method modified_beam_search \
         --beam-size 4 \
         /path/to/foo.wav \
         /path/to/bar.wav
@@ -37,7 +37,7 @@ Usage:
 ./pruned_transducer_stateless2/pretrained.py \
         --checkpoint ./pruned_transducer_stateless/exp/pretrained.pt \
         --lang-dir ./data/lang_char \
-        --method fast_beam_search \
+        --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \
         --max-states 8 \
@@ -116,7 +116,7 @@ def get_parser():
     parser.add_argument(
         "--sample-rate",
         type=int,
-        default=48000,
+        default=16000,
         help="The sample rate of the input sound file",
     )
 
@@ -124,7 +124,8 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="Used only when --method is beam_search and modified_beam_search ",
+        help="""Used only when --decoding-method is beam_search
+        and modified_beam_search """,
     )
 
     parser.add_argument(
@@ -166,7 +167,7 @@ def get_parser():
         type=int,
         default=1,
         help="""Maximum number of symbols per frame. Used only when
-        --method is greedy_search.
+        --decoding-method is greedy_search.
         """,
     )
 

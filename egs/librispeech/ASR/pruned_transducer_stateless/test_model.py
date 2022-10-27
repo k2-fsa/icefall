@@ -34,6 +34,31 @@ def test_model():
     params.context_size = 2
     params.unk_id = 2
 
+    params.dynamic_chunk_training = False
+    params.short_chunk_size = 25
+    params.num_left_chunks = 4
+    params.causal_convolution = False
+
+    model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
+    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+    torch.jit.script(model)
+
+
+def test_model_streaming():
+    params = get_params()
+    params.vocab_size = 500
+    params.blank_id = 0
+    params.context_size = 2
+    params.unk_id = 2
+
+    params.dynamic_chunk_training = True
+    params.short_chunk_size = 25
+    params.num_left_chunks = 4
+    params.causal_convolution = True
+
     model = get_transducer_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
@@ -44,6 +69,7 @@ def test_model():
 
 def main():
     test_model()
+    test_model_streaming()
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ from .utils import (
     get_alignments,
     get_executor,
     get_texts,
+    is_jit_tracing,
     l1_norm,
     l2_norm,
     linf_norm,
@@ -61,5 +62,8 @@ from .utils import (
     setup_logger,
     store_transcripts,
     str2bool,
+    subsequent_chunk_mask,
     write_error_stats,
 )
+
+from .ngram_lm import NgramLm, NgramLmStateCost

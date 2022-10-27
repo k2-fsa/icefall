@@ -28,6 +28,7 @@ from lhotse import (
     Fbank,
     FbankConfig,
     load_manifest,
+    load_manifest_lazy,
     set_caching_enabled,
 )
 from lhotse.dataset import (
@@ -205,7 +206,7 @@ class AlimeetingAsrDataModule:
         """
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(
-            self.args.manifest_dir / "cuts_musan.json.gz"
+            self.args.manifest_dir / "musan_cuts.jsonl.gz"
         )
 
         transforms = []
@@ -401,14 +402,20 @@ class AlimeetingAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_train.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "alimeeting_cuts_train.jsonl.gz"
+        )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_eval.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "alimeeting_cuts_eval.jsonl.gz"
+        )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        return load_manifest(self.args.manifest_dir / "cuts_test.json.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "alimeeting_cuts_test.jsonl.gz"
+        )

@@ -1,9 +1,144 @@
 ## Results
-### Aishell training result(Transducer-stateless)
+
+### Aishell training result(Stateless Transducer)
+
+#### Pruned transducer stateless 3
+
+See <https://github.com/k2-fsa/icefall/pull/436>
+
+
+[./pruned_transducer_stateless3](./pruned_transducer_stateless3)
+
+It uses pruned RNN-T.
+
+|                        | test | dev  | comment                               |
+|------------------------|------|------|---------------------------------------|
+| greedy search          | 5.39 | 5.09 | --epoch 29 --avg 5 --max-duration 600 |
+| modified beam search   | 5.05 | 4.79 | --epoch 29 --avg 5 --max-duration 600 |
+| fast beam search       | 5.13 | 4.91 | --epoch 29 --avg 5 --max-duration 600 |
+
+Training command is:
+
+```bash
+./prepare.sh
+./prepare_aidatatang_200zh.sh
+
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
+
+./pruned_transducer_stateless3/train.py \
+  --exp-dir ./pruned_transducer_stateless3/exp-context-size-1 \
+  --world-size 4 \
+  --max-duration 200 \
+  --datatang-prob 0.5 \
+  --start-epoch 1 \
+  --num-epochs 30 \
+  --use-fp16 1 \
+  --num-encoder-layers 12 \
+  --dim-feedforward 2048 \
+  --nhead 8 \
+  --encoder-dim 512 \
+  --context-size 1 \
+  --decoder-dim 512 \
+  --joiner-dim 512 \
+  --master-port 12356
+```
+
+**Caution**: It uses `--context-size=1`.
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/OKKacljwR6ik7rbDr5gMqQ>
+
+The decoding command is:
+
+```bash
+for epoch in 29; do
+  for avg in 5; do
+    for m in greedy_search modified_beam_search fast_beam_search; do
+      ./pruned_transducer_stateless3/decode.py \
+        --exp-dir ./pruned_transducer_stateless3/exp-context-size-1 \
+        --epoch $epoch \
+        --avg $avg \
+        --use-averaged-model 1 \
+        --max-duration 600 \
+        --decoding-method $m \
+        --num-encoder-layers 12 \
+        --dim-feedforward 2048 \
+        --nhead 8 \
+        --context-size 1 \
+        --encoder-dim 512 \
+        --decoder-dim 512 \
+        --joiner-dim 512
+    done
+  done
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/csukuangfj/icefall-aishell-pruned-transducer-stateless3-2022-06-20>
+
+We have a tutorial in [sherpa](https://github.com/k2-fsa/sherpa) about how
+to use the pre-trained model for non-streaming ASR. See
+<https://k2-fsa.github.io/sherpa/offline_asr/conformer/aishell.html>
+
+
+#### Pruned transducer stateless 2
+
+See https://github.com/k2-fsa/icefall/pull/536
+
+[./pruned_transducer_stateless2](./pruned_transducer_stateless2)
+
+It uses pruned RNN-T.
+
+|                      | test | dev  | comment                                |
+| -------------------- | ---- | ---- | -------------------------------------- |
+| greedy search        | 5.20 | 4.78 | --epoch 72 --avg 14 --max-duration 200 |
+| modified beam search | 5.07 | 4.63 | --epoch 72 --avg 14 --max-duration 200 |
+| fast beam search     | 5.13 | 4.70 | --epoch 72 --avg 14 --max-duration 200 |
+
+Training command is:
+
+```bash
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless2/train.py \
+        --world-size 2 \
+        --num-epochs 90 \
+        --start-epoch 0 \
+        --exp-dir pruned_transducer_stateless2/exp \
+        --max-duration 200 \
+```
+
+The tensorboard log is available at
+https://tensorboard.dev/experiment/QI3PVzrGRrebxpbWUPwmkA/
+
+The decoding command is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./pruned_transducer_stateless2/decode.py \
+    --epoch 72 \
+    --avg 14 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --lang-dir data/lang_char \
+    --max-duration 200 \
+    --decoding-method $m
+
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/teapoly/icefall-aishell-pruned-transducer-stateless2-2022-08-18>
+
 
 #### 2022-03-01
 
 [./transducer_stateless_modified-2](./transducer_stateless_modified-2)
+
+It uses [optimized_transducer](https://github.com/csukuangfj/optimized_transducer)
+for computing RNN-T loss.
 
 Stateless transducer + modified transducer + using [aidatatang_200zh](http://www.openslr.org/62/) as extra training data.
 

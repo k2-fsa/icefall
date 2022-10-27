@@ -264,7 +264,9 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
-        src = src + self.dropout(self.conv_module(src))
+        src = src + self.dropout(
+            self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
+        )
 
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
@@ -382,7 +384,7 @@ class RelPositionalEncoding(torch.nn.Module):
                 ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        # Suppose `i` means to the position of query vecotr and `j` means the
+        # Suppose `i` means to the position of query vector and `j` means the
         # position of key vector. We use position relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x.size(1), self.d_model)
@@ -927,11 +929,16 @@ class ConvolutionModule(nn.Module):
             initial_scale=0.25,
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
+    ) -> Tensor:
         """Compute convolution module.
 
         Args:
             x: Input tensor (#time, batch, channels).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
 
         Returns:
             Tensor: Output tensor (#time, batch, channels).
@@ -947,6 +954,8 @@ class ConvolutionModule(nn.Module):
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
+        if src_key_padding_mask is not None:
+            x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
         x = self.depthwise_conv(x)
 
         x = self.deriv_balancer2(x)
