@@ -360,13 +360,13 @@ class ConformerEncoderLayer(nn.Module):
 
         delta = src - src_orig
         bypass_scale = self.bypass_scale
-        if self.training and random.random() < 0.25:
-            # with probability 0.25, in training mode, clamp bypass_scale to [
-            # 0.1, 1.0 ]; this will encourage it to learn parameters within this
-            # range by making parameters that are outside that range range
-            # noisy.
+        if torch.jit.is_scripting() or (not self.training) or random.random() > 0.1:
+            # with probability 0.9, in training mode, or always, in testing
+            # mode, clamp bypass_scale to [ 0.1, 1.0 ]; this will encourage it
+            # to learn parameters within this range by making parameters that
+            # are outside that range range noisy.
             bypass_scale = bypass_scale.clamp(min=0.1, max=1.0)
-        src = src_orig + delta * self.bypass_scale
+        src = src_orig + delta * bypass_scale
 
         return self.whiten(src)
 
@@ -532,8 +532,6 @@ class ConformerEncoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
-        outputs = []
-
 
         rnd_seed = src.numel() + random.randint(0, 1000)
         layers_to_drop = self.get_layers_to_drop(rnd_seed, self.get_warmup_count())
@@ -650,7 +648,7 @@ class AttentionDownsample(torch.nn.Module):
         (seq_len, batch_size, in_channels) = src.shape
         ds = self.downsample
         d_seq_len = (seq_len + ds - 1) // ds
-        src_orig = src
+
         # Pad to an exact multiple of self.downsample
         if seq_len != d_seq_len * ds:
             # right-pad src, repeating the last element.
