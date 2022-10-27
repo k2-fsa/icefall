@@ -59,7 +59,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from zipformer import Zipformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut

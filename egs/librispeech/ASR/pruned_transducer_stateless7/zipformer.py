@@ -43,7 +43,7 @@ from torch import Tensor, nn
 from icefall.utils import make_pad_mask
 
 
-class Conformer(EncoderInterface):
+class Zipformer(EncoderInterface):
     """
     Args:
         num_features (int): Number of input features
@@ -74,7 +74,7 @@ class Conformer(EncoderInterface):
         cnn_module_kernel: Tuple[int] = (31, 31),
         warmup_batches: float = 4000.0,
     ) -> None:
-        super(Conformer, self).__init__()
+        super(Zipformer, self).__init__()
 
         self.num_features = num_features
         self.subsampling_factor = subsampling_factor
@@ -96,7 +96,7 @@ class Conformer(EncoderInterface):
         self.encoder_embed = Conv2dSubsampling(num_features, d_model[0],
                                                dropout=dropout)
 
-        encoder_layer1 = ConformerEncoderLayer(
+        encoder_layer1 = ZipformerEncoderLayer(
             d_model[0],
             attention_dim[0],
             nhead[0],
@@ -108,14 +108,14 @@ class Conformer(EncoderInterface):
         # for the first third of the warmup period, we let the Conv2dSubsampling
         # layer learn something.  then start warmup up the first and then the second
         # encoder.
-        self.encoder1 = ConformerEncoder(
+        self.encoder1 = ZipformerEncoder(
             encoder_layer1,
             num_encoder_layers[0],
             dropout,
             warmup_begin=warmup_batches / 3,
             warmup_end=warmup_batches * 2 / 3,
         )
-        encoder_layer2 = ConformerEncoderLayer(
+        encoder_layer2 = ZipformerEncoderLayer(
             d_model[1],
             attention_dim[1],
             nhead[1],
@@ -124,8 +124,8 @@ class Conformer(EncoderInterface):
             cnn_module_kernel[1],
 
         )
-        self.encoder2 = DownsampledConformerEncoder(
-            ConformerEncoder(
+        self.encoder2 = DownsampledZipformerEncoder(
+            ZipformerEncoder(
                 encoder_layer2,
                 num_encoder_layers[1],
                 dropout,
@@ -237,10 +237,10 @@ class Conformer(EncoderInterface):
         return x, lengths
 
 
-class ConformerEncoderLayer(nn.Module):
+class ZipformerEncoderLayer(nn.Module):
     """
-    ConformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
-    See: "Conformer: Convolution-augmented Transformer for Speech Recognition"
+    ZipformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
+    See: "Zipformer: Convolution-augmented Transformer for Speech Recognition"
 
     Args:
         d_model: the number of expected features in the input (required).
@@ -250,7 +250,7 @@ class ConformerEncoderLayer(nn.Module):
         cnn_module_kernel (int): Kernel size of convolution module.
 
     Examples::
-        >>> encoder_layer = ConformerEncoderLayer(d_model=512, nhead=8)
+        >>> encoder_layer = ZipformerEncoderLayer(d_model=512, nhead=8)
         >>> src = torch.rand(10, 32, 512)
         >>> pos_emb = torch.rand(32, 19, 512)
         >>> out = encoder_layer(src, pos_emb)
@@ -264,7 +264,7 @@ class ConformerEncoderLayer(nn.Module):
             dropout: float = 0.1,
             cnn_module_kernel: int = 31,
     ) -> None:
-        super(ConformerEncoderLayer, self).__init__()
+        super(ZipformerEncoderLayer, self).__init__()
 
         self.d_model = d_model
 
@@ -371,16 +371,16 @@ class ConformerEncoderLayer(nn.Module):
         return self.whiten(src)
 
 
-class ConformerEncoder(nn.Module):
-    r"""ConformerEncoder is a stack of N encoder layers
+class ZipformerEncoder(nn.Module):
+    r"""ZipformerEncoder is a stack of N encoder layers
 
     Args:
-        encoder_layer: an instance of the ConformerEncoderLayer() class (required).
+        encoder_layer: an instance of the ZipformerEncoderLayer() class (required).
         num_layers: the number of sub-encoder-layers in the encoder (required).
 
     Examples::
-        >>> encoder_layer = ConformerEncoderLayer(d_model=512, nhead=8)
-        >>> conformer_encoder = ConformerEncoder(encoder_layer, num_layers=6)
+        >>> encoder_layer = ZipformerEncoderLayer(d_model=512, nhead=8)
+        >>> conformer_encoder = ZipformerEncoder(encoder_layer, num_layers=6)
         >>> src = torch.rand(10, 32, 512)
         >>> out = conformer_encoder(src)
     """
@@ -553,9 +553,9 @@ class ConformerEncoder(nn.Module):
         return output
 
 
-class DownsampledConformerEncoder(nn.Module):
+class DownsampledZipformerEncoder(nn.Module):
     r"""
-    DownsampledConformerEncoder is a conformer encoder evaluated at a reduced frame rate,
+    DownsampledZipformerEncoder is a conformer encoder evaluated at a reduced frame rate,
     after convolutional downsampling, and then upsampled again at the output
     so that the output has the same shape as the input.
     """
@@ -564,7 +564,7 @@ class DownsampledConformerEncoder(nn.Module):
                  input_dim: int,
                  output_dim: int,
                  downsample: int):
-        super(DownsampledConformerEncoder, self).__init__()
+        super(DownsampledZipformerEncoder, self).__init__()
         self.downsample_factor = downsample
         self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
         self.encoder = encoder
@@ -833,7 +833,9 @@ class RelPositionalEncoding(torch.nn.Module):
 class RelPositionMultiheadAttention(nn.Module):
     r"""Multi-Head Attention layer with relative position encoding
 
-    See reference: "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
+    This is a quite heavily modified from: "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+    we have to write up the differences.
+
 
     Args:
         embed_dim: total dimension of the model.
@@ -1268,7 +1270,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
 
 class FeedforwardModule(nn.Module):
-    """Feedforward module in Conformer model.
+    """Feedforward module in Zipformer model.
     """
     def __init__(self,
                  d_model: int,
@@ -1295,7 +1297,7 @@ class FeedforwardModule(nn.Module):
 
 
 class ConvolutionModule(nn.Module):
-    """ConvolutionModule in Conformer model.
+    """ConvolutionModule in Zipformer model.
     Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
@@ -1639,7 +1641,7 @@ def _test_conformer_main():
     feature_dim = 50
     # Just make sure the forward pass runs.
 
-    c = Conformer(
+    c = Zipformer(
         num_features=feature_dim, d_model=(64,96), encoder_unmasked_dim=64, nhead=(4,4)
     )
     batch_size = 5
