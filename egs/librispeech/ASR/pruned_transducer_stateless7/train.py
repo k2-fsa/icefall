@@ -94,35 +94,35 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-encoder-layers",
         type=str,
         default="7,7",
-        help="Number of conformer encoder layers, comma separated.",
+        help="Number of zipformer encoder layers, comma separated.",
     )
 
     parser.add_argument(
         "--feedforward-dims",
         type=str,
         default="1536,1536",
-        help="Feedforward dimension of the conformer encoder layers, comma separated.",
+        help="Feedforward dimension of the zipformer encoder layers, comma separated.",
     )
 
     parser.add_argument(
         "--nhead",
         type=str,
         default="8,8",
-        help="Number of attention heads in the conformer encoder layers.",
+        help="Number of attention heads in the zipformer encoder layers.",
     )
 
     parser.add_argument(
         "--encoder-dims",
         type=str,
         default="384,384",
-        help="Embedding dimension in the 2 blocks of conformer encoder layers, comma separated"
+        help="Embedding dimension in the 2 blocks of zipformer encoder layers, comma separated"
     )
 
     parser.add_argument(
         "--attention-dims",
         type=str,
         default="192,192",
-        help="""Attention dimension in the 2 blocks of conformer encoder layers, comma separated;
+        help="""Attention dimension in the 2 blocks of zipformer encoder layers, comma separated;
         not the same as embedding dimension."""
     )
 
@@ -136,7 +136,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--conformer-subsampling-factor",
+        "--zipformer-subsampling-factor",
         type=int,
         default=2,
         help="Subsampling factor for 2nd stack of encoder layers.",
@@ -419,7 +419,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            # parameters for conformer
+            # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             "warm_step": 2000,
@@ -431,13 +431,13 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Conformer and Transformer
+    # TODO: We can add an option to switch between Zipformer and Transformer
     def to_int_tuple(s: str):
         return tuple(map(int, s.split(',')))
-    encoder = Conformer(
+    encoder = Zipformer(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
-        conformer_subsampling_factor=params.conformer_subsampling_factor,
+        zipformer_subsampling_factor=params.zipformer_subsampling_factor,
         d_model=to_int_tuple(params.encoder_dims),
         attention_dim=to_int_tuple(params.attention_dims),
         encoder_unmasked_dim=params.encoder_unmasked_dim,
@@ -618,7 +618,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of Conformer in our case.
+        The model for training. It is an instance of Zipformer in our case.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
