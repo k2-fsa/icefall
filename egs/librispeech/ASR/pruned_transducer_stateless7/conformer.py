@@ -365,7 +365,7 @@ class ConformerEncoderLayer(nn.Module):
             # mode, clamp bypass_scale to [ 0.1, 1.0 ]; this will encourage it
             # to learn parameters within this range by making parameters that
             # are outside that range range noisy.
-            bypass_scale = bypass_scale.clamp(min=0.4, max=1.0)
+            bypass_scale = bypass_scale.clamp(min=0.5, max=1.0)
         src = src_orig + delta * bypass_scale
 
         return self.whiten(src)
