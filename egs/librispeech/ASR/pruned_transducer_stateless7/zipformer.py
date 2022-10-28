@@ -228,7 +228,8 @@ class Zipformer(EncoderInterface):
 
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
-        lengths = (x_lens + 1) // 2
+        assert self.output_downsampling_factor == 2
+        lengths = (lengths + 1) // 2
 
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
