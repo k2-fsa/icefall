@@ -327,7 +327,9 @@ def get_parser():
         default=0.5,
         help="The probability to select a batch from the GigaSpeech dataset",
     )
-
+    
+    add_model_arguments(parser)
+    
     return parser
 
 
