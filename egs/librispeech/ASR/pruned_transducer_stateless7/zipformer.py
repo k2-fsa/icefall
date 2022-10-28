@@ -72,7 +72,7 @@ class Zipformer(EncoderInterface):
         feedforward_dim: Tuple[int] = (1536, 2048),
         num_encoder_layers: Tuple[int] = (12, 12),
         dropout: float = 0.1,
-        cnn_module_kernel: Tuple[int] = (31, 31),
+        cnn_module_kernels: Tuple[int] = (31, 31),
         warmup_batches: float = 4000.0,
     ) -> None:
         super(Zipformer, self).__init__()
@@ -111,7 +111,7 @@ class Zipformer(EncoderInterface):
                 nhead[i],
                 feedforward_dim[i],
                 dropout,
-                cnn_module_kernel[i],
+                cnn_module_kernels[i],
             )
 
             # For the segment of the warmup period, we let the Conv2dSubsampling
