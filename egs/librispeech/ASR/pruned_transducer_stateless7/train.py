@@ -127,19 +127,19 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--encoder-unmasked-dim",
-        type=int,
-        default=256,
-        help="Unmasked dimension in the encoder, relates to augmentation during training.  "
+        "--encoder-unmasked-dims",
+        type=str,
+        default="256,256",
+        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
         "Must be <= each of encoder_dims.  Empirically, less than 256 seems to make performance "
         " worse."
     )
 
     parser.add_argument(
-        "--zipformer-subsampling-factor",
-        type=int,
-        default=2,
-        help="Subsampling factor for 2nd stack of encoder layers.",
+        "--zipformer-downsampling-factors",
+        type=str,
+        default="1,2",
+        help="Downsampling factor for each stack of encoder layers.",
     )
 
     parser.add_argument(
@@ -437,10 +437,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Zipformer(
         num_features=params.feature_dim,
         subsampling_factor=params.subsampling_factor,
-        zipformer_subsampling_factor=params.zipformer_subsampling_factor,
-        d_model=to_int_tuple(params.encoder_dims),
+        zipformer_downsampling_factors=to_int_tuple(params.zipformer_downsampling_factors),
+        encoder_dims=to_int_tuple(params.encoder_dims),
         attention_dim=to_int_tuple(params.attention_dims),
-        encoder_unmasked_dim=params.encoder_unmasked_dim,
+        encoder_unmasked_dims=to_int_tuple(params.encoder_unmasked_dims),
         nhead=to_int_tuple(params.nhead),
         feedforward_dim=to_int_tuple(params.feedforward_dims),
         num_encoder_layers=to_int_tuple(params.num_encoder_layers),
