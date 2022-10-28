@@ -138,7 +138,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--zipformer-downsampling-factors",
         type=str,
-        default="1,2,4",
+        default="2,4,8",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -428,7 +428,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
-            "subsampling_factor": 4,
+            "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
@@ -443,7 +443,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         return tuple(map(int, s.split(',')))
     encoder = Zipformer(
         num_features=params.feature_dim,
-        subsampling_factor=params.subsampling_factor,
+        output_downsampling_factor=2,
         zipformer_downsampling_factors=to_int_tuple(params.zipformer_downsampling_factors),
         encoder_dims=to_int_tuple(params.encoder_dims),
         attention_dim=to_int_tuple(params.attention_dims),
