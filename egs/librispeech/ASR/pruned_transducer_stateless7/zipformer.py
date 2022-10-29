@@ -363,12 +363,13 @@ class ZipformerEncoderLayer(nn.Module):
 
         delta = src - src_orig
         bypass_scale = self.bypass_scale
-        if torch.jit.is_scripting() or (not self.training) or random.random() > 0.1:
-            # with probability 0.9, in training mode, or always, in testing
-            # mode, clamp bypass_scale to [ 0.1, 1.0 ]; this will encourage it
-            # to learn parameters within this range by making parameters that
-            # are outside that range range noisy.
-            bypass_scale = bypass_scale.clamp(min=0.5, max=1.0)
+        if self.training and random.random() > 0.1:
+            # with probability 0.9, in training mode clamp bypass_scale to [
+            # 0.3, 1.0 ]; this will encourage it to learn parameters within this
+            # range by making parameters that are outside that range range
+            # noisy.  For testing don't bother, as it will anyway end up
+            # learning values within this range or very close to it.
+            bypass_scale = bypass_scale.clamp(min=0.3, max=1.0)
         src = src_orig + delta * bypass_scale
 
         return self.whiten(src)
