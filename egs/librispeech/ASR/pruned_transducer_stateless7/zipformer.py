@@ -155,7 +155,7 @@ class Zipformer(EncoderInterface):
             else:
                 # TEMP
                 for j in range(i-2, -1, -1):
-                    if z[j] <= z[i]:
+                    if z[j] <= z[i] or j == 0:
                         # TEMP logging statement.
                         logging.info(f"At encoder stack {i}, which has downsampling_factor={z[i]}, we will "
                                      f"combine the outputs of layers {j} and {i-1}, with downsampling_factors={z[j]} and {z[i-1]}.")
