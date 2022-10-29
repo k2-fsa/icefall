@@ -256,7 +256,9 @@ class Zipformer(EncoderInterface):
         for i, module in enumerate(self.encoders):
             ds = self.zipformer_downsampling_factors[i]
             if self.skip_layers[i] is not None:
-                x = self.skip_modules[i](outputs[self.skip_layers[i]], x)
+                layer_skip_dropout_prob = 0.05
+                if (not self.training) or random.random() > layer_skip_dropout_prob:
+                    x = self.skip_modules[i](outputs[self.skip_layers[i]], x)
             x = module(x,
                        feature_mask=feature_masks[i],
                        src_key_padding_mask=None if mask is None else mask[...,::ds])
