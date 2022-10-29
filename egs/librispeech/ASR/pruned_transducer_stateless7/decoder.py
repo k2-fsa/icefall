@@ -69,7 +69,7 @@ class Decoder(nn.Module):
                 out_channels=decoder_dim,
                 kernel_size=context_size,
                 padding=0,
-                groups=decoder_dim,
+                groups=decoder_dim//4,  # group size == 4
                 bias=False,
             )
 
