@@ -612,7 +612,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[str, Tuple[List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
