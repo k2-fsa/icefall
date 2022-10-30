@@ -89,6 +89,17 @@ LRSchedulerType = Union[
 ]
 
 
+def set_batch_count(
+        model: Union[nn.Module, DDP], batch_count: float
+) -> None:
+    if isinstance(model, DDP):
+        # get underlying nn.Module
+        model = model.module
+    for module in model.modules():
+        if hasattr(module, 'batch_count'):
+            module.batch_count = batch_count
+
+
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
@@ -809,6 +820,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
+            set_batch_count(model, params.batch_idx_train)
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
