@@ -272,6 +272,9 @@ class ZipformerEncoderLayer(nn.Module):
 
         self.d_model = d_model
 
+        # will be written to, see set_batch_count()
+        self.batch_count = 0
+
         self.self_attn = RelPositionMultiheadAttention(
             d_model, attention_dim, nhead, pos_dim, dropout=0.0,
         )
@@ -309,6 +312,25 @@ class ZipformerEncoderLayer(nn.Module):
                              whitening_limit=5.0,
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
+
+    def get_bypass_scale(self):
+        if torch.jit.is_scripting() or not self.training:
+            return self.bypass_scale
+        if random.random() < 0.1:
+            # ensure we get grads if self.bypass_scale becomes out of range
+            return self.bypass_scale
+        # hardcode warmup period for bypass scale
+        warmup_period = 4000.0
+        initial_clamp_min = 1.0
+        final_clamp_min = 0.2
+        if self.batch_count > warmup_period:
+            clamp_min = final_clamp_min
+        else:
+            clamp_min = (initial_clamp_min -
+                         (self.batch_count / warmup_period) * (initial_clamp_min - final_clamp_min))
+        return self.bypass_scale.clamp(min=clamp_min, max=1.0)
+
+
 
     def forward(
         self,
@@ -363,14 +385,8 @@ class ZipformerEncoderLayer(nn.Module):
         src = self.norm_final(self.balancer(src))
 
         delta = src - src_orig
-        bypass_scale = self.bypass_scale
-        if torch.jit.is_scripting() or (not self.training) or random.random() > 0.1:
-            # with probability 0.9, in training mode, or always, in testing
-            # mode, clamp bypass_scale to [ 0.1, 1.0 ]; this will encourage it
-            # to learn parameters within this range by making parameters that
-            # are outside that range range noisy.
-            bypass_scale = bypass_scale.clamp(min=0.5, max=1.0)
-        src = src_orig + delta * bypass_scale
+
+        src = src_orig + delta * self.get_bypass_scale()
 
         return self.whiten(src)
 
@@ -397,9 +413,9 @@ class ZipformerEncoder(nn.Module):
             warmup_end: float
     ) -> None:
         super().__init__()
-        # self.batch_count will be written to by the top-level training program.
-        # Note: in inference time this may be zero but should be treated as large,
-        # we can check if self.training is true.
+        # will be written to, see set_batch_count() Note: in inference time this
+        # may be zero but should be treated as large, we can check if
+        # self.training is true.
         self.batch_count = 0
         self.warmup_begin = warmup_begin
         self.warmup_end = warmup_end
