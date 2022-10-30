@@ -321,7 +321,7 @@ class ZipformerEncoderLayer(nn.Module):
             return self.bypass_scale
         # hardcode warmup period for bypass scale
         warmup_period = 4000.0
-        initial_clamp_min = 1.0
+        initial_clamp_min = 0.5
         final_clamp_min = 0.2
         if self.batch_count > warmup_period:
             clamp_min = final_clamp_min
@@ -329,8 +329,6 @@ class ZipformerEncoderLayer(nn.Module):
             clamp_min = (initial_clamp_min -
                          (self.batch_count / warmup_period) * (initial_clamp_min - final_clamp_min))
         return self.bypass_scale.clamp(min=clamp_min, max=1.0)
-
-
 
     def forward(
         self,
