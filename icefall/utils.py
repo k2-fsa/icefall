@@ -1334,7 +1334,18 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
     assert len(tokens) == len(timestamp)
     ans = []
     for i in range(len(tokens)):
+        flag = False
         if i == 0 or tokens[i].startswith(start_token):
+            flag = True
+            if len(tokens[i]) == 1 and tokens[i].startswith(start_token):
+                # tokens[i] == start_token
+                if i == len(tokens) - 1:
+                    # it is the last token
+                    flag = False
+                elif tokens[i + 1].startswith(start_token):
+                    # the next token also starts with start_token
+                    flag = False
+        if flag:
             ans.append(timestamp[i])
     return ans
 
