@@ -28,17 +28,20 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-import multi_quantization as quantization
 
+from icefall import is_module_available
+
+if not is_module_available("multi_quantization"):
+    raise ValueError("Please 'pip install multi_quantization' first.")
+
+import multi_quantization as quantization
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-)
 from lhotse import CutSet, load_manifest
 from lhotse.cut import MonoCut
 from lhotse.features.io import NumpyHdf5Writer
+
+from icefall.utils import AttributeDict, setup_logger
 
 
 class CodebookIndexExtractor:

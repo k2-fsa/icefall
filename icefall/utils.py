@@ -976,3 +976,17 @@ def display_and_save_batch(
     y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
+
+
+# `is_module_available` is copied from
+# https://github.com/pytorch/audio/blob/6bad3a66a7a1c7cc05755e9ee5931b7391d2b94c/torchaudio/_internal/module_utils.py#L9
+def is_module_available(*modules: str) -> bool:
+    r"""Returns if a top-level module with :attr:`name` exists *without**
+    importing it. This is generally safer than try-catch block around a
+    `import X`.
+
+    Note: "borrowed" from torchaudio:
+    """
+    import importlib
+
+    return all(importlib.util.find_spec(m) is not None for m in modules)

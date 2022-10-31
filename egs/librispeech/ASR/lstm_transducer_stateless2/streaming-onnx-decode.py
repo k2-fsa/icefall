@@ -42,6 +42,11 @@ import argparse
 import logging
 from typing import List, Optional, Tuple
 
+from icefall import is_module_available
+
+if not is_module_available("onnxruntime"):
+    raise ValueError("Please 'pip install onnxruntime' first.")
+
 import onnxruntime as ort
 import sentencepiece as spm
 import torch

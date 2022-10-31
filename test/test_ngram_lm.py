@@ -16,6 +16,12 @@
 # limitations under the License.
 
 import graphviz
+
+from icefall import is_module_available
+
+if not is_module_available("kaldifst"):
+    raise ValueError("Please 'pip install kaldifst' first.")
+
 import kaldifst
 
 from icefall import NgramLm, NgramLmStateCost
