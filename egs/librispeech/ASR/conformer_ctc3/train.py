@@ -291,6 +291,22 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--blank-threshold",
+        type=float,
+        default=0.99,
+        help="""The threshold value used to split the utterance into sub-utterances
+        for delay penalty.""",
+    )
+
+    parser.add_argument(
+        "--penalty-gamma",
+        type=float,
+        default=0.0,
+        help="""The factor used to times the delay penalty score.
+        If set to 0, will not apply delay penalty.""",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -554,7 +570,13 @@ def compute_loss(
 
     with torch.set_grad_enabled(is_training):
         ctc_loss = model(
-            x=feature, x_lens=feature_lens, y=y, warmup=warmup, reduction="none"
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            warmup=warmup,
+            reduction="sum",
+            blank_threshold=params.blank_threshold,
+            penalty_gamma=params.penalty_gamma,
         )
         ctc_loss_is_finite = torch.isfinite(ctc_loss)
         if not torch.all(ctc_loss_is_finite):

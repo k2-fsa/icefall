@@ -57,10 +57,32 @@ class CTCModel(nn.Module):
             ScaledLinear(encoder_dim, vocab_size),
         )
 
-    def get_ctc_output(self, encoder_out: torch.Tensor):
+    def get_ctc_output(
+        self,
+        encoder_out: torch.Tensor,
+        blank_threshold: float = 0.99,
+        penalty_gamma: float = 0.0,
+    ):
         output = self.ctc_output_module(encoder_out)
-        output = nn.functional.log_softmax(output, dim=-1)
-        return output
+        prob = output.softmax(dim=-1)
+
+        if penalty_gamma > 0:
+            T_arange = torch.arange(encoder_out.shape[1]).to(
+                device=encoder_out.device
+            )
+            # split into sub-utterances using the blank-id
+            mask = prob[:, :, 0] >= blank_threshold  # (B, T)
+            mask[:, 0] = True
+            cummax_out = (T_arange * mask).cummax(dim=-1)[0]  # (B, T)
+            # the sawtooth "blank-bonus" value
+            penalty = T_arange - cummax_out  # (B, T)
+            penalty_all = torch.zeros_like(prob)
+            penalty_all[:, :, 0] = penalty_gamma * penalty
+            # apply latency penalty
+            prob = prob + penalty_all
+
+        log_prob = prob.log()
+        return log_prob
 
     def forward(
         self,
@@ -69,6 +91,8 @@ class CTCModel(nn.Module):
         y: k2.RaggedTensor,
         warmup: float = 1.0,
         reduction: str = "sum",
+        blank_threshold=0.99,
+        penalty_gamma=0.005,
     ) -> torch.Tensor:
         """
         Args:
@@ -87,6 +111,12 @@ class CTCModel(nn.Module):
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
+          blank_threshold:
+            The threshold value used to split the utterance into sub-utterances
+            for delay penalty.
+          penalty_gamma:
+            The factor used to times the delay penalty score.
+            If set to 0, will not apply delay penalty.
         Returns:
           Return the ctc loss.
         """
@@ -101,7 +131,11 @@ class CTCModel(nn.Module):
         assert torch.all(x_lens > 0)
 
         # calculate ctc loss
-        nnet_output = self.get_ctc_output(encoder_out)
+        nnet_output = self.get_ctc_output(
+            encoder_out,
+            blank_threshold=blank_threshold,
+            penalty_gamma=penalty_gamma,
+        )
 
         targets = []
         target_lengths = []
