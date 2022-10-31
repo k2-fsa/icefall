@@ -82,6 +82,11 @@ def download_alignments(
     """
     Download and extract the alignments.
 
+    Note: If you can not access drive.google.com, you could download the file
+    `LibriSpeech-Alignments.zip` from huggingface:
+    https://huggingface.co/Zengwei/librispeech-alignments
+    and extract the zip file manually.
+
     Args:
       target_dir:
         The dir to save alignments.
