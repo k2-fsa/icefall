@@ -173,13 +173,13 @@ def get_params() -> AttributeDict:
 
 
 def post_processing(
-    results: List[Tuple[List[str], List[str]]],
-) -> List[Tuple[List[str], List[str]]]:
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
     new_results = []
-    for ref, hyp in results:
+    for key, ref, hyp in results:
         new_ref = asr_text_post_processing(" ".join(ref)).split()
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
-        new_results.append((new_ref, new_hyp))
+        new_results.append((key, new_ref, new_hyp))
     return new_results
 
 
@@ -408,7 +408,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -502,7 +502,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     if params.method == "attention-decoder":
         # Set it to False since there are too many logs.

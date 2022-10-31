@@ -233,13 +233,12 @@ def greedy_search(
             hyp, dtype=torch.int32
         )  # (1, context_size)
         decoder_out = model.run_decoder(decoder_input).squeeze(0)
-
     else:
         assert decoder_out.ndim == 1
         assert hyp is not None, hyp
 
     joiner_out = model.run_joiner(encoder_out, decoder_out)
-    y = joiner_out.argmax(dim=0).tolist()
+    y = joiner_out.argmax(dim=0).item()
     if y != blank_id:
         hyp.append(y)
         decoder_input = hyp[-context_size:]
