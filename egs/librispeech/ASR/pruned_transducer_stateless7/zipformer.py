@@ -371,9 +371,9 @@ class ZipformerEncoderLayer(nn.Module):
             # ensure we get grads if self.bypass_scale becomes out of range
             return self.bypass_scale
         # hardcode warmup period for bypass scale
-        warmup_period = 4000.0
-        initial_clamp_min = 0.5
-        final_clamp_min = 0.2
+        warmup_period = 20000.0
+        initial_clamp_min = 1.0
+        final_clamp_min = 0.3
         if self.batch_count > warmup_period:
             clamp_min = final_clamp_min
         else:
