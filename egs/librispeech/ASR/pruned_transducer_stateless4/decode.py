@@ -106,6 +106,22 @@ Usage:
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
+
+To evaluate symbol delay, you should:
+(1) Generate cuts with word-time alignments:
+./local/add_alignment_librispeech.py \
+    --alignments-dir data/alignment \
+    --cuts-in-dir data/fbank \
+    --cuts-out-dir data/fbank_ali
+(2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
+For example:
+./pruned_transducer_stateless4/decode.py \
+    --epoch 40 \
+    --avg 20 \
+    --exp-dir ./pruned_transducer_stateless4/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search \
+    --manifest-dir data/fbank_ali
 """
 
 
