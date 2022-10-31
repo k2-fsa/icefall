@@ -81,7 +81,7 @@ class CTCModel(nn.Module):
             # apply latency penalty
             prob = prob + penalty_all
 
-        log_prob = prob.log()
+        log_prob = (prob + torch.finfo(prob.dtype).tiny).log()
         return log_prob
 
     def forward(

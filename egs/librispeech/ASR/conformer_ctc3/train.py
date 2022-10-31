@@ -574,7 +574,7 @@ def compute_loss(
             x_lens=feature_lens,
             y=y,
             warmup=warmup,
-            reduction="sum",
+            reduction="none",
             blank_threshold=params.blank_threshold,
             penalty_gamma=params.penalty_gamma,
         )

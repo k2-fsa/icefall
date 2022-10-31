@@ -323,12 +323,11 @@ def ctc_greedy_search(
     nnet_output_lens: torch.Tensor,
 ) -> List[List[int]]:
     """Apply CTC greedy search
-
-     Args:
-         ctc_probs (torch.Tensor): (batch, max_len, feat_dim)
-         nnet_output_lens (torch.Tensor): (batch, )
+    Args:
+      ctc_probs (torch.Tensor): (batch, max_len, feat_dim)
+      nnet_output_lens (torch.Tensor): (batch, )
     Returns:
-         List[List[int]]: best path result
+      List[List[int]]: best path result
     """
     topk_prob, topk_index = ctc_probs.topk(1, dim=2)  # (B, maxlen, 1)
     topk_index = topk_index.squeeze(2)  # (B, maxlen)
