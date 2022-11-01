@@ -49,6 +49,12 @@ from typing import List
 import k2
 import kaldifeat
 import numpy as np
+
+from icefall import is_module_available
+
+if not is_module_available("onnxruntime"):
+    raise ValueError("Please 'pip install onnxruntime' first.")
+
 import onnxruntime as ort
 import torch
 import torchaudio
