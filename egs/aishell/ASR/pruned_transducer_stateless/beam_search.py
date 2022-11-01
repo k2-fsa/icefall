@@ -1,4 +1,4 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,7 +21,7 @@ import k2
 import torch
 from model import Transducer
 
-from icefall.decode import one_best_decoding
+from icefall.decode import Nbest, one_best_decoding
 from icefall.utils import get_texts
 
 
@@ -33,6 +33,7 @@ def fast_beam_search(
     beam: float,
     max_states: int,
     max_contexts: int,
+    use_max: bool = True,
 ) -> List[List[int]]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -52,6 +53,9 @@ def fast_beam_search(
         Max states per stream per frame.
       max_contexts:
         Max contexts pre stream per frame.
+      use_max:
+        True to use max operation to select the hypothesis with the largest
+        log_prob when there are duplicate hypotheses; False to use log-add.
     Returns:
       Return the decoded result.
     """
@@ -98,15 +102,71 @@ def fast_beam_search(
     decoding_streams.terminate_and_flush_to_streams()
     lattice = decoding_streams.format_output(encoder_out_lens.tolist())
 
-    best_path = one_best_decoding(lattice)
-    hyps = get_texts(best_path)
-    return hyps
+    if use_max:
+        best_path = one_best_decoding(lattice)
+        hyps = get_texts(best_path)
+        return hyps
+    else:
+        num_paths = 100
+        use_double_scores = True
+        nbest_scale = 0.8
+
+        nbest = Nbest.from_lattice(
+            lattice=lattice,
+            num_paths=num_paths,
+            use_double_scores=use_double_scores,
+            nbest_scale=nbest_scale,
+        )
+        # The following code is modified from nbest.intersect()
+        word_fsa = k2.invert(nbest.fsa)
+        if hasattr(lattice, "aux_labels"):
+            # delete token IDs as it is not needed
+            del word_fsa.aux_labels
+        word_fsa.scores.zero_()
+        word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
+        path_to_utt_map = nbest.shape.row_ids(1)
+
+        if hasattr(lattice, "aux_labels"):
+            # lattice has token IDs as labels and word IDs as aux_labels.
+            # inv_lattice has word IDs as labels and token IDs as aux_labels
+            inv_lattice = k2.invert(lattice)
+            inv_lattice = k2.arc_sort(inv_lattice)
+        else:
+            inv_lattice = k2.arc_sort(lattice)
+
+        if inv_lattice.shape[0] == 1:
+            path_lattice = k2.intersect_device(
+                inv_lattice,
+                word_fsa_with_epsilon_loops,
+                b_to_a_map=torch.zeros_like(path_to_utt_map),
+                sorted_match_a=True,
+            )
+        else:
+            path_lattice = k2.intersect_device(
+                inv_lattice,
+                word_fsa_with_epsilon_loops,
+                b_to_a_map=path_to_utt_map,
+                sorted_match_a=True,
+            )
+
+        # path_lattice has word IDs as labels and token IDs as aux_labels
+        path_lattice = k2.top_sort(k2.connect(path_lattice))
+
+        tot_scores = path_lattice.get_tot_scores(
+            use_double_scores=True, log_semiring=True
+        )
+        ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+        best_hyp_indexes = ragged_tot_scores.argmax()
+
+        best_path = k2.index_fsa(nbest.fsa, best_hyp_indexes)
+        hyps = get_texts(best_path)
+        return hyps
 
 
 def greedy_search(
     model: Transducer, encoder_out: torch.Tensor, max_sym_per_frame: int
 ) -> List[int]:
-    """
+    """Greedy search for a single utterance.
     Args:
       model:
         An instance of `Transducer`.
@@ -178,6 +238,68 @@ def greedy_search(
     return hyp
 
 
+def greedy_search_batch(
+    model: Transducer, encoder_out: torch.Tensor
+) -> List[List[int]]:
+    """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C), where N >= 1.
+    Returns:
+      Return a list-of-list of token IDs containing the decoded results.
+      len(ans) equals to encoder_out.size(0).
+    """
+    assert encoder_out.ndim == 3
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+
+    device = model.device
+
+    batch_size = encoder_out.size(0)
+    T = encoder_out.size(1)
+
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+
+    hyps = [[blank_id] * context_size for _ in range(batch_size)]
+
+    decoder_input = torch.tensor(
+        hyps,
+        device=device,
+        dtype=torch.int64,
+    )  # (batch_size, context_size)
+
+    decoder_out = model.decoder(decoder_input, need_pad=False)
+    # decoder_out: (batch_size, 1, decoder_out_dim)
+    for t in range(T):
+        current_encoder_out = encoder_out[:, t : t + 1, :].unsqueeze(2)  # noqa
+        # current_encoder_out's shape: (batch_size, 1, 1, encoder_out_dim)
+        logits = model.joiner(current_encoder_out, decoder_out.unsqueeze(1))
+        # logits'shape (batch_size, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
+        assert logits.ndim == 2, logits.shape
+        y = logits.argmax(dim=1).tolist()
+        emitted = False
+        for i, v in enumerate(y):
+            if v != blank_id:
+                hyps[i].append(v)
+                emitted = True
+        if emitted:
+            # update decoder output
+            decoder_input = [h[-context_size:] for h in hyps]
+            decoder_input = torch.tensor(
+                decoder_input,
+                device=device,
+                dtype=torch.int64,
+            )
+            decoder_out = model.decoder(decoder_input, need_pad=False)
+
+    ans = [h[context_size:] for h in hyps]
+    return ans
+
+
 @dataclass
 class Hypothesis:
     # The predicted tokens so far.
@@ -223,9 +345,10 @@ class HypothesisList(object):
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
+            # torch.logaddexp(
+            # old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
+            # )
+            old_hyp.log_prob = max(old_hyp.log_prob, hyp.log_prob)
         else:
             self._data[key] = hyp
 
@@ -304,12 +427,155 @@ class HypothesisList(object):
         return ", ".join(s)
 
 
+def _get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
+    """Return a ragged shape with axes [utt][num_hyps].
+
+    Args:
+      hyps:
+        len(hyps) == batch_size. It contains the current hypothesis for
+        each utterance in the batch.
+    Returns:
+      Return a ragged shape with 2 axes [utt][num_hyps]. Note that
+      the shape is on CPU.
+    """
+    num_hyps = [len(h) for h in hyps]
+
+    # torch.cumsum() is inclusive sum, so we put a 0 at the beginning
+    # to get exclusive sum later.
+    num_hyps.insert(0, 0)
+
+    num_hyps = torch.tensor(num_hyps)
+    row_splits = torch.cumsum(num_hyps, dim=0, dtype=torch.int32)
+    ans = k2.ragged.create_ragged_shape2(
+        row_splits=row_splits, cached_tot_size=row_splits[-1].item()
+    )
+    return ans
+
+
 def modified_beam_search(
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    beam: int = 4,
+) -> List[List[int]]:
+    """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
+
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C).
+      beam:
+        Number of active paths during the beam search.
+    Returns:
+      Return a list-of-list of token IDs. ans[i] is the decoding results
+      for the i-th utterance.
+    """
+    assert encoder_out.ndim == 3, encoder_out.shape
+
+    batch_size = encoder_out.size(0)
+    T = encoder_out.size(1)
+
+    blank_id = model.decoder.blank_id
+    context_size = model.decoder.context_size
+    device = model.device
+    B = [HypothesisList() for _ in range(batch_size)]
+    for i in range(batch_size):
+        B[i].add(
+            Hypothesis(
+                ys=[blank_id] * context_size,
+                log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+            )
+        )
+
+    for t in range(T):
+        current_encoder_out = encoder_out[:, t : t + 1, :].unsqueeze(2)  # noqa
+        # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
+
+        hyps_shape = _get_hyps_shape(B).to(device)
+
+        A = [list(b) for b in B]
+        B = [HypothesisList() for _ in range(batch_size)]
+
+        ys_log_probs = torch.cat(
+            [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
+        )  # (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        # decoder_output is of shape (num_hyps, 1, 1, decoder_output_dim)
+
+        # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
+        # as index, so we use `to(torch.int64)` below.
+        current_encoder_out = torch.index_select(
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
+        )  # (num_hyps, 1, 1, encoder_out_dim)
+
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+        )  # (num_hyps, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
+
+        log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
+
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+
+        log_probs = log_probs.reshape(-1)
+
+        row_splits = hyps_shape.row_splits(1) * vocab_size
+        log_probs_shape = k2.ragged.create_ragged_shape2(
+            row_splits=row_splits, cached_tot_size=log_probs.numel()
+        )
+        ragged_log_probs = k2.RaggedTensor(
+            shape=log_probs_shape, value=log_probs
+        )
+
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+
+            topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+            topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+
+                new_ys = hyp.ys[:]
+                new_token = topk_token_indexes[k]
+                if new_token != blank_id:
+                    new_ys.append(new_token)
+
+                new_log_prob = topk_log_probs[k]
+                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
+                B[i].add(new_hyp)
+
+    best_hyps = [b.get_most_probable(length_norm=True) for b in B]
+    ans = [h.ys[context_size:] for h in best_hyps]
+
+    return ans
+
+
+def _deprecated_modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     beam: int = 4,
 ) -> List[int]:
     """It limits the maximum number of symbols per frame to 1.
+
+    It decodes only one utterance at a time. We keep it only for reference.
+    The function :func:`modified_beam_search` should be preferred as it
+    supports batch decoding.
+
 
     Args:
       model:

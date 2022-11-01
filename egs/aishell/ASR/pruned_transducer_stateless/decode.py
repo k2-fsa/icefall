@@ -30,6 +30,7 @@ from beam_search import (
     beam_search,
     fast_beam_search,
     greedy_search,
+    greedy_search_batch,
     modified_beam_search,
 )
 from conformer import Conformer
@@ -75,6 +76,16 @@ def get_parser():
         type=str,
         default="transducer_stateless/exp",
         help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--use-HLG",
+        type=str2bool,
+        default=False,
+        help="""Whether to use HLG decoding graph for fast_beam_search decoding
+        method. When setting True, it is expected to have a HLG.pt in
+        `lang-dir`.
+        """,
     )
 
     parser.add_argument(
@@ -168,7 +179,7 @@ def get_params() -> AttributeDict:
             "embedding_dim": 512,
             "subsampling_factor": 4,
             "attention_dim": 512,
-            "nhead": 4,
+            "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
@@ -286,6 +297,27 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in hyp_tokens:
+            if params.use_HLG:
+                hyps.append([lexicon.word_table[i] for i in hyp])
+            else:
+                hyps.append([lexicon.token_table[i] for i in hyp])
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+        )
+        for hyp in hyp_tokens:
+            hyps.append([lexicon.token_table[i] for i in hyp])
+    elif params.decoding_method == "modified_beam_search":
+        hyp_tokens = modified_beam_search(
+            model=model,
+            encoder_out=encoder_out,
+            beam=params.beam_size,
+        )
+        for hyp in hyp_tokens:
             hyps.append([lexicon.token_table[i] for i in hyp])
     else:
         batch_size = encoder_out.size(0)
@@ -390,6 +422,7 @@ def decode_dataset(
             for hyp_words, ref_text in zip(hyps, texts):
                 ref_words = ref_text.split()
                 this_batch.append((ref_words, hyp_words))
+            # print (f"hyps : {hyps}\ntexts : {texts}")
 
             results[name].extend(this_batch)
 
@@ -525,7 +558,18 @@ def main():
     model.device = device
 
     if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        if params.use_HLG:
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(f"{params.lang_dir}/LG.pt", map_location=device)
+            )
+            decoding_graph.scores *= 0.01
+            # print (decoding_graph.aux_labels)
+            # decoding_graph.scores.zero_
+            # print (f"scores : {decoding_graph.scores}")
+        else:
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
     else:
         decoding_graph = None
 

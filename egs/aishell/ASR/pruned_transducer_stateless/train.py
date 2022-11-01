@@ -229,14 +229,14 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "attention_dim": 512,
-            "nhead": 4,
+            "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
             "vgg_frontend": False,
             # parameters for decoder
             "embedding_dim": 512,
             # parameters for Noam
-            "warm_step": 30000,
+            "warm_step": 36000,
             "env_info": get_env_info(),
         }
     )
