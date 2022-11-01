@@ -21,7 +21,6 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from multi_quantization.prediction import JointCodebookLoss
 from scaling import ScaledLinear
 
 from icefall.utils import add_sos
@@ -74,6 +73,14 @@ class Transducer(nn.Module):
             encoder_dim, vocab_size, initial_speed=0.5
         )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+
+        from icefall import is_module_available
+
+        if not is_module_available("multi_quantization"):
+            raise ValueError("Please 'pip install multi_quantization' first.")
+
+        from multi_quantization.prediction import JointCodebookLoss
+
         if num_codebooks > 0:
             self.codebook_loss_net = JointCodebookLoss(
                 predictor_channels=encoder_dim,
