@@ -52,6 +52,9 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
 
   if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
     git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
+    pushd $dl_dir/lm
+    git lfs pull --include "3-gram.unpruned.arpa"
+    popd
   fi
 fi
 
