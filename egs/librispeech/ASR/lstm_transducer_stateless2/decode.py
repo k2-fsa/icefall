@@ -91,6 +91,21 @@ Usage:
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
+    
+(8) modified beam search (with RNNLM shallow fusion)
+./lstm_transducer_stateless2/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search_rnnlm_shallow_fusion \
+    --beam 4 \
+    --rnn-lm-scale 0.3 \
+    --rnn-lm-exp-dir /path/to/RNNLM \
+    --rnn-lm-epoch 99 \
+    --rnn-lm-avg 1 \
+    --rnn-lm-num-layers 3 \
+    --rnn-lm-tie-weights 1   
 """
 
 
@@ -121,7 +136,6 @@ from beam_search import (
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -389,8 +403,6 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-    ngram_lm: Optional[NgramLm] = None,
-    ngram_lm_scale: float = 1.0,
     rnnlm: Optional[RnnLmModel] = None,
     rnnlm_scale: float = 1.0,
 ) -> Dict[str, List[List[str]]]:
@@ -526,11 +538,12 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_sf_rnnlm":
-        hyp_tokens = modified_beam_search_sf_rnnlm_batched(
+    elif params.decoding_method == "modified_beam_search_rnnlm_shallow_fusion":
+        hyp_tokens = modified_beam_search_rnnlm_shallow_fusion(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
             sp=sp,
             rnnlm=rnnlm,
             rnnlm_scale=rnnlm_scale,
@@ -586,9 +599,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-    ngram_lm: Optional[NgramLm] = None,
-    ngram_lm_scale: float = 1.0,
-    rnnlm: Optional[NgramLm] = None,
+    rnnlm: Optional[RnnLmModel] = None,
     rnnlm_scale: float = 1.0,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -642,8 +653,6 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
-            ngram_lm=ngram_lm,
-            ngram_lm_scale=ngram_lm_scale,
             rnnlm=rnnlm,
             rnnlm_scale=rnnlm_scale,
         )
@@ -731,7 +740,7 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
-        "modified_beam_search_sf_rnnlm",
+        "modified_beam_search_rnnlm_shallow_fusion",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -942,8 +951,6 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
-            ngram_lm=ngram_lm,
-            ngram_lm_scale=params.ngram_lm_scale,
             rnnlm=rnn_lm_model,
             rnnlm_scale=rnn_lm_scale,
         )

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,47 +20,43 @@
 """
 Usage:
 (1) greedy search
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method greedy_search
-
 (2) beam search (not recommended)
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
-
 (3) modified beam search
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
-
 (4) fast beam search (one best)
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
-
 (5) fast beam search (nbest)
-./lstm_transducer_stateless2/decode.py \
-    --epoch 30 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -67,12 +64,11 @@ Usage:
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5
-
 (6) fast beam search (nbest oracle WER)
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -80,17 +76,34 @@ Usage:
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5
-
 (7) fast beam search (with LG)
-./lstm_transducer_stateless2/decode.py \
-    --epoch 35 \
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
     --avg 15 \
-    --exp-dir ./lstm_transducer_stateless2/exp \
+    --exp-dir ./pruned_transducer_stateless5/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
+    
+(8) modified beam search with RNNLM shallow fusion (with LG)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_LG \
+    --beam 4 \
+    --max-contexts 4 \
+    --rnn-lm-scale 0.4 \
+    --rnn-lm-exp-dir /path/to/RNNLM/exp \
+    --rnn-lm-epoch 99 \
+    --rnn-lm-avg 1 \
+    --rnn-lm-num-layers 3 \
+    --rnn-lm-tie-weights 1
+
+    
 """
 
 
@@ -244,6 +257,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        It specifies the scale for n-gram LM scores.
+        """,
+    )
+    
+    parser.add_argument(
         "--max-contexts",
         type=int,
         default=8,
@@ -293,6 +316,15 @@ def get_parser():
         help="""Scale applied to lattice scores when computing nbest paths.
         Used only when the decoding method is fast_beam_search_nbest,
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+    )
+    
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
+        """,
     )
 
     parser.add_argument(
@@ -517,6 +549,9 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            sp=sp,
+            rnnlm=rnnlm,
+            rnnlm_scale=rnnlm_scale,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -708,7 +743,7 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
-        "modified_beam_search_sf_rnnlm",
+        "modified_beam_search_rnnlm_shallow_fusion",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -843,7 +878,7 @@ def main():
 
     rnn_lm_model = None
     rnn_lm_scale = params.rnn_lm_scale
-    if params.decoding_method == "modified_beam_search3":
+    if params.decoding_method == "modified_beam_search_rnnlm_shallow_fusion":
         rnn_lm_model = RnnLmModel(
             vocab_size=params.vocab_size,
             embedding_dim=params.rnn_lm_embedding_dim,
