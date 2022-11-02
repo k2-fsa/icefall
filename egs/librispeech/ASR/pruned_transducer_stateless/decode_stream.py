@@ -87,6 +87,7 @@ class DecodeStream(object):
                 Hypothesis(
                     ys=[params.blank_id] * params.context_size,
                     log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                    timestamp=[],
                 )
             )
         elif params.decoding_method == "fast_beam_search":
