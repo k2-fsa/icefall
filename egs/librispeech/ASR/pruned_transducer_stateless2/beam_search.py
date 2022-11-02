@@ -23,7 +23,6 @@ import sentencepiece as spm
 import torch
 from model import Transducer
 
-from icefall import NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import add_eos, add_sos, get_texts
@@ -658,8 +657,6 @@ class Hypothesis:
     # It contains only one entry.
     log_prob: torch.Tensor
 
-    state_cost: Optional[NgramLmStateCost] = None
-    state: Optional = None
     lm_score: Optional=None
 
     @property
