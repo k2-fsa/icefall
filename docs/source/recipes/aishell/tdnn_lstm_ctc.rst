@@ -498,7 +498,7 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
 |aishell asr conformer ctc colab notebook|
 
 .. |aishell asr conformer ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
-   :target: https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z
+   :target: https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing
 
 **Congratulations!** You have finished the aishell ASR recipe with
 TDNN-LSTM CTC models in ``icefall``.
