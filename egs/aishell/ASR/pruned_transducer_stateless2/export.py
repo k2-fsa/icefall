@@ -124,6 +124,15 @@ def get_parser():
         "2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--streaming-model",
+        type=str2bool,
+        default=False,
+        help="""Whether to export a streaming model, if the models in exp-dir
+        are streaming model, this should be True.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -145,6 +154,9 @@ def main():
 
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
+
+    if params.streaming_model:
+        assert params.causal_convolution
 
     logging.info(params)
 
