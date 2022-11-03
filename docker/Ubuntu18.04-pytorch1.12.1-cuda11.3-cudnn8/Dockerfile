@@ -51,8 +51,9 @@ RUN wget -P /opt https://downloads.xiph.org/releases/flac/flac-1.3.2.tar.xz  && 
     find /opt/flac-1.3.2  -type f \( -name "*.o" -o -name "*.la" -o -name "*.a" \) -exec rm {} \; && \
     cd - 
 
-RUN pip install kaldiio graphviz && \
-	conda install -y -c pytorch torchaudio
+RUN conda install -y -c pytorch torchaudio=0.12 && \
+    pip install kaldiio graphviz
+	
 
 #install k2 from source
 RUN git clone https://github.com/k2-fsa/k2.git /opt/k2 && \
