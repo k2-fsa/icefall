@@ -58,6 +58,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import copy
+import k2
 import logging
 from pathlib import Path
 from shutil import copyfile
@@ -292,6 +293,17 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant to penalize symbol delay, which is used to make symbol
+        emit earlier for streaming models. It is almost the same as the
+        `delay_penalty` in our `rnnt_loss`, See
+        https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
     )
 
     add_model_arguments(parser)
@@ -561,6 +573,12 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    with torch.set_grad_enabled(is_training):
+        nnet_output, encoder_out_lens = model(
+            feature, feature_lens, warmup=warmup
+        )
+        assert torch.all(encoder_out_lens > 0)
+
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
@@ -568,29 +586,45 @@ def compute_loss(
         supervisions, subsampling_factor=params.subsampling_factor
     )
 
-    with torch.set_grad_enabled(is_training):
-        ctc_loss = model(
-            x=feature,
-            x_lens=feature_lens,
-            supervision_segments=supervision_segments,
-            texts=texts,
-            graph_compiler=graph_compiler,
-            params=params,
-            warmup=warmup,
+    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
+        # Works with a BPE model
+        token_ids = graph_compiler.texts_to_ids(texts)
+        decoding_graph = graph_compiler.compile(token_ids)
+    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
+        # Works with a phone lexicon
+        decoding_graph = graph_compiler.compile(texts)
+    else:
+        raise ValueError(
+            f"Unsupported type of graph compiler: {type(graph_compiler)}"
         )
-        ctc_loss_is_finite = torch.isfinite(ctc_loss)
-        if not torch.all(ctc_loss_is_finite):
-            logging.info("Not all losses are finite!\n" f"ctc_loss: {ctc_loss}")
-            ctc_loss = ctc_loss[ctc_loss_is_finite]
 
-            # If either all simple_loss or pruned_loss is inf or nan,
-            # we stop the training process by raising an exception
-            if torch.all(~ctc_loss_is_finite):
-                raise ValueError(
-                    "There are too many utterances in this batch "
-                    "leading to inf or nan losses."
-                )
-        loss = ctc_loss.sum()
+    dense_fsa_vec = k2.DenseFsaVec(
+        nnet_output,
+        supervision_segments,
+        allow_truncate=params.subsampling_factor - 1,
+    )
+
+    ctc_loss = k2.ctc_loss(
+        decoding_graph=decoding_graph,
+        dense_fsa_vec=dense_fsa_vec,
+        output_beam=params.beam_size,
+        delay_penalty=params.delay_penalty if warmup > 1.0 else 0.0,
+        reduction=params.reduction,
+        use_double_scores=params.use_double_scores,
+    )
+    ctc_loss_is_finite = torch.isfinite(ctc_loss)
+    if not torch.all(ctc_loss_is_finite):
+        logging.info("Not all losses are finite!\n" f"ctc_loss: {ctc_loss}")
+        ctc_loss = ctc_loss[ctc_loss_is_finite]
+
+        # If either all simple_loss or pruned_loss is inf or nan,
+        # we stop the training process by raising an exception
+        if torch.all(~ctc_loss_is_finite):
+            raise ValueError(
+                "There are too many utterances in this batch "
+                "leading to inf or nan losses."
+            )
+    loss = ctc_loss.sum()
 
     assert loss.requires_grad == is_training
 

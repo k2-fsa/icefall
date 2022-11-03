@@ -121,4 +121,6 @@ class CharCtcTrainingGraphCompiler(object):
           CTC topology with linear FSAs constructed from the given
           piece IDs.
         """
-        return k2.ctc_graph(token_ids, modified=modified, device=self.device)
+        graph = k2.ctc_graph(token_ids, modified=modified, device=self.device)
+        graph._is_repeat_token_ = graph.labels != graph.aux_labels
+        return graph
