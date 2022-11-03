@@ -530,9 +530,10 @@ class MetricsTracker(collections.defaultdict):
     def __add__(self, other: "MetricsTracker") -> "MetricsTracker":
         ans = MetricsTracker()
         for k, v in self.items():
-            ans[k] = v
+            ans[k] = v if v - v == 0.0 else 0.0  # discard infinities.
         for k, v in other.items():
-            ans[k] = ans[k] + v
+            if v - v == 0:  # discard infinities.
+                ans[k] = ans[k] + v
         return ans
 
     def __mul__(self, alpha: float) -> "MetricsTracker":

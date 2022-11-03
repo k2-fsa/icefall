@@ -854,7 +854,8 @@ class SimpleCombiner(torch.nn.Module):
                  min_weight: Tuple[float] = (0., 0.)):
         super(SimpleCombiner, self).__init__()
         assert dim2 >= dim1
-        self.weight1 = nn.Parameter(torch.ones(dim2) * min_weight[0])
+        initial_weight1 = 0.1
+        self.weight1 = nn.Parameter(torch.full((dim2,), initial_weight1))
         self.min_weight = min_weight
 
     def forward(self,
