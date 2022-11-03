@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Union
 
 import k2
@@ -727,7 +727,7 @@ class Hypothesis:
 
     # timestamp[i] is the frame index after subsampling
     # on which ys[i] is decoded
-    timestamp: List[int]
+    timestamp: List[int] = field(default_factory=list)
 
     state_cost: Optional[NgramLmStateCost] = None
 

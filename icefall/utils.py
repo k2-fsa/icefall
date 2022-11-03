@@ -1369,6 +1369,7 @@ def parse_hyp_and_timestamp(
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_LG
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
@@ -1388,6 +1389,7 @@ def parse_hyp_and_timestamp(
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_LG",
         "fast_beam_search_nbest",
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
@@ -1400,7 +1402,10 @@ def parse_hyp_and_timestamp(
     N = len(res.tokens)
     assert len(res.timestamps) == N
     use_word_table = False
-    if decoding_method == "fast_beam_search_nbest_LG":
+    if (
+        decoding_method == "fast_beam_search_nbest_LG"
+        and decoding_method == "fast_beam_search_LG"
+    ):
         assert word_table is not None
         use_word_table = True
 
