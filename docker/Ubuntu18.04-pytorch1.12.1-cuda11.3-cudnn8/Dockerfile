@@ -52,7 +52,7 @@ RUN wget -P /opt https://downloads.xiph.org/releases/flac/flac-1.3.2.tar.xz  && 
     cd - 
 
 RUN conda install -y -c pytorch torchaudio=0.12 && \
-    pip install kaldiio graphviz
+    pip install graphviz
 	
 
 #install k2 from source
