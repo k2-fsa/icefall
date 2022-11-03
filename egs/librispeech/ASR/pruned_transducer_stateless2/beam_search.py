@@ -17,7 +17,7 @@
 
 import warnings
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import k2
 import sentencepiece as spm
@@ -729,8 +729,15 @@ class Hypothesis:
 
     # timestamp[i] is the frame index after subsampling
     # on which ys[i] is decoded
-    timestamp: List[int]
+    timestamp: List[int] = None
 
+    # the lm score for next token given the current ys
+    lm_score: Optional[torch.Tensor] = None
+
+    # the RNNLM states (h and c in LSTM)
+    state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+
+    # N-gram LM state
     state_cost: Optional[NgramLmStateCost] = None
 
     @property
@@ -1989,8 +1996,15 @@ def modified_beam_search_rnnlm_shallow_fusion(
         ragged_log_probs = k2.RaggedTensor(
             shape=log_probs_shape, value=log_probs
         )
-
-        # for all hyps with a non-blank new token, score it
+        """
+        for all hyps with a non-blank new token, score this token.
+        It is a little confusing here because this for-loop
+        looks very similar to the one below. Here, we go through all
+        top-k tokens and only add the non-blanks ones to the token_list.
+        The RNNLM will score those tokens given the LM states. Note that
+        the variable `scores` is the LM score after seeing the new
+        non-blank token.
+        """
         token_list = []
         hs = []
         cs = []
@@ -2007,11 +2021,12 @@ def modified_beam_search_rnnlm_shallow_fusion(
 
                 new_token = topk_token_indexes[k]
                 if new_token not in (blank_id, unk_id):
-
                     assert new_token != 0, new_token
                     token_list.append([new_token])
+                    # store the LSTM states
                     hs.append(hyp.state[0])
                     cs.append(hyp.state[1])
+
         # forward RNNLM to get new states and scores
         if len(token_list) != 0:
             tokens_to_score = (

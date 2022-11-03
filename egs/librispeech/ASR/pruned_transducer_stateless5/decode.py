@@ -228,7 +228,7 @@ def get_parser():
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
-          - modified-beam-search_rnnlm_shallow_fusion # for rnn lm shallow fusion
+          - modified_beam_search_rnnlm_shallow_fusion # for rnn lm shallow fusion
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -354,7 +354,7 @@ def get_parser():
         "--rnn-lm-exp-dir",
         type=str,
         default="rnn_lm/exp",
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the path to RNN LM exp dir.
         """,
     )
@@ -363,7 +363,7 @@ def get_parser():
         "--rnn-lm-epoch",
         type=int,
         default=7,
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the checkpoint to use.
         """,
     )
@@ -372,7 +372,7 @@ def get_parser():
         "--rnn-lm-avg",
         type=int,
         default=2,
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the number of checkpoints to average.
         """,
     )

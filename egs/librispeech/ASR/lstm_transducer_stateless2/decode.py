@@ -235,7 +235,7 @@ def get_parser():
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
           - modified_beam_search_ngram_rescoring
-          - modified-beam-search_rnnlm_shallow_fusion # for rnn lm shallow fusion
+          - modified_beam_search_rnnlm_shallow_fusion # for rnn lm shallow fusion
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -329,7 +329,7 @@ def get_parser():
         "--rnn-lm-scale",
         type=float,
         default=0.0,
-        help="""Used only when --method is modified_beam_search3.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the path to RNN LM exp dir.
         """,
     )
@@ -338,7 +338,7 @@ def get_parser():
         "--rnn-lm-exp-dir",
         type=str,
         default="rnn_lm/exp",
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the path to RNN LM exp dir.
         """,
     )
@@ -347,7 +347,7 @@ def get_parser():
         "--rnn-lm-epoch",
         type=int,
         default=7,
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the checkpoint to use.
         """,
     )
@@ -356,7 +356,7 @@ def get_parser():
         "--rnn-lm-avg",
         type=int,
         default=2,
-        help="""Used only when --method is rnn-lm.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
         It specifies the number of checkpoints to average.
         """,
     )
@@ -911,14 +911,20 @@ def main():
     model.to(device)
     model.eval()
 
-    lm_filename = f"{params.tokens_ngram}gram.fst.txt"
-    logging.info(f"lm filename: {lm_filename}")
-    ngram_lm = NgramLm(
-        str(params.lang_dir / lm_filename),
-        backoff_id=params.backoff_id,
-        is_binary=False,
-    )
-    logging.info(f"num states: {ngram_lm.lm.num_states}")
+    # only load N-gram LM when needed
+    if "ngram" in params.decoding_method:
+        lm_filename = f"{params.tokens_ngram}gram.fst.txt"
+        logging.info(f"lm filename: {lm_filename}")
+        ngram_lm = NgramLm(
+            str(params.lang_dir / lm_filename),
+            backoff_id=params.backoff_id,
+            is_binary=False,
+        )
+        logging.info(f"num states: {ngram_lm.lm.num_states}")
+    else:
+        ngram_lm = None
+        ngram_lm_scale = None
+
     # only load rnnlm if used
     if "rnnlm" in params.decoding_method:
         rnn_lm_scale = params.rnn_lm_scale
@@ -941,6 +947,7 @@ def main():
 
     else:
         rnn_lm_model = None
+        rnn_lm_scale = 0.0
 
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
@@ -987,7 +994,7 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
             ngram_lm=ngram_lm,
-            ngram_lm_scale=params.ngram_lm_scale,
+            ngram_lm_scale=ngram_lm_scale,
             rnnlm=rnn_lm_model,
             rnnlm_scale=rnn_lm_scale,
         )
