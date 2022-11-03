@@ -727,7 +727,7 @@ class Hypothesis:
 
     # timestamp[i] is the frame index after subsampling
     # on which ys[i] is decoded
-    timestamp: List[int]
+    timestamp: List[int] = []
 
     state_cost: Optional[NgramLmStateCost] = None
 
