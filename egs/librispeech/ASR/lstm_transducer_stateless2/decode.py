@@ -329,7 +329,7 @@ def get_parser():
         "--rnn-lm-scale",
         type=float,
         default=0.0,
-        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        help="""Used only when --method is modified-beam-search_rnnlm_shallow_fusion.
         It specifies the path to RNN LM exp dir.
         """,
     )
