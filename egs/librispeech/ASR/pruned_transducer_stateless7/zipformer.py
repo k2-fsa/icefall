@@ -1434,7 +1434,7 @@ class ModifiedSEModule(nn.Module):
     """
     def __init__(self,
                  d_model: int,
-                 bottleneck_dim: int = 16):
+                 bottleneck_dim: int = 8):
         super().__init__()
         self.squeeze_proj = nn.Linear(d_model, d_model,
                                       bias=False)
