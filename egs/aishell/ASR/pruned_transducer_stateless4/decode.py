@@ -285,7 +285,7 @@ def decode_one_batch(
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
@@ -322,7 +322,7 @@ def decode_one_batch(
 
     if (
         params.decoding_method == "fast_beam_search"
-        and params.decoding_method == "fast_beam_search_LG"
+        or params.decoding_method == "fast_beam_search_LG"
     ):
         hyp_tokens = fast_beam_search_one_best(
             model=model,
@@ -416,7 +416,7 @@ def decode_dataset(
         It contains token_table and word_table that maps token ID and word ID
         to a string.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search

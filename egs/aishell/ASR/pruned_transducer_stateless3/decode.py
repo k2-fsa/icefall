@@ -323,7 +323,7 @@ def decode_one_batch(
 
     if (
         params.decoding_method == "fast_beam_search"
-        and params.decoding_method == "fast_beam_search_LG"
+        or params.decoding_method == "fast_beam_search_LG"
     ):
         hyp_tokens = fast_beam_search_one_best(
             model=model,
