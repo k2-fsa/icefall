@@ -255,7 +255,7 @@ class DecodingResults:
     # is decoded
     timestamps: List[List[int]]
 
-    # hyps[i] is the recognition results, i.e., word IDs
+    # hyps[i] is the recognition results, i.e., word IDs or token IDs
     # for the i-th utterance with fast_beam_search_nbest_LG.
     hyps: Union[List[List[int]], k2.RaggedTensor]
 
