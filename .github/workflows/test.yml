@@ -80,6 +80,7 @@ jobs:
           pip install --no-binary protobuf protobuf
 
           pip install kaldifst
+          pip install onnxruntime
 
           pip install -r requirements.txt
 
