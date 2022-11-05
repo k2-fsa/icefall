@@ -279,9 +279,16 @@ def get_texts_with_timestamp(
       decoded.
     """
     if isinstance(best_paths.aux_labels, k2.RaggedTensor):
-        all_aux_labels = best_paths.aux_labels
+        all_aux_shape = (
+            best_paths.arcs.shape()
+            .remove_axis(1)
+            .compose(best_paths.aux_labels.shape)
+        )
+        all_aux_labels = k2.RaggedTensor(
+            all_aux_shape, best_paths.aux_labels.values
+        )
         # remove 0's and -1's.
-        aux_labels = all_aux_labels.remove_values_leq(0)
+        aux_labels = best_paths.aux_labels.remove_values_leq(0)
         # TODO: change arcs.shape() to arcs.shape
         aux_shape = best_paths.arcs.shape().compose(aux_labels.shape)
         # remove the states and arcs axes.
@@ -298,9 +305,17 @@ def get_texts_with_timestamp(
     assert aux_labels.num_axes == 2
 
     timestamps = []
-    for labels in all_aux_labels.tolist():
-        time = [i for i, v in enumerate(labels) if v > 0]
-        timestamps.append(time)
+    if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        for p in range(all_aux_labels.dim0):
+            time = []
+            for i, arc in enumerate(all_aux_labels[p].tolist()):
+                if len(arc) == 1 and arc[0] > 0:
+                    time.append(i)
+            timestamps.append(time)
+    else:
+        for labels in all_aux_labels.tolist():
+            time = [i for i, v in enumerate(labels) if v > 0]
+            timestamps.append(time)
 
     return DecodingResults(
         timestamps=timestamps,
@@ -1377,7 +1392,7 @@ def parse_hyp_and_timestamp(
     timestamps = []
 
     N = len(res.hyps)
-    assert len(res.timestamps) == N
+    assert len(res.timestamps) == N, (len(res.timestamps), N)
     use_word_table = False
     if decoding_method == "fast_beam_search_nbest_LG":
         assert word_table is not None
