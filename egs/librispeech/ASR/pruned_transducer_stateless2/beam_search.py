@@ -598,7 +598,7 @@ def greedy_search(
         return hyp
     else:
         return DecodingResults(
-            tokens=[hyp],
+            hyps=[hyp],
             timestamps=[timestamp],
         )
 
@@ -712,7 +712,7 @@ def greedy_search_batch(
         return ans
     else:
         return DecodingResults(
-            tokens=ans,
+            hyps=ans,
             timestamps=ans_timestamps,
         )
 
@@ -1049,7 +1049,7 @@ def modified_beam_search(
         return ans
     else:
         return DecodingResults(
-            tokens=ans,
+            hyps=ans,
             timestamps=ans_timestamps,
         )
 
@@ -1176,7 +1176,7 @@ def _deprecated_modified_beam_search(
     if not return_timestamps:
         return ys
     else:
-        return DecodingResults(tokens=[ys], timestamps=[best_hyp.timestamp])
+        return DecodingResults(hyps=[ys], timestamps=[best_hyp.timestamp])
 
 
 def beam_search(
@@ -1336,7 +1336,7 @@ def beam_search(
     if not return_timestamps:
         return ys
     else:
-        return DecodingResults(tokens=[ys], timestamps=[best_hyp.timestamp])
+        return DecodingResults(hyps=[ys], timestamps=[best_hyp.timestamp])
 
 
 def fast_beam_search_with_nbest_rescoring(
