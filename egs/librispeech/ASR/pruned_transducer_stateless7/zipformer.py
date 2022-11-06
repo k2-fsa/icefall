@@ -93,9 +93,9 @@ class Zipformer(EncoderInterface):
             assert u <= d
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
-        # to the shape (N, T//subsampling_factor, encoder_dims).
+        # to the shape (N, (T - 7)//2, encoder_dims).
         # That is, it does two things simultaneously:
-        #   (1) subsampling: T -> T//2
+        #   (1) subsampling: T -> (T - 7)//2
         #   (2) embedding: num_features -> encoder_dims
         self.encoder_embed = Conv2dSubsampling(num_features, encoder_dims[0],
                                                dropout=dropout)
@@ -1629,13 +1629,15 @@ class Conv2dSubsampling(nn.Module):
             Number of channels in. The input shape is (N, T, in_channels).
             Caution: It requires: T >=7, in_channels >=7
           out_channels
-            Output dim. The output shape is (N, (T-3)//2, out_channels)
+            Output dim. The output shape is (N, (T-7)//2, out_channels)
           layer1_channels:
             Number of channels in layer1
-          layer1_channels:
+          layer2_channels:
             Number of channels in layer2
+          layer3_channels:
+            Number of channels in layer3
         """
-        assert in_channels >= 7
+        assert in_channels >= 7, in_channels
         super().__init__()
 
         self.conv = nn.Sequential(
@@ -1681,15 +1683,15 @@ class Conv2dSubsampling(nn.Module):
             Its shape is (N, T, idim).
 
         Returns:
-          Return a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          Return a tensor of shape (N, (T-7)//2, odim)
         """
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-3)//2 - 1)//2, ((idim-1)//2 - 1)//2)
+        # Now x is of shape (N, odim, (T-7)//2, ((idim-1)//2 - 1)//2)
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, c * f))
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        # Now x is of shape (N, (T-7)//2, odim)
         x = self.dropout(x)
         return x
 
@@ -1855,6 +1857,18 @@ def _test_zipformer_main():
     )
     f  # to remove flake8 warnings
 
+def _test_conv2d_subsampling():
+    num_features = 80
+    encoder_dims = 384
+    dropout = 0.1
+    encoder_embed = Conv2dSubsampling(num_features, encoder_dims,
+                                               dropout=dropout)
+    for i in range(20, 40):
+        x = torch.rand(2, i, num_features)
+        y = encoder_embed(x)
+        assert (x.shape[1] - 7) // 2 == y.shape[1], (x.shape[1], y.shape[1])
+
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
@@ -1862,3 +1876,4 @@ if __name__ == "__main__":
     torch.set_num_interop_threads(1)
     _test_random_combine()
     _test_zipformer_main()
+    _test_conv2d_subsampling()
