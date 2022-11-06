@@ -51,7 +51,7 @@ class Zipformer(EncoderInterface):
         d_model: (int,int): embedding dimension of 2 encoder stacks
         attention_dim: (int,int): attention dimension of 2 encoder stacks
         nhead (int, int): number of heads
-        dim_feedforward (int, int): feedforward dimention in 2 encoder stacks
+        dim_feedforward (int, int): feedforward dimension in 2 encoder stacks
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
         cnn_module_kernel (int): Kernel size of convolution module
@@ -90,7 +90,7 @@ class Zipformer(EncoderInterface):
         self.warmup_end = warmup_batches
 
         for u,d in zip(encoder_unmasked_dims, encoder_dims):
-            assert u <= d
+            assert u <= d, (u, d)
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
         # to the shape (N, (T - 7)//2, encoder_dims).
@@ -209,7 +209,7 @@ class Zipformer(EncoderInterface):
         (num_frames0, batch_size, _encoder_dims0) = x.shape
 
 
-        assert self.encoder_dims[0] == _encoder_dims0
+        assert self.encoder_dims[0] == _encoder_dims0, (self.encoder_dims, _encoder_dims0)
 
         max_downsampling_factor = max(self.zipformer_downsampling_factors)
 
@@ -265,7 +265,7 @@ class Zipformer(EncoderInterface):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             lengths = (x_lens - 7) // 2
-        assert x.size(0) == lengths.max().item()
+        assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
         mask = make_pad_mask(lengths)
 
         outputs = []
@@ -284,7 +284,7 @@ class Zipformer(EncoderInterface):
 
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
-        assert self.output_downsampling_factor == 2
+        assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         lengths = (lengths + 1) // 2
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
@@ -512,7 +512,7 @@ class ZipformerEncoder(nn.Module):
         )
         self.num_layers = num_layers
 
-        assert 0 <= warmup_begin <= warmup_end
+        assert 0 <= warmup_begin <= warmup_end, (warmup_begin, warmup_end)
 
 
         delta = (1. / num_layers) * (warmup_end - warmup_begin)
@@ -554,7 +554,7 @@ class ZipformerEncoder(nn.Module):
             else:
                 # linearly interpolate
                 t = (batch_count - layer_warmup_begin) / layer_warmup_end
-                assert 0.0 <= t < 1.001
+                assert 0.0 <= t < 1.001, t
                 return initial_layerdrop_prob + t * (final_layerdrop_prob - initial_layerdrop_prob)
 
         shared_rng = random.Random(batch_count + self.module_seed)
@@ -794,7 +794,7 @@ class AttentionDownsample(torch.nn.Module):
             pad = d_seq_len * ds - seq_len
             src_extra = src[src.shape[0]-1:].expand(pad, src.shape[1], src.shape[2])
             src = torch.cat((src, src_extra), dim=0)
-            assert src.shape[0] == d_seq_len * ds
+            assert src.shape[0] == d_seq_len * ds, (src.shape[0], d_seq_len, ds)
 
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
         scores = (src * self.query).sum(dim=-1, keepdim=True)
@@ -854,7 +854,7 @@ class SimpleCombiner(torch.nn.Module):
                  dim2: int,
                  min_weight: Tuple[float] = (0., 0.)):
         super(SimpleCombiner, self).__init__()
-        assert dim2 >= dim1
+        assert dim2 >= dim1, (dim2, dim1)
         self.weight1 = nn.Parameter(torch.zeros(()))
         self.min_weight = min_weight
 
@@ -867,7 +867,7 @@ class SimpleCombiner(torch.nn.Module):
 
         Returns: a tensor of shape (*, dim2)
         """
-        assert src1.shape[:-1] == src2.shape[:-1]
+        assert src1.shape[:-1] == src2.shape[:-1], (src1.shape, src2.shape)
         dim1 = src1.shape[-1]
         dim2 = src2.shape[-1]
 
@@ -1018,7 +1018,7 @@ class RelPositionMultiheadAttention(nn.Module):
         assert self.head_dim % 2 == 0, self.head_dim
         assert (
             self.head_dim * num_heads == attention_dim
-        )
+        ), (self.head_dim, num_heads, attention_dim)
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
@@ -1182,7 +1182,7 @@ class RelPositionMultiheadAttention(nn.Module):
         pos_dim = self.pos_dim  # positional-encoding dim per head
         assert (
             head_dim * num_heads == attention_dim
-        ), "attention_dim must be divisible by num_heads"
+            ), f"attention_dim must be divisible by num_heads: {head_dim}, {num_heads}, {attention_dim}"
 
 
         # self-attention
@@ -1508,7 +1508,7 @@ class ConvolutionModule(nn.Module):
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
+        assert (kernel_size - 1) % 2 == 0, kernel_size
 
         self.pointwise_conv1 = nn.Conv1d(
             channels,
