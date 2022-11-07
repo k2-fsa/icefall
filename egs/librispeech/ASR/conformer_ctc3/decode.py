@@ -18,94 +18,45 @@
 # limitations under the License.
 """
 Usage:
-(1) greedy search
-./pruned_transducer_stateless4/decode.py \
+(1) decode in non-streaming mode (take ctc-decoding as an example)
+./conformer_ctc3/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./conformer_ctc3/exp \
     --max-duration 600 \
-    --decoding-method greedy_search
+    --decoding-method ctc-decoding
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(8) decode in streaming mode (take greedy search as an example)
-./pruned_transducer_stateless4/decode.py \
+(2) decode in streaming mode (take ctc-decoding as an example)
+./conformer_ctc3/decode.py \
     --epoch 30 \
     --avg 15 \
     --simulate-streaming 1 \
     --causal-convolution 1 \
     --decode-chunk-size 16 \
     --left-context 64 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./conformer_ctc3/exp \
     --max-duration 600 \
-    --decoding-method greedy_search
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
+    --decoding-method ctc-decoding
+
+To evaluate symbol delay, you should:
+(1) Generate cuts with word-time alignments:
+./local/add_alignment_librispeech.py \
+    --alignments-dir data/alignment \
+    --cuts-in-dir data/fbank \
+    --cuts-out-dir data/fbank_ali
+(2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
+For example:
+./conformer_ctc3/decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./conformer_ctc3/exp \
+    --max-duration 600 \
+    --decoding-method ctc-decoding \
+    --manifest-dir data/fbank_ali
+Note: It supports to calculate symbol delay with following decoding methods:
+    - ctc-greedy-search
+    - ctc-decoding
+    - 1best
 """
 
 
@@ -143,12 +94,15 @@ from icefall.checkpoint import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    DecodingResults,
     get_texts,
+    get_texts_with_timestamp,
     make_pad_mask,
+    parse_hyp_and_timestamp,
     setup_logger,
-    store_transcripts,
+    store_transcripts_and_timestamps,
     str2bool,
-    write_error_stats,
+    write_error_stats_with_timestamps,
 )
 
 LOG_EPS = math.log(1e-10)
@@ -228,18 +182,20 @@ def get_parser():
         - (0) ctc-decoding. Use CTC decoding. It uses a sentence piece
           model, i.e., lang_dir/bpe.model, to convert word pieces to words.
           It needs neither a lexicon nor an n-gram LM.
-        - (1) 1best. Extract the best path from the decoding lattice as the
+        - (1) ctc-greedy-search. It only use CTC output and a sentence piece
+          model for decoding. It produces the same results with ctc-decoding.
+        - (2) 1best. Extract the best path from the decoding lattice as the
           decoding result.
-        - (2) nbest. Extract n paths from the decoding lattice; the path
+        - (3) nbest. Extract n paths from the decoding lattice; the path
           with the highest score is the decoding result.
-        - (3) nbest-rescoring. Extract n paths from the decoding lattice,
+        - (4) nbest-rescoring. Extract n paths from the decoding lattice,
           rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
           the highest score is the decoding result.
-        - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+        - (5) whole-lattice-rescoring. Rescore the decoding lattice with an
           n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
           is the decoding result.
           you have trained an RNN LM using ./rnn_lm/train.py
-        - (5) nbest-oracle. Its WER is the lower bound of any n-best
+        - (6) nbest-oracle. Its WER is the lower bound of any n-best
           rescoring method can achieve. Useful for debugging n-best
           rescoring method.
         """,
@@ -308,6 +264,7 @@ def get_decoding_params() -> AttributeDict:
     """Parameters for decoding."""
     params = AttributeDict(
         {
+            "frame_shift_ms": 10,
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
@@ -335,21 +292,28 @@ def ctc_greedy_search(
     topk_index = topk_index.masked_fill_(mask, 0)  # (B, maxlen)
     hyps = [hyp.tolist() for hyp in topk_index]
     scores = topk_prob.max(1)
-    hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
-    return hyps, scores
+    ret_hyps = []
+    timestamps = []
+    for i in range(len(hyps)):
+        hyp, time = remove_duplicates_and_blank(hyps[i])
+        ret_hyps.append(hyp)
+        timestamps.append(time)
+    return ret_hyps, timestamps, scores
 
 
-def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
-    # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
+def remove_duplicates_and_blank(hyp: List[int]) -> Tuple[List[int], List[int]]:
+    # modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
     new_hyp: List[int] = []
+    time: List[int] = []
     cur = 0
     while cur < len(hyp):
         if hyp[cur] != 0:
             new_hyp.append(hyp[cur])
+            time.append(cur)
         prev = cur
         while cur < len(hyp) and hyp[cur] == hyp[prev]:
             cur += 1
-    return new_hyp
+    return new_hyp, time
 
 
 def decode_one_batch(
@@ -363,7 +327,7 @@ def decode_one_batch(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[List[str]]]:
+) -> Dict[str, Tuple[List[List[str]], List[List[float]]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
     - key: It indicates the setting used for decoding. For example,
@@ -428,24 +392,25 @@ def decode_one_batch(
     # nnet_output is (N, T, C)
 
     if params.decoding_method == "ctc-greedy-search":
-        hyps, _ = ctc_greedy_search(
+        hyps, timestamps, _ = ctc_greedy_search(
             nnet_output,
             encoder_out_lens,
         )
-        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
-        hyps = bpe_model.decode(hyps)
-        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        hyps = [s.split() for s in hyps]
+        res = DecodingResults(hyps=hyps, timestamps=timestamps)
+        hyps, timestamps = parse_hyp_and_timestamp(
+            res=res,
+            sp=bpe_model,
+            subsampling_factor=params.subsampling_factor,
+            frame_shift_ms=params.frame_shift_ms,
+        )
         key = "ctc-greedy-search"
-        return {key: hyps}
+        return {key: (hyps, timestamps)}
 
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
             supervisions["start_frame"] // params.subsampling_factor,
             supervisions["num_frames"] // params.subsampling_factor,
-            # ((supervisions["start_frame"] - 1) >> 1 - 1) >> 1,
-            # ((supervisions["num_frames"] - 1) >> 1 - 1) >> 1,
         ),
         1,
     ).to(torch.int32)
@@ -477,15 +442,15 @@ def decode_one_batch(
         # since we are using H, not HLG here.
         #
         # token_ids is a lit-of-list of IDs
-        token_ids = get_texts(best_path)
-
-        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
-        hyps = bpe_model.decode(token_ids)
-
-        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        hyps = [s.split() for s in hyps]
+        res = get_texts_with_timestamp(best_path)
+        hyps, timestamps = parse_hyp_and_timestamp(
+            res=res,
+            sp=bpe_model,
+            subsampling_factor=params.subsampling_factor,
+            frame_shift_ms=params.frame_shift_ms,
+        )
         key = "ctc-decoding"
-        return {key: hyps}
+        return {key: (hyps, timestamps)}
 
     if params.decoding_method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
@@ -503,7 +468,8 @@ def decode_one_batch(
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
         key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
-        return {key: hyps}
+        timestamps = [[] for _ in range(len(hyps))]
+        return {key: (hyps, timestamps)}
 
     if params.decoding_method in ["1best", "nbest"]:
         if params.decoding_method == "1best":
@@ -511,6 +477,13 @@ def decode_one_batch(
                 lattice=lattice, use_double_scores=params.use_double_scores
             )
             key = "no_rescore"
+            res = get_texts_with_timestamp(best_path)
+            hyps, timestamps = parse_hyp_and_timestamp(
+                res=res,
+                subsampling_factor=params.subsampling_factor,
+                frame_shift_ms=params.frame_shift_ms,
+                word_table=word_table,
+            )
         else:
             best_path = nbest_decoding(
                 lattice=lattice,
@@ -519,10 +492,11 @@ def decode_one_batch(
                 nbest_scale=params.nbest_scale,
             )
             key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            timestamps = [[] for _ in range(len(hyps))]
 
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        return {key: hyps}
+        return {key: (hyps, timestamps)}
 
     assert params.decoding_method in [
         "nbest-rescoring",
@@ -555,7 +529,8 @@ def decode_one_batch(
         for lm_scale_str, best_path in best_path_dict.items():
             hyps = get_texts(best_path)
             hyps = [[word_table[i] for i in ids] for ids in hyps]
-            ans[lm_scale_str] = hyps
+            timestamps = [[] for _ in range(len(hyps))]
+            ans[lm_scale_str] = (hyps, timestamps)
     else:
         ans = None
     return ans
@@ -572,7 +547,9 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+) -> Dict[
+    str, List[Tuple[str, List[str], List[str], List[float], List[float]]]
+]:
     """Decode dataset.
 
     Args:
@@ -617,6 +594,18 @@ def decode_dataset(
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
+        timestamps_ref = []
+        for cut in batch["supervisions"]["cut"]:
+            for s in cut.supervisions:
+                time = []
+                if s.alignment is not None and "word" in s.alignment:
+                    time = [
+                        aliword.start
+                        for aliword in s.alignment["word"]
+                        if aliword.symbol != ""
+                    ]
+                timestamps_ref.append(time)
+
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
@@ -630,27 +619,20 @@ def decode_dataset(
             eos_id=eos_id,
         )
 
-        if hyps_dict is not None:
-            for lm_scale, hyps in hyps_dict.items():
-                this_batch = []
-                assert len(hyps) == len(texts)
-                for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                    ref_words = ref_text.split()
-                    this_batch.append((cut_id, ref_words, hyp_words))
-
-                results[lm_scale].extend(this_batch)
-        else:
-            assert (
-                len(results) > 0
-            ), "It should not decode to empty in the first batch!"
+        for name, (hyps, timestamps_hyp) in hyps_dict.items():
             this_batch = []
-            hyp_words = []
-            for ref_text in texts:
+            assert len(hyps) == len(texts) and len(timestamps_hyp) == len(
+                timestamps_ref
+            )
+            for cut_id, hyp_words, ref_text, time_hyp, time_ref in zip(
+                cut_ids, hyps, texts, timestamps_hyp, timestamps_ref
+            ):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append(
+                    (cut_id, ref_words, hyp_words, time_ref, time_hyp)
+                )
 
-            for lm_scale in results.keys():
-                results[lm_scale].extend(this_batch)
+            results[name].extend(this_batch)
 
         num_cuts += len(texts)
 
@@ -666,15 +648,19 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    results_dict: Dict[
+        str,
+        List[Tuple[List[str], List[str], List[str], List[float], List[float]]],
+    ],
 ):
     test_set_wers = dict()
+    test_set_delays = dict()
     for key, results in results_dict.items():
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts_and_timestamps(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -683,10 +669,11 @@ def save_results(
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(
+            wer, mean_delay, var_delay = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
+            test_set_delays[key] = (mean_delay, var_delay)
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
@@ -700,10 +687,32 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
+    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0])
+    delays_info = (
+        params.res_dir
+        / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
+    with open(delays_info, "w") as f:
+        print("settings\tsymbol-delay", file=f)
+        for key, val in test_set_delays:
+            print(
+                "{}\tmean: {}s, variance: {}".format(key, val[0], val[1]),
+                file=f,
+            )
+
     s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
+        note = ""
+    logging.info(s)
+
+    s = "\nFor {}, symbol-delay of different settings are:\n".format(
+        test_set_name
+    )
+    note = "\tbest for {}".format(test_set_name)
+    for key, val in test_set_delays:
+        s += "{}\tmean: {}s, variance: {}{}\n".format(key, val[0], val[1], note)
         note = ""
     logging.info(s)
 

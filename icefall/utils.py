@@ -251,33 +251,20 @@ def get_texts(
 
 @dataclass
 class DecodingResults:
-    # Decoded token IDs for each utterance in the batch
-    tokens: List[List[int]]
-
     # timestamps[i][k] contains the frame number on which tokens[i][k]
     # is decoded
     timestamps: List[List[int]]
 
-    # hyps[i] is the recognition results, i.e., word IDs
+    # hyps[i] is the recognition results, i.e., word IDs or token IDs
     # for the i-th utterance with fast_beam_search_nbest_LG.
-    hyps: Union[List[List[int]], k2.RaggedTensor] = None
-
-
-def get_tokens_and_timestamps(labels: List[int]) -> Tuple[List[int], List[int]]:
-    tokens = []
-    timestamps = []
-    for i, v in enumerate(labels):
-        if v != 0:
-            tokens.append(v)
-            timestamps.append(i)
-
-    return tokens, timestamps
+    hyps: Union[List[List[int]], k2.RaggedTensor]
 
 
 def get_texts_with_timestamp(
     best_paths: k2.Fsa, return_ragged: bool = False
 ) -> DecodingResults:
-    """Extract the texts (as word IDs) and timestamps from the best-path FSAs.
+    """Extract the texts (as word IDs) and timestamps (as frame indexes)
+    from the best-path FSAs.
     Args:
       best_paths:
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
@@ -292,11 +279,18 @@ def get_texts_with_timestamp(
       decoded.
     """
     if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        all_aux_shape = (
+            best_paths.arcs.shape()
+            .remove_axis(1)
+            .compose(best_paths.aux_labels.shape)
+        )
+        all_aux_labels = k2.RaggedTensor(
+            all_aux_shape, best_paths.aux_labels.values
+        )
         # remove 0's and -1's.
         aux_labels = best_paths.aux_labels.remove_values_leq(0)
         # TODO: change arcs.shape() to arcs.shape
         aux_shape = best_paths.arcs.shape().compose(aux_labels.shape)
-
         # remove the states and arcs axes.
         aux_shape = aux_shape.remove_axis(1)
         aux_shape = aux_shape.remove_axis(1)
@@ -304,26 +298,26 @@ def get_texts_with_timestamp(
     else:
         # remove axis corresponding to states.
         aux_shape = best_paths.arcs.shape().remove_axis(1)
-        aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels)
+        all_aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels)
         # remove 0's and -1's.
-        aux_labels = aux_labels.remove_values_leq(0)
+        aux_labels = all_aux_labels.remove_values_leq(0)
 
     assert aux_labels.num_axes == 2
 
-    labels_shape = best_paths.arcs.shape().remove_axis(1)
-    labels_list = k2.RaggedTensor(
-        labels_shape, best_paths.labels.contiguous()
-    ).tolist()
-
-    tokens = []
     timestamps = []
-    for labels in labels_list:
-        token, time = get_tokens_and_timestamps(labels[:-1])
-        tokens.append(token)
-        timestamps.append(time)
+    if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        for p in range(all_aux_labels.dim0):
+            time = []
+            for i, arc in enumerate(all_aux_labels[p].tolist()):
+                if len(arc) == 1 and arc[0] > 0:
+                    time.append(i)
+            timestamps.append(time)
+    else:
+        for labels in all_aux_labels.tolist():
+            time = [i for i, v in enumerate(labels) if v > 0]
+            timestamps.append(time)
 
     return DecodingResults(
-        tokens=tokens,
         timestamps=timestamps,
         hyps=aux_labels if return_ragged else aux_labels.tolist(),
     )
@@ -682,8 +676,8 @@ def write_error_stats_with_timestamps(
     all_delay = []
     for cut_id, ref, hyp, time_ref, time_hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
-        has_time_ref = len(time_ref) > 0
-        if has_time_ref:
+        has_time = len(time_ref) > 0 and len(time_hyp) > 0
+        if has_time:
             # pointer to timestamp_hyp
             p_hyp = 0
             # pointer to timestamp_ref
@@ -692,28 +686,28 @@ def write_error_stats_with_timestamps(
             if ref_word == ERR:
                 ins[hyp_word] += 1
                 words[hyp_word][3] += 1
-                if has_time_ref:
+                if has_time:
                     p_hyp += 1
             elif hyp_word == ERR:
                 dels[ref_word] += 1
                 words[ref_word][4] += 1
-                if has_time_ref:
+                if has_time:
                     p_ref += 1
             elif hyp_word != ref_word:
                 subs[(ref_word, hyp_word)] += 1
                 words[ref_word][1] += 1
                 words[hyp_word][2] += 1
-                if has_time_ref:
+                if has_time:
                     p_hyp += 1
                     p_ref += 1
             else:
                 words[ref_word][0] += 1
                 num_corr += 1
-                if has_time_ref:
+                if has_time:
                     all_delay.append(time_hyp[p_hyp] - time_ref[p_ref])
                     p_hyp += 1
                     p_ref += 1
-        if has_time_ref:
+        if has_time:
             assert p_hyp == len(hyp), (p_hyp, len(hyp))
             assert p_ref == len(ref), (p_ref, len(ref))
 
@@ -1352,10 +1346,9 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
 
 def parse_hyp_and_timestamp(
     res: DecodingResults,
-    decoding_method: str,
-    sp: spm.SentencePieceProcessor,
     subsampling_factor: int,
     frame_shift_ms: float = 10,
+    sp: Optional[spm.SentencePieceProcessor] = None,
     word_table: Optional[k2.SymbolTable] = None,
 ) -> Tuple[List[List[str]], List[List[float]]]:
     """Parse hypothesis and timestamp.
@@ -1363,58 +1356,42 @@ def parse_hyp_and_timestamp(
     Args:
       res:
         A DecodingResults object.
-      decoding_method:
-        Possible values are:
-          - greedy_search
-          - beam_search
-          - modified_beam_search
-          - fast_beam_search
-          - fast_beam_search_nbest
-          - fast_beam_search_nbest_oracle
-          - fast_beam_search_nbest_LG
-      sp:
-        The BPE model.
       subsampling_factor:
         The integer subsampling factor.
       frame_shift_ms:
         The float frame shift used for feature extraction.
+      sp:
+        The BPE model.
       word_table:
         The word symbol table.
 
     Returns:
        Return a list of hypothesis and timestamp.
     """
-    assert decoding_method in (
-        "greedy_search",
-        "beam_search",
-        "fast_beam_search",
-        "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
-        "fast_beam_search_nbest_oracle",
-        "modified_beam_search",
-    )
-
     hyps = []
     timestamps = []
 
-    N = len(res.tokens)
-    assert len(res.timestamps) == N
+    N = len(res.hyps)
+    assert len(res.timestamps) == N, (len(res.timestamps), N)
+
     use_word_table = False
-    if decoding_method == "fast_beam_search_nbest_LG":
-        assert word_table is not None
+    if word_table is not None:
+        assert sp is None
         use_word_table = True
+    else:
+        assert sp is not None and word_table is None
 
     for i in range(N):
-        tokens = sp.id_to_piece(res.tokens[i])
-        if use_word_table:
-            words = [word_table[i] for i in res.hyps[i]]
-        else:
-            words = sp.decode_pieces(tokens).split()
         time = convert_timestamp(
             res.timestamps[i], subsampling_factor, frame_shift_ms
         )
-        time = parse_timestamp(tokens, time)
-        assert len(time) == len(words), (tokens, words)
+        if use_word_table:
+            words = [word_table[i] for i in res.hyps[i]]
+        else:
+            tokens = sp.id_to_piece(res.hyps[i])
+            words = sp.decode_pieces(tokens).split()
+            time = parse_timestamp(tokens, time)
+        assert len(time) == len(words), (len(time), len(words))
 
         hyps.append(words)
         timestamps.append(time)

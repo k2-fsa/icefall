@@ -296,14 +296,14 @@ def get_parser():
         type=float,
         default=0.99,
         help="""The threshold value used to split the utterance into sub-utterances
-        for delay penalty.""",
+        for delay penalty. """,
     )
 
     parser.add_argument(
-        "--penalty-gamma",
+        "--delay-penalty",
         type=float,
         default=0.0,
-        help="""The factor used to times the delay penalty score.
+        help="""The scaling factor used to control the delay penalty.
         If set to 0, will not apply delay penalty.""",
     )
 
@@ -576,7 +576,7 @@ def compute_loss(
             warmup=warmup,
             reduction="none",
             blank_threshold=params.blank_threshold,
-            penalty_gamma=params.penalty_gamma,
+            delay_penalty=params.delay_penalty if warmup > 1 else 0,
         )
         ctc_loss_is_finite = torch.isfinite(ctc_loss)
         if not torch.all(ctc_loss_is_finite):

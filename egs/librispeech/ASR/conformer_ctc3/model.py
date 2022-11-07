@@ -61,12 +61,13 @@ class CTCModel(nn.Module):
         self,
         encoder_out: torch.Tensor,
         blank_threshold: float = 0.99,
-        penalty_gamma: float = 0.0,
+        delay_penalty: float = 0.0,
     ):
+        """Get ctc output and optionally apply delay penalty."""
         output = self.ctc_output_module(encoder_out)
         prob = output.softmax(dim=-1)
 
-        if penalty_gamma > 0:
+        if delay_penalty > 0:
             T_arange = torch.arange(encoder_out.shape[1]).to(
                 device=encoder_out.device
             )
@@ -77,8 +78,8 @@ class CTCModel(nn.Module):
             # the sawtooth "blank-bonus" value
             penalty = T_arange - cummax_out  # (B, T)
             penalty_all = torch.zeros_like(prob)
-            penalty_all[:, :, 0] = penalty_gamma * penalty
-            # apply latency penalty
+            penalty_all[:, :, 0] = delay_penalty * penalty
+            # apply latency penalty on probs
             prob = prob + penalty_all
 
         log_prob = (prob + torch.finfo(prob.dtype).tiny).log()
@@ -91,8 +92,8 @@ class CTCModel(nn.Module):
         y: k2.RaggedTensor,
         warmup: float = 1.0,
         reduction: str = "sum",
-        blank_threshold=0.99,
-        penalty_gamma=0.005,
+        blank_threshold: float = 0.99,
+        delay_penalty: float = 0.0,
     ) -> torch.Tensor:
         """
         Args:
@@ -114,8 +115,8 @@ class CTCModel(nn.Module):
           blank_threshold:
             The threshold value used to split the utterance into sub-utterances
             for delay penalty.
-          penalty_gamma:
-            The factor used to times the delay penalty score.
+          delay_penalty:
+            The scaling factor used to control the delay penalty.
             If set to 0, will not apply delay penalty.
         Returns:
           Return the ctc loss.
@@ -134,7 +135,7 @@ class CTCModel(nn.Module):
         nnet_output = self.get_ctc_output(
             encoder_out,
             blank_threshold=blank_threshold,
-            penalty_gamma=penalty_gamma,
+            delay_penalty=delay_penalty,
         )
 
         targets = []
