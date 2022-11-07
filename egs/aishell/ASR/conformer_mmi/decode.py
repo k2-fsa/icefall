@@ -347,7 +347,7 @@ def decode_dataset(
     lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
-) -> Dict[str, List[Tuple[List[int], List[int]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -422,7 +422,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     if params.method == "attention-decoder":
         # Set it to False since there are too many logs.

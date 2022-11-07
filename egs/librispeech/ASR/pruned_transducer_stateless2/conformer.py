@@ -476,8 +476,8 @@ class ConformerEncoderLayer(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
-        src_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        src_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
     ) -> Tensor:
         """
@@ -486,8 +486,8 @@ class ConformerEncoderLayer(nn.Module):
         Args:
             src: the sequence to the encoder layer (required).
             pos_emb: Positional embedding tensor (required).
-            src_mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_mask: the mask for the src sequence (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
         Shape:
@@ -663,8 +663,8 @@ class ConformerEncoder(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
-        mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
         warmup: float = 1.0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
@@ -672,8 +672,8 @@ class ConformerEncoder(nn.Module):
         Args:
             src: the sequence to the encoder (required).
             pos_emb: Positional embedding tensor (required).
-            mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
+            mask: the mask for the src sequence (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
 
@@ -932,7 +932,7 @@ class RelPositionMultiheadAttention(nn.Module):
         value: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:
@@ -1059,7 +1059,7 @@ class RelPositionMultiheadAttention(nn.Module):
         out_proj_bias: Tensor,
         training: bool = True,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:

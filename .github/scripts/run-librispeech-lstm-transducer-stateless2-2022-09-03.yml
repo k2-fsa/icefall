@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+#
+set -e
 
 log() {
   # This function is from espnet
@@ -103,6 +105,47 @@ log "Decode with models exported by torch.jit.trace()"
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
 
+log "Test exporting to ONNX"
+
+./lstm_transducer_stateless2/export.py \
+  --exp-dir $repo/exp \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 99 \
+  --avg 1 \
+  --use-averaged-model 0 \
+  --onnx 1
+
+log "Decode with ONNX models "
+
+./lstm_transducer_stateless2/streaming-onnx-decode.py \
+  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo//exp/encoder.onnx \
+  --decoder-model-filename $repo/exp/decoder.onnx \
+  --joiner-model-filename $repo/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
+ $repo/test_wavs/1089-134686-0001.wav
+
+./lstm_transducer_stateless2/streaming-onnx-decode.py \
+  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo//exp/encoder.onnx \
+  --decoder-model-filename $repo/exp/decoder.onnx \
+  --joiner-model-filename $repo/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
+ $repo/test_wavs/1221-135766-0001.wav
+
+./lstm_transducer_stateless2/streaming-onnx-decode.py \
+  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
+  --encoder-model-filename $repo//exp/encoder.onnx \
+  --decoder-model-filename $repo/exp/decoder.onnx \
+  --joiner-model-filename $repo/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
+ $repo/test_wavs/1221-135766-0002.wav
+
+
+
 for sym in 1 2 3; do
   log "Greedy search with --max-sym-per-frame $sym"
 
@@ -131,7 +174,7 @@ done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"ncnn"  ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" ]]; then
   mkdir -p lstm_transducer_stateless2/exp
   ln -s $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/

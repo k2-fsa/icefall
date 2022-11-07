@@ -147,7 +147,7 @@ def decode_dataset(
     model: nn.Module,
     HLG: k2.Fsa,
     word_table: k2.SymbolTable,
-) -> List[Tuple[List[int], List[int]]]:
+) -> List[Tuple[str, List[str], List[str]]]:
     """Decode dataset.
 
     Args:
@@ -210,7 +210,7 @@ def decode_dataset(
 def save_results(
     exp_dir: Path,
     test_set_name: str,
-    results: List[Tuple[List[int], List[int]]],
+    results: List[Tuple[str, List[str], List[str]]],
 ) -> None:
     """Save results to `exp_dir`.
     Args:
