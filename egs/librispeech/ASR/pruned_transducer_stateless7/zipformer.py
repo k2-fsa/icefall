@@ -1559,7 +1559,7 @@ class FeedforwardModule(nn.Module):
 
 class NonlinAttentionModule(nn.Module):
     """This is like the ConvolutionModule, but refactored so that we use multiplication by attention weights (borrowed
-       from the attention module) in palce of actual convolution.
+       from the attention module) in place of actual convolution.
 
     Args:
         channels (int): The number of channels of conv layers.
