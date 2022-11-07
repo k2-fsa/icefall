@@ -398,7 +398,7 @@ We provide a colab notebook for decoding with pre-trained model.
 |librispeech tdnn_lstm_ctc colab notebook|
 
 .. |librispeech tdnn_lstm_ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
-   :target: https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd
+   :target: https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing
 
 
 **Congratulations!** You have finished the TDNN-LSTM-CTC recipe on librispeech in ``icefall``.
