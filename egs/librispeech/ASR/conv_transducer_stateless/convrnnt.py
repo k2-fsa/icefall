@@ -278,7 +278,6 @@ class SEModule(nn.Module):
         self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
         self.gate = nn.Sigmoid()
 
-
     def forward(self, x, src_key_padding_mask):
         x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
         x_se_num = x_se_num.unsqueeze(1)
@@ -289,7 +288,6 @@ class SEModule(nn.Module):
         x_se = self.act(x_se)
         x_se = self.fc2(x_se)
         return x * self.gate(x_se)
-
 
     def make_divisible(self, v, divisor=8, min_value=None, round_limit=.9):
         min_value = min_value or divisor
@@ -551,7 +549,7 @@ class GlobalCNNEncoderLayer(nn.Module):
 
         Args:
             x: Input tensor (#time, batch, channels).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_key_padding_mask: the mask for src keys per batch (optional)
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
 
