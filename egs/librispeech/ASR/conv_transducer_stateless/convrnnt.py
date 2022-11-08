@@ -22,7 +22,8 @@ class ConvRNNT(EncoderInterface):
     Args:
         num_features (int): Number of input features
         d_model (int): the output dimension
-        num_global_cnn_encoder_layers (int): number of Global CNN Encoder layers
+        num_global_cnn_encoder_layers (int): number of GlobalCNN Encoder
+            layers.
         dropout (float): dropout rate
         layer_dropout (float): layer-dropout rate.
         causal (bool): Whether to use causal convolution in ConvRNNT encoder
@@ -155,8 +156,9 @@ class GlobalCNNEncoder(nn.Module):
     r"""GlobalCNNEncoder is a stack of N GlobalCNNEncoder layers
 
     Args:
-        encoder_layer: an instance of the GlobalCNNEncoderLayer() class (required).
-        num_layers: the number of sub-encoder-layers in the GlobalCNNEncoder (required).
+        encoder_layer: instance of GlobalCNNEncoderLayer() class (required)
+        num_layers: the number of sub-encoder-layers
+         in the GlobalCNNEncoder (required).
         warmup: controls selective bypass of of layers; if < 1.0, we will
             bypass layers more frequently.
 
@@ -218,13 +220,16 @@ class GlobalCNNEncoder(nn.Module):
         Args:
             src: the sequence to the encoder (required).
             mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_key_padding_mask: the mask for src keys per batch (optional)
 
         Shape:
             src: (S, N, E).
             mask: (S, S).
             src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
+            S is the source sequence length,
+            T is the target sequence length,
+            N is the batch size,
+            E is the feature number
 
         """
         output = src
@@ -246,21 +251,28 @@ class GlobalCNNEncoder(nn.Module):
 
 class SEModule(nn.Module):
     """ SE Module as defined in original SE-Nets with a few additions
-    Additions include:
-        * divisor can be specified to keep channels % div == 0 (default: 8)
-        * reduction channels can be specified directly by arg (if rd_channels is set)
-        * reduction channels can be specified by float rd_ratio (default: 1/16)
-        * global max pooling can be added to the squeeze aggregation
-        * customizable activation, normalization, and gate layer
-    Modified from https://github.com/rwightman/pytorch-image-models/blob/main/timm/models/layers/squeeze_excite.py
+    Modified from rwightman`s squeeze_excite.py
     """
     def __init__(
-            self, channels, rd_ratio=1. / 16, rd_channels=None, rd_divisor=8, add_maxpool=False,
-            bias=True, act_layer=nn.ReLU, norm_layer=None, gate_layer='Sigmoid'):
+        self,
+        channels,
+        rd_ratio=1. / 16,
+        rd_channels=None,
+        rd_divisor=8,
+        add_maxpool=False,
+        bias=True,
+        act_layer=nn.ReLU,
+        norm_layer=None,
+        gate_layer='Sigmoid',
+    ):
         super(SEModule, self).__init__()
         self.add_maxpool = add_maxpool
         if not rd_channels:
-            rd_channels = self.make_divisible(channels * rd_ratio, rd_divisor, round_limit=0.)
+            rd_channels = self.make_divisible(
+                channels * rd_ratio,
+                rd_divisor,
+                round_limit=0.
+            )
         self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
         self.act = nn.ReLU(inplace=True)
         self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
@@ -268,7 +280,8 @@ class SEModule(nn.Module):
 
 
     def forward(self, x, src_key_padding_mask):
-        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True).unsqueeze(1)
+        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
+        x_se_num = x_se_num.unsqueeze(1)
         x_se = x.sum(axis=2, keepdim=True) / x_se_num
         if self.add_maxpool:
             x_se = 0.5 * x_se + 0.5 * x.amax(2, keepdim=True)
@@ -386,14 +399,17 @@ class LocalCNNEncoder(nn.Module):
 
         Args:
             x: Input tensor (#time, batch, channels).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_key_padding_mask: the mask for src keys per batch (optional)
 
         Returns:
             Tensor: Output tensor (#time, batch, channels).
         """
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(
+                src_key_padding_mask.unsqueeze(1).expand_as(x),
+                0.0
+            )
         x = x.unsqueeze(1)
 
         # Conv1
@@ -449,7 +465,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         layer_dropout (float): layer-dropout rate.
         bias (bool): Whether to use bias in conv layers (default=True).
         causal (bool): Whether to use causal convolution.
-
     """
 
     def __init__(
@@ -482,21 +497,11 @@ class GlobalCNNEncoderLayer(nn.Module):
             bias=bias,
         )
 
-        # after pointwise_conv1 we put x through a gated linear unit (nn.functional.glu).
-        # For most layers the normal rms value of channels of x seems to be in the range 1 to 4,
-        # but sometimes, for some reason, for layer 0 the rms ends up being very large,
-        # between 50 and 100 for different channels.  This will cause very peaky and
-        # sparse derivatives for the sigmoid gating function, which will tend to make
-        # the loss function not learn effectively.  (for most layers the average absolute values
-        # are in the range 0.5..9.0, and the average p(x>0), i.e. positive proportion,
-        # at the output of pointwise_conv1.output is around 0.35 to 0.45 for different
-        # layers, which likely breaks down as 0.5 for the "linear" half and
-        # 0.2 to 0.3 for the part that goes into the sigmoid.  The idea is that if we
-        # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
-        # it will be in a better position to start learning something, i.e. to latch onto
-        # the correct range.
         self.deriv_balancer1 = ActivationBalancer(
-            channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
+            channel_dim=1,
+            max_abs=10.0,
+            min_positive=0.05,
+            max_positive=1.0,
         )
 
         self.lorder = kernel_size - 1
@@ -516,7 +521,9 @@ class GlobalCNNEncoderLayer(nn.Module):
         )
 
         self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
+            channel_dim=1,
+            min_positive=0.05,
+            max_positive=1.0,
         )
 
         self.activation = DoubleSwish()
@@ -552,7 +559,6 @@ class GlobalCNNEncoderLayer(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
         """
         # exchange the temporal dimension and the feature dimension
-        # use convolutional kernel on time steps and consider the features as channels
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
         out = x
 
@@ -576,11 +582,19 @@ class GlobalCNNEncoderLayer(nn.Module):
 
         # 1D Depthwise Conv
         if src_key_padding_mask is not None:
-            out = out.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(out), 0.0)
+            out = out.masked_fill(
+                src_key_padding_mask.unsqueeze(1).expand_as(out),
+                0.0
+            )
         if self.causal and self.lorder > 0:
             # Make depthwise_conv causal by
             # manualy padding self.lorder zeros to the left
-            out = nn.functional.pad(out, ((2**self.block_number - 1) * 2 + self.lorder, 0), "constant", 0.0)
+            out = nn.functional.pad(
+                out,
+                ((2**self.block_number - 1) * 2 + self.lorder, 0),
+                "constant",
+                0.0
+            )
         out = self.depthwise_conv(out)
         out = self.deriv_balancer2(out)
         out = self.activation(out)
@@ -808,7 +822,8 @@ class RandomCombine(nn.Module):
 
         # final contains self.num_inputs - 1 in all elements
         final = torch.full((num_frames,), self.num_inputs - 1, device=device)
-        # nonfinal contains random integers in [0..num_inputs - 2], these are for non-final weights.
+        # nonfinal contains random integers in [0..num_inputs - 2],
+        # these are for non-final weights.
         nonfinal = torch.randint(
             self.num_inputs - 1, (num_frames,), device=device
         )
@@ -848,7 +863,8 @@ class RandomCombine(nn.Module):
 
 def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
     print(
-        f"_test_random_combine: final_weight={final_weight}, pure_prob={pure_prob}, stddev={stddev}"
+        f"_test_random_combine: final_weight={final_weight}, \
+            pure_prob={pure_prob}, stddev={stddev}"
     )
     num_inputs = 3
     num_channels = 50
@@ -899,4 +915,3 @@ if __name__ == "__main__":
     )
 
     _test_random_combine_main()
-
