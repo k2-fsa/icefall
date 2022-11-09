@@ -44,15 +44,15 @@ class ConvRNNT(EncoderInterface):
         super(ConvRNNT, self).__init__()
 
         self.num_features = num_features
+        self.d_model = d_model
+        self.causal = causal
+        self.encoder_layers = num_global_cnn_encoder_layers
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
         # to the shape (N, T, d_model).
         # That is, it does only one thing:
         #   (1) embedding: num_features -> d_model
-        self.encoder_embed = Embedding(num_features, d_model)
-        self.encoder_layers = num_global_cnn_encoder_layers
-        self.d_model = d_model
-        self.causal = causal
+        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
         self.local_cnn_encoder = LocalCNNEncoder(
             kernel_size=local_cnn_encoder_kernel_size,
@@ -99,7 +99,7 @@ class ConvRNNT(EncoderInterface):
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        lengths = x_lens
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == lengths.max().item()
         src_key_padding_mask = make_pad_mask(lengths)
 
@@ -608,28 +608,65 @@ class GlobalCNNEncoderLayer(nn.Module):
         return out.permute(2, 0, 1)  # (N, C, T) -> (T, N, C)
 
 
-class Embedding(nn.Module):
-    """Embedding
+class Conv2dSubsampling(nn.Module):
+    """Convolutional 2D subsampling (to 1/4 length).
 
     Convert an input of shape (N, T, idim) to an output
-    with shape (N, T, odim)
+    with shape (N, T', odim), where
+    T' = ((T-1)//2 - 1)//2, which approximates T' == T//4
     """
 
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
+        layer1_channels: int = 8,
+        layer2_channels: int = 32,
+        layer3_channels: int = 128,
     ) -> None:
         """
         Args:
           in_channels:
-            Number of input features. The input shape is (N, T, in_channels).
-          out_channels:
-            Output dim. The output shape is (N, T, out_channels)
+            Number of channels in. The input shape is (N, T, in_channels).
+            Caution: It requires: T >=7, in_channels >=7
+          out_channels
+            Output dim. The output shape is (N, ((T-1)//2 - 1)//2, out_channels)
+          layer1_channels:
+            Number of channels in layer1
+          layer1_channels:
+            Number of channels in layer2
         """
+        assert in_channels >= 7
         super().__init__()
+
+        self.conv = nn.Sequential(
+            ScaledConv2d(
+                in_channels=1,
+                out_channels=layer1_channels,
+                kernel_size=3,
+                padding=1,
+            ),
+            ActivationBalancer(channel_dim=1),
+            DoubleSwish(),
+            ScaledConv2d(
+                in_channels=layer1_channels,
+                out_channels=layer2_channels,
+                kernel_size=3,
+                stride=2,
+            ),
+            ActivationBalancer(channel_dim=1),
+            DoubleSwish(),
+            ScaledConv2d(
+                in_channels=layer2_channels,
+                out_channels=layer3_channels,
+                kernel_size=3,
+                stride=2,
+            ),
+            ActivationBalancer(channel_dim=1),
+            DoubleSwish(),
+        )
         self.out = ScaledLinear(
-            in_channels, out_channels
+            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
         )
         # set learn_eps=False because out_norm is preceded by `out`, and `out`
         # itself has learned scale, so the extra degree of freedom is not
@@ -641,20 +678,22 @@ class Embedding(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Embedding x.
+        """Subsample x.
 
         Args:
           x:
             Its shape is (N, T, idim).
 
         Returns:
-          Return a tensor of shape (N, T, odim)
+          Return a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
         """
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
+        x = self.conv(x)
+        # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        # Now x is of shape (N, T, odim)
+        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
         x = self.out_balancer(x)
         return x
