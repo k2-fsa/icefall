@@ -12,7 +12,7 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import Tensor, nn
+from torch import nn
 
 from icefall.utils import make_pad_mask
 
@@ -23,9 +23,13 @@ class ConvRNNT(EncoderInterface):
         num_features (int): Number of input features
         d_model (int): the output dimension
         num_global_cnn_encoder_layers (int): number of GlobalCNN Encoder
-            layers.
+          layers.
         dropout (float): dropout rate
         layer_dropout (float): layer-dropout rate.
+        aux_layer_period (int):
+          Period of auxiliary layers used for random combiner during training.
+          If set to 0, will not use the random combiner (Default).
+          You can set a positive integer to use the random combiner, e.g., 3.
         causal (bool): Whether to use causal convolution in ConvRNNT encoder
             layer.
     """
@@ -38,7 +42,7 @@ class ConvRNNT(EncoderInterface):
         num_global_cnn_encoder_layers: int = 6,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        aux_layer_period: int = 3,
+        aux_layer_period: int = 0,
         causal: bool = True,
     ) -> None:
         super(ConvRNNT, self).__init__()
@@ -59,7 +63,6 @@ class ConvRNNT(EncoderInterface):
             causal=causal,
         )
 
-        # aux_layers from 1/3
         self.global_cnn_encoder = GlobalCNNEncoder(
             encoder_layer=GlobalCNNEncoderLayer,
             channels=d_model,
@@ -71,7 +74,9 @@ class ConvRNNT(EncoderInterface):
                     num_global_cnn_encoder_layers - 1,
                     aux_layer_period,
                 )
-            ),
+            )
+            if aux_layer_period > 0
+            else None,
             causal=causal,
         )
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
@@ -172,7 +177,7 @@ class GlobalCNNEncoder(nn.Module):
         kernel_size: int = 3,
         dropout: float = 0.1,
         num_layers: int = 6,
-        aux_layers: List[int] = None,
+        aux_layers: Optional[List[int]] = None,
         causal: bool = True,
         warmup: float = 1.0,
     ) -> None:
@@ -192,25 +197,26 @@ class GlobalCNNEncoder(nn.Module):
         )
         self.num_layers = num_layers
 
-        assert len(set(aux_layers)) == len(aux_layers)
-
-        assert num_layers - 1 not in aux_layers
-        self.aux_layers = aux_layers + [num_layers - 1]
-
-        self.combiner = RandomCombine(
-            num_inputs=len(self.aux_layers),
-            final_weight=0.5,
-            pure_prob=0.333,
-            stddev=2.0,
-        )
+        self.aux_layers: List[int] = []
+        self.combiner: Optional[nn.Module] = None
+        if aux_layers is not None:
+            assert len(set(aux_layers)) == len(aux_layers)
+            assert num_layers - 1 not in aux_layers
+            self.aux_layers = aux_layers + [num_layers - 1]
+            self.combiner = RandomCombine(
+                num_inputs=len(self.aux_layers),
+                final_weight=0.5,
+                pure_prob=0.333,
+                stddev=2.0,
+            )
 
     def forward(
         self,
-        src: Tensor,
-        mask: Optional[Tensor] = None,
-        src_key_padding_mask: Optional[Tensor] = None,
+        src: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
         warmup: float = 1.0,
-    ) -> Tensor:
+    ) -> torch.Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -237,10 +243,12 @@ class GlobalCNNEncoder(nn.Module):
                 output,
                 src_key_padding_mask=src_key_padding_mask,
             )
-            if i in self.aux_layers:
+
+            if self.combiner is not None and i in self.aux_layers:
                 outputs.append(output)
 
-        output = self.combiner(outputs)
+        if self.combiner is not None:
+            output = self.combiner(outputs)
 
         return output
 
@@ -382,9 +390,9 @@ class LocalCNNEncoder(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+        x: torch.Tensor,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute convolution module.
 
         Args:
@@ -392,7 +400,7 @@ class LocalCNNEncoder(nn.Module):
             src_key_padding_mask: the mask for src keys per batch (optional)
 
         Returns:
-            Tensor: Output tensor (#time, batch, channels).
+            torch.Tensor: Output tensor (#time, batch, channels).
         """
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
         if src_key_padding_mask is not None:
@@ -533,9 +541,9 @@ class GlobalCNNEncoderLayer(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+        x: torch.Tensor,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute convolution module.
 
         Args:
@@ -545,7 +553,7 @@ class GlobalCNNEncoderLayer(nn.Module):
               bypass layers more frequently.
 
         Returns:
-            Tensor: Output tensor (#time, batch, channels).
+            torch.Tensor: Output tensor (#time, batch, channels).
         """
         # exchange the temporal dimension and the feature dimension
         x = x.permute(1, 2, 0)  # (#batch, channels, time)
@@ -762,7 +770,7 @@ class RandomCombine(nn.Module):
             .item()
         )
 
-    def forward(self, inputs: List[Tensor]) -> Tensor:
+    def forward(self, inputs: List[torch.Tensor]) -> torch.Tensor:
         """Forward function.
         Args:
           inputs:
@@ -807,7 +815,7 @@ class RandomCombine(nn.Module):
 
     def _get_random_weights(
         self, dtype: torch.dtype, device: torch.device, num_frames: int
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """Return a tensor of random weights, of shape
         `(num_frames, self.num_inputs)`,
         Args:
