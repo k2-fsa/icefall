@@ -141,7 +141,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--query-head-dim",
         type=str,
-        default="24",
+        default="32",
         help="Query/key dimension per head in encoder stacks: a single int or comma-separated list."
     )
 
