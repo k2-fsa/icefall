@@ -249,9 +249,9 @@ def get_parser():
         "--beam",
         type=float,
         default=20.0,
-        help="""A floating point value to calculate the cutoff score during beam
-        search (i.e., `cutoff = max-score - beam`), which is the same as the
-        `beam` in Kaldi.
+        help="""A floating point value to calculate the cutoff score during
+        beam search (i.e., `cutoff = max-score - beam`), 
+        which is the same as the `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search, 
         fast_beam_search_LG, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle
@@ -263,7 +263,7 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG 
+        Used only when --decoding_method is fast_beam_search_nbest_LG
         and fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
         """,
@@ -280,7 +280,7 @@ def get_parser():
         "--left-context",
         type=int,
         default=64,
-        help="""left context can be seen during decoding 
+        help="""left context can be seen during decoding
         (in frames after subsampling)
         """,
     )
@@ -307,7 +307,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
+        help="The context size in the decoder. 1 means bigram"
         "2 means tri-gram",
     )
 
