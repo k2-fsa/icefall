@@ -250,9 +250,9 @@ def get_parser():
         type=float,
         default=20.0,
         help="""A floating point value to calculate the cutoff score during
-        beam search (i.e., `cutoff = max-score - beam`), 
+        beam search (i.e., `cutoff = max-score - beam`),
         which is the same as the `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search, 
+        Used only when --decoding-method is fast_beam_search,
         fast_beam_search_LG, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle
         """,
