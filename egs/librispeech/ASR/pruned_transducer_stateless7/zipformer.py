@@ -1225,7 +1225,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                 num_heads, batch_size, seq_len, seq_len
             )
             attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(-1),
+                key_padding_mask.unsqueeze(1),
                 float("-inf"),
             )
 
