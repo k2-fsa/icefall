@@ -162,7 +162,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--pos-dim",
         type=int,
-        default="192",
+        default="384",
         help="Positional-encoding embedding dimension"
     )
 
@@ -1009,6 +1009,9 @@ def run(rank, world_size, args):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+    for name, module in model.named_modules():
+        num_param = sum([p.numel() for p in module.parameters()])
+        logging.info(f"Number of model parameters for {name}: {num_param}")
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
