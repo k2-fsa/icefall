@@ -20,43 +20,43 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 (2) beam search (not recommended)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 (3) modified beam search
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 (4) fast beam search (one best)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
 (5) fast beam search (nbest)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -65,10 +65,10 @@ Usage:
     --num-paths 200 \
     --nbest-scale 0.5
 (6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -77,10 +77,10 @@ Usage:
     --num-paths 200 \
     --nbest-scale 0.5
 (7) fast beam search (with LG)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
@@ -88,10 +88,10 @@ Usage:
     --max-states 64
 
 (8) modified beam search with RNNLM shallow fusion (with LG)
-./pruned_transducer_stateless5/decode.py \
+./conv_transducer_stateless/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./conv_transducer_stateless/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 4 \
@@ -198,7 +198,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="conv_transducer_stateless/exp",
         help="The experiment dir",
     )
 

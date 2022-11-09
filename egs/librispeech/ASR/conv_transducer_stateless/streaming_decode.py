@@ -17,13 +17,13 @@
 
 """
 Usage:
-./pruned_transducer_stateless5/streaming_decode.py \
+./conv_transducer_stateless/streaming_decode.py \
         --epoch 28 \
         --avg 15 \
         --left-context 32 \
         --decode-chunk-size 8 \
         --right-context 0 \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+        --exp-dir ./conv_transducer_stateless/exp \
         --decoding_method greedy_search \
         --num-decode-streams 200
 """

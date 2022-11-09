@@ -20,23 +20,23 @@
 # to a single one using model averaging.
 """
 Usage:
-./pruned_transducer_stateless5/export.py \
-  --exp-dir ./pruned_transducer_stateless5/exp \
+./conv_transducer_stateless/export.py \
+  --exp-dir ./conv_transducer_stateless/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
 It will generate a file exp_dir/pretrained.pt
 
-To use the generated file with `pruned_transducer_stateless5/decode.py`,
+To use the generated file with `conv_transducer_stateless/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless5/decode.py \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+    ./conv_transducer_stateless/decode.py \
+        --exp-dir ./conv_transducer_stateless/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -108,7 +108,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="conv_transducer_stateless/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
