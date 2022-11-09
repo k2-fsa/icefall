@@ -538,7 +538,7 @@ class GlobalCNNEncoderLayer(nn.Module):
 
         self.SE = SEModule(channels=channels)
         self.Dropout = nn.Dropout(dropout)
-        self.BN = nn.BatchNorm1d(channels)
+        self.out_norm = BasicNorm(out_channels, learn_eps=False)
 
     def forward(
         self,
@@ -576,7 +576,7 @@ class GlobalCNNEncoderLayer(nn.Module):
         out = self.pointwise_conv1(out)  # (batch, 2*channels, time)
         out = self.deriv_balancer1(out)
         out = nn.functional.glu(out, dim=1)  # (batch, channels, time)
-        out = self.BN(out)
+        out = self.out_norm(out)
 
         # 1D Depthwise Conv
         if src_key_padding_mask is not None:
@@ -596,7 +596,7 @@ class GlobalCNNEncoderLayer(nn.Module):
         out = self.depthwise_conv(out)
         out = self.deriv_balancer2(out)
         out = self.activation(out)
-        out = self.BN(out)
+        out = self.out_norm(out)
 
         out = self.pointwise_conv2(out)  # (batch, channel, time)
         out = self.SE(out, src_key_padding_mask)
