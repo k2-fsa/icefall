@@ -162,7 +162,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--pos-dim",
         type=int,
-        default="384",
+        default="128",
         help="Positional-encoding embedding dimension"
     )
 
