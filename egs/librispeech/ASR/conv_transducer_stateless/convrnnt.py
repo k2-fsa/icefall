@@ -538,7 +538,7 @@ class GlobalCNNEncoderLayer(nn.Module):
 
         self.SE = SEModule(channels=channels)
         self.Dropout = nn.Dropout(dropout)
-        self.out_norm = BasicNorm(out_channels, learn_eps=False)
+        self.out_norm = BasicNorm(channels, learn_eps=False)
 
     def forward(
         self,
