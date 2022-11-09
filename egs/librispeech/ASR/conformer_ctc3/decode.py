@@ -18,94 +18,45 @@
 # limitations under the License.
 """
 Usage:
-(1) greedy search
-./pruned_transducer_stateless4/decode.py \
+(1) decode in non-streaming mode (take ctc-decoding as an example)
+./conformer_ctc3/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./conformer_ctc3/exp \
     --max-duration 600 \
-    --decoding-method greedy_search
+    --decoding-method ctc-decoding
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless4/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(8) decode in streaming mode (take greedy search as an example)
-./pruned_transducer_stateless4/decode.py \
+(2) decode in streaming mode (take ctc-decoding as an example)
+./conformer_ctc3/decode.py \
     --epoch 30 \
     --avg 15 \
     --simulate-streaming 1 \
     --causal-convolution 1 \
     --decode-chunk-size 16 \
     --left-context 64 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./conformer_ctc3/exp \
     --max-duration 600 \
-    --decoding-method greedy_search
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
+    --decoding-method ctc-decoding
+
+To evaluate symbol delay, you should:
+(1) Generate cuts with word-time alignments:
+./local/add_alignment_librispeech.py \
+    --alignments-dir data/alignment \
+    --cuts-in-dir data/fbank \
+    --cuts-out-dir data/fbank_ali
+(2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
+For example:
+./conformer_ctc3/decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./conformer_ctc3/exp \
+    --max-duration 600 \
+    --decoding-method ctc-decoding \
+    --manifest-dir data/fbank_ali
+Note: It supports to calculate symbol delay with following decoding methods:
+    - ctc-greedy-search
+    - ctc-decoding
+    - 1best
 """
 
 
@@ -143,6 +94,7 @@ from icefall.checkpoint import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    DecodingResults,
     get_texts,
     get_texts_with_timestamp,
     make_pad_mask,
@@ -230,18 +182,20 @@ def get_parser():
         - (0) ctc-decoding. Use CTC decoding. It uses a sentence piece
           model, i.e., lang_dir/bpe.model, to convert word pieces to words.
           It needs neither a lexicon nor an n-gram LM.
-        - (1) 1best. Extract the best path from the decoding lattice as the
+        - (1) ctc-greedy-search. It only use CTC output and a sentence piece
+          model for decoding. It produces the same results with ctc-decoding.
+        - (2) 1best. Extract the best path from the decoding lattice as the
           decoding result.
-        - (2) nbest. Extract n paths from the decoding lattice; the path
+        - (3) nbest. Extract n paths from the decoding lattice; the path
           with the highest score is the decoding result.
-        - (3) nbest-rescoring. Extract n paths from the decoding lattice,
+        - (4) nbest-rescoring. Extract n paths from the decoding lattice,
           rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
           the highest score is the decoding result.
-        - (4) whole-lattice-rescoring. Rescore the decoding lattice with an
+        - (5) whole-lattice-rescoring. Rescore the decoding lattice with an
           n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
           is the decoding result.
           you have trained an RNN LM using ./rnn_lm/train.py
-        - (5) nbest-oracle. Its WER is the lower bound of any n-best
+        - (6) nbest-oracle. Its WER is the lower bound of any n-best
           rescoring method can achieve. Useful for debugging n-best
           rescoring method.
         """,
@@ -338,21 +292,28 @@ def ctc_greedy_search(
     topk_index = topk_index.masked_fill_(mask, 0)  # (B, maxlen)
     hyps = [hyp.tolist() for hyp in topk_index]
     scores = topk_prob.max(1)
-    hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
-    return hyps, scores
+    ret_hyps = []
+    timestamps = []
+    for i in range(len(hyps)):
+        hyp, time = remove_duplicates_and_blank(hyps[i])
+        ret_hyps.append(hyp)
+        timestamps.append(time)
+    return ret_hyps, timestamps, scores
 
 
-def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
-    # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
+def remove_duplicates_and_blank(hyp: List[int]) -> Tuple[List[int], List[int]]:
+    # modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
     new_hyp: List[int] = []
+    time: List[int] = []
     cur = 0
     while cur < len(hyp):
         if hyp[cur] != 0:
             new_hyp.append(hyp[cur])
+            time.append(cur)
         prev = cur
         while cur < len(hyp) and hyp[cur] == hyp[prev]:
             cur += 1
-    return new_hyp
+    return new_hyp, time
 
 
 def decode_one_batch(
@@ -431,16 +392,19 @@ def decode_one_batch(
     # nnet_output is (N, T, C)
 
     if params.decoding_method == "ctc-greedy-search":
-        hyps, _ = ctc_greedy_search(
+        hyps, timestamps, _ = ctc_greedy_search(
             nnet_output,
             encoder_out_lens,
         )
-        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
-        hyps = bpe_model.decode(hyps)
-        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        hyps = [s.split() for s in hyps]
+        res = DecodingResults(hyps=hyps, timestamps=timestamps)
+        hyps, timestamps = parse_hyp_and_timestamp(
+            res=res,
+            sp=bpe_model,
+            subsampling_factor=params.subsampling_factor,
+            frame_shift_ms=params.frame_shift_ms,
+        )
         key = "ctc-greedy-search"
-        return {key: hyps}
+        return {key: (hyps, timestamps)}
 
     supervision_segments = torch.stack(
         (
@@ -470,7 +434,7 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
-    if params.decoding_method == "ctc_decoding":
+    if params.decoding_method == "ctc-decoding":
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
@@ -478,25 +442,17 @@ def decode_one_batch(
         # since we are using H, not HLG here.
         #
         # token_ids is a lit-of-list of IDs
-        # import pdb
-
-        # pdb.set_trace()
-        res = get_texts_with_timestamp(best_path, remove_repeat=True)
+        res = get_texts_with_timestamp(best_path)
         hyps, timestamps = parse_hyp_and_timestamp(
             res=res,
-            decoding_method=params.decoding_method,
             sp=bpe_model,
             subsampling_factor=params.subsampling_factor,
             frame_shift_ms=params.frame_shift_ms,
         )
-        # # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
-        # hyps = bpe_model.decode(token_ids)
-        # # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        # hyps = [s.split() for s in hyps]
         key = "ctc-decoding"
         return {key: (hyps, timestamps)}
 
-    if params.decoding_method == "nbest_oracle":
+    if params.decoding_method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
         # as HLG decoding is faster and the oracle WER
@@ -509,18 +465,10 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
             oov="<UNK>",
         )
-        res = get_texts_with_timestamp(best_path, remove_repeat=True)
-        # hyps = get_texts(best_path)
-        # hyps = [[word_table[i] for i in ids] for ids in hyps]
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
         key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
-        hyps, timestamps = parse_hyp_and_timestamp(
-            res=res,
-            decoding_method=params.decoding_method,
-            sp=bpe_model,
-            subsampling_factor=params.subsampling_factor,
-            frame_shift_ms=params.frame_shift_ms,
-            word_table=word_table,
-        )
+        timestamps = [[] for _ in range(len(hyps))]
         return {key: (hyps, timestamps)}
 
     if params.decoding_method in ["1best", "nbest"]:
@@ -529,6 +477,13 @@ def decode_one_batch(
                 lattice=lattice, use_double_scores=params.use_double_scores
             )
             key = "no_rescore"
+            res = get_texts_with_timestamp(best_path)
+            hyps, timestamps = parse_hyp_and_timestamp(
+                res=res,
+                subsampling_factor=params.subsampling_factor,
+                frame_shift_ms=params.frame_shift_ms,
+                word_table=word_table,
+            )
         else:
             best_path = nbest_decoding(
                 lattice=lattice,
@@ -537,29 +492,22 @@ def decode_one_batch(
                 nbest_scale=params.nbest_scale,
             )
             key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            timestamps = [[] for _ in range(len(hyps))]
 
-        res = get_texts_with_timestamp(best_path, remove_repeat=True)
-        hyps, timestamps = parse_hyp_and_timestamp(
-            res=res,
-            decoding_method=params.decoding_method,
-            sp=bpe_model,
-            subsampling_factor=params.subsampling_factor,
-            frame_shift_ms=params.frame_shift_ms,
-            word_table=word_table,
-        )
-        # hyps = [[word_table[i] for i in ids] for ids in hyps]
         return {key: (hyps, timestamps)}
 
     assert params.decoding_method in [
-        "nbest_rescoring",
-        "whole_lattice_rescoring",
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
     ]
 
     lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
-    if params.decoding_method == "nbest_rescoring":
+    if params.decoding_method == "nbest-rescoring":
         best_path_dict = rescore_with_n_best_list(
             lattice=lattice,
             G=G,
@@ -567,7 +515,7 @@ def decode_one_batch(
             lm_scale_list=lm_scale_list,
             nbest_scale=params.nbest_scale,
         )
-    elif params.decoding_method == "whole_lattice_rescoring":
+    elif params.decoding_method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
             lattice=lattice,
             G_with_epsilon_loops=G,
@@ -579,17 +527,9 @@ def decode_one_batch(
     ans = dict()
     if best_path_dict is not None:
         for lm_scale_str, best_path in best_path_dict.items():
-            res = get_texts_with_timestamp(best_path)
-            hyps, timestamps = parse_hyp_and_timestamp(
-                res=res,
-                decoding_method=params.decoding_method,
-                sp=bpe_model,
-                subsampling_factor=params.subsampling_factor,
-                frame_shift_ms=params.frame_shift_ms,
-                word_table=word_table,
-            )
-            # hyps = get_texts(best_path)
-            # hyps = [[word_table[i] for i in ids] for ids in hyps]
+            hyps = get_texts(best_path)
+            hyps = [[word_table[i] for i in ids] for ids in hyps]
+            timestamps = [[] for _ in range(len(hyps))]
             ans[lm_scale_str] = (hyps, timestamps)
     else:
         ans = None
@@ -792,13 +732,13 @@ def main():
     params.update(vars(args))
 
     assert params.decoding_method in (
-        "ctc_greedy_search",
-        "ctc_decoding",
+        "ctc-greedy-search",
+        "ctc-decoding",
         "1best",
         "nbest",
-        "nbest_rescoring",
-        "whole_lattice_rescoring",
-        "nbest_oracle",
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
+        "nbest-oracle",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -846,7 +786,7 @@ def main():
     params.sos_id = sos_id
     params.eos_id = eos_id
 
-    if params.decoding_method in ["ctc_decoding", "ctc_greedy_search"]:
+    if params.decoding_method in ["ctc-decoding", "ctc-greedy-search"]:
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,
@@ -857,9 +797,7 @@ def main():
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
         H = None
-        bpe_model = spm.SentencePieceProcessor()
-        bpe_model.load(str(params.lang_dir / "bpe.model"))
-        # bpe_model = None
+        bpe_model = None
         HLG = k2.Fsa.from_dict(
             torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
         )
@@ -869,8 +807,8 @@ def main():
             HLG.lm_scores = HLG.scores.clone()
 
     if params.decoding_method in (
-        "nbest_rescoring",
-        "whole_lattice_rescoring",
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
     ):
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
@@ -902,7 +840,7 @@ def main():
             d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
             G = k2.Fsa.from_dict(d)
 
-        if params.decoding_method == "whole_lattice_rescoring":
+        if params.decoding_method == "whole-lattice-rescoring":
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)
