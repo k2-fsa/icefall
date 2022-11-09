@@ -1,958 +1,1113 @@
 #!/usr/bin/env python3
+# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                       Wei Kang,
+#                                                       Mingshuang Luo,)
+#                                                       Zengwei Yao)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Usage:
 
-from typing import List, Optional, Tuple
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
+./conv_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir conv_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 300
+
+# For mix precision training:
+
+./conv_transducer_stateless/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir conv_transducer_stateless/exp \
+  --full-libri 1 \
+  --max-duration 550
+
+"""
+
+
+import argparse
+import copy
+import logging
+import warnings
+from pathlib import Path
+from shutil import copyfile
+from typing import Any, Dict, Optional, Tuple, Union
+
+import k2
+import optim
+import sentencepiece as spm
 import torch
-from encoder_interface import EncoderInterface
-from scaling import (
-    ActivationBalancer,
-    BasicNorm,
-    DoubleSwish,
-    ScaledConv1d,
-    ScaledConv2d,
-    ScaledLinear,
+import torch.multiprocessing as mp
+import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
+from convrnnt import ConvRNNT
+from decoder import Decoder
+from joiner import Joiner
+from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
+from lhotse.utils import fix_random_seed
+from model import Transducer
+from optim import Eden, Eve
+from torch import Tensor
+from torch.cuda.amp import GradScaler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.tensorboard import SummaryWriter
+
+from icefall import diagnostics
+from icefall.checkpoint import load_checkpoint, remove_checkpoints
+from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
 )
-from torch import Tensor, nn
+from icefall.dist import cleanup_dist, setup_dist
+from icefall.env import get_env_info
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    display_and_save_batch,
+    setup_logger,
+    str2bool,
+)
 
-from icefall.utils import make_pad_mask
+LRSchedulerType = Union[
+    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
+]
 
 
-class ConvRNNT(EncoderInterface):
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=1024,
+        help="Embedding dimension in the convrnnt encoder layer.",
+    )
+
+    parser.add_argument(
+        "--decoder-dim",
+        type=int,
+        default=512,
+        help="Embedding dimension in the decoder model.",
+    )
+
+    parser.add_argument(
+        "--joiner-dim",
+        type=int,
+        default=512,
+        help="""Dimension used in the joiner model.
+        Outputs from the encoder and decoder model are projected
+        to this dimension before adding.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=True,
+        help="""Whether to use causal convolution.
+        """,
+    )
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--world-size",
+        type=int,
+        default=1,
+        help="Number of GPUs for DDP training.",
+    )
+
+    parser.add_argument(
+        "--master-port",
+        type=int,
+        default=12354,
+        help="Master port to use for DDP training.",
+    )
+
+    parser.add_argument(
+        "--tensorboard",
+        type=str2bool,
+        default=True,
+        help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=30,
+        help="Number of epochs to train.",
+    )
+
+    parser.add_argument(
+        "--start-epoch",
+        type=int,
+        default=1,
+        help="""Resume training from this epoch. It should be positive.
+        If larger than 1, it will load checkpoint from
+        exp-dir/epoch-{start_epoch-1}.pt
+        """,
+    )
+
+    parser.add_argument(
+        "--start-batch",
+        type=int,
+        default=0,
+        help="""If positive, --start-epoch is ignored and
+        it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
+        """,
+    )
+
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="conv_transducer_stateless/exp",
+        help="""The experiment dir.
+        It specifies the directory where all training related
+        files, e.g., checkpoints, log, etc, are saved
+        """,
+    )
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
+    )
+
+    parser.add_argument(
+        "--initial-lr",
+        type=float,
+        default=0.003,
+        help="The initial learning rate. This value should not need"
+        "to be changed.",
+    )
+
+    parser.add_argument(
+        "--lr-batches",
+        type=float,
+        default=5000,
+        help="""Number of steps that affects how rapidly the learning rate
+        decreases. We suggest not to change this.""",
+    )
+
+    parser.add_argument(
+        "--lr-epochs",
+        type=float,
+        default=6,
+        help="""Number of epochs that affects how rapidly the learning rate
+        decreases.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--prune-range",
+        type=int,
+        default=5,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.25,
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network)"
+        "part.",
+    )
+
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="The seed for random generators intended for reproducibility",
+    )
+
+    parser.add_argument(
+        "--print-diagnostics",
+        type=str2bool,
+        default=False,
+        help="Accumulate stats on activations, print them and exit.",
+    )
+
+    parser.add_argument(
+        "--save-every-n",
+        type=int,
+        default=4000,
+        help="""Save checkpoint after processing this number of batches"
+        periodically. We save checkpoint to exp-dir/ whenever
+        params.batch_idx_train % save_every_n == 0. The checkpoint filename
+        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
+        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
+        end of each epoch where `xxx` is the epoch number counting from 0.
+        """,
+    )
+
+    parser.add_argument(
+        "--keep-last-k",
+        type=int,
+        default=30,
+        help="""Only keep this number of checkpoints on disk.
+        For instance, if it is 3, there are only 3 checkpoints
+        in the exp-dir with filenames `checkpoint-xxx.pt`.
+        It does not affect checkpoints with name `epoch-xxx.pt`.
+        """,
+    )
+
+    parser.add_argument(
+        "--average-period",
+        type=int,
+        default=100,
+        help="""Update the averaged model, namely `model_avg`, after processing
+        this number of batches. `model_avg` is a separate version of model,
+        in which each floating-point parameter is the average of all the
+        parameters from the start of training. Each time we take the average,
+        we do: `model_avg = model * (average_period / batch_idx_train) +
+            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
+        """,
+    )
+
+    parser.add_argument(
+        "--use-fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to use half precision training.",
+    )
+
+    add_model_arguments(parser)
+
+    return parser
+
+
+def get_params() -> AttributeDict:
+    """Return a dict containing training parameters.
+
+    All training related parameters that are not passed from the commandline
+    are saved in the variable `params`.
+
+    Commandline options are merged into `params` after they are parsed, so
+    you can also access them via `params`.
+
+    Explanation of options saved in `params`:
+
+        - best_train_loss: Best training loss so far. It is used to select
+                           the model that has the lowest training loss. It is
+                           updated during the training.
+
+        - best_valid_loss: Best validation loss so far. It is used to select
+                           the model that has the lowest validation loss. It is
+                           updated during the training.
+
+        - best_train_epoch: It is the epoch that has the best training loss.
+
+        - best_valid_epoch: It is the epoch that has the best validation loss.
+
+        - batch_idx_train: Used to writing statistics to tensorboard. It
+                           contains number of batches trained so far across
+                           epochs.
+
+        - log_interval:  Print training loss if batch_idx % log_interval` is 0
+
+        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
+
+        - valid_interval:  Run validation if batch_idx % valid_interval is 0
+
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
+
+        - encoder_dim: Hidden dim for multi-head attention model.
+
+        - warm_step: The warm_step for Noam optimizer.
     """
+    params = AttributeDict(
+        {
+            "best_train_loss": float("inf"),
+            "best_valid_loss": float("inf"),
+            "best_train_epoch": -1,
+            "best_valid_epoch": -1,
+            "batch_idx_train": 0,
+            "log_interval": 50,
+            "reset_interval": 200,
+            "valid_interval": 3000,  # For the 100h subset, use 800
+            # parameters for ConvRNNT
+            "feature_dim": 80,
+            # parameters for Noam
+            "model_warm_step": 3000,  # arg given to model, not for lrate
+            "env_info": get_env_info(),
+        }
+    )
+
+    return params
+
+
+def get_encoder_model(params: AttributeDict) -> nn.Module:
+    encoder = ConvRNNT(
+        num_features=80,
+        d_model=512,
+        causal=True,
+    )
+    return encoder
+
+
+def get_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        decoder_dim=params.decoder_dim,
+        blank_id=params.blank_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict) -> nn.Module:
+    joiner = Joiner(
+        encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+        encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
+    )
+    return model
+
+
+def load_checkpoint_if_available(
+    params: AttributeDict,
+    model: nn.Module,
+    model_avg: nn.Module = None,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[LRSchedulerType] = None,
+) -> Optional[Dict[str, Any]]:
+    """Load checkpoint from file.
+
+    If params.start_batch is positive, it will load the checkpoint from
+    `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
+    params.start_epoch is larger than 1, it will load the checkpoint from
+    `params.start_epoch - 1`.
+
+    Apart from loading state dict for `model` and `optimizer` it also updates
+    `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
+    and `best_valid_loss` in `params`.
+
     Args:
-        num_features (int): Number of input features
-        d_model (int): the output dimension
-        num_global_cnn_encoder_layers (int): number of GlobalCNN Encoder
-            layers.
-        dropout (float): dropout rate
-        layer_dropout (float): layer-dropout rate.
-        causal (bool): Whether to use causal convolution in ConvRNNT encoder
-            layer.
+      params:
+        The return value of :func:`get_params`.
+      model:
+        The training model.
+      model_avg:
+        The stored model averaged from the start of training.
+      optimizer:
+        The optimizer that we are using.
+      scheduler:
+        The scheduler that we are using.
+    Returns:
+      Return a dict containing previously saved training info.
     """
+    if params.start_batch > 0:
+        filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
+    elif params.start_epoch > 1:
+        filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    else:
+        return None
 
-    def __init__(
-        self,
-        num_features: int,
-        d_model: int = 512,
-        local_cnn_encoder_kernel_size: int = 5,
-        num_global_cnn_encoder_layers: int = 6,
-        dropout: float = 0.1,
-        layer_dropout: float = 0.075,
-        aux_layer_period: int = 3,
-        causal: bool = True,
-    ) -> None:
-        super(ConvRNNT, self).__init__()
+    assert filename.is_file(), f"{filename} does not exist!"
 
-        self.num_features = num_features
-        self.d_model = d_model
-        self.causal = causal
-        self.encoder_layers = num_global_cnn_encoder_layers
+    saved_params = load_checkpoint(
+        filename,
+        model=model,
+        model_avg=model_avg,
+        optimizer=optimizer,
+        scheduler=scheduler,
+    )
 
-        # self.encoder_embed converts the input of shape (N, T, num_features)
-        # to the shape (N, T, d_model).
-        # That is, it does only one thing:
-        #   (1) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+    keys = [
+        "best_train_epoch",
+        "best_valid_epoch",
+        "batch_idx_train",
+        "best_train_loss",
+        "best_valid_loss",
+    ]
+    for k in keys:
+        params[k] = saved_params[k]
 
-        self.local_cnn_encoder = LocalCNNEncoder(
-            kernel_size=local_cnn_encoder_kernel_size,
-            causal=causal,
-        )
+    if params.start_batch > 0:
+        if "cur_epoch" in saved_params:
+            params["start_epoch"] = saved_params["cur_epoch"]
 
-        # aux_layers from 1/3
-        self.global_cnn_encoder = GlobalCNNEncoder(
-            encoder_layer=GlobalCNNEncoderLayer,
-            channels=d_model,
-            dropout=dropout,
-            num_layers=num_global_cnn_encoder_layers,
-            aux_layers=list(
-                range(
-                    num_global_cnn_encoder_layers // 3,
-                    num_global_cnn_encoder_layers - 1,
-                    aux_layer_period,
-                )
-            ),
-            causal=causal,
-        )
-        self._init_state: List[torch.Tensor] = [torch.empty(0)]
+    return saved_params
 
-    def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-          x:
-            The input tensor. Its shape is (batch_size, seq_len, feature_dim).
-          x_lens:
-            A tensor of shape (batch_size,) containing the number of frames in
-            `x` before padding.
-          warmup:
-            A floating point value that gradually increases from 0 throughout
-            training; when it is >= 1.0 we are "fully warmed up".  It is used
-            to turn modules on sequentially.
-        Returns:
-          Return a tuple containing 2 tensors:
-            - embeddings: its shape is (batch_size, output_seq_len, d_model)
-            - lengths, a tensor of shape (batch_size,) containing the number
-              of frames in `embeddings` before padding.
-        """
-        x = self.encoder_embed(x)
-        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        lengths = (((x_lens - 1) >> 1) - 1) >> 1
-        assert x.size(0) == lengths.max().item()
-        src_key_padding_mask = make_pad_mask(lengths)
+def save_checkpoint(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[LRSchedulerType] = None,
+    sampler: Optional[CutSampler] = None,
+    scaler: Optional[GradScaler] = None,
+    rank: int = 0,
+) -> None:
+    """Save model, optimizer, scheduler and training stats to file.
 
-        src_x = self.local_cnn_encoder(
-            x,
-            src_key_padding_mask=src_key_padding_mask,
-        )  # (T, N, C)
+    Args:
+      params:
+        It is returned by :func:`get_params`.
+      model:
+        The training model.
+      model_avg:
+        The stored model averaged from the start of training.
+      optimizer:
+        The optimizer used in the training.
+      sampler:
+       The sampler for the training dataset.
+      scaler:
+        The scaler used for mix precision training.
+    """
+    if rank != 0:
+        return
+    filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
+    save_checkpoint_impl(
+        filename=filename,
+        model=model,
+        model_avg=model_avg,
+        params=params,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        sampler=sampler,
+        scaler=scaler,
+        rank=rank,
+    )
 
-        x = self.global_cnn_encoder(
-            src_x,
-            src_key_padding_mask=src_key_padding_mask,
+    if params.best_train_epoch == params.cur_epoch:
+        best_train_filename = params.exp_dir / "best-train-loss.pt"
+        copyfile(src=filename, dst=best_train_filename)
+
+    if params.best_valid_epoch == params.cur_epoch:
+        best_valid_filename = params.exp_dir / "best-valid-loss.pt"
+        copyfile(src=filename, dst=best_valid_filename)
+
+
+def compute_loss(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    sp: spm.SentencePieceProcessor,
+    batch: dict,
+    is_training: bool,
+    warmup: float = 1.0,
+) -> Tuple[Tensor, MetricsTracker]:
+    """
+    Compute RNN-T loss given the model and its inputs.
+
+    Args:
+      params:
+        Parameters for training. See :func:`get_params`.
+      model:
+        The model for training. It is an instance of ConvRNNT in our case.
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      is_training:
+        True for training. False for validation. When it is True, this
+        function enables autograd during computation; when it is False, it
+        disables autograd.
+     warmup: a floating point value which increases throughout training;
+        values >= 1.0 are fully warmed up and have all modules present.
+    """
+    device = (
+        model.device
+        if isinstance(model, DDP)
+        else next(model.parameters()).device
+    )
+    feature = batch["inputs"]
+    # at entry, feature is (N, T, C)
+    assert feature.ndim == 3
+    feature = feature.to(device)
+
+    supervisions = batch["supervisions"]
+    feature_lens = supervisions["num_frames"].to(device)
+
+    texts = batch["supervisions"]["text"]
+    y = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(y).to(device)
+
+    with torch.set_grad_enabled(is_training):
+        simple_loss, pruned_loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
             warmup=warmup,
-        )  # (T, N, C)
+            reduction="none",
+        )
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        if not torch.all(is_finite):
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
 
-        x = torch.cat((src_x, x), dim=2)
-        x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
+            # If the batch contains more than 10 utterances AND
+            # if either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if torch.all(~simple_loss_is_finite) or torch.all(
+                ~pruned_loss_is_finite
+            ):
+                raise ValueError(
+                    "There are too many utterances in this batch "
+                    "leading to inf or nan losses."
+                )
 
-        return x, lengths
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
+        # after the main warmup step, we keep pruned_loss_scale small
+        # for the same amount of time (model_warm_step), to avoid
+        # overwhelming the simple_loss and causing it to diverge,
+        # in case it had not fully learned the alignment yet.
+        pruned_loss_scale = (
+            0.0
+            if warmup < 1.0
+            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+        )
+        loss = (
+            params.simple_loss_scale * simple_loss
+            + pruned_loss_scale * pruned_loss
+        )
 
-    @torch.jit.export
-    def get_init_state(
-        self, device: torch.device
-    ) -> List[torch.Tensor]:
-        """Return the initial cache state of the model.
-        Returns:
-          Return the initial state of the model, it is a list containing one
-          tensors, which is the cache of conv_modules which has a shape of
-          (num_global_cnn_encoder_layers, encoder_dim).
-          NOTE: the returned tensors are on the given device.
-        """
-        if (
-            len(self._init_state) == 2
-        ):
-            # Note: It is OK to share the init state as it is
-            # not going to be modified by the model
-            return self._init_state
+    assert loss.requires_grad == is_training
 
-        init_states: List[torch.Tensor] = [
-            torch.zeros(
-                (
-                    self.encoder_layers,
-                    self.d_model,
-                ),
-                device=device,
-            ),
-        ]
+    info = MetricsTracker()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
+        info["frames"] = (
+            (feature_lens).sum().item()
+        )
 
-        self._init_state = init_states
+    # `utt_duration` and `utt_pad_proportion` would be normalized
+    #  by `utterances`
+    info["utterances"] = feature.size(0)
+    # averaged input duration in frames over utterances
+    info["utt_duration"] = feature_lens.sum().item()
+    # averaged padding proportion over utterances
+    info["utt_pad_proportion"] = (
+        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    )
 
-        return init_states
+    # Note: We use reduction=sum while computing the loss.
+    info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
+
+    return loss, info
 
 
-class GlobalCNNEncoder(nn.Module):
-    r"""GlobalCNNEncoder is a stack of N GlobalCNNEncoder layers
+def compute_validation_loss(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    sp: spm.SentencePieceProcessor,
+    valid_dl: torch.utils.data.DataLoader,
+    world_size: int = 1,
+) -> MetricsTracker:
+    """Run the validation process."""
+    model.eval()
+
+    tot_loss = MetricsTracker()
+
+    for batch_idx, batch in enumerate(valid_dl):
+        loss, loss_info = compute_loss(
+            params=params,
+            model=model,
+            sp=sp,
+            batch=batch,
+            is_training=False,
+        )
+        assert loss.requires_grad is False
+        tot_loss = tot_loss + loss_info
+
+    if world_size > 1:
+        tot_loss.reduce(loss.device)
+
+    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    if loss_value < params.best_valid_loss:
+        params.best_valid_epoch = params.cur_epoch
+        params.best_valid_loss = loss_value
+
+    return tot_loss
+
+
+def train_one_epoch(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    optimizer: torch.optim.Optimizer,
+    scheduler: LRSchedulerType,
+    sp: spm.SentencePieceProcessor,
+    train_dl: torch.utils.data.DataLoader,
+    valid_dl: torch.utils.data.DataLoader,
+    scaler: GradScaler,
+    model_avg: Optional[nn.Module] = None,
+    tb_writer: Optional[SummaryWriter] = None,
+    world_size: int = 1,
+    rank: int = 0,
+) -> None:
+    """Train the model for one epoch.
+
+    The training loss from the mean of all frames is saved in
+    `params.train_loss`. It runs the validation process every
+    `params.valid_interval` batches.
 
     Args:
-        encoder_layer: instance of GlobalCNNEncoderLayer() class (required)
-        num_layers: the number of sub-encoder-layers
-         in the GlobalCNNEncoder (required).
-        warmup: controls selective bypass of of layers; if < 1.0, we will
-            bypass layers more frequently.
-
-    Examples::
-        >>> encoder_layer = GlobalCNNEncoderLayer(d_model=512)
-        >>> global_cnn_encoder = GlobalCNNEncoder(encoder_layer, num_layers=6)
-        >>> src = torch.rand(10, 32, 512)
-        >>> out = global_cnn_encoder(src)
+      params:
+        It is returned by :func:`get_params`.
+      model:
+        The model for training.
+      optimizer:
+        The optimizer we are using.
+      scheduler:
+        The learning rate scheduler, we call step() every step.
+      train_dl:
+        Dataloader for the training dataset.
+      valid_dl:
+        Dataloader for the validation dataset.
+      scaler:
+        The scaler used for mix precision training.
+      model_avg:
+        The stored model averaged from the start of training.
+      tb_writer:
+        Writer to write log messages to tensorboard.
+      world_size:
+        Number of nodes in DDP training. If it is 1, DDP is disabled.
+      rank:
+        The rank of the node in DDP training. If no DDP is used, it should
+        be set to 0.
     """
+    model.train()
 
-    def __init__(
-        self,
-        encoder_layer: nn.Module,
-        channels: int = 512,
-        kernel_size: int = 3,
-        dropout: float = 0.1,
-        num_layers: int = 6,
-        aux_layers: List[int] = None,
-        causal: bool = True,
-        warmup: float = 1.0,
-    ) -> None:
-        super().__init__()
-        self.layers = nn.ModuleList(
-            [
-                encoder_layer(
-                    channels=channels,
-                    block_number=i+1,
-                    kernel_size=kernel_size,
-                    dropout=dropout,
-                    causal=causal,
+    tot_loss = MetricsTracker()
+
+    for batch_idx, batch in enumerate(train_dl):
+        params.batch_idx_train += 1
+        batch_size = len(batch["supervisions"]["text"])
+
+        try:
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                loss, loss_info = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=True,
+                    warmup=(params.batch_idx_train / params.model_warm_step),
+                )
+            # summary stats
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+
+            # NOTE: We use reduction==sum and loss is computed over utterances
+            # in the batch and there is no normalization to it so far.
+            scaler.scale(loss).backward()
+            scheduler.step_batch(params.batch_idx_train)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+        except:  # noqa
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise
+
+        if params.print_diagnostics and batch_idx == 5:
+            return
+
+        if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
+
+        if (
+            params.batch_idx_train > 0
+            and params.batch_idx_train % params.save_every_n == 0
+        ):
+            save_checkpoint_with_global_batch_idx(
+                out_dir=params.exp_dir,
+                global_batch_idx=params.batch_idx_train,
+                model=model,
+                model_avg=model_avg,
+                params=params,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                sampler=train_dl.sampler,
+                scaler=scaler,
+                rank=rank,
+            )
+            remove_checkpoints(
+                out_dir=params.exp_dir,
+                topk=params.keep_last_k,
+                rank=rank,
+            )
+
+        if batch_idx % params.log_interval == 0:
+            cur_lr = scheduler.get_last_lr()[0]
+            logging.info(
+                f"Epoch {params.cur_epoch}, "
+                f"batch {batch_idx}, loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"lr: {cur_lr:.2e}"
+            )
+
+            if tb_writer is not None:
+                tb_writer.add_scalar(
+                    "train/learning_rate", cur_lr, params.batch_idx_train
+                )
+
+                loss_info.write_summary(
+                    tb_writer, "train/current_", params.batch_idx_train
+                )
+                tot_loss.write_summary(
+                    tb_writer, "train/tot_", params.batch_idx_train
+                )
+
+        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+            logging.info("Computing validation loss")
+            valid_info = compute_validation_loss(
+                params=params,
+                model=model,
+                sp=sp,
+                valid_dl=valid_dl,
+                world_size=world_size,
+            )
+            model.train()
+            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            if tb_writer is not None:
+                valid_info.write_summary(
+                    tb_writer, "train/valid_", params.batch_idx_train
+                )
+
+    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    params.train_loss = loss_value
+    if params.train_loss < params.best_train_loss:
+        params.best_train_epoch = params.cur_epoch
+        params.best_train_loss = params.train_loss
+
+
+def run(rank, world_size, args):
+    """
+    Args:
+      rank:
+        It is a value between 0 and `world_size-1`, which is
+        passed automatically by `mp.spawn()` in :func:`main`.
+        The node with rank 0 is responsible for saving checkpoint.
+      world_size:
+        Number of GPUs for DDP training.
+      args:
+        The return value of get_parser().parse_args()
+    """
+    params = get_params()
+    params.update(vars(args))
+    if params.full_libri is False:
+        params.valid_interval = 1600
+
+    fix_random_seed(params.seed)
+    if world_size > 1:
+        setup_dist(rank, world_size, params.master_port)
+
+    setup_logger(f"{params.exp_dir}/log/log-train")
+    logging.info("Training started")
+
+    if args.tensorboard and rank == 0:
+        tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
+    else:
+        tb_writer = None
+
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda", rank)
+    logging.info(f"Device: {device}")
+
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    # <blk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
+
+    logging.info(params)
+
+    logging.info("About to create model")
+    model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
+
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model)
+
+    assert params.start_epoch > 0, params.start_epoch
+    checkpoints = load_checkpoint_if_available(
+        params=params, model=model, model_avg=model_avg
+    )
+
+    model.to(device)
+    if world_size > 1:
+        logging.info("Using DDP")
+        model = DDP(model, device_ids=[rank])
+
+    optimizer = Eve(model.parameters(), lr=params.initial_lr)
+
+    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+
+    if checkpoints and "optimizer" in checkpoints:
+        logging.info("Loading optimizer state dict")
+        optimizer.load_state_dict(checkpoints["optimizer"])
+
+    if (
+        checkpoints
+        and "scheduler" in checkpoints
+        and checkpoints["scheduler"] is not None
+    ):
+        logging.info("Loading scheduler state dict")
+        scheduler.load_state_dict(checkpoints["scheduler"])
+
+    if params.print_diagnostics:
+        opts = diagnostics.TensorDiagnosticOptions(
+            2 ** 22
+        )  # allow 4 megabytes per sub-module
+        diagnostic = diagnostics.attach_diagnostics(model, opts)
+
+    librispeech = LibriSpeechAsrDataModule(args)
+
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 20.0
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
+    if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
+        # We only load the sampler's state dict when it loads a checkpoint
+        # saved in the middle of an epoch
+        sampler_state_dict = checkpoints["sampler"]
+    else:
+        sampler_state_dict = None
+
+    train_dl = librispeech.train_dataloaders(
+        train_cuts, sampler_state_dict=sampler_state_dict
+    )
+
+    valid_cuts = librispeech.dev_clean_cuts()
+    valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+
+    if params.start_batch <= 0 and not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
+        )
+
+    scaler = GradScaler(enabled=params.use_fp16)
+    if checkpoints and "grad_scaler" in checkpoints:
+        logging.info("Loading grad scaler state dict")
+        scaler.load_state_dict(checkpoints["grad_scaler"])
+
+    for epoch in range(params.start_epoch, params.num_epochs + 1):
+        scheduler.step_epoch(epoch - 1)
+        fix_random_seed(params.seed + epoch - 1)
+        train_dl.sampler.set_epoch(epoch - 1)
+
+        if tb_writer is not None:
+            tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
+
+        params.cur_epoch = epoch
+
+        train_one_epoch(
+            params=params,
+            model=model,
+            model_avg=model_avg,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            sp=sp,
+            train_dl=train_dl,
+            valid_dl=valid_dl,
+            scaler=scaler,
+            tb_writer=tb_writer,
+            world_size=world_size,
+            rank=rank,
+        )
+
+        if params.print_diagnostics:
+            diagnostic.print_diagnostics()
+            break
+
+        save_checkpoint(
+            params=params,
+            model=model,
+            model_avg=model_avg,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            sampler=train_dl.sampler,
+            scaler=scaler,
+            rank=rank,
+        )
+
+    logging.info("Done!")
+
+    if world_size > 1:
+        torch.distributed.barrier()
+        cleanup_dist()
+
+
+def scan_pessimistic_batches_for_oom(
+    model: Union[nn.Module, DDP],
+    train_dl: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    sp: spm.SentencePieceProcessor,
+    params: AttributeDict,
+    warmup: float,
+):
+    from lhotse.dataset import find_pessimistic_batches
+
+    logging.info(
+        "Sanity check -- see if any of the batches in epoch 1 would cause OOM."
+    )
+    batches, crit_values = find_pessimistic_batches(train_dl.sampler)
+    for criterion, cuts in batches.items():
+        batch = train_dl.dataset[cuts]
+        try:
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                loss, _ = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=True,
                     warmup=warmup,
                 )
-                for i in range(num_layers)
-            ]
-        )
-        self.num_layers = num_layers
-
-        assert len(set(aux_layers)) == len(aux_layers)
-
-        assert num_layers - 1 not in aux_layers
-        self.aux_layers = aux_layers + [num_layers - 1]
-
-        self.combiner = RandomCombine(
-            num_inputs=len(self.aux_layers),
-            final_weight=0.5,
-            pure_prob=0.333,
-            stddev=2.0,
-        )
-
-    def forward(
-        self,
-        src: Tensor,
-        mask: Optional[Tensor] = None,
-        src_key_padding_mask: Optional[Tensor] = None,
-        warmup: float = 1.0,
-    ) -> Tensor:
-        r"""Pass the input through the encoder layers in turn.
-
-        Args:
-            src: the sequence to the encoder (required).
-            mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for src keys per batch (optional)
-
-        Shape:
-            src: (S, N, E).
-            mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length,
-            T is the target sequence length,
-            N is the batch size,
-            E is the feature number
-
-        """
-        output = src
-
-        outputs = []
-
-        for i, mod in enumerate(self.layers):
-            output = mod(
-                output,
-                src_key_padding_mask=src_key_padding_mask,
-            )
-            if i in self.aux_layers:
-                outputs.append(output)
-
-        output = self.combiner(outputs)
-
-        return output
-
-
-class SEModule(nn.Module):
-    """ SE Module as defined in original SE-Nets with a few additions
-    Modified from rwightman`s squeeze_excite.py
-    """
-    def __init__(
-        self,
-        channels,
-        rd_ratio=1. / 16,
-        rd_channels=None,
-        rd_divisor=8,
-        add_maxpool=False,
-        bias=True,
-        act_layer=nn.ReLU,
-        norm_layer=None,
-        gate_layer='Sigmoid',
-    ):
-        super(SEModule, self).__init__()
-        self.add_maxpool = add_maxpool
-        if not rd_channels:
-            rd_channels = self.make_divisible(
-                channels * rd_ratio,
-                rd_divisor,
-                round_limit=0.
-            )
-        self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
-        self.act = nn.ReLU(inplace=True)
-        self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
-        self.gate = nn.Sigmoid()
-
-    def forward(self, x, src_key_padding_mask):
-        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
-        x_se_num = x_se_num.unsqueeze(1)
-        x_se = x.sum(axis=2, keepdim=True) / x_se_num
-        if self.add_maxpool:
-            x_se = 0.5 * x_se + 0.5 * x.amax(2, keepdim=True)
-        x_se = self.fc1(x_se)
-        x_se = self.act(x_se)
-        x_se = self.fc2(x_se)
-        return x * self.gate(x_se)
-
-    def make_divisible(self, v, divisor=8, min_value=None, round_limit=.9):
-        min_value = min_value or divisor
-        new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
-        # Make sure that round down does not go down by more than 10%.
-        if new_v < round_limit * v:
-            new_v += divisor
-        return new_v
-
-
-class LocalCNNEncoder(nn.Module):
-    """LocalCNNEncoder Module in ConvRNNT model.
-
-    Args:
-        kernel_size (int): Kernerl size of conv layers.
-        bias (bool): Whether to use bias in conv layers (default=True).
-        causal (bool): Whether to use causal convolution.
-
-    """
-
-    def __init__(
-        self,
-        kernel_size: int = 5,
-        bias: bool = True,
-        causal: bool = True,
-    ) -> None:
-        """Construct an LocalCNNEncoder object."""
-        super(LocalCNNEncoder, self).__init__()
-        # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
-
-        self.causal = causal
-        self.lorder = kernel_size - 1
-        padding = (kernel_size - 1) // 2
-        if self.causal:
-            padding = 0
-
-        self.conv1 = ScaledConv2d(
-            1,
-            100,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=((kernel_size - 1) // 2, padding),
-            bias=bias,
-        )
-
-        self.deriv_balancer1 = ActivationBalancer(
-            channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv2 = ScaledConv2d(
-            100,
-            100,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=((kernel_size - 1) // 2, padding),
-            bias=bias,
-        )
-
-        self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv3 = ScaledConv2d(
-            100,
-            64,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=((kernel_size - 1) // 2, padding),
-            bias=bias,
-        )
-
-        self.deriv_balancer3 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv4 = ScaledConv2d(
-            64,
-            64,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=((kernel_size - 1) // 2, padding),
-            bias=bias,
-        )
-
-        self.deriv_balancer4 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
-
-        self.activation = DoubleSwish()
-
-        self.conv5 = ScaledConv2d(
-            64,
-            1,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
-        )
-
-    def forward(
-        self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """Compute convolution module.
-
-        Args:
-            x: Input tensor (#time, batch, channels).
-            src_key_padding_mask: the mask for src keys per batch (optional)
-
-        Returns:
-            Tensor: Output tensor (#time, batch, channels).
-        """
-        x = x.permute(1, 2, 0)  # (#batch, channels, time).
-        if src_key_padding_mask is not None:
-            x = x.masked_fill(
-                src_key_padding_mask.unsqueeze(1).expand_as(x),
-                0.0
-            )
-        x = x.unsqueeze(1)
-
-        # Conv1
-        if self.causal and self.lorder > 0:
-            # Make conv causal by
-            # manualy padding self.lorder zeros to the left
-            x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
-        x = self.conv1(x)
-        x = self.deriv_balancer1(x)
-        x = self.activation(x)
-
-        # Conv2
-        if self.causal and self.lorder > 0:
-            # Make conv causal by
-            # manualy padding self.lorder zeros to the left
-            x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
-        x = self.conv2(x)
-        x = self.deriv_balancer2(x)
-        x = self.activation(x)
-
-        # Conv3
-        if self.causal and self.lorder > 0:
-            # Make conv causal by
-            # manualy padding self.lorder zeros to the left
-            x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
-        x = self.conv3(x)
-        x = self.deriv_balancer3(x)
-        x = self.activation(x)
-
-        # Conv4
-        if self.causal and self.lorder > 0:
-            # Make conv causal by
-            # manualy padding self.lorder zeros to the left
-            x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
-        x = self.conv4(x)
-        x = self.deriv_balancer4(x)
-        x = self.activation(x)
-        # Conv5
-        # (N, 64, C, T) -> (N, 1, C, T) -> (N, C, T)
-        x = self.conv5(x)
-        x = x.squeeze(1).permute(2, 0, 1)
-        return x
-
-
-class GlobalCNNEncoderLayer(nn.Module):
-    """GlobalCNNEncoder Layer in ConvRNNT model.
-
-    Args:
-        channels (int): The number of channels of conv layers.
-        block_number (int): The block number of stacked 6 blocks.
-        kernel_size (int): Kernerl size of conv layers.
-        dropout (float): dropout rate.
-        layer_dropout (float): layer-dropout rate.
-        bias (bool): Whether to use bias in conv layers (default=True).
-        causal (bool): Whether to use causal convolution.
-    """
-
-    def __init__(
-        self,
-        channels: int,
-        block_number: int,
-        kernel_size: int = 3,
-        dropout: float = 0.1,
-        layer_dropout: float = 0.075,
-        bias: bool = True,
-        causal: bool = True,
-        warmup: float = 1.0,
-    ) -> None:
-        """Construct an GlobalCNNEncoder object."""
-        super().__init__()
-        # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
-
-        self.causal = causal
-        self.warmup = warmup
-        self.layer_dropout = layer_dropout
-        self.block_number = block_number
-
-        self.pointwise_conv1 = ScaledConv1d(
-            channels,
-            2 * channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
-        )
-
-        self.deriv_balancer1 = ActivationBalancer(
-            channel_dim=1,
-            max_abs=10.0,
-            min_positive=0.05,
-            max_positive=1.0,
-        )
-
-        self.lorder = kernel_size - 1
-        padding = (kernel_size - 1) // 2
-        if self.causal:
-            padding = 0
-
-        self.depthwise_conv = ScaledConv1d(
-            channels,
-            channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=padding,
-            groups=channels,
-            bias=bias,
-            dilation=2**block_number
-        )
-
-        self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1,
-            min_positive=0.05,
-            max_positive=1.0,
-        )
-
-        self.activation = DoubleSwish()
-
-        self.pointwise_conv2 = ScaledConv1d(
-            channels,
-            channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
-            initial_scale=0.25,
-        )
-
-        self.SE = SEModule(channels=channels)
-        self.Dropout = nn.Dropout(dropout)
-        self.out_norm = BasicNorm(channels, learn_eps=False)
-
-    def forward(
-        self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """Compute convolution module.
-
-        Args:
-            x: Input tensor (#time, batch, channels).
-            src_key_padding_mask: the mask for src keys per batch (optional)
-            warmup: controls selective bypass of of layers; if < 1.0, we will
-              bypass layers more frequently.
-
-        Returns:
-            Tensor: Output tensor (#time, batch, channels).
-        """
-        # exchange the temporal dimension and the feature dimension
-        x = x.permute(1, 2, 0)  # (#batch, channels, time)
-        out = x
-
-        warmup_scale = min(0.1 + self.warmup, 1.0)
-        # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
-        # completely bypass it.
-        if self.training:
-            alpha = (
-                warmup_scale
-                if torch.rand(()).item() <= (1.0 - self.layer_dropout)
-                else 0.1
-            )
-        else:
-            alpha = 1.0
-
-        # GLU mechanism
-        out = self.pointwise_conv1(out)  # (batch, 2*channels, time)
-        out = self.deriv_balancer1(out)
-        out = nn.functional.glu(out, dim=1)  # (batch, channels, time)
-        out = out.permute(0, 2, 1)  # (#batch, time, channels)
-        out = self.out_norm(out)
-        out = out.permute(0, 2, 1)  # (#batch, channels, time)
-
-        # 1D Depthwise Conv
-        if src_key_padding_mask is not None:
-            out = out.masked_fill(
-                src_key_padding_mask.unsqueeze(1).expand_as(out),
-                0.0
-            )
-        if self.causal and self.lorder > 0:
-            # Make depthwise_conv causal by
-            # manualy padding self.lorder zeros to the left
-            out = nn.functional.pad(
-                out,
-                ((2**self.block_number - 1) * 2 + self.lorder, 0),
-                "constant",
-                0.0
-            )
-        out = self.depthwise_conv(out)
-        out = self.deriv_balancer2(out)
-        out = self.activation(out)
-        out = out.permute(0, 2, 1)  # (#batch, time, channels)
-        out = self.out_norm(out)
-        out = out.permute(0, 2, 1)  # (#batch, channels, time)
-
-        out = self.pointwise_conv2(out)  # (batch, channel, time)
-        out = self.SE(out, src_key_padding_mask)
-        out = self.Dropout(out) + x
-
-        if alpha != 1.0:
-            out = alpha * out + (1 - alpha) * x
-
-        return out.permute(2, 0, 1)  # (N, C, T) -> (T, N, C)
-
-
-class Conv2dSubsampling(nn.Module):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    Convert an input of shape (N, T, idim) to an output
-    with shape (N, T', odim), where
-    T' = ((T-1)//2 - 1)//2, which approximates T' == T//4
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        layer1_channels: int = 8,
-        layer2_channels: int = 32,
-        layer3_channels: int = 128,
-    ) -> None:
-        """
-        Args:
-          in_channels:
-            Number of channels in. The input shape is (N, T, in_channels).
-            Caution: It requires: T >=7, in_channels >=7
-          out_channels
-            Output dim. The output shape is (N, ((T-1)//2 - 1)//2, out_channels)
-          layer1_channels:
-            Number of channels in layer1
-          layer1_channels:
-            Number of channels in layer2
-        """
-        assert in_channels >= 7
-        super().__init__()
-
-        self.conv = nn.Sequential(
-            ScaledConv2d(
-                in_channels=1,
-                out_channels=layer1_channels,
-                kernel_size=3,
-                padding=1,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-            ScaledConv2d(
-                in_channels=layer1_channels,
-                out_channels=layer2_channels,
-                kernel_size=3,
-                stride=2,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-            ScaledConv2d(
-                in_channels=layer2_channels,
-                out_channels=layer3_channels,
-                kernel_size=3,
-                stride=2,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-        )
-        self.out = ScaledLinear(
-            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
-        )
-        # set learn_eps=False because out_norm is preceded by `out`, and `out`
-        # itself has learned scale, so the extra degree of freedom is not
-        # needed.
-        self.out_norm = BasicNorm(out_channels, learn_eps=False)
-        # constrain median of output to be close to zero.
-        self.out_balancer = ActivationBalancer(
-            channel_dim=-1, min_positive=0.45, max_positive=0.55
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Subsample x.
-
-        Args:
-          x:
-            Its shape is (N, T, idim).
-
-        Returns:
-          Return a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
-        """
-        # On entry, x is (N, T, idim)
-        x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
-        x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
-        x = self.out_norm(x)
-        x = self.out_balancer(x)
-        return x
-
-
-class RandomCombine(nn.Module):
-    """
-    This module combines a list of Tensors, all with the same shape, to
-    produce a single output of that same shape which, in training time,
-    is a random combination of all the inputs; but which in test time
-    will be just the last input.
-
-    The idea is that the list of Tensors will be a list of outputs of multiple
-    ConvRNNT layers.  This has a similar effect as iterated loss. (See:
-    DEJA-VU: DOUBLE FEATURE PRESENTATION AND ITERATED LOSS IN DEEP TRANSFORMER
-    NETWORKS).
-    """
-
-    def __init__(
-        self,
-        num_inputs: int,
-        final_weight: float = 0.5,
-        pure_prob: float = 0.5,
-        stddev: float = 2.0,
-    ) -> None:
-        """
-        Args:
-          num_inputs:
-            The number of tensor inputs, which equals the number of layers'
-            outputs that are fed into this module.  E.g. in an 18-layer neural
-            net if we output layers 16, 12, 18, num_inputs would be 3.
-          final_weight:
-            The amount of weight or probability we assign to the
-            final layer when randomly choosing layers or when choosing
-            continuous layer weights.
-          pure_prob:
-            The probability, on each frame, with which we choose
-            only a single layer to output (rather than an interpolation)
-          stddev:
-            A standard deviation that we add to log-probs for computing
-            randomized weights.
-
-        The method of choosing which layers, or combinations of layers, to use,
-        is conceptually as follows::
-
-            With probability `pure_prob`::
-               With probability `final_weight`: choose final layer,
-               Else: choose random non-final layer.
-            Else::
-               Choose initial log-weights that correspond to assigning
-               weight `final_weight` to the final layer and equal
-               weights to other layers; then add Gaussian noise
-               with variance `stddev` to these log-weights, and normalize
-               to weights (note: the average weight assigned to the
-               final layer here will not be `final_weight` if stddev>0).
-        """
-        super().__init__()
-        assert 0 <= pure_prob <= 1, pure_prob
-        assert 0 < final_weight < 1, final_weight
-        assert num_inputs >= 1
-
-        self.num_inputs = num_inputs
-        self.final_weight = final_weight
-        self.pure_prob = pure_prob
-        self.stddev = stddev
-
-        self.final_log_weight = (
-            torch.tensor(
-                (final_weight / (1 - final_weight)) * (self.num_inputs - 1)
-            )
-            .log()
-            .item()
-        )
-
-    def forward(self, inputs: List[Tensor]) -> Tensor:
-        """Forward function.
-        Args:
-          inputs:
-            A list of Tensor, e.g. from various layers of a transformer.
-            All must be the same shape, of (*, num_channels)
-        Returns:
-          A Tensor of shape (*, num_channels).  In test mode
-          this is just the final input.
-        """
-        num_inputs = self.num_inputs
-        assert len(inputs) == num_inputs
-        if not self.training or torch.jit.is_scripting():
-            return inputs[-1]
-
-        # Shape of weights: (*, num_inputs)
-        num_channels = inputs[0].shape[-1]
-        num_frames = inputs[0].numel() // num_channels
-
-        ndim = inputs[0].ndim
-        # stacked_inputs: (num_frames, num_channels, num_inputs)
-        stacked_inputs = torch.stack(inputs, dim=ndim).reshape(
-            (num_frames, num_channels, num_inputs)
-        )
-
-        # weights: (num_frames, num_inputs)
-        weights = self._get_random_weights(
-            inputs[0].dtype, inputs[0].device, num_frames
-        )
-
-        weights = weights.reshape(num_frames, num_inputs, 1)
-        # ans: (num_frames, num_channels, 1)
-        ans = torch.matmul(stacked_inputs, weights)
-        # ans: (*, num_channels)
-
-        ans = ans.reshape(inputs[0].shape[:-1] + (num_channels,))
-
-        # The following if causes errors for torch script in torch 1.6.0
-        #  if __name__ == "__main__":
-        #      # for testing only...
-        #      print("Weights = ", weights.reshape(num_frames, num_inputs))
-        return ans
-
-    def _get_random_weights(
-        self, dtype: torch.dtype, device: torch.device, num_frames: int
-    ) -> Tensor:
-        """Return a tensor of random weights, of shape
-        `(num_frames, self.num_inputs)`,
-        Args:
-          dtype:
-            The data-type desired for the answer, e.g. float, double.
-          device:
-            The device needed for the answer.
-          num_frames:
-            The number of sets of weights desired
-        Returns:
-          A tensor of shape (num_frames, self.num_inputs), such that
-          `ans.sum(dim=1)` is all ones.
-        """
-        pure_prob = self.pure_prob
-        if pure_prob == 0.0:
-            return self._get_random_mixed_weights(dtype, device, num_frames)
-        elif pure_prob == 1.0:
-            return self._get_random_pure_weights(dtype, device, num_frames)
-        else:
-            p = self._get_random_pure_weights(dtype, device, num_frames)
-            m = self._get_random_mixed_weights(dtype, device, num_frames)
-            return torch.where(
-                torch.rand(num_frames, 1, device=device) < self.pure_prob, p, m
-            )
-
-    def _get_random_pure_weights(
-        self, dtype: torch.dtype, device: torch.device, num_frames: int
-    ):
-        """Return a tensor of random one-hot weights, of shape
-        `(num_frames, self.num_inputs)`,
-        Args:
-          dtype:
-            The data-type desired for the answer, e.g. float, double.
-          device:
-            The device needed for the answer.
-          num_frames:
-            The number of sets of weights desired.
-        Returns:
-          A one-hot tensor of shape `(num_frames, self.num_inputs)`, with
-          exactly one weight equal to 1.0 on each frame.
-        """
-        final_prob = self.final_weight
-
-        # final contains self.num_inputs - 1 in all elements
-        final = torch.full((num_frames,), self.num_inputs - 1, device=device)
-        # nonfinal contains random integers in [0..num_inputs - 2],
-        # these are for non-final weights.
-        nonfinal = torch.randint(
-            self.num_inputs - 1, (num_frames,), device=device
-        )
-
-        indexes = torch.where(
-            torch.rand(num_frames, device=device) < final_prob, final, nonfinal
-        )
-        ans = torch.nn.functional.one_hot(
-            indexes, num_classes=self.num_inputs
-        ).to(dtype=dtype)
-        return ans
-
-    def _get_random_mixed_weights(
-        self, dtype: torch.dtype, device: torch.device, num_frames: int
-    ):
-        """Return a tensor of random one-hot weights, of shape
-        `(num_frames, self.num_inputs)`,
-        Args:
-          dtype:
-            The data-type desired for the answer, e.g. float, double.
-          device:
-            The device needed for the answer.
-          num_frames:
-            The number of sets of weights desired.
-        Returns:
-          A tensor of shape (num_frames, self.num_inputs), which elements
-          in [0..1] that sum to one over the second axis, i.e.
-          `ans.sum(dim=1)` is all ones.
-        """
-        logprobs = (
-            torch.randn(num_frames, self.num_inputs, dtype=dtype, device=device)
-            * self.stddev
-        )
-        logprobs[:, -1] += self.final_log_weight
-        return logprobs.softmax(dim=1)
-
-
-def _test_random_combine(final_weight: float, pure_prob: float, stddev: float):
-    print(
-        f"_test_random_combine: final_weight={final_weight}, \
-            pure_prob={pure_prob}, stddev={stddev}"
-    )
-    num_inputs = 3
-    num_channels = 50
-    m = RandomCombine(
-        num_inputs=num_inputs,
-        final_weight=final_weight,
-        pure_prob=pure_prob,
-        stddev=stddev,
-    )
-
-    x = [torch.ones(3, 4, num_channels) for _ in range(num_inputs)]
-
-    y = m(x)
-    assert y.shape == x[0].shape
-    assert torch.allclose(y, x[0])  # .. since actually all ones.
-
-
-def _test_random_combine_main():
-    _test_random_combine(0.999, 0, 0.0)
-    _test_random_combine(0.5, 0, 0.0)
-    _test_random_combine(0.999, 0, 0.0)
-    _test_random_combine(0.5, 0, 0.3)
-    _test_random_combine(0.5, 1, 0.3)
-    _test_random_combine(0.5, 0.5, 0.3)
-
-    feature_dim = 50
-    c = ConvRNNT(num_features=feature_dim, d_model=512)
-    batch_size = 5
-    seq_len = 20
-    # Just make sure the forward pass runs.
-    f = c(
-        torch.randn(batch_size, seq_len, feature_dim),
-        torch.full((batch_size,), seq_len, dtype=torch.int64),
-    )
-    f  # to remove flake8 warnings
-
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+        except Exception as e:
+            if "CUDA out of memory" in str(e):
+                logging.error(
+                    "Your GPU ran out of memory with the current "
+                    "max_duration setting. We recommend decreasing "
+                    "max_duration and trying again.\n"
+                    f"Failing criterion: {criterion} "
+                    f"(={crit_values[criterion]}) ..."
+                )
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise
+
+
+def main():
+    parser = get_parser()
+    LibriSpeechAsrDataModule.add_arguments(parser)
+    args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
+
+    world_size = args.world_size
+    assert world_size >= 1
+    if world_size > 1:
+        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+    else:
+        run(rank=0, world_size=1, args=args)
+
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
-    feature_dim = 50
-    c = ConvRNNT(num_features=feature_dim, d_model=512)
-    batch_size = 5
-    seq_len = 20
-    # Just make sure the forward pass runs.
-    f = c(
-        torch.randn(batch_size, seq_len, feature_dim),
-        torch.full((batch_size,), seq_len, dtype=torch.int64),
-        warmup=0.5,
-    )
-
-    _test_random_combine_main()
+    main()

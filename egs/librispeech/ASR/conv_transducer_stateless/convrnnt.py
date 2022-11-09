@@ -120,9 +120,7 @@ class ConvRNNT(EncoderInterface):
         return x, lengths
 
     @torch.jit.export
-    def get_init_state(
-        self, device: torch.device
-    ) -> List[torch.Tensor]:
+    def get_init_state(self, device: torch.device) -> List[torch.Tensor]:
         """Return the initial cache state of the model.
         Returns:
           Return the initial state of the model, it is a list containing one
@@ -130,9 +128,7 @@ class ConvRNNT(EncoderInterface):
           (num_global_cnn_encoder_layers, encoder_dim).
           NOTE: the returned tensors are on the given device.
         """
-        if (
-            len(self._init_state) == 2
-        ):
+        if (len(self._init_state) == 2):
             # Note: It is OK to share the init state as it is
             # not going to be modified by the model
             return self._init_state
@@ -185,7 +181,7 @@ class GlobalCNNEncoder(nn.Module):
             [
                 encoder_layer(
                     channels=channels,
-                    block_number=i+1,
+                    block_number=i + 1,
                     kernel_size=kernel_size,
                     dropout=dropout,
                     causal=causal,
@@ -250,28 +246,24 @@ class GlobalCNNEncoder(nn.Module):
 
 
 class SEModule(nn.Module):
-    """ SE Module as defined in original SE-Nets with a few additions
+    """SE Module as defined in original SE-Nets with a few additions
     Modified from rwightman`s squeeze_excite.py
     """
+
     def __init__(
         self,
         channels,
-        rd_ratio=1. / 16,
+        rd_ratio=1.0 / 16,
         rd_channels=None,
         rd_divisor=8,
         add_maxpool=False,
         bias=True,
-        act_layer=nn.ReLU,
-        norm_layer=None,
-        gate_layer='Sigmoid',
     ):
         super(SEModule, self).__init__()
         self.add_maxpool = add_maxpool
         if not rd_channels:
             rd_channels = self.make_divisible(
-                channels * rd_ratio,
-                rd_divisor,
-                round_limit=0.
+                channels * rd_ratio, rd_divisor, round_limit=0.0
             )
         self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
         self.act = nn.ReLU(inplace=True)
@@ -289,7 +281,7 @@ class SEModule(nn.Module):
         x_se = self.fc2(x_se)
         return x * self.gate(x_se)
 
-    def make_divisible(self, v, divisor=8, min_value=None, round_limit=.9):
+    def make_divisible(self, v, divisor=8, min_value=None, round_limit=0.9):
         min_value = min_value or divisor
         new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
         # Make sure that round down does not go down by more than 10%.
@@ -405,8 +397,7 @@ class LocalCNNEncoder(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
         if src_key_padding_mask is not None:
             x = x.masked_fill(
-                src_key_padding_mask.unsqueeze(1).expand_as(x),
-                0.0
+                src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0
             )
         x = x.unsqueeze(1)
 
@@ -515,7 +506,7 @@ class GlobalCNNEncoderLayer(nn.Module):
             padding=padding,
             groups=channels,
             bias=bias,
-            dilation=2**block_number
+            dilation=2 ** block_number
         )
 
         self.deriv_balancer2 = ActivationBalancer(
@@ -583,17 +574,16 @@ class GlobalCNNEncoderLayer(nn.Module):
         # 1D Depthwise Conv
         if src_key_padding_mask is not None:
             out = out.masked_fill(
-                src_key_padding_mask.unsqueeze(1).expand_as(out),
-                0.0
+                src_key_padding_mask.unsqueeze(1).expand_as(out), 0.0
             )
         if self.causal and self.lorder > 0:
             # Make depthwise_conv causal by
             # manualy padding self.lorder zeros to the left
             out = nn.functional.pad(
                 out,
-                ((2**self.block_number - 1) * 2 + self.lorder, 0),
+                ((2 ** self.block_number - 1) * 2 + self.lorder, 0),
                 "constant",
-                0.0
+                0.0,
             )
         out = self.depthwise_conv(out)
         out = self.deriv_balancer2(out)
