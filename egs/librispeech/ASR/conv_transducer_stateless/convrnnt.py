@@ -133,7 +133,7 @@ class ConvRNNT(EncoderInterface):
           (num_global_cnn_encoder_layers, encoder_dim).
           NOTE: the returned tensors are on the given device.
         """
-        if (len(self._init_state) == 2):
+        if len(self._init_state) == 2:
             # Note: It is OK to share the init state as it is
             # not going to be modified by the model
             return self._init_state
@@ -514,7 +514,7 @@ class GlobalCNNEncoderLayer(nn.Module):
             padding=padding,
             groups=channels,
             bias=bias,
-            dilation=2 ** block_number
+            dilation=2 ** block_number,
         )
 
         self.deriv_balancer2 = ActivationBalancer(
