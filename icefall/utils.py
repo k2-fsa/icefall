@@ -1373,7 +1373,6 @@ def parse_hyp_and_timestamp(
 
     N = len(res.hyps)
     assert len(res.timestamps) == N, (len(res.timestamps), N)
-
     use_word_table = False
     if word_table is not None:
         assert sp is None
