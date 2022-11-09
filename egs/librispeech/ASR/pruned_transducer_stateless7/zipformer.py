@@ -781,7 +781,7 @@ class DownsamplingZipformerEncoder(nn.Module):
                 feature_mask: Union[Tensor, float] = 1.0,
                 mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tensor:
         r"""Downsample, go through encoder, upsample.
 
         Args:
@@ -914,7 +914,7 @@ class SimpleCombiner(torch.nn.Module):
     def __init__(self,
                  dim1: int,
                  dim2: int,
-                 min_weight: Tuple[float] = (0., 0.)):
+                 min_weight: Tuple[float, float] = (0., 0.)):
         super(SimpleCombiner, self).__init__()
         assert dim2 >= dim1
         initial_weight1 = 0.1
