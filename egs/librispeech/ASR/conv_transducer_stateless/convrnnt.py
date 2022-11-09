@@ -557,7 +557,7 @@ class GlobalCNNEncoderLayer(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
         """
         # exchange the temporal dimension and the feature dimension
-        x = x.permute(1, 2, 0)  # (#batch, channels, time).
+        x = x.permute(1, 2, 0)  # (#batch, channels, time)
         out = x
 
         warmup_scale = min(0.1 + self.warmup, 1.0)
@@ -576,7 +576,9 @@ class GlobalCNNEncoderLayer(nn.Module):
         out = self.pointwise_conv1(out)  # (batch, 2*channels, time)
         out = self.deriv_balancer1(out)
         out = nn.functional.glu(out, dim=1)  # (batch, channels, time)
+        out = out.permute(0, 2, 1)  # (#batch, time, channels)
         out = self.out_norm(out)
+        out = out.permute(0, 2, 1)  # (#batch, channels, time)
 
         # 1D Depthwise Conv
         if src_key_padding_mask is not None:
@@ -596,7 +598,9 @@ class GlobalCNNEncoderLayer(nn.Module):
         out = self.depthwise_conv(out)
         out = self.deriv_balancer2(out)
         out = self.activation(out)
+        out = out.permute(0, 2, 1)  # (#batch, time, channels)
         out = self.out_norm(out)
+        out = out.permute(0, 2, 1)  # (#batch, channels, time)
 
         out = self.pointwise_conv2(out)  # (batch, channel, time)
         out = self.SE(out, src_key_padding_mask)
