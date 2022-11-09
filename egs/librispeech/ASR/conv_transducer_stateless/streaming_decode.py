@@ -190,14 +190,16 @@ def get_parser():
         "--left-context",
         type=int,
         default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
+        help="left context can be seen during decoding \
+            (in frames after subsampling)",
     )
 
     parser.add_argument(
         "--right-context",
         type=int,
         default=0,
-        help="right context can be seen during decoding (in frames after subsampling)",
+        help="right context can be seen during decoding \
+            (in frames after subsampling)",
     )
 
     parser.add_argument(

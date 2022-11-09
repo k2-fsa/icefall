@@ -229,7 +229,8 @@ def get_parser():
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
-          - modified_beam_search_rnnlm_shallow_fusion # for rnn lm shallow fusion
+          - modified_beam_search_rnnlm_shallow_fusion
+            # for rnn lm shallow fusion
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -251,8 +252,8 @@ def get_parser():
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search, fast_beam_search_LG,
-        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        Used only when --decoding-method is fast_beam_search, 
+        fast_beam_search_LG, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle
         """,
     )
@@ -262,7 +263,8 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG and fast_beam_search_LG.
+        Used only when --decoding_method is fast_beam_search_nbest_LG 
+        and fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
         """,
     )
@@ -278,7 +280,9 @@ def get_parser():
         "--left-context",
         type=int,
         default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
+        help="""left context can be seen during decoding 
+        (in frames after subsampling)
+        """,
     )
 
     parser.add_argument(
@@ -346,7 +350,7 @@ def get_parser():
         "--rnn-lm-scale",
         type=float,
         default=0.0,
-        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion
         It specifies the path to RNN LM exp dir.
         """,
     )
@@ -355,7 +359,7 @@ def get_parser():
         "--rnn-lm-exp-dir",
         type=str,
         default="rnn_lm/exp",
-        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion
         It specifies the path to RNN LM exp dir.
         """,
     )
@@ -364,7 +368,7 @@ def get_parser():
         "--rnn-lm-epoch",
         type=int,
         default=7,
-        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion
         It specifies the checkpoint to use.
         """,
     )
@@ -373,7 +377,7 @@ def get_parser():
         "--rnn-lm-avg",
         type=int,
         default=2,
-        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion
         It specifies the number of checkpoints to average.
         """,
     )
@@ -402,8 +406,8 @@ def get_parser():
         "--rnn-lm-tie-weights",
         type=str2bool,
         default=False,
-        help="""True to share the weights between the input embedding layer and the
-        last output linear layer
+        help="""True to share the weights between the input embedding layer
+        and the last output linear layer
         """,
     )
     add_model_arguments(parser)
@@ -446,8 +450,9 @@ def decode_one_batch(
         The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_LG, fast_beam_search_nbest,
-        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+        only when --decoding_method is fast_beam_search, fast_beam_search_LG,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        and fast_beam_search_nbest_LG.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -644,8 +649,9 @@ def decode_dataset(
         The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_LG, fast_beam_search_nbest,
-        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+        only when --decoding_method is fast_beam_search, fast_beam_search_LG,
+        fast_beam_search_nbest, fast_beam_search_nbest_oracle,
+        and fast_beam_search_nbest_LG.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
