@@ -299,11 +299,19 @@ def get_parser():
         "--delay-penalty",
         type=float,
         default=0.0,
-        help="""A constant to penalize symbol delay, which is used to make symbol
-        emit earlier for streaming models. It is almost the same as the
-        `delay_penalty` in our `rnnt_loss`, See
+        help="""A constant used to scale the symbol delay penalty,
+        to encourage symbol emit earlier for streaming models.
+        It is almost the same as the `delay_penalty` in our `rnnt_loss`, See
         https://github.com/k2-fsa/k2/issues/955 and
         https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
+
+    parser.add_argument(
+        "--nnet-delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant to penalize symbol delay, which is applied on
+        the nnet_output after log-softmax. """,
     )
 
     add_model_arguments(parser)
@@ -575,7 +583,10 @@ def compute_loss(
 
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_out_lens = model(
-            feature, feature_lens, warmup=warmup
+            feature,
+            feature_lens,
+            warmup=warmup,
+            delay_penalty=params.nnet_delay_penalty if warmup >= 1.0 else 0,
         )
         assert torch.all(encoder_out_lens > 0)
 
@@ -608,7 +619,7 @@ def compute_loss(
         decoding_graph=decoding_graph,
         dense_fsa_vec=dense_fsa_vec,
         output_beam=params.beam_size,
-        delay_penalty=params.delay_penalty if warmup > 1.0 else 0.0,
+        delay_penalty=params.delay_penalty if warmup >= 1.0 else 0.0,
         reduction=params.reduction,
         use_double_scores=params.use_double_scores,
     )

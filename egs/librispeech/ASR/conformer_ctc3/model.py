@@ -17,14 +17,12 @@
 # limitations under the License.
 
 
+import math
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
-from icefall.graph_compiler import CtcTrainingGraphCompiler
-from icefall.utils import AttributeDict
 from scaling import ScaledLinear
-from typing import List, Tuple, Union
+from typing import Tuple
 
 
 class CTCModel(nn.Module):
@@ -63,9 +61,40 @@ class CTCModel(nn.Module):
     def get_ctc_output(
         self,
         encoder_out: torch.Tensor,
+        delay_penalty: float = 0.0,
+        blank_threshold: float = 0.99,
     ):
+        """Compute ctc log-prob and optionally (delay_penalty > 0) apply delay penalty.
+        We first split utterance into sub-utterances according to the
+        blank probs, and then add sawtooth-like "blank-bonus" values to
+        the blank probs.
+
+        Args:
+          encoder_out:
+            A tensor with shape of (N, T, C).
+          delay_penalty:
+            A constant used to scale the delay penalty score.
+          blank_threshold:
+            The threshold used to split utterance into sub-utterances.
+        """
         output = self.ctc_output_module(encoder_out)
         log_prob = nn.functional.log_softmax(output, dim=-1)
+
+        if delay_penalty > 0:
+            T_arange = torch.arange(encoder_out.shape[1]).to(
+                device=encoder_out.device
+            )
+            # split into sub-utterances using the blank-id
+            mask = log_prob[:, :, 0] >= math.log(blank_threshold)  # (B, T)
+            mask[:, 0] = True
+            cummax_out = (T_arange * mask).cummax(dim=-1)[0]  # (B, T)
+            # the sawtooth "blank-bonus" value
+            penalty = T_arange - cummax_out  # (B, T)
+            penalty_all = torch.zeros_like(log_prob)
+            penalty_all[:, :, 0] = delay_penalty * penalty
+            # apply latency penalty on probs
+            log_prob = log_prob + penalty_all
+
         return log_prob
 
     def forward(
@@ -73,6 +102,7 @@ class CTCModel(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         warmup: float = 1.0,
+        delay_penalty: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -83,8 +113,12 @@ class CTCModel(nn.Module):
             before padding.
           warmup: a floating point value which increases throughout training;
             values >= 1.0 are fully warmed up and have all modules present.
+          delay_penalty:
+            A constant used to scale the delay penalty score.
         """
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(encoder_out_lens > 0)
-        nnet_output = self.get_ctc_output(encoder_out)
+        nnet_output = self.get_ctc_output(
+            encoder_out, delay_penalty=delay_penalty
+        )
         return nnet_output, encoder_out_lens
