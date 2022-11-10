@@ -1017,6 +1017,9 @@ class RelPositionalEncoding(torch.nn.Module):
         pe[:, 1::2] = sines
         pe[:, -1] = 1.0  # for bias.
 
+        # if we have the length_factor correct, the cosines around 0 offset (T in the array)
+        # should be oscillating in sign like -1, 1, -1; and the sines should all be close to
+        # zero.
         #r = 2
         #print("cosines = ", cosines[T-r:T+r,-5:])
         #print("sines = ", sines[T-r:T+r,-5:])
