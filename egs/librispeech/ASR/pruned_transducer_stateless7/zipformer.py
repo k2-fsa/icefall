@@ -1010,8 +1010,6 @@ class RelPositionalEncoding(torch.nn.Module):
         # e.g. width_factor == 0.1, if ratio is 1.1.  determines steepness of sigmoid.
         width_factor = ratio - 1.0
 
-        max_val = 1000.0
-
         # centers of sigmoids (positive)
         centers = (1.0 / (ratio - 1.0)) * (ratio ** torch.arange(self.embed_dim // 2,
                                                                  device=x.device))
