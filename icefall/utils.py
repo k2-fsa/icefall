@@ -1017,7 +1017,7 @@ def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
     return concat(ragged, eos_id, direction="right")
 
 
-def make_pad_mask(lengths: torch.Tensor,  max_len: int = 0) -> torch.Tensor:
+def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     """
     Args:
       lengths:
