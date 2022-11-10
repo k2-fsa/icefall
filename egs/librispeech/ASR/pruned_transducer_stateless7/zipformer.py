@@ -1019,7 +1019,7 @@ class RelPositionalEncoding(torch.nn.Module):
         centers[:, 1] *= -1.0
         centers = centers.reshape(self.embed_dim)
 
-        widths = (centers.abs() * width_factor).clamp(min=1.0)
+        widths = (centers.abs() * width_factor) + 1.0
 
         # shape: (2*T - 1, embed_dim)
         pe = ((x - centers) / widths).tanh()
