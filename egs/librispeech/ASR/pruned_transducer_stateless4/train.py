@@ -335,6 +335,16 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -386,6 +396,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
+            "frame_shift_ms": 10.0,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -637,6 +648,7 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
             reduction="none",
+            delay_penalty=params.delay_penalty if warmup >= 2.0 else 0,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)

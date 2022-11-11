@@ -2,7 +2,7 @@
 # We assume the following directories are downloaded.
 #
 #  - $csj_dir
-#     CSJ is assumed to be the USB-type directory, which should contain the following subdirectories:- 
+#     CSJ is assumed to be the USB-type directory, which should contain the following subdirectories:-
 #     - DATA (not used in this script)
 #     - DOC (not used in this script)
 #     - MODEL (not used in this script)
@@ -30,7 +30,7 @@
 #     - music
 #     - noise
 #     - speech
-# 
+#
 # By default, this script produces the original transcript like kaldi and espnet. Optionally, you
 # can generate other transcript formats by supplying your own config files. A few examples of these
 # config files can be found in local/conf.
@@ -58,15 +58,15 @@ log() {
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then 
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     log "Stage 1: Prepare CSJ manifest"
     # If you want to generate more transcript modes, append the path to those config files at c.
     # Example: lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -c local/conf/disfluent.ini
     # NOTE: In case multiple config files are supplied, the second config file and onwards will inherit
-    #       the segment boundaries of the first config file. 
-    if [ ! -e $csj_manifest_dir/.librispeech.done ]; then 
+    #       the segment boundaries of the first config file.
+    if [ ! -e $csj_manifest_dir/.csj.done ]; then
         lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -j 4
-        touch $csj_manifest_dir/.librispeech.done
+        touch $csj_manifest_dir/.csj.done
     fi
 fi
 
@@ -85,20 +85,20 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
         python local/compute_fbank_csj.py --manifest-dir $csj_manifest_dir \
             --fbank-dir $csj_fbank_dir
         parts=(
-            train 
+            train
             valid
             eval1
             eval2
             eval3
         )
-        for part in ${parts[@]}; do 
+        for part in ${parts[@]}; do
             python local/validate_manifest.py --manifest $csj_manifest_dir/csj_cuts_$part.jsonl.gz
         done
         touch $csj_fbank_dir/.csj-validated.done
     fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then 
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     log "Stage 4: Prepare CSJ lang"
     modes=disfluent
 
@@ -117,13 +117,13 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for musan"
     mkdir -p $musan_fbank_dir
 
-    if [ ! -e $musan_fbank_dir/.musan.done ]; then 
+    if [ ! -e $musan_fbank_dir/.musan.done ]; then
         python local/compute_fbank_musan.py --manifest-dir $musan_manifest_dir --fbank-dir $musan_fbank_dir
         touch $musan_fbank_dir/.musan.done
     fi
 fi
 
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then 
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     log "Stage 6: Show manifest statistics"
     python local/display_manifest_statistics.py --manifest-dir $csj_manifest_dir > $csj_manifest_dir/manifest_statistics.txt
     cat $csj_manifest_dir/manifest_statistics.txt
