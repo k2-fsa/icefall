@@ -279,6 +279,9 @@ class SoftmaxFunction(torch.autograd.Function):
 
 def softmax(x: Tensor,
             dim: int):
+    if torch.jit.is_scripting():
+        return x.softmax(dim)
+
     return SoftmaxFunction.apply(x, dim)
 
 
@@ -758,6 +761,8 @@ class WithLoss(torch.autograd.Function):
                                     dtype=ans_grad.dtype,
                                     device=ans_grad.device)
 def with_loss(x, y):
+    if torch.jit.is_scripting():
+        return x
     # returns x but adds y.sum() to the loss function.
     return WithLoss.apply(x, y)
 
