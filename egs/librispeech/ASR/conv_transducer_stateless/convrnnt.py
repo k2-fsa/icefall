@@ -737,8 +737,26 @@ class LstmEncoder(nn.Module):
             It controls selective bypass of of layers; if < 1.0, we will
             bypass layers more frequently.
         """
+        if states is not None:
+            assert not self.training
+            assert len(states) == 2
+            if not torch.jit.is_tracing():
+                assert states[0].shape == (
+                    self.num_layers,
+                    x.size(1),
+                    self.hidden_size,
+                )
+                assert states[1].shape == (
+                    self.num_layers,
+                    x.size(1),
+                    self.hidden_size,
+                )
+
+        new_hidden_states = []
+        new_cell_states = []
+
         for i, mod in enumerate(self.layers):
-            src = x
+            output = x
 
             warmup_scale = min(0.1 + warmup, 1.0)
             # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
@@ -752,25 +770,49 @@ class LstmEncoder(nn.Module):
             else:
                 alpha = 1.0
 
+            # LSTM module
             if states is None:
-                x = mod(x)[0]
                 new_states = (torch.empty(0), torch.empty(0))
+                output = mod(output, new_states)[0]
             else:
-                assert not self.training
-                assert len(states) == 2
-                if not torch.jit.is_tracing():
-                    # for hidden state
-                    assert states[0].shape == (1, x.size(1), self.hidden_size)
-                    # for cell state
-                    assert states[1].shape == (1, x.size(1), self.hidden_size)
-                x, new_states = mod(x, states)
+                layer_state = (
+                    states[0][i : i + 1, :, :],
+                    states[1][i : i + 1, :, :],
+                )
 
-            x = self.feed_forward(x)
+                assert not self.training
+                assert len(layer_state) == 2
+                if not torch.jit.is_tracing():
+                    assert layer_state[0].shape == (
+                        1,
+                        output.size(1),
+                        self.hidden_size,
+                    )
+                    assert layer_state[1].shape == (
+                        1,
+                        output.size(1),
+                        self.hidden_size,
+                    )
+                output, (h, c) = mod(output, layer_state)
+
+                new_hidden_states.append(h)
+                new_cell_states.append(c)
+
+            # feed forward module
+            output = self.feed_forward(output)
 
             if alpha != 1.0:
-                x = alpha * x + (1 - alpha) * src
+                output = alpha * output + (1 - alpha) * x
+        
+        if states is None:
+            new_states = (torch.empty(0), torch.empty(0))
+        else:
+            new_states = (
+                torch.cat(new_hidden_states, dim=0),
+                torch.cat(new_cell_states, dim=0),
+            )
 
-        return x, new_states
+        return output, new_states
 
 
 class RandomCombine(nn.Module):
