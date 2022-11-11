@@ -120,10 +120,41 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--causal-convolution",
+        "--causal",
         type=str2bool,
         default=True,
         help="""Whether to use causal convolution.
+        """,
+    )
+
+    parser.add_argument(
+        "--lstm-hidden-size",
+        type=int,
+        default=640,
+        help="Hidden dim for LSTM layers.",
+    )
+
+    parser.add_argument(
+        "--num-lstm-encoder-layers",
+        type=int,
+        default=7,
+        help="Number of LSTM encoder layers.",
+    )
+
+    parser.add_argument(
+        "--lstm-dim-feedforward",
+        type=int,
+        default=1024,
+        help="Dim feedforward for LSTM layers.",
+    )
+
+    parser.add_argument(
+        "--aux-layer-period",
+        type=int,
+        default=0,
+        help="""Peroid of auxiliary layers used for randomly combined during training.
+        If set to 0, will not use the random combiner (Default).
+        You can set a positive integer to use the random combiner, e.g., 3.
         """,
     )
 
@@ -390,8 +421,12 @@ def get_params() -> AttributeDict:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = ConvRNNT(
-        num_features=80,
-        d_model=512,
+        num_features=params.feature_dim,
+        d_model=params.encoder_dim,
+        lstm_hidden_size=params.lstm_hidden_size,
+        lstm_dim_feedforward=params.lstm_dim_feedforward,
+        num_lstm_encoder_layers=params.num_lstm_encoder_layers,
+        aux_layer_period=params.aux_layer_period,
         causal=True,
     )
     return encoder

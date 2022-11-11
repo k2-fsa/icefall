@@ -43,6 +43,8 @@ class ConvRNNT(EncoderInterface):
 
         self.num_features = num_features
         self.d_model = d_model
+        self.num_lstm_encoder_layers = num_lstm_encoder_layers
+        self.lstm_hidden_size = lstm_hidden_size
         self.causal = causal
         # self.encoder_embed converts the input of shape (N, T, num_features)
         # to the shape (N, T, d_model).
@@ -77,8 +79,9 @@ class ConvRNNT(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         warmup: float = 1.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Args:
           x:
@@ -86,22 +89,33 @@ class ConvRNNT(EncoderInterface):
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
+          states:
+            A tuple of 2 tensors (optional). It is for streaming inference.
+            states[0] is the hidden states of all layers,
+              with shape of (num_layers, N, lstm_hidden_size);
+            states[1] is the cell states of all layers,
+              with shape of (num_layers, N, lstm_hidden_size).
           warmup:
             A floating point value that gradually increases from 0 throughout
             training; when it is >= 1.0 we are "fully warmed up".  It is used
             to turn modules on sequentially.
 
         Returns:
-          Return a tuple containing 2 tensors:
-            - embeddings: its shape is (batch_size, output_seq_len, d_model)
-            - lengths, a tensor of shape (batch_size,) containing the number
-              of frames in `embeddings` before padding.
+          A tuple of 3 tensors:
+            - embeddings: its shape is (N, T', d_model), where T' is the output
+              sequence lengths.
+            - lengths: a tensor of shape (batch_size,) containing the number of
+              frames in `embeddings` before padding.
+            - updated states, whose shape is the same as the input states.
         """
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
-        assert x.size(0) == lengths.max().item()
+
+        if not torch.jit.is_tracing():
+            assert x.size(0) == lengths.max().item()
+
         src_key_padding_mask = make_pad_mask(lengths)
 
         src_x = self.local_cnn_encoder(
@@ -116,11 +130,53 @@ class ConvRNNT(EncoderInterface):
 
         x = self.transform(torch.cat((src_x, x), dim=2))
 
-        x = self.lstm_encoder(x, warmup=warmup)
+        if states is None:
+            x = self.lstm_encoder(x, warmup=warmup)[0]
+            new_states = (torch.empty(0), torch.empty(0))
+        else:
+            assert not self.training
+            assert len(states) == 2
+            if not torch.jit.is_tracing():
+                # for hidden state
+                assert states[0].shape == (
+                    self.num_lstm_encoder_layers,
+                    x.size(1),
+                    self.lstm_hidden_size,
+                )
+                # for cell state
+                assert states[1].shape == (
+                    self.num_lstm_encoder_layers,
+                    x.size(1),
+                    self.lstm_hidden_size,
+                )
+            x, new_states = self.lstm_encoder(x, states)
 
         x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
-        return x, lengths
+        return x, lengths, new_states
+
+    @torch.jit.export
+    def get_init_states(
+        self, batch_size: int = 1, device: torch.device = torch.device("cpu")
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get model initial states."""
+        hidden_states = torch.zeros(
+            (
+                self.num_lstm_encoder_layers,
+                batch_size,
+                self.lstm_hidden_size,
+            ),
+            device=device,
+        )
+        cell_states = torch.zeros(
+            (
+                self.num_lstm_encoder_layers,
+                batch_size,
+                self.lstm_hidden_size,
+            ),
+            device=device,
+        )
+        return (hidden_states, cell_states)
 
 
 class Conv2dSubsampling(torch.nn.Module):
@@ -542,6 +598,66 @@ class GlobalCNNEncoderLayer(nn.Module):
         return out.permute(2, 0, 1)  # (N, C, T) -> (T, N, C)
 
 
+def unstack_states(
+    states: Tuple[torch.Tensor, torch.Tensor]
+) -> List[Tuple[torch.Tensor, torch.Tensor]]:
+    """
+    Unstack the lstm states corresponding to a batch of utterances into a list
+    of states, where the i-th entry is the state from the i-th utterance.
+
+    Args:
+      states:
+        A tuple of 2 elements.
+        ``states[0]`` is the lstm hidden states, of a batch of utterance.
+        ``states[1]`` is the lstm cell states, of a batch of utterances.
+
+    Returns:
+      A list of states.
+        ``states[i]`` is a tuple of 2 elememts of i-th utterance.
+        ``states[i][0]`` is the lstm hidden states of i-th utterance.
+        ``states[i][1]`` is the lstm cell states of i-th utterance.
+    """
+    hidden_states, cell_states = states
+
+    list_hidden_states = hidden_states.unbind(dim=1)
+    list_cell_states = cell_states.unbind(dim=1)
+
+    ans = [
+        (h.unsqueeze(1), c.unsqueeze(1))
+        for (h, c) in zip(list_hidden_states, list_cell_states)
+    ]
+    return ans
+
+
+def stack_states(
+    states_list: List[Tuple[torch.Tensor, torch.Tensor]]
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Stack list of lstm states corresponding to separate utterances into a single
+    lstm state so that it can be used as an input for lstm when those utterances
+    are formed into a batch.
+
+    Args:
+      state_list:
+        Each element in state_list corresponds to the lstm state for a single
+        utterance.
+        ``states[i]`` is a tuple of 2 elememts of i-th utterance.
+        ``states[i][0]`` is the lstm hidden states of i-th utterance.
+        ``states[i][1]`` is the lstm cell states of i-th utterance.
+
+
+    Returns:
+      A new state corresponding to a batch of utterances.
+      It is a tuple of 2 elements.
+        ``states[0]`` is the lstm hidden states, of a batch of utterance.
+        ``states[1]`` is the lstm cell states, of a batch of utterances.
+    """
+    hidden_states = torch.cat([s[0] for s in states_list], dim=1)
+    cell_states = torch.cat([s[1] for s in states_list], dim=1)
+    ans = (hidden_states, cell_states)
+    return ans
+
+
 class LstmEncoder(nn.Module):
     """
     LstmEncoder is made up of lstm and feedforward networks.
@@ -600,8 +716,27 @@ class LstmEncoder(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         warmup: float = 1.0,
     ) -> torch.Tensor:
+        """
+        Pass the input through the lstm encoder layer
+
+        Args:
+          x:
+            The sequence to the lstm encoder layer (required).
+            Its shape is (S, N, E), where S is the sequence length,
+            N is the batch size, and E is the feature number.
+          states:
+            A tuple of 2 tensors (optional). It is for streaming inference.
+            states[0] is the hidden states of all layers,
+              with shape of (1, N, lstm_hidden_size);
+            states[1] is the cell states of all layers,
+              with shape of (1, N, lstm_hidden_size).
+          warmup:
+            It controls selective bypass of of layers; if < 1.0, we will
+            bypass layers more frequently.
+        """
         for i, mod in enumerate(self.layers):
             src = x
 
@@ -617,29 +752,25 @@ class LstmEncoder(nn.Module):
             else:
                 alpha = 1.0
 
-            if i == 0:
-                device = x.device
-                h = torch.zeros(
-                    (
-                        1,
-                        x.size(1),
-                        self.hidden_size,
-                    ),
-                ).to(device)
-                c = torch.zeros(
-                    (
-                        1,
-                        x.size(1),
-                        self.hidden_size,
-                    ),
-                ).to(device)
-            x, (h, c) = mod(x, (h, c))
+            if states is None:
+                x = mod(x)[0]
+                new_states = (torch.empty(0), torch.empty(0))
+            else:
+                assert not self.training
+                assert len(states) == 2
+                if not torch.jit.is_tracing():
+                    # for hidden state
+                    assert states[0].shape == (1, x.size(1), self.hidden_size)
+                    # for cell state
+                    assert states[1].shape == (1, x.size(1), self.hidden_size)
+                x, new_states = mod(x, states)
+
             x = self.feed_forward(x)
 
             if alpha != 1.0:
                 x = alpha * x + (1 - alpha) * src
 
-        return x
+        return x, new_states
 
 
 class RandomCombine(nn.Module):
@@ -870,27 +1001,45 @@ def _test_random_combine_main():
     _test_random_combine(0.5, 1, 0.3)
     _test_random_combine(0.5, 0.5, 0.3)
 
-    feature_dim = 50
-    c = ConvRNNT(num_features=feature_dim, d_model=512)
+    feature_dim = 80
+    c = ConvRNNT(
+        num_features=feature_dim,
+        d_model=512,
+        num_global_cnn_encoder_layers=6,
+        lstm_hidden_size=640,
+        lstm_dim_feedforward=1024,
+        num_lstm_encoder_layers=7,
+    )
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
+        warmup=0.5,
     )
     f  # to remove flake8 warnings
 
 
 if __name__ == "__main__":
-    feature_dim = 50
-    c = ConvRNNT(num_features=feature_dim, d_model=512)
+    feature_dim = 80
+    c = ConvRNNT(
+        num_features=feature_dim,
+        d_model=512,
+        num_global_cnn_encoder_layers=6,
+        lstm_hidden_size=640,
+        lstm_dim_feedforward=1024,
+        num_lstm_encoder_layers=7,
+    )
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
+        warmup=0.5,
     )
+    num_param = sum([p.numel() for p in c.parameters()])
+    print(f"Number of model parameters: {num_param}")
 
     _test_random_combine_main()

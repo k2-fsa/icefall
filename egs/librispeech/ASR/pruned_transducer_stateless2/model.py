@@ -81,7 +81,6 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         reduction: str = "sum",
-        delay_penalty: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -109,12 +108,6 @@ class Transducer(nn.Module):
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
-          delay_penalty:
-            A constant value used to penalize symbol delay, to encourage
-            streaming models to emit symbols earlier.
-            See https://github.com/k2-fsa/k2/issues/955 and
-            https://arxiv.org/pdf/2211.00490.pdf for more details.
-        Returns:
         Returns:
           Return the transducer loss.
 
@@ -131,7 +124,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens, _ = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -171,7 +164,6 @@ class Transducer(nn.Module):
                 am_only_scale=am_scale,
                 boundary=boundary,
                 reduction=reduction,
-                delay_penalty=delay_penalty,
                 return_grad=True,
             )
 
@@ -204,7 +196,6 @@ class Transducer(nn.Module):
                 ranges=ranges,
                 termination_symbol=blank_id,
                 boundary=boundary,
-                delay_penalty=delay_penalty,
                 reduction=reduction,
             )
 
