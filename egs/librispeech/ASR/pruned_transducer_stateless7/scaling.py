@@ -418,7 +418,7 @@ def ScaledLinear(*args,
 
 def ScaledConv1d(*args,
                  initial_scale: float = 1.0,
-                 **kwargs ) -> nn.Linear:
+                 **kwargs ) -> nn.Conv1d:
     """
     Behaves like a constructor of a modified version of nn.Conv1d
     that gives an easy way to set the default initial parameter scale.
