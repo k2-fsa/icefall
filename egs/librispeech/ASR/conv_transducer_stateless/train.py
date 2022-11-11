@@ -98,7 +98,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=int,
-        default=1024,
+        default=512,
         help="Embedding dimension in the convrnnt encoder layer.",
     )
 
@@ -653,7 +653,9 @@ def compute_loss(
         # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
         # (2) If some utterances in the batch lead to inf/nan loss, they
         #     are filtered out.
-        info["frames"] = ((feature_lens).sum().item())
+        info["frames"] = (
+            (feature_lens).sum().item()
+        )
 
     # `utt_duration` and `utt_pad_proportion` would be normalized
     #  by `utterances`

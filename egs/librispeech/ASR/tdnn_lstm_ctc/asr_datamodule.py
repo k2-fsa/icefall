@@ -24,7 +24,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    load_manifest,
+    load_manifest_lazy
+)
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
@@ -294,7 +300,7 @@ class LibriSpeechAsrDataModule:
             # Speed perturbation probably should come first before
             # concatenation, but in principle the transforms order doesn't have
             # to be strict (e.g. could be randomized)
-            # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
+            # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,

@@ -4,14 +4,6 @@ from typing import List, Optional, Tuple
 
 import torch
 from encoder_interface import EncoderInterface
-from scaling import (
-    ActivationBalancer,
-    BasicNorm,
-    DoubleSwish,
-    ScaledConv1d,
-    ScaledConv2d,
-    ScaledLinear,
-)
 from torch import nn
 
 from icefall.utils import make_pad_mask
@@ -31,15 +23,17 @@ class ConvRNNT(EncoderInterface):
           If set to 0, will not use the random combiner (Default).
           You can set a positive integer to use the random combiner, e.g., 3.
         causal (bool): Whether to use causal convolution in ConvRNNT encoder
-            layer.
+          layer.
     """
 
     def __init__(
         self,
-        num_features: int,
+        num_features: int = 80,
         d_model: int = 512,
-        local_cnn_encoder_kernel_size: int = 5,
         num_global_cnn_encoder_layers: int = 6,
+        num_lstm_encoder_layers: int = 7,
+        lstm_hidden_size: int = 640,
+        lstm_dim_feedforward: int = 1024,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
@@ -50,8 +44,6 @@ class ConvRNNT(EncoderInterface):
         self.num_features = num_features
         self.d_model = d_model
         self.causal = causal
-        self.encoder_layers = num_global_cnn_encoder_layers
-
         # self.encoder_embed converts the input of shape (N, T, num_features)
         # to the shape (N, T, d_model).
         # That is, it does only one thing:
@@ -59,7 +51,6 @@ class ConvRNNT(EncoderInterface):
         self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
         self.local_cnn_encoder = LocalCNNEncoder(
-            kernel_size=local_cnn_encoder_kernel_size,
             causal=causal,
         )
 
@@ -68,21 +59,25 @@ class ConvRNNT(EncoderInterface):
             channels=d_model,
             dropout=dropout,
             num_layers=num_global_cnn_encoder_layers,
-            aux_layers=list(
-                range(
-                    num_global_cnn_encoder_layers // 3,
-                    num_global_cnn_encoder_layers - 1,
-                    aux_layer_period,
-                )
-            )
-            if aux_layer_period > 0
-            else None,
             causal=causal,
         )
-        self._init_state: List[torch.Tensor] = [torch.empty(0)]
+
+        self.transform = nn.Linear(2 * d_model, d_model)
+
+        self.lstm_encoder = LstmEncoder(
+            d_model=d_model,
+            hidden_size=lstm_hidden_size,
+            num_layers=num_lstm_encoder_layers,
+            dropout=dropout,
+            layer_dropout=layer_dropout,
+            dim_feedforward=lstm_dim_feedforward,
+        )
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -95,6 +90,7 @@ class ConvRNNT(EncoderInterface):
             A floating point value that gradually increases from 0 throughout
             training; when it is >= 1.0 we are "fully warmed up".  It is used
             to turn modules on sequentially.
+
         Returns:
           Return a tuple containing 2 tensors:
             - embeddings: its shape is (batch_size, output_seq_len, d_model)
@@ -116,41 +112,53 @@ class ConvRNNT(EncoderInterface):
         x = self.global_cnn_encoder(
             src_x,
             src_key_padding_mask=src_key_padding_mask,
-            warmup=warmup,
         )  # (T, N, C)
 
-        x = torch.cat((src_x, x), dim=2)
+        x = self.transform(torch.cat((src_x, x), dim=2))
+
+        x = self.lstm_encoder(x, warmup=warmup)
+
         x = x.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
         return x, lengths
 
-    @torch.jit.export
-    def get_init_state(self, device: torch.device) -> List[torch.Tensor]:
-        """Return the initial cache state of the model.
+
+class Conv2dSubsampling(torch.nn.Module):
+    """Convolutional 2D subsampling (to 1/4 length).
+    Args:
+        idim (int): Input dimension.
+        odim (int): Output dimension.
+        dropout_rate (float): Dropout rate.
+        pos_enc (torch.nn.Module): Custom position encoding layer.
+    """
+
+    def __init__(self, idim, odim, dropout_rate=0.1):
+        """Construct an Conv2dSubsampling object."""
+        super(Conv2dSubsampling, self).__init__()
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv2d(1, odim, 3, 2),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(odim, odim, 3, 2),
+            torch.nn.ReLU(),
+        )
+        self.out = torch.nn.Sequential(
+            torch.nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim),
+        )
+
+    def forward(self, x):
+        """Subsample x.
+        Args:
+            x (torch.Tensor): Input tensor (#batch, time, idim).
+
         Returns:
-          Return the initial state of the model, it is a list containing one
-          tensors, which is the cache of conv_modules which has a shape of
-          (num_global_cnn_encoder_layers, encoder_dim).
-          NOTE: the returned tensors are on the given device.
+            torch.Tensor: Subsampled tensor (#batch, time', odim),
+                where time' = time // 4.
         """
-        if len(self._init_state) == 2:
-            # Note: It is OK to share the init state as it is
-            # not going to be modified by the model
-            return self._init_state
-
-        init_states: List[torch.Tensor] = [
-            torch.zeros(
-                (
-                    self.encoder_layers,
-                    self.d_model,
-                ),
-                device=device,
-            ),
-        ]
-
-        self._init_state = init_states
-
-        return init_states
+        x = x.unsqueeze(1)  # (b, c, t, f)
+        x = self.conv(x)
+        b, c, t, f = x.size()
+        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
+        return x
 
 
 class GlobalCNNEncoder(nn.Module):
@@ -160,8 +168,6 @@ class GlobalCNNEncoder(nn.Module):
         encoder_layer: instance of GlobalCNNEncoderLayer() class (required)
         num_layers: the number of sub-encoder-layers
          in the GlobalCNNEncoder (required).
-        warmup: controls selective bypass of of layers; if < 1.0, we will
-            bypass layers more frequently.
 
     Examples::
         >>> encoder_layer = GlobalCNNEncoderLayer(d_model=512)
@@ -179,7 +185,6 @@ class GlobalCNNEncoder(nn.Module):
         num_layers: int = 6,
         aux_layers: Optional[List[int]] = None,
         causal: bool = True,
-        warmup: float = 1.0,
     ) -> None:
         super().__init__()
         self.layers = nn.ModuleList(
@@ -190,7 +195,6 @@ class GlobalCNNEncoder(nn.Module):
                     kernel_size=kernel_size,
                     dropout=dropout,
                     causal=causal,
-                    warmup=warmup,
                 )
                 for i in range(num_layers)
             ]
@@ -215,7 +219,6 @@ class GlobalCNNEncoder(nn.Module):
         src: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
-        warmup: float = 1.0,
     ) -> torch.Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -236,66 +239,13 @@ class GlobalCNNEncoder(nn.Module):
         """
         output = src
 
-        outputs = []
-
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
                 src_key_padding_mask=src_key_padding_mask,
             )
 
-            if self.combiner is not None and i in self.aux_layers:
-                outputs.append(output)
-
-        if self.combiner is not None:
-            output = self.combiner(outputs)
-
         return output
-
-
-class SEModule(nn.Module):
-    """SE Module as defined in original SE-Nets with a few additions
-    Modified from rwightman`s squeeze_excite.py
-    """
-
-    def __init__(
-        self,
-        channels,
-        rd_ratio=1.0 / 16,
-        rd_channels=None,
-        rd_divisor=8,
-        add_maxpool=False,
-        bias=True,
-    ):
-        super(SEModule, self).__init__()
-        self.add_maxpool = add_maxpool
-        if not rd_channels:
-            rd_channels = self.make_divisible(
-                channels * rd_ratio, rd_divisor, round_limit=0.0
-            )
-        self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
-        self.act = nn.ReLU(inplace=True)
-        self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
-        self.gate = nn.Sigmoid()
-
-    def forward(self, x, src_key_padding_mask):
-        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
-        x_se_num = x_se_num.unsqueeze(1)
-        x_se = x.sum(axis=2, keepdim=True) / x_se_num
-        if self.add_maxpool:
-            x_se = 0.5 * x_se + 0.5 * x.amax(2, keepdim=True)
-        x_se = self.fc1(x_se)
-        x_se = self.act(x_se)
-        x_se = self.fc2(x_se)
-        return x * self.gate(x_se)
-
-    def make_divisible(self, v, divisor=8, min_value=None, round_limit=0.9):
-        min_value = min_value or divisor
-        new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
-        # Make sure that round down does not go down by more than 10%.
-        if new_v < round_limit * v:
-            new_v += divisor
-        return new_v
 
 
 class LocalCNNEncoder(nn.Module):
@@ -325,7 +275,7 @@ class LocalCNNEncoder(nn.Module):
         if self.causal:
             padding = 0
 
-        self.conv1 = ScaledConv2d(
+        self.conv1 = nn.Conv2d(
             1,
             100,
             kernel_size=kernel_size,
@@ -334,11 +284,7 @@ class LocalCNNEncoder(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer1 = ActivationBalancer(
-            channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv2 = ScaledConv2d(
+        self.conv2 = nn.Conv2d(
             100,
             100,
             kernel_size=kernel_size,
@@ -347,11 +293,7 @@ class LocalCNNEncoder(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv3 = ScaledConv2d(
+        self.conv3 = nn.Conv2d(
             100,
             64,
             kernel_size=kernel_size,
@@ -360,11 +302,7 @@ class LocalCNNEncoder(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer3 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
-
-        self.conv4 = ScaledConv2d(
+        self.conv4 = nn.Conv2d(
             64,
             64,
             kernel_size=kernel_size,
@@ -373,13 +311,9 @@ class LocalCNNEncoder(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer4 = ActivationBalancer(
-            channel_dim=1, min_positive=0.05, max_positive=1.0
-        )
+        self.activation = nn.ReLU()
 
-        self.activation = DoubleSwish()
-
-        self.conv5 = ScaledConv2d(
+        self.conv5 = nn.Conv2d(
             64,
             1,
             kernel_size=1,
@@ -415,7 +349,6 @@ class LocalCNNEncoder(nn.Module):
             # manualy padding self.lorder zeros to the left
             x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
         x = self.conv1(x)
-        x = self.deriv_balancer1(x)
         x = self.activation(x)
 
         # Conv2
@@ -424,7 +357,6 @@ class LocalCNNEncoder(nn.Module):
             # manualy padding self.lorder zeros to the left
             x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
         x = self.conv2(x)
-        x = self.deriv_balancer2(x)
         x = self.activation(x)
 
         # Conv3
@@ -433,7 +365,6 @@ class LocalCNNEncoder(nn.Module):
             # manualy padding self.lorder zeros to the left
             x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
         x = self.conv3(x)
-        x = self.deriv_balancer3(x)
         x = self.activation(x)
 
         # Conv4
@@ -442,13 +373,53 @@ class LocalCNNEncoder(nn.Module):
             # manualy padding self.lorder zeros to the left
             x = nn.functional.pad(x, (self.lorder, 0), "constant", 0.0)
         x = self.conv4(x)
-        x = self.deriv_balancer4(x)
         x = self.activation(x)
         # Conv5
         # (N, 64, C, T) -> (N, 1, C, T) -> (N, C, T)
         x = self.conv5(x)
         x = x.squeeze(1).permute(2, 0, 1)
         return x
+
+
+class SEModule(nn.Module):
+    """SE Module as defined in original SE-Nets with a few additions
+    Modified from rwightman`s squeeze_excite.py
+    """
+
+    def __init__(
+        self,
+        channels,
+        rd_ratio=1.0 / 16,
+        rd_channels=None,
+        rd_divisor=8,
+        bias=True,
+    ):
+        super(SEModule, self).__init__()
+        if not rd_channels:
+            rd_channels = self.make_divisible(
+                channels * rd_ratio, rd_divisor, round_limit=0.0
+            )
+        self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
+        self.act = nn.ReLU(inplace=True)
+        self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
+        self.gate = nn.Sigmoid()
+
+    def forward(self, x, src_key_padding_mask):
+        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
+        x_se_num = x_se_num.unsqueeze(1)
+        x_se = x.sum(axis=2, keepdim=True) / x_se_num
+        x_se = self.fc1(x_se)
+        x_se = self.act(x_se)
+        x_se = self.fc2(x_se)
+        return x * self.gate(x_se)
+
+    def make_divisible(self, v, divisor=8, min_value=None, round_limit=0.9):
+        min_value = min_value or divisor
+        new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+        # Make sure that round down does not go down by more than 10%.
+        if new_v < round_limit * v:
+            new_v += divisor
+        return new_v
 
 
 class GlobalCNNEncoderLayer(nn.Module):
@@ -473,7 +444,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         layer_dropout: float = 0.075,
         bias: bool = True,
         causal: bool = True,
-        warmup: float = 1.0,
     ) -> None:
         """Construct an GlobalCNNEncoder object."""
         super().__init__()
@@ -481,11 +451,10 @@ class GlobalCNNEncoderLayer(nn.Module):
         assert (kernel_size - 1) % 2 == 0
 
         self.causal = causal
-        self.warmup = warmup
         self.layer_dropout = layer_dropout
         self.block_number = block_number
 
-        self.pointwise_conv1 = ScaledConv1d(
+        self.pointwise_conv1 = nn.Conv1d(
             channels,
             2 * channels,
             kernel_size=1,
@@ -494,50 +463,36 @@ class GlobalCNNEncoderLayer(nn.Module):
             bias=bias,
         )
 
-        self.deriv_balancer1 = ActivationBalancer(
-            channel_dim=1,
-            max_abs=10.0,
-            min_positive=0.05,
-            max_positive=1.0,
-        )
-
         self.lorder = kernel_size - 1
         padding = (kernel_size - 1) // 2
         if self.causal:
             padding = 0
 
-        self.depthwise_conv = ScaledConv1d(
-            channels,
+        self.depthwise_conv = nn.Conv1d(
+            2 * channels,
             channels,
             kernel_size=kernel_size,
             stride=1,
             padding=padding,
             groups=channels,
             bias=bias,
-            dilation=2 ** block_number,
+            dilation=2 ** block_number
         )
 
-        self.deriv_balancer2 = ActivationBalancer(
-            channel_dim=1,
-            min_positive=0.05,
-            max_positive=1.0,
-        )
-
-        self.activation = DoubleSwish()
-
-        self.pointwise_conv2 = ScaledConv1d(
+        self.pointwise_conv2 = nn.Conv1d(
             channels,
             channels,
             kernel_size=1,
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.25,
         )
 
         self.SE = SEModule(channels=channels)
+        self.activation = nn.ReLU()
         self.Dropout = nn.Dropout(dropout)
-        self.out_norm = BasicNorm(channels, learn_eps=False)
+        self.out_norm1 = nn.BatchNorm1d(2 * channels)
+        self.out_norm2 = nn.BatchNorm1d(channels)
 
     def forward(
         self,
@@ -549,8 +504,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         Args:
             x: Input tensor (#time, batch, channels).
             src_key_padding_mask: the mask for src keys per batch (optional)
-            warmup: controls selective bypass of of layers; if < 1.0, we will
-              bypass layers more frequently.
 
         Returns:
             torch.Tensor: Output tensor (#time, batch, channels).
@@ -559,25 +512,10 @@ class GlobalCNNEncoderLayer(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time)
         out = x
 
-        warmup_scale = min(0.1 + self.warmup, 1.0)
-        # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
-        # completely bypass it.
-        if self.training:
-            alpha = (
-                warmup_scale
-                if torch.rand(()).item() <= (1.0 - self.layer_dropout)
-                else 0.1
-            )
-        else:
-            alpha = 1.0
-
         # GLU mechanism
         out = self.pointwise_conv1(out)  # (batch, 2*channels, time)
-        out = self.deriv_balancer1(out)
-        out = nn.functional.glu(out, dim=1)  # (batch, channels, time)
-        out = out.permute(0, 2, 1)  # (#batch, time, channels)
-        out = self.out_norm(out)
-        out = out.permute(0, 2, 1)  # (#batch, channels, time)
+        out = self.activation(out)
+        out = self.out_norm1(out)
 
         # 1D Depthwise Conv
         if src_key_padding_mask is not None:
@@ -594,110 +532,113 @@ class GlobalCNNEncoderLayer(nn.Module):
                 0.0,
             )
         out = self.depthwise_conv(out)
-        out = self.deriv_balancer2(out)
         out = self.activation(out)
-        out = out.permute(0, 2, 1)  # (#batch, time, channels)
-        out = self.out_norm(out)
-        out = out.permute(0, 2, 1)  # (#batch, channels, time)
+        out = self.out_norm2(out)
 
         out = self.pointwise_conv2(out)  # (batch, channel, time)
         out = self.SE(out, src_key_padding_mask)
         out = self.Dropout(out) + x
 
-        if alpha != 1.0:
-            out = alpha * out + (1 - alpha) * x
-
         return out.permute(2, 0, 1)  # (N, C, T) -> (T, N, C)
 
 
-class Conv2dSubsampling(nn.Module):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    Convert an input of shape (N, T, idim) to an output
-    with shape (N, T', odim), where
-    T' = ((T-1)//2 - 1)//2, which approximates T' == T//4
+class LstmEncoder(nn.Module):
     """
+    LstmEncoder is made up of lstm and feedforward networks.
 
+    Args:
+      d_model:
+        The number of expected features in the input.(default=512)
+      hidden_size:
+        The hidden dimension of lstm layer.(default=640)
+      num_layers:
+        The number of lstm layers in the lstm encoder.(default=7)
+      dropout:
+        The dropout value (default=0.1)
+      layer_dropout:
+        The dropout value for model-level warmup (default=0.075)
+      dim_feedforward:
+        The dimension of feedforward network model (default=1024)
+    """
     def __init__(
         self,
-        in_channels: int,
-        out_channels: int,
-        layer1_channels: int = 8,
-        layer2_channels: int = 32,
-        layer3_channels: int = 128,
+        d_model: int = 512,
+        hidden_size: int = 640,
+        num_layers: int = 7,
+        dropout: float = 0.1,
+        layer_dropout: float = 0.075,
+        bidirectional: bool = False,
+        dim_feedforward: int = 1024,
     ) -> None:
-        """
-        Args:
-          in_channels:
-            Number of channels in. The input shape is (N, T, in_channels).
-            Caution: It requires: T >=7, in_channels >=7
-          out_channels
-            Output dim. The output shape is (N, ((T-1)//2 - 1)//2, out_channels)
-          layer1_channels:
-            Number of channels in layer1
-          layer1_channels:
-            Number of channels in layer2
-        """
-        assert in_channels >= 7
         super().__init__()
+        self.layer_dropout = layer_dropout
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
 
-        self.conv = nn.Sequential(
-            ScaledConv2d(
-                in_channels=1,
-                out_channels=layer1_channels,
-                kernel_size=3,
-                padding=1,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-            ScaledConv2d(
-                in_channels=layer1_channels,
-                out_channels=layer2_channels,
-                kernel_size=3,
-                stride=2,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-            ScaledConv2d(
-                in_channels=layer2_channels,
-                out_channels=layer3_channels,
-                kernel_size=3,
-                stride=2,
-            ),
-            ActivationBalancer(channel_dim=1),
-            DoubleSwish(),
-        )
-        self.out = ScaledLinear(
-            layer3_channels * (((in_channels - 1) // 2 - 1) // 2), out_channels
-        )
-        # set learn_eps=False because out_norm is preceded by `out`, and `out`
-        # itself has learned scale, so the extra degree of freedom is not
-        # needed.
-        self.out_norm = BasicNorm(out_channels, learn_eps=False)
-        # constrain median of output to be close to zero.
-        self.out_balancer = ActivationBalancer(
-            channel_dim=-1, min_positive=0.45, max_positive=0.55
+        assert hidden_size >= d_model, (hidden_size, d_model)
+        self.layers = nn.ModuleList(
+            [
+                nn.LSTM(
+                    input_size=d_model,
+                    hidden_size=hidden_size,
+                    num_layers=1,
+                    batch_first=False,
+                    dropout=0.0,
+                    bidirectional=bidirectional,
+                )
+                for i in range(num_layers)
+            ]
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Subsample x.
+        self.feed_forward = nn.Sequential(
+            nn.Linear(hidden_size, dim_feedforward),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim_feedforward, d_model),
+        )
 
-        Args:
-          x:
-            Its shape is (N, T, idim).
+    def forward(
+        self,
+        x: torch.Tensor,
+        warmup: float = 1.0,
+    ) -> torch.Tensor:
+        for i, mod in enumerate(self.layers):
+            src = x
 
-        Returns:
-          Return a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
-        """
-        # On entry, x is (N, T, idim)
-        x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
-        x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
-        x = self.out_norm(x)
-        x = self.out_balancer(x)
+            warmup_scale = min(0.1 + warmup, 1.0)
+            # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
+            # completely bypass it.
+            if self.training:
+                alpha = (
+                    warmup_scale
+                    if torch.rand(()).item() <= (1.0 - self.layer_dropout)
+                    else 0.1
+                )
+            else:
+                alpha = 1.0
+
+            if i == 0:
+                device = x.device
+                h = torch.zeros(
+                    (
+                        1,
+                        x.size(1),
+                        self.hidden_size,
+                    ),
+                ).to(device)
+                c = torch.zeros(
+                    (
+                        1,
+                        x.size(1),
+                        self.hidden_size,
+                    ),
+                ).to(device)
+            x, (h, c) = mod(x, (h, c))
+            x = self.feed_forward(x)
+
+            if alpha != 1.0:
+                x = alpha * x + (1 - alpha) * src
+
         return x
 
 
@@ -950,7 +891,6 @@ if __name__ == "__main__":
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
-        warmup=0.5,
     )
 
     _test_random_combine_main()
