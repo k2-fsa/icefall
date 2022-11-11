@@ -708,7 +708,7 @@ class DownsamplingZipformerEncoder(nn.Module):
                  input_dim: int,
                  output_dim: int,
                  downsample: int):
-        super(DownsampledZipformerEncoder, self).__init__()
+        super(DownsamplingZipformerEncoder, self).__init__()
         self.downsample_factor = downsample
         self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
         self.encoder = encoder
