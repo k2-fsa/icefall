@@ -772,7 +772,18 @@ class LstmEncoder(nn.Module):
 
             # LSTM module
             if states is None:
-                new_states = (torch.empty(0), torch.empty(0))
+                new_states = (
+                    torch.zeros(
+                        1,
+                        output.size(1),
+                        self.hidden_size,
+                    ),
+                    torch.zeros(
+                        1,
+                        output.size(1),
+                        self.hidden_size,
+                    )
+                )
                 output = mod(output, new_states)[0]
             else:
                 layer_state = (
@@ -805,7 +816,18 @@ class LstmEncoder(nn.Module):
                 output = alpha * output + (1 - alpha) * x
         
         if states is None:
-            new_states = (torch.empty(0), torch.empty(0))
+            new_states = (
+                torch.zeros(
+                    1,
+                    output.size(1),
+                    self.hidden_size,
+                ),
+                torch.zeros(
+                    1,
+                    output.size(1),
+                    self.hidden_size,
+                )
+            )
         else:
             new_states = (
                 torch.cat(new_hidden_states, dim=0),
