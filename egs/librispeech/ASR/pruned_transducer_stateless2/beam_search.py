@@ -2083,7 +2083,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
                     log_prob=hyp_log_prob,
                     state=state,
                     lm_score=lm_score,
-                    timestampe=new_timestamp,
+                    timestamp=new_timestamp,
                 )
                 B[i].add(new_hyp)
 
