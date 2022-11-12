@@ -103,7 +103,7 @@ class Decoder(nn.Module):
         y = y.to(torch.int64)
         # this stuff about clamp() is a temporary fix for a mismatch
         # at utterance start, we use negative ids in beam_search.py
-        if torch.jit.trace():
+        if torch.jit.is_tracing():
             # This is for exporting to PNNX via ONNX
             embedding_out = self.embedding(y)
         else:
