@@ -97,6 +97,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --decoding-method $method \
       --epoch 999 \
       --avg 1 \
+      --use-averaged-model 0 \
       --max-duration $max_duration \
       --exp-dir pruned_transducer_stateless7/exp
   done
