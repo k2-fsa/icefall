@@ -1282,7 +1282,7 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.in_proj = nn.Linear(embed_dim,
                                  num_heads * value_head_dim,
-                                 bias=False)
+                                 bias=True)
 
         # attempt to make the output of `in_proj` uncorrelated within each head
         # and all heads having roughly the same magnitude.  the hope is to
