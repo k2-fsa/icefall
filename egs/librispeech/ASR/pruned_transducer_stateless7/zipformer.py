@@ -298,7 +298,6 @@ class Zipformer(EncoderInterface):
 class ZipformerEncoderLayer(nn.Module):
     """
     ZipformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
-    See: "Zipformer: Convolution-augmented Transformer for Speech Recognition"
 
     Args:
         d_model: the number of expected features in the input (required).
@@ -729,63 +728,6 @@ class DownsampledZipformerEncoder(nn.Module):
         src = src[:src_orig.shape[0]]
 
         return self.out_combiner(src_orig, src)
-
-
-class DownsamplingZipformerEncoder(nn.Module):
-    r"""
-    DownsamplingZipformerEncoder is a zipformer encoder that downsamples its input
-    by a specified factor before feeding it to the zipformer layers.
-    """
-    def __init__(self,
-                 encoder: nn.Module,
-                 input_dim: int,
-                 output_dim: int,
-                 downsample: int):
-        super(DownsamplingZipformerEncoder, self).__init__()
-        self.downsample_factor = downsample
-        self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
-        self.encoder = encoder
-
-
-    def forward(self,
-                src: Tensor,
-                feature_mask: Union[Tensor, float] = 1.0,
-                mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        r"""Downsample, go through encoder, upsample.
-
-        Args:
-            src: the sequence to the encoder (required).
-            feature_mask: something that broadcasts with src, that we'll multiply `src`
-               by at every layer.  feature_mask is expected to be already downsampled by
-               self.downsample_factor.
-            mask: the mask for the src sequence (optional).  CAUTION: we need to downsample
-                  this, if we are to support it.  Won't work correctly yet.
-            src_key_padding_mask: the mask for the src keys per batch (optional).
-
-        Shape:
-            src: (S, N, E).
-            mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
-
-        Returns: output of shape (S, N, F) where F is the number of output features
-            (output_dim to constructor)
-        """
-        src_orig = src
-        src = self.downsample(src)
-        ds = self.downsample_factor
-        if mask is not None:
-            mask = mask[::ds,::ds]
-        if src_key_padding_mask is not None:
-            src_key_padding_mask = src_key_padding_mask[::ds]
-
-        src = self.encoder(
-            src, feature_mask=feature_mask, mask=mask, src_key_padding_mask=mask,
-        )
-        return src
-
 
 class AttentionDownsample(torch.nn.Module):
     """
