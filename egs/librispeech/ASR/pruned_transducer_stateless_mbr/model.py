@@ -15,17 +15,33 @@
 # limitations under the License.
 
 
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
 import logging
 import k2
 import torch
 import torch.nn as nn
-from encoder_interface import EncoderInterface
-from torch.distributions.categorical import Categorical
-from scaling import ScaledLinear
 
-from icefall.utils import add_sos
+from encoder_interface import EncoderInterface
+from scaling import (
+    ActivationBalancer,
+    BasicNorm,
+    DoubleSwish,
+    ScaledConv1d,
+    ScaledEmbedding,
+    ScaledLinear,
+)
+from torch.distributions.categorical import Categorical
+from transformer import (
+    PositionalEncoding,
+    TransformerDecoder,
+    TransformerDecoderLayer,
+    TransformerEncoder,
+    TransformerEncoderLayer,
+    decoder_padding_mask,
+    generate_square_subsequent_mask,
+)
+from icefall.utils import add_sos, add_eos, make_pad_mask
 
 
 def _roll_by_shifts(
@@ -72,6 +88,9 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
+        quasi_joiner: nn.Module,
+        transformer_lm: nn.Module,
+        embedding_enhancer: nn.Module,
         encoder_dim: int,
         decoder_dim: int,
         joiner_dim: int,
@@ -101,6 +120,9 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+        self.quasi_joiner = quasi_joiner
+        self.transformer_lm = transformer_lm
+        self.embedding_enhancer = embedding_enhancer
         self.decoder_dim = decoder_dim
 
         self.simple_am_proj = ScaledLinear(
@@ -361,6 +383,8 @@ class Transducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        sos_id: int,
+        eos_id: int,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -419,6 +443,7 @@ class Transducer(nn.Module):
 
         blank_id = self.decoder.blank_id
         context_size = self.decoder.context_size
+        vocab_size = self.decoder.vocab_size
         sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.
@@ -450,7 +475,7 @@ class Transducer(nn.Module):
                 lm_only_scale=lm_scale,
                 am_only_scale=am_scale,
                 boundary=boundary,
-                modified=True,
+                rnnt_type="constrained",
                 reduction=reduction,
                 return_grad=True,
             )
@@ -484,41 +509,233 @@ class Transducer(nn.Module):
                 ranges=ranges,
                 termination_symbol=blank_id,
                 boundary=boundary,
-                modified=True,
+                rnnt_type="constrained",
                 reduction=reduction,
             )
 
-        # Get contexts for each frame according to the gradients, just like we
-        # do for getting pruning bounds.
-        (B, S, T1) = px_grad.shape
-        T = py_grad.shape[-1]
-        # shape : (B, S, T)
-        tot_grad = px_grad[:, :, :T] + py_grad[:, :S, :]
-        # shape : (B, T)
-        best_idx = torch.argmax(tot_grad, dim=1)
-        # shape : (B, T, context_size)
-        state_idx = best_idx.reshape((B, T, 1)).expand(
-            (B, T, context_size)
-        ) + torch.arange(context_size, device=px_grad.device)
-        # shape : (B, context_size)
-        init_context = torch.tensor(
-            [blank_id], dtype=torch.int64, device=px_grad.device
-        ).expand(B, context_size)
-        # shape : (B, S + context_size)
-        sos_y_padded = torch.cat([init_context, y_padded], dim=1)
-        init_context = torch.gather(
-            sos_y_padded.unsqueeze(1).expand(B, T, S + context_size),
-            dim=2,
-            index=state_idx,
+        text_embedding, text_embedding_key_padding_mask = self.transformer_lm(
+            y, sos_id=sos_id, eos_id=eos_id
         )
 
-        delta_wer, wer_diff, pred_wer_diff = self.delta_wer(
-            encoder_out=encoder_out,
-            encoder_out_lens=x_lens,
-            init_context=init_context,
-            y_padded=y_padded,
-            y_lens=y_lens,
-            path_length=path_length,
+        embedding_key_padding_mask = make_pad_mask(x_lens)
+        enhanced_embedding = self.embedding_enhancer(
+            embedding=encoder_out.detach(),
+            text_embedding=text_embedding,
+            embedding_key_padding_mask=embedding_key_padding_mask,
+            text_embedding_key_padding_mask=text_embedding_key_padding_mask,
+            warmup=warmup,
         )
 
-        return (simple_loss, pruned_loss, delta_wer, wer_diff, pred_wer_diff)
+        l2_loss = (
+            torch.sum(torch.pow(enhanced_embedding - encoder_out.detach(), 2))
+            / vocab_size
+        )
+
+        if False:
+            # Get contexts for each frame according to the gradients, just like we
+            # do for getting pruning bounds.
+            (B, S, T1) = px_grad.shape
+            T = py_grad.shape[-1]
+            # shape : (B, S, T)
+            tot_grad = px_grad[:, :, :T] + py_grad[:, :S, :]
+            # shape : (B, T)
+            best_idx = torch.argmax(tot_grad, dim=1)
+            # shape : (B, T, context_size)
+            state_idx = best_idx.reshape((B, T, 1)).expand(
+                (B, T, context_size)
+            ) + torch.arange(context_size, device=px_grad.device)
+            # shape : (B, context_size)
+            init_context = torch.tensor(
+                [blank_id], dtype=torch.int64, device=px_grad.device
+            ).expand(B, context_size)
+            # shape : (B, S + context_size)
+            sos_y_padded = torch.cat([init_context, y_padded], dim=1)
+            init_context = torch.gather(
+                sos_y_padded.unsqueeze(1).expand(B, T, S + context_size),
+                dim=2,
+                index=state_idx,
+            )
+
+            delta_wer, wer_diff, pred_wer_diff = self.delta_wer(
+                encoder_out=encoder_out,
+                encoder_out_lens=x_lens,
+                init_context=init_context,
+                y_padded=y_padded,
+                y_lens=y_lens,
+                path_length=path_length,
+            )
+
+            return (
+                simple_loss,
+                pruned_loss,
+                delta_wer,
+                wer_diff,
+                pred_wer_diff,
+            )
+
+        return (simple_loss, pruned_loss, l2_loss)
+
+
+class TransformerLM(nn.Module):
+    def __init__(
+        self,
+        num_classes: int,
+        d_model: int = 256,
+        nhead: int = 4,
+        dim_feedforward: int = 2048,
+        num_encoder_layers: int = 3,
+        dropout: float = 0.1,
+        layer_dropout: float = 0.075,
+    ) -> None:
+        """
+        Args:
+          num_classes:
+            The output dimension of the model.
+          d_model:
+            Attention dimension.
+          nhead:
+            Number of heads in multi-head attention.
+            Must satisfy d_model // nhead == 0.
+          dim_feedforward:
+            The output dimension of the feedforward layers in encoder/decoder.
+          num_encoder_layers:
+            Number of encoder layers.
+          dropout:
+            Dropout in encoder/decoder.
+          layer_dropout (float): layer-dropout rate.
+        """
+        super().__init__()
+
+        self.num_classes = num_classes
+
+        self.encoder_pos = PositionalEncoding(d_model, dropout)
+
+        self.embed = ScaledEmbedding(
+            num_embeddings=self.num_classes, embedding_dim=d_model
+        )
+
+        encoder_layer = TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            layer_dropout=layer_dropout,
+        )
+
+        self.encoder = TransformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=num_encoder_layers,
+        )
+
+        self.encoder_output_layer = ScaledLinear(
+            d_model, num_classes, bias=True
+        )
+
+    def forward(
+        self,
+        y: k2.RaggedTensor,
+        sos_id: int,
+        eos_id: int,
+        warmup: float = 1.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
+
+        Returns:
+          Return a tuple containing 2 tensors:
+            - Encoder output with shape (T, N, C). It can be used as key and
+              value for the decoder.
+            - Encoder output padding mask. It can be used as
+              memory_key_padding_mask for the decoder. Its shape is (N, T).
+        """
+        assert y.num_axes == 2, y.num_axes
+
+        device = y.device
+
+        sos_y = add_sos(y, sos_id=sos_id)
+        sos_y_padded = sos_y.pad(mode="constant", padding_value=sos_id)
+        y_eos = add_eos(y, eos_id=eos_id)
+        y_eos_padded = y_eos.pad(mode="constant", padding_value=eos_id)
+
+        att_mask = generate_square_subsequent_mask(y_eos_padded.shape[-1]).to(
+            device
+        )
+
+        key_padding_mask = decoder_padding_mask(y_eos_padded, ignore_id=eos_id)
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        key_padding_mask[:, 0] = False
+
+        x = self.embed(sos_y_padded)
+        x = self.encoder_pos(x)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+        x = self.encoder(
+            x,
+            mask=att_mask,
+            src_key_padding_mask=key_padding_mask,
+            warmup=warmup,
+        )  # (T, N, C)
+
+        return x, key_padding_mask
+
+
+class EmbeddingEnhancer(nn.Module):
+    """
+    Enhance the encoder embedding to "knows about" the text as well as the acoustics.
+    """
+
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int = 2048,
+        num_layers: int = 4,
+        dropout: float = 0.1,
+        layer_dropout: float = 0.075,
+    ):
+        super().__init__()
+        self.encoder_pos = PositionalEncoding(d_model, dropout)
+        decoder_layer = TransformerDecoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            layer_dropout=layer_dropout,
+        )
+        self.enhancer = TransformerDecoder(decoder_layer, num_layers)
+
+    def forward(
+        self,
+        embedding: torch.Tensor,
+        text_embedding: torch.Tensor,
+        embedding_mask: Optional[torch.Tensor] = None,
+        text_embedding_mask: Optional[torch.Tensor] = None,
+        embedding_key_padding_mask: Optional[torch.Tensor] = None,
+        text_embedding_key_padding_mask: Optional[torch.Tensor] = None,
+        mask_proportion: float = 0.25,
+        warmup: float = 1.0,
+    ):
+        N, T, C = embedding.shape
+        mask = torch.randn((N, T, C), device=embedding.device)
+        mask = mask > mask_proportion
+        masked_embedding = torch.masked_fill(embedding, ~mask, 0.0)
+        masked_embedding = self.encoder_pos(masked_embedding)
+        masked_embedding = masked_embedding.permute(1, 0, 2)
+
+        enhanced_embedding = self.enhancer(
+            tgt=masked_embedding,
+            memory=text_embedding,
+            tgt_mask=embedding_mask,
+            memory_mask=embedding_mask,
+            tgt_key_padding_mask=embedding_key_padding_mask,
+            memory_key_padding_mask=text_embedding_key_padding_mask,
+            warmup=warmup,
+        )
+
+        # shape: (N, T, C)
+        enhanced_embedding = enhanced_embedding.permute(1, 0, 2)
+        return enhanced_embedding

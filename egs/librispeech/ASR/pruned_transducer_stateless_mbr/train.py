@@ -77,7 +77,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
+from model import Transducer, TransformerLM, EmbeddingEnhancer
 from optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
@@ -139,6 +139,20 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=4,
         help="How many left context can be seen in chunks when calculating attention.",
+    )
+
+    parser.add_argument(
+        "--num-lm-layers",
+        type=int,
+        default=3,
+        help="The number of layers for transformer language model",
+    )
+
+    parser.add_argument(
+        "--num-enhancer-layers",
+        type=int,
+        default=3,
+        help="The number of layers of embedding enhancer model",
     )
 
 
@@ -349,6 +363,13 @@ def get_parser():
         help="The scale applying to delta_wer when it adds to the loss",
     )
 
+    parser.add_argument(
+        "--l2-loss-scale",
+        type=float,
+        default=0.1,
+        help="The scale applying to l2_loss of embedding and enhanced_embedding",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -465,15 +486,42 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_transformer_lm(params: AttributeDict) -> nn.Module:
+    lm = TransformerLM(
+        num_classes=params.vocab_size,
+        d_model=params.encoder_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_lm_layers,
+    )
+    return lm
+
+
+def get_embedding_enhancer(params: AttributeDict) -> nn.Module:
+    enhancer = EmbeddingEnhancer(
+        d_model=params.encoder_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_layers=params.num_enhancer_layers,
+    )
+    return enhancer
+
+
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
+    quasi_joiner = get_joiner_model(params)
+    transformer_lm = get_transformer_lm(params)
+    enhancer = get_embedding_enhancer(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        quasi_joiner=quasi_joiner,
+        transformer_lm=transformer_lm,
+        embedding_enhancer=enhancer,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
@@ -642,10 +690,13 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, delta_wer, wer_diff, pred_wer_diff = model(
+        # simple_loss, pruned_loss, delta_wer, wer_diff, pred_wer_diff = model(
+        simple_loss, pruned_loss, l2_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            sos_id=params.sos_id,
+            eos_id=params.eos_id,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
@@ -678,9 +729,10 @@ def compute_loss(
 
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
-        delta_wer = delta_wer.sum()
-        wer_diff = wer_diff.sum()
-        pred_wer_diff = pred_wer_diff.sum()
+        # delta_wer = delta_wer.sum()
+        # wer_diff = wer_diff.sum()
+        # pred_wer_diff = pred_wer_diff.sum()
+
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -690,10 +742,17 @@ def compute_loss(
             if warmup < 1.0
             else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
+        # l2_loss_scale = (
+        # 1.0
+        # if warmup < 1.0
+        # else (0.1 if warmup > 1.0 and warmup < 2.0 else params.l2_loss_scale))
+        l2_loss_scale = params.l2_loss_scale
+
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
-            + params.delta_wer_scale * delta_wer
+            + l2_loss_scale * l2_loss
+            # + params.delta_wer_scale * delta_wer
         )
 
     assert loss.requires_grad == is_training
@@ -722,9 +781,10 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
-    info["delta_wer"] = delta_wer.detach().cpu().item()
-    info["wer_diff"] = wer_diff.detach().cpu().item()
-    info["pred_wer_diff"] = pred_wer_diff.detach().cpu().item()
+    info["l2_loss"] = l2_loss.detach().cpu().item()
+    # info["delta_wer"] = delta_wer.detach().cpu().item()
+    # info["wer_diff"] = wer_diff.detach().cpu().item()
+    # info["pred_wer_diff"] = pred_wer_diff.detach().cpu().item()
 
     return loss, info
 
@@ -953,8 +1013,10 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <sos/eos> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.sos_id = sp.piece_to_id("<sos/eos>")
+    params.eos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
