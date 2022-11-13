@@ -192,6 +192,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
     --avg 1 \
     --exp-dir $repo/exp \
     --lang-dir $repo/data/lang_bpe_500 \
+    --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --max-duration 600 \
     --decoding-method modified_beam_search_rnnlm_shallow_fusion \
     --beam 4 \
