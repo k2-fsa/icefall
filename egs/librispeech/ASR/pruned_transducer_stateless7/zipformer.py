@@ -573,7 +573,7 @@ class ZipformerEncoder(nn.Module):
         # so that we can keep this consistent across worker tasks (for efficiency).
         self.module_seed = torch.randint(0, 1000, ()).item()
 
-        self.encoder_pos = RelPositionalEncoding(pos_dim, dropout_rate=0.2)
+        self.encoder_pos = RelPositionalEncoding(pos_dim, dropout_rate=0.15)
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
