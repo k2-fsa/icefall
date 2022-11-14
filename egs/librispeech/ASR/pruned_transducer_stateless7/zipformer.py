@@ -365,9 +365,9 @@ class ZipformerEncoderLayer(nn.Module):
             # layer_skip_prob will be overwritten to change warmup begin and end times.
             # treating batch_index == 0.0 specially is just to get scan_pessimistic_batches_for_oom()
             # to work correctly.
-            layer_skip_prob: FloatLike = ScheduledFloat((0.0, 0.0), (1.0, 0.5), (2000.0, 0.05)),
-            dynamic_skip_prob: FloatLike = ScheduledFloat((0.0, 0.0), (1.0, 0.2), (2000.0, 0.0)),
-            bypass_clamp_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.25)),
+            layer_skip_prob: FloatLike = ScheduledFloat((0.0, 0.5), (2000.0, 0.05), default=0),
+            dynamic_skip_prob: FloatLike = ScheduledFloat((0.0, 0.2), (2000.0, 0.0), default=0),
+            bypass_clamp_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.25), default=0),
             bypass_clamp_max: FloatLike = 1.0,
     ) -> None:
         super(ZipformerEncoderLayer, self).__init__()
@@ -568,10 +568,9 @@ class ZipformerEncoder(nn.Module):
         for i in range(num_layers):
             cur_end = cur_begin + delta
             # treating batch_index=0.0 specially is just to get scan_pessimistic_batches_for_oom()
-            self.layers[i].layer_skip_prob = ScheduledFloat((0.0, 0.0),
-                                                            (1.0, initial_layerdrop_prob),
-                                                            (cur_begin, initial_layerdrop_prob),
-                                                            (cur_end, final_layerdrop_prob))
+            self.layers[i].layer_skip_prob = ScheduledFloat((cur_begin, initial_layerdrop_prob),
+                                                            (cur_end, final_layerdrop_prob),
+                                                            default=0.0)
             cur_begin = cur_end
 
 
@@ -1028,7 +1027,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pos_head_dim: int,
             dropout: float = 0.0,
             pos_emb_skip: FloatLike = ScheduledFloat((0.0, 0.5),
-                                                     (4000.0, 0.025))
+                                                     (4000.0, 0.025), default=0.0)
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
