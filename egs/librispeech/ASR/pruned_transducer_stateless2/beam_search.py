@@ -2119,12 +2119,12 @@ def modified_beam_search_rnnlm_LODR(
     rnnlm_scale: float,
     beam: int = 4,
 ) -> List[List[int]]:
-    """ This function implements LODR (https://arxiv.org/abs/2203.16776) with
-    `modified_beam_search`. It uses a bi-gram language model as the estimate 
-    of the internal language model and subtracts its score during shallow fusion 
-    with an external language model. This implementation uses a RNNLM as the 
+    """This function implements LODR (https://arxiv.org/abs/2203.16776) with
+    `modified_beam_search`. It uses a bi-gram language model as the estimate
+    of the internal language model and subtracts its score during shallow fusion
+    with an external language model. This implementation uses a RNNLM as the
     external language model.
-    
+
     Args:
         model (Transducer):
             The transducer model
@@ -2149,7 +2149,7 @@ def modified_beam_search_rnnlm_LODR(
     Returns:
       Return a list-of-list of token IDs. ans[i] is the decoding results
       for the i-th utterance.
-    
+
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
@@ -2185,9 +2185,11 @@ def modified_beam_search_rnnlm_LODR(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                state=init_states, # state of the RNNLM
+                state=init_states,  # state of the RNNLM
                 lm_score=init_score.reshape(-1),
-                state_cost=NgramLmStateCost(LODR_lm), # state of the source domain ngram
+                state_cost=NgramLmStateCost(
+                    LODR_lm
+                ),  # state of the source domain ngram
             )
         )
 
@@ -2323,12 +2325,12 @@ def modified_beam_search_rnnlm_LODR(
 
                     ys.append(new_token)
                     state_cost = hyp.state_cost.forward_one_step(new_token)
-                    
+
                     # calculate the score of the latest token
                     current_ngram_score = (
                         state_cost.lm_score - hyp.state_cost.lm_score
                     )
-                    
+
                     assert current_ngram_score <= 0.0, (
                         state_cost.lm_score,
                         hyp.state_cost.lm_score,
@@ -2336,9 +2338,10 @@ def modified_beam_search_rnnlm_LODR(
                     # score = score + RNNLM_score - LODR_score
                     # LODR_LM_scale is a negative number here
                     hyp_log_prob += (
-                        lm_score[new_token] * lm_scale + LODR_lm_scale * current_ngram_score
+                        lm_score[new_token] * lm_scale
+                        + LODR_lm_scale * current_ngram_score
                     )  # add the lm score
-                    
+
                     lm_score = scores[count]
                     state = (
                         lm_states[0][:, count, :].unsqueeze(1),

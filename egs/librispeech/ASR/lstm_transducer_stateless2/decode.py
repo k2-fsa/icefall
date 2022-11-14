@@ -151,8 +151,8 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
-    modified_beam_search_rnnlm_LODR,
     modified_beam_search_ngram_rescoring,
+    modified_beam_search_rnnlm_LODR,
     modified_beam_search_rnnlm_shallow_fusion,
 )
 from librispeech import LibriSpeech
@@ -256,7 +256,8 @@ def get_parser():
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
           - modified_beam_search_ngram_rescoring
-          - modified_beam_search_rnnlm_shallow_fusion # for rnn lm shallow fusion
+          - modified_beam_search_rnnlm_shallow_fusion
+          - modified_beam_search_rnnlm_LODR
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -416,7 +417,8 @@ def get_parser():
         type=int,
         default=3,
         help="""Token Ngram used for rescoring.
-            Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+            Used only when the decoding method is 
+            modified_beam_search_ngram_rescoring""",
     )
 
     parser.add_argument(
@@ -424,7 +426,8 @@ def get_parser():
         type=int,
         default=500,
         help="""ID of the backoff symbol.
-                Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+                Used only when the decoding method is 
+                modified_beam_search_ngram_rescoring""",
     )
 
     add_model_arguments(parser)
@@ -834,9 +837,9 @@ def main():
     params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     if "rnnlm" in params.decoding_method:
         params.suffix += f"-rnnlm-lm-scale-{params.rnn_lm_scale}"
-        
+
     if "LODR" in params.decoding_method:
-        params.suffix += f"-LODR"
+        params.suffix += "-LODR"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
