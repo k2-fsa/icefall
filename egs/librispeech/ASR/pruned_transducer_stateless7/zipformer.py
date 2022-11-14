@@ -1193,7 +1193,7 @@ class SelfAttention(nn.Module):
     Args:
           embed_dim: the input and output embedding dimension
           num_heads: the number of attention heads
-          value_dim: the value dimension per head
+          value_head_dim: the value dimension per head
     """
     def __init__(
             self,
