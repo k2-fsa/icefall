@@ -17,7 +17,7 @@
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
-import kaldifst
+from icefall.utils import is_module_available
 
 
 class NgramLm:
@@ -36,6 +36,11 @@ class NgramLm:
           is_binary:
             True if the given file is a binary FST.
         """
+        if not is_module_available("kaldifst"):
+            raise ValueError("Please 'pip install kaldifst' first.")
+
+        import kaldifst
+
         if is_binary:
             lm = kaldifst.StdVectorFst.read(fst_filename)
         else:
@@ -85,6 +90,8 @@ class NgramLm:
         self, state: int, label: int
     ) -> Tuple[int, float]:
         """TODO: Add doc."""
+        import kaldifst
+
         arc_iter = kaldifst.ArcIterator(self.lm, state)
         num_arcs = self.lm.num_arcs(state)
 

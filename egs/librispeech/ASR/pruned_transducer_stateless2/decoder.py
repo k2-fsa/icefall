@@ -101,7 +101,15 @@ class Decoder(nn.Module):
             need_pad = bool(need_pad)
 
         y = y.to(torch.int64)
-        embedding_out = self.embedding(y)
+        # this stuff about clamp() is a temporary fix for a mismatch
+        # at utterance start, we use negative ids in beam_search.py
+        if torch.jit.is_tracing():
+            # This is for exporting to PNNX via ONNX
+            embedding_out = self.embedding(y)
+        else:
+            embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(
+                -1
+            )
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad:

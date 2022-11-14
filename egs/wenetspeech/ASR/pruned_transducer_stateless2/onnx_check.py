@@ -40,6 +40,11 @@ https://huggingface.co/luomingshuang/icefall_asr_wenetspeech_pruned_transducer_s
 import argparse
 import logging
 
+from icefall import is_module_available
+
+if not is_module_available("onnxruntime"):
+    raise ValueError("Please 'pip install onnxruntime' first.")
+
 import onnxruntime as ort
 import torch
 

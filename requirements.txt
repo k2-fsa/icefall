@@ -3,9 +3,4 @@ kaldialign
 sentencepiece>=0.1.96
 tensorboard
 typeguard
-multi_quantization
-onnx
-onnxruntime
---extra-index-url https://pypi.ngc.nvidia.com
 dill
-kaldifst
