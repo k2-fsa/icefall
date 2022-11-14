@@ -32,7 +32,7 @@ from scaling import (
 )
 from torch import Tensor, nn
 
-from icefall.utils import make_pad_mask, subsequent_chunk_mask
+from icefall.utils import is_jit_tracing, make_pad_mask, subsequent_chunk_mask
 
 
 class Conformer(EncoderInterface):
@@ -155,7 +155,8 @@ class Conformer(EncoderInterface):
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
         lengths = (((x_lens - 1) >> 1) - 1) >> 1
 
-        assert x.size(0) == lengths.max().item()
+        if not is_jit_tracing():
+            assert x.size(0) == lengths.max().item()
 
         src_key_padding_mask = make_pad_mask(lengths)
 
@@ -475,8 +476,8 @@ class ConformerEncoderLayer(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
-        src_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        src_mask: Optional[Tensor] = None,
         warmup: float = 1.0,
     ) -> Tensor:
         """
@@ -485,8 +486,8 @@ class ConformerEncoderLayer(nn.Module):
         Args:
             src: the sequence to the encoder layer (required).
             pos_emb: Positional embedding tensor (required).
-            src_mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_mask: the mask for the src sequence (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
         Shape:
@@ -526,7 +527,9 @@ class ConformerEncoderLayer(nn.Module):
         src = src + self.dropout(src_att)
 
         # convolution module
-        conv, _ = self.conv_module(src)
+        conv, _ = self.conv_module(
+            src, src_key_padding_mask=src_key_padding_mask
+        )
         src = src + self.dropout(conv)
 
         # feed forward module
@@ -660,8 +663,8 @@ class ConformerEncoder(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
-        mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
         warmup: float = 1.0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
@@ -669,8 +672,8 @@ class ConformerEncoder(nn.Module):
         Args:
             src: the sequence to the encoder (required).
             pos_emb: Positional embedding tensor (required).
-            mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for the src keys per batch (optional).
+            mask: the mask for the src sequence (optional).
             warmup: controls selective bypass of of layers; if < 1.0, we will
               bypass layers more frequently.
 
@@ -787,6 +790,14 @@ class RelPositionalEncoding(torch.nn.Module):
     ) -> None:
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
+        if is_jit_tracing():
+            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e.,
+            # It assumes that the maximum input won't have more than
+            # 10k frames.
+            #
+            # TODO(fangjun): Use torch.jit.script() for this module
+            max_len = 10000
+
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
@@ -921,7 +932,7 @@ class RelPositionMultiheadAttention(nn.Module):
         value: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:
@@ -992,7 +1003,7 @@ class RelPositionMultiheadAttention(nn.Module):
         """Compute relative positional encoding.
 
         Args:
-            x: Input tensor (batch, head, time1, 2*time1-1).
+            x: Input tensor (batch, head, time1, 2*time1-1+left_context).
                 time1 means the length of query vector.
             left_context (int): left context (in frames) used during streaming decoding.
                 this is used only in real streaming decoding, in other circumstances,
@@ -1006,20 +1017,32 @@ class RelPositionMultiheadAttention(nn.Module):
         (batch_size, num_heads, time1, n) = x.shape
 
         time2 = time1 + left_context
-        assert (
-            n == left_context + 2 * time1 - 1
-        ), f"{n} == {left_context} + 2 * {time1} - 1"
+        if not is_jit_tracing():
+            assert (
+                n == left_context + 2 * time1 - 1
+            ), f"{n} == {left_context} + 2 * {time1} - 1"
 
-        # Note: TorchScript requires explicit arg for stride()
-        batch_stride = x.stride(0)
-        head_stride = x.stride(1)
-        time1_stride = x.stride(2)
-        n_stride = x.stride(3)
-        return x.as_strided(
-            (batch_size, num_heads, time1, time2),
-            (batch_stride, head_stride, time1_stride - n_stride, n_stride),
-            storage_offset=n_stride * (time1 - 1),
-        )
+        if is_jit_tracing():
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(time2)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+
+            x = x.reshape(-1, n)
+            x = torch.gather(x, dim=1, index=indexes)
+            x = x.reshape(batch_size, num_heads, time1, time2)
+            return x
+        else:
+            # Note: TorchScript requires explicit arg for stride()
+            batch_stride = x.stride(0)
+            head_stride = x.stride(1)
+            time1_stride = x.stride(2)
+            n_stride = x.stride(3)
+            return x.as_strided(
+                (batch_size, num_heads, time1, time2),
+                (batch_stride, head_stride, time1_stride - n_stride, n_stride),
+                storage_offset=n_stride * (time1 - 1),
+            )
 
     def multi_head_attention_forward(
         self,
@@ -1036,7 +1059,7 @@ class RelPositionMultiheadAttention(nn.Module):
         out_proj_bias: Tensor,
         training: bool = True,
         key_padding_mask: Optional[Tensor] = None,
-        need_weights: bool = True,
+        need_weights: bool = False,
         attn_mask: Optional[Tensor] = None,
         left_context: int = 0,
     ) -> Tuple[Tensor, Optional[Tensor]]:
@@ -1090,13 +1113,15 @@ class RelPositionMultiheadAttention(nn.Module):
         """
 
         tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == embed_dim_to_check
-        assert key.size(0) == value.size(0) and key.size(1) == value.size(1)
+        if not is_jit_tracing():
+            assert embed_dim == embed_dim_to_check
+            assert key.size(0) == value.size(0) and key.size(1) == value.size(1)
 
         head_dim = embed_dim // num_heads
-        assert (
-            head_dim * num_heads == embed_dim
-        ), "embed_dim must be divisible by num_heads"
+        if not is_jit_tracing():
+            assert (
+                head_dim * num_heads == embed_dim
+            ), "embed_dim must be divisible by num_heads"
 
         scaling = float(head_dim) ** -0.5
 
@@ -1209,7 +1234,7 @@ class RelPositionMultiheadAttention(nn.Module):
 
         src_len = k.size(0)
 
-        if key_padding_mask is not None:
+        if key_padding_mask is not None and not is_jit_tracing():
             assert key_padding_mask.size(0) == bsz, "{} == {}".format(
                 key_padding_mask.size(0), bsz
             )
@@ -1220,7 +1245,9 @@ class RelPositionMultiheadAttention(nn.Module):
         q = q.transpose(0, 1)  # (batch, time1, head, d_k)
 
         pos_emb_bsz = pos_emb.size(0)
-        assert pos_emb_bsz in (1, bsz)  # actually it is 1
+        if not is_jit_tracing():
+            assert pos_emb_bsz in (1, bsz)  # actually it is 1
+
         p = self.linear_pos(pos_emb).view(pos_emb_bsz, -1, num_heads, head_dim)
         # (batch, 2*time1, head, d_k) --> (batch, head, d_k, 2*time -1)
         p = p.permute(0, 2, 3, 1)
@@ -1255,11 +1282,12 @@ class RelPositionMultiheadAttention(nn.Module):
             bsz * num_heads, tgt_len, -1
         )
 
-        assert list(attn_output_weights.size()) == [
-            bsz * num_heads,
-            tgt_len,
-            src_len,
-        ]
+        if not is_jit_tracing():
+            assert list(attn_output_weights.size()) == [
+                bsz * num_heads,
+                tgt_len,
+                src_len,
+            ]
 
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
@@ -1318,7 +1346,14 @@ class RelPositionMultiheadAttention(nn.Module):
         )
 
         attn_output = torch.bmm(attn_output_weights, v)
-        assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]
+
+        if not is_jit_tracing():
+            assert list(attn_output.size()) == [
+                bsz * num_heads,
+                tgt_len,
+                head_dim,
+            ]
+
         attn_output = (
             attn_output.transpose(0, 1)
             .contiguous()
@@ -1424,6 +1459,7 @@ class ConvolutionModule(nn.Module):
         x: Tensor,
         cache: Optional[Tensor] = None,
         right_context: int = 0,
+        src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
@@ -1434,6 +1470,7 @@ class ConvolutionModule(nn.Module):
             right_context:
               How many future frames the attention can see in current chunk.
               Note: It's not that each individual frame has `right_context` frames
+            src_key_padding_mask: the mask for the src keys per batch (optional).
               of right context, some have more.
 
         Returns:
@@ -1453,6 +1490,8 @@ class ConvolutionModule(nn.Module):
         x = nn.functional.glu(x, dim=1)  # (batch, channels, time)
 
         # 1D Depthwise Conv
+        if src_key_padding_mask is not None:
+            x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
         if self.causal and self.lorder > 0:
             if cache is None:
                 # Make depthwise_conv causal by

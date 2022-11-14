@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -70,7 +72,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   max_duration=100
 
   for method in greedy_search fast_beam_search modified_beam_search; do
-    log "Decoding with $method"
+    log "Simulate streaming decoding with $method"
 
     ./pruned_transducer_stateless2/decode.py \
       --decoding-method $method \
@@ -80,6 +82,20 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --exp-dir pruned_transducer_stateless2/exp \
       --simulate-streaming 1 \
       --causal-convolution 1
+  done
+
+  for method in greedy_search fast_beam_search modified_beam_search; do
+    log "Real streaming decoding with $method"
+
+    ./pruned_transducer_stateless2/streaming_decode.py \
+      --decoding-method $method \
+      --epoch 999 \
+      --avg 1 \
+      --num-decode-streams 100 \
+      --exp-dir pruned_transducer_stateless2/exp \
+      --left-context 32 \
+      --decode-chunk-size 8 \
+      --right-context 0
   done
 
   rm pruned_transducer_stateless2/exp/*.pt

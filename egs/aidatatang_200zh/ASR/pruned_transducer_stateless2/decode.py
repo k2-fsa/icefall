@@ -367,6 +367,7 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         texts = [list(str(text).replace(" ", "")) for text in texts]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -379,8 +380,8 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
-                this_batch.append((ref_text, hyp_words))
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                this_batch.append((cut_id, ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -405,6 +406,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -520,61 +522,14 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # Note: Please use "pip install webdataset==0.1.103"
-    # for installing the webdataset.
-    import glob
-    import os
-
-    from lhotse import CutSet
-    from lhotse.dataset.webdataset import export_to_webdataset
-
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
 
-    dev = "dev"
-    test = "test"
-
-    if not os.path.exists(f"{dev}/shared-0.tar"):
-        os.makedirs(dev)
-        dev_cuts = aidatatang_200zh.valid_cuts()
-        export_to_webdataset(
-            dev_cuts,
-            output_path=f"{dev}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    if not os.path.exists(f"{test}/shared-0.tar"):
-        os.makedirs(test)
-        test_cuts = aidatatang_200zh.test_cuts()
-        export_to_webdataset(
-            test_cuts,
-            output_path=f"{test}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    dev_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
-    ]
-    cuts_dev_webdataset = CutSet.from_webdataset(
-        dev_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    test_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test, "shared-*.tar")))
-    ]
-    cuts_test_webdataset = CutSet.from_webdataset(
-        test_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    dev_dl = aidatatang_200zh.valid_dataloaders(cuts_dev_webdataset)
-    test_dl = aidatatang_200zh.test_dataloaders(cuts_test_webdataset)
+    dev_cuts = aidatatang_200zh.valid_cuts()
+    test_cuts = aidatatang_200zh.test_cuts()
+    dev_dl = aidatatang_200zh.valid_dataloaders(dev_cuts)
+    test_dl = aidatatang_200zh.test_dataloaders(test_cuts)
 
     test_sets = ["dev", "test"]
     test_dl = [dev_dl, test_dl]

@@ -1,0 +1,8 @@
+librispeech_*
+todelete*
+lang*
+notify_tg.py
+finetune_*
+misc.ini
+.vscode/*
+offline/*

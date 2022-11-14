@@ -15,7 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Usage:
+This script loads a checkpoint and uses it to decode waves.
+You can generate the checkpoint with the following command:
+
+./pruned_transducer_stateless3/export.py \
+  --exp-dir ./pruned_transducer_stateless3/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10
+
+Usage of this script:
 
 (1) greedy search
 ./pruned_transducer_stateless3/pretrained.py \
@@ -262,7 +271,7 @@ def main():
     logging.info(f"device: {device}")
 
     logging.info("Creating model")
-    model = get_transducer_model(params)
+    model = get_transducer_model(params, enable_giga=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")

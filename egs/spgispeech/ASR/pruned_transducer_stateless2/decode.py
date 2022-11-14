@@ -328,7 +328,7 @@ def decode_dataset(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -365,6 +365,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -377,9 +378,9 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for hyp_words, ref_text in zip(hyps, texts):
+            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
 
@@ -397,7 +398,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     test_set_cers = dict()
@@ -405,6 +406,7 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -422,7 +424,9 @@ def save_results(
         # we also compute CER for spgispeech dataset.
         results_char = []
         for res in results:
-            results_char.append((list("".join(res[0])), list("".join(res[1]))))
+            results_char.append(
+                (res[0], list("".join(res[1])), list("".join(res[2])))
+            )
         cers_filename = (
             params.res_dir / f"cers-{test_set_name}-{key}-{params.suffix}.txt"
         )
@@ -561,6 +565,8 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     spgispeech = SPGISpeechAsrDataModule(args)
 
     dev_cuts = spgispeech.dev_cuts()

@@ -49,6 +49,8 @@ from .utils import (
     get_alignments,
     get_executor,
     get_texts,
+    is_jit_tracing,
+    is_module_available,
     l1_norm,
     l2_norm,
     linf_norm,
@@ -64,3 +66,5 @@ from .utils import (
     subsequent_chunk_mask,
     write_error_stats,
 )
+
+from .ngram_lm import NgramLm, NgramLmStateCost

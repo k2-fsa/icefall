@@ -45,6 +45,16 @@ To run stage 2 to stage 5, use:
 
   $ ./prepare.sh --stage 2 --stop-stage 5
 
+We provide the following YouTube video showing how to run ``./prepare.sh``.
+
+.. note::
+
+   To get the latest news of `next-gen Kaldi <https://github.com/k2-fsa>`_, please subscribe
+   the following YouTube channel by `Nadira Povey <https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_:
+
+      `<https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw>`_
+
+..  youtube:: ofEIoJL-mGM
 
 Training
 --------
@@ -388,7 +398,7 @@ We provide a colab notebook for decoding with pre-trained model.
 |librispeech tdnn_lstm_ctc colab notebook|
 
 .. |librispeech tdnn_lstm_ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
-   :target: https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd
+   :target: https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing
 
 
 **Congratulations!** You have finished the TDNN-LSTM-CTC recipe on librispeech in ``icefall``.

@@ -20,3 +20,7 @@ sentencepiece==0.1.96
 tensorboard==2.8.0
 typeguard==2.13.3
 multi_quantization
+
+onnx
+onnxruntime
+kaldifst

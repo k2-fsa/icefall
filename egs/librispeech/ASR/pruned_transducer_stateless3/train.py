@@ -39,7 +39,7 @@ cd egs/librispeech/ASR/
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 0 \
-  --use_fp16 1 \
+  --use-fp16 1 \
   --exp-dir pruned_transducer_stateless3/exp \
   --full-libri 1 \
   --max-duration 550
@@ -84,7 +84,13 @@ from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    display_and_save_batch,
+    setup_logger,
+    str2bool,
+)
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -322,6 +328,17 @@ def get_parser():
         help="The probability to select a batch from the GigaSpeech dataset",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
+
+    add_model_arguments(parser)
     return parser
 
 
@@ -436,13 +453,22 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_transducer_model(
+    params: AttributeDict,
+    enable_giga: bool = True,
+) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    decoder_giga = get_decoder_model(params)
-    joiner_giga = get_joiner_model(params)
+    if enable_giga:
+        logging.info("Use giga")
+        decoder_giga = get_decoder_model(params)
+        joiner_giga = get_joiner_model(params)
+    else:
+        logging.info("Disable giga")
+        decoder_giga = None
+        joiner_giga = None
 
     model = Transducer(
         encoder=encoder,
@@ -628,7 +654,34 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            reduction="none",
+            delay_penalty=params.delay_penalty if warmup >= 2.0 else 0,
         )
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        if not torch.all(is_finite):
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
+
+            # If either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if torch.all(~simple_loss_is_finite) or torch.all(
+                ~pruned_loss_is_finite
+            ):
+                raise ValueError(
+                    "There are too many utterances in this batch "
+                    "leading to inf or nan losses."
+                )
+
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -648,9 +701,22 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
+
+    # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    info["utterances"] = feature.size(0)
+    # averaged input duration in frames over utterances
+    info["utt_duration"] = feature_lens.sum().item()
+    # averaged padding proportion over utterances
+    info["utt_pad_proportion"] = (
+        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -1040,14 +1106,15 @@ def run(rank, world_size, args):
     # It's time consuming to include `giga_train_dl` here
     #  for dl in [train_dl, giga_train_dl]:
     for dl in [train_dl]:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-            warmup=0.0 if params.start_epoch == 0 else 1.0,
-        )
+        if params.start_batch <= 0:
+            scan_pessimistic_batches_for_oom(
+                model=model,
+                train_dl=dl,
+                optimizer=optimizer,
+                sp=sp,
+                params=params,
+                warmup=0.0 if params.start_epoch == 0 else 1.0,
+            )
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:

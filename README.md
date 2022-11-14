@@ -10,6 +10,10 @@ using <https://github.com/k2-fsa/k2>.
 You can use <https://github.com/k2-fsa/sherpa> to deploy models
 trained with icefall.
 
+You can try pre-trained models from within your browser without the need
+to download or install anything by visiting <https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition>
+See <https://k2-fsa.github.io/icefall/huggingface/spaces.html> for more details.
+
 ## Installation
 
 Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
@@ -78,7 +82,7 @@ The WER for this model is:
 |-----|------------|------------|
 | WER | 6.59       | 17.69      |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1kNmDXNMwREi0rZGAOIAOJo93REBuOTcd?usp=sharing)
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
 
 
 #### Transducer: Conformer encoder + LSTM decoder
@@ -158,7 +162,7 @@ The CER for this model is:
 |-----|-------|
 | CER | 10.16 |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z?usp=sharing)
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing)
 
 ### TIMIT
 
@@ -246,17 +250,25 @@ We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless mod
 
 ### WenetSpeech
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2].
+We provide some models for this recipe: [Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2] and [Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless5].
 
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+#### Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset, offline ASR)
 
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
 |    greedy search     | 7.80  |  8.75    |  13.49       |
+| modified beam search| 7.76  |  8.71    |  13.41       |
 |   fast beam search   | 7.94  |  8.74    |  13.80       |
-| modified beam search | 7.76  |  8.71    |  13.41       |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+#### Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
+**Streaming**:
+|                      |  Dev  | Test-Net | Test-Meeting |
+|----------------------|-------|----------|--------------|
+| greedy_search | 8.78 | 10.12 | 16.16 |
+| modified_beam_search | 8.53| 9.95 | 15.81 |
+| fast_beam_search| 9.01 | 10.47 | 16.28 |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless2 model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
 ### Alimeeting
 
@@ -329,6 +341,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
+[WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
 [Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5

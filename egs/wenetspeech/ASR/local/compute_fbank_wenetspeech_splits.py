@@ -140,6 +140,7 @@ def compute_fbank_wenetspeech_splits(args):
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             storage_type=LilcomChunkyWriter,
+            overwrite=True,
         )
 
         logging.info(f"Saving to {cuts_path}")
