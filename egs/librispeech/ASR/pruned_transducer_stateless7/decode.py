@@ -163,7 +163,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=9,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -378,14 +378,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.left_context
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
-    )
-
     if params.simulate_streaming:
+        feature_lens += params.left_context
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.left_context),
+            value=LOG_EPS,
+        )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,

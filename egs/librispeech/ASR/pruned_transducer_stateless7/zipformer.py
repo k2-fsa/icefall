@@ -168,7 +168,7 @@ class Zipformer(EncoderInterface):
         for i in range(len(z)):
             if i <= 1 or z[i-1] <= z[i]:
                 skip_layers.append(None)
-                skip_modules.append(nn.Identity())
+                skip_modules.append(SimpleCombinerIdentity())
             else:
                 # TEMP
                 for j in range(i-2, -1, -1):
@@ -186,7 +186,9 @@ class Zipformer(EncoderInterface):
 
     def get_feature_masks(
             self,
-            x: torch.Tensor) -> List[Union[float, Tensor]]:
+            x: torch.Tensor) -> List[float]:
+        # Note: The actual return type is Union[List[float], List[Tensor]],
+        # but to make torch.jit.script() work, we use List[float]
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
@@ -203,8 +205,8 @@ class Zipformer(EncoderInterface):
              (num_frames, batch_size, encoder_dims0)
         """
         num_encoders = len(self.encoder_dims)
-        if not self.training:
-            return [ 1.0 ] * num_encoders
+        if torch.jit.is_scripting() or not self.training:
+                return [ 1.0 ] * num_encoders
 
         (num_frames0, batch_size, _encoder_dims0) = x.shape
 
@@ -262,21 +264,22 @@ class Zipformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            lengths = (x_lens - 7) // 2
+        lengths = (x_lens - 7) >> 1
         assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
         mask = make_pad_mask(lengths)
 
         outputs = []
         feature_masks = self.get_feature_masks(x)
 
-        for i, module in enumerate(self.encoders):
+        for i, (module, skip_module) in enumerate(zip(self.encoders, self.skip_modules)):
             ds = self.zipformer_downsampling_factors[i]
-            if self.skip_layers[i] is not None:
+            k = self.skip_layers[i]
+            if isinstance(k, int):
                 layer_skip_dropout_prob = self._get_layer_skip_dropout_prob()
-                if (not self.training) or random.random() > layer_skip_dropout_prob:
-                    x = self.skip_modules[i](outputs[self.skip_layers[i]], x)
+                if torch.jit.is_scripting():
+                    x = skip_module(outputs[k], x)
+                elif (not self.training) or random.random() > layer_skip_dropout_prob:
+                    x = skip_module(outputs[k], x)
             x = module(x,
                        feature_mask=feature_masks[i],
                        src_key_padding_mask=None if mask is None else mask[...,::ds])
@@ -295,7 +298,6 @@ class Zipformer(EncoderInterface):
 class ZipformerEncoderLayer(nn.Module):
     """
     ZipformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
-    See: "Zipformer: Convolution-augmented Transformer for Speech Recognition"
 
     Args:
         d_model: the number of expected features in the input (required).
@@ -432,13 +434,12 @@ class ZipformerEncoderLayer(nn.Module):
         dynamic_dropout = self.get_dynamic_dropout_rate()
 
         # pooling module
-        if torch.jit.is_scripting() or random.random() > dynamic_dropout:
-            src = src + self.pooling(src,
-                                     key_padding_mask=src_key_padding_mask)
+        if torch.jit.is_scripting():
+            src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
+        elif random.random() > dynamic_dropout:
+            src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
 
-        # multi-headed self-attention module
-        use_self_attn = (random.random() > dynamic_dropout)
-        if torch.jit.is_scripting() or use_self_attn:
+        if torch.jit.is_scripting():
             src_att, attn_weights = self.self_attn(
                 src,
                 pos_emb=pos_emb,
@@ -447,18 +448,41 @@ class ZipformerEncoderLayer(nn.Module):
             )
             src = src + src_att
 
-        # convolution module
-        if torch.jit.is_scripting() or random.random() > dynamic_dropout:
-            src = src + self.conv_module1(src, src_key_padding_mask=src_key_padding_mask)
+            src = src + self.conv_module1(
+                src, src_key_padding_mask=src_key_padding_mask
+            )
 
+            src = src + self.feed_forward2(src)
 
-        src = src + self.feed_forward2(src)
-
-        if torch.jit.is_scripting() or use_self_attn:
             src = src + self.self_attn.forward2(src, attn_weights)
 
-        if torch.jit.is_scripting() or random.random() > dynamic_dropout:
-            src = src + self.conv_module2(src, src_key_padding_mask=src_key_padding_mask)
+            src = src + self.conv_module2(
+                src, src_key_padding_mask=src_key_padding_mask
+            )
+        else:
+            use_self_attn = random.random() > dynamic_dropout
+            if use_self_attn:
+                src_att, attn_weights = self.self_attn(
+                    src,
+                    pos_emb=pos_emb,
+                    attn_mask=src_mask,
+                    key_padding_mask=src_key_padding_mask,
+                )
+                src = src + src_att
+
+            if random.random() > dynamic_dropout:
+                src = src + self.conv_module1(
+                    src, src_key_padding_mask=src_key_padding_mask
+                )
+
+            src = src + self.feed_forward2(src)
+            if use_self_attn:
+                src = src + self.self_attn.forward2(src, attn_weights)
+
+            if random.random() > dynamic_dropout:
+                src = src + self.conv_module2(
+                    src, src_key_padding_mask=src_key_padding_mask
+                )
 
         src = src + self.feed_forward3(src)
 
@@ -588,7 +612,9 @@ class ZipformerEncoder(nn.Module):
     def forward(
         self,
         src: Tensor,
-        feature_mask: Union[Tensor, float] = 1.0,
+        # Note: The type of feature_mask should be Union[float, Tensor],
+        # but to make torch.jit.script() work, we use `float` here
+        feature_mask: float = 1.0,
         mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
@@ -614,14 +640,18 @@ class ZipformerEncoder(nn.Module):
         output = src
 
 
-        rnd_seed = src.numel() + random.randint(0, 1000)
-        layers_to_drop = self.get_layers_to_drop(rnd_seed)
+        if torch.jit.is_scripting():
+            layers_to_drop = []
+        else:
+            rnd_seed = src.numel() + random.randint(0, 1000)
+            layers_to_drop = self.get_layers_to_drop(rnd_seed)
 
         output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
-            if i in layers_to_drop:
-                continue
+            if not torch.jit.is_scripting():
+                if i in layers_to_drop:
+                    continue
             output = mod(
                 output,
                 pos_emb,
@@ -657,10 +687,12 @@ class DownsampledZipformerEncoder(nn.Module):
 
     def forward(self,
                 src: Tensor,
-                feature_mask: Union[Tensor, float] = 1.0,
+                # Note: the type of feature_mask should be Unino[float, Tensor],
+                # but to make torch.jit.script() happ, we use float here
+                feature_mask: float = 1.0,
                 mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tensor:
         r"""Downsample, go through encoder, upsample.
 
         Args:
@@ -696,63 +728,6 @@ class DownsampledZipformerEncoder(nn.Module):
         src = src[:src_orig.shape[0]]
 
         return self.out_combiner(src_orig, src)
-
-
-class DownsamplingZipformerEncoder(nn.Module):
-    r"""
-    DownsamplingZipformerEncoder is a zipformer encoder that downsamples its input
-    by a specified factor before feeding it to the zipformer layers.
-    """
-    def __init__(self,
-                 encoder: nn.Module,
-                 input_dim: int,
-                 output_dim: int,
-                 downsample: int):
-        super(DownsampledZipformerEncoder, self).__init__()
-        self.downsample_factor = downsample
-        self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
-        self.encoder = encoder
-
-
-    def forward(self,
-                src: Tensor,
-                feature_mask: Union[Tensor, float] = 1.0,
-                mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        r"""Downsample, go through encoder, upsample.
-
-        Args:
-            src: the sequence to the encoder (required).
-            feature_mask: something that broadcasts with src, that we'll multiply `src`
-               by at every layer.  feature_mask is expected to be already downsampled by
-               self.downsample_factor.
-            mask: the mask for the src sequence (optional).  CAUTION: we need to downsample
-                  this, if we are to support it.  Won't work correctly yet.
-            src_key_padding_mask: the mask for the src keys per batch (optional).
-
-        Shape:
-            src: (S, N, E).
-            mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
-
-        Returns: output of shape (S, N, F) where F is the number of output features
-            (output_dim to constructor)
-        """
-        src_orig = src
-        src = self.downsample(src)
-        ds = self.downsample_factor
-        if mask is not None:
-            mask = mask[::ds,::ds]
-        if src_key_padding_mask is not None:
-            src_key_padding_mask = src_key_padding_mask[::ds]
-
-        src = self.encoder(
-            src, feature_mask=feature_mask, mask=mask, src_key_padding_mask=mask,
-        )
-        return src
-
 
 class AttentionDownsample(torch.nn.Module):
     """
@@ -840,6 +815,13 @@ class SimpleUpsample(torch.nn.Module):
         src = src.reshape(seq_len * upsample, batch_size, num_channels)
         return src
 
+class SimpleCombinerIdentity(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, src1: Tensor, src2: Tensor) -> Tensor:
+        return src1
+
 class SimpleCombiner(torch.nn.Module):
     """
     A very simple way of combining 2 vectors of 2 different dims, via a
@@ -868,14 +850,12 @@ class SimpleCombiner(torch.nn.Module):
         Returns: a tensor of shape (*, dim2)
         """
         assert src1.shape[:-1] == src2.shape[:-1], (src1.shape, src2.shape)
-        dim1 = src1.shape[-1]
-        dim2 = src2.shape[-1]
-
 
         weight1 = self.weight1
-        if self.training and random.random() < 0.25 and self.min_weight != (0., 0.):
-            weight1 = weight1.clamp(min=self.min_weight[0],
-                                    max=1.0-self.min_weight[1])
+        if not torch.jit.is_scripting():
+            if self.training and random.random() < 0.25 and self.min_weight != (0., 0.):
+                weight1 = weight1.clamp(min=self.min_weight[0],
+                                        max=1.0-self.min_weight[1])
 
 
         src1 = src1 * weight1
@@ -885,11 +865,7 @@ class SimpleCombiner(torch.nn.Module):
         src2_dim = src2.shape[-1]
         if src1_dim != src2_dim:
             if src1_dim < src2_dim:
-                zeros_shape = list(src1.shape[:-1]) + [src2_dim - src1_dim]
-                src1 = torch.cat((src1, torch.zeros(*zeros_shape,
-                                                    device=src1.device,
-                                                    dtype=src1.dtype)),
-                                 dim=-1)
+                src1 = torch.nn.functional.pad(src1, (0, src2_dim - src1_dim))
             else:
                 src1 = src1[:src2_dim]
 
@@ -957,7 +933,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe = torch.cat([pe_positive, pe_negative], dim=1)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
-    def forward(self, x: torch.Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: torch.Tensor) -> Tensor:
         """Add positional encoding.
 
         Args:
@@ -1070,7 +1046,7 @@ class RelPositionMultiheadAttention(nn.Module):
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor]:
         r"""
         Args:
             x: input to be projected to query, key, value
@@ -1135,7 +1111,7 @@ class RelPositionMultiheadAttention(nn.Module):
         training: bool = True,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Optional[Tensor]]:
+    ) -> Tuple[Tensor, Tensor]:
         r"""
         Args:
             x_proj: the projected input, to be split into query, key, value.
@@ -1291,16 +1267,17 @@ class RelPositionMultiheadAttention(nn.Module):
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
 
-        if training and random.random() < 0.1:
-            # This is a harder way of limiting the attention scores to not be too large.
-            # It incurs a penalty if any of them has an absolute value greater than 50.0.
-            # this should be outside the normal range of the attention scores.  We use
-            # this mechanism instead of, say, a limit on entropy, because once the entropy
-            # gets very small gradients through the softmax can become very small, and
-            # some mechanisms like that become ineffective.
-            attn_output_weights = penalize_abs_values_gt(attn_output_weights,
-                                                         limit=25.0,
-                                                         penalty=1.0e-04)
+        if not torch.jit.is_scripting():
+            if training and random.random() < 0.1:
+                # This is a harder way of limiting the attention scores to not be too large.
+                # It incurs a penalty if any of them has an absolute value greater than 50.0.
+                # this should be outside the normal range of the attention scores.  We use
+                # this mechanism instead of, say, a limit on entropy, because once the entropy
+                # gets very small gradients through the softmax can become very small, and
+                # some mechanisms like that become ineffective.
+                attn_output_weights = penalize_abs_values_gt(attn_output_weights,
+                                                             limit=25.0,
+                                                             penalty=1.0e-04)
 
 
         # attn_output_weights: (batch, head, time1, time2)
@@ -1382,8 +1359,9 @@ class RelPositionMultiheadAttention(nn.Module):
         # now v: (bsz * num_heads, seq_len, head_dim // 2)
         attn_output = torch.bmm(attn_weights, v)
 
-        if random.random() < 0.001 or __name__ == "__main__":
-            self._print_attn_stats(attn_weights, attn_output)
+        if not torch.jit.is_scripting():
+            if random.random() < 0.001 or __name__ == "__main__":
+                self._print_attn_stats(attn_weights, attn_output)
 
         # attn_output: (bsz * num_heads, seq_len, head_dim)
         attn_output = (
@@ -1441,7 +1419,7 @@ class PoolingModule(nn.Module):
 
     def forward(self,
                 x: Tensor,
-                key_padding_mask):
+                key_padding_mask: Optional[Tensor] = None):
         """
         Args:
            x: a Tensor of shape (T, N, C)
@@ -1455,11 +1433,12 @@ class PoolingModule(nn.Module):
             pooling_mask = (pooling_mask / pooling_mask.sum(dim=1, keepdim=True))
             pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
             # now pooling_mask: (T, N, 1)
+            x = (x * pooling_mask).sum(dim=0, keepdim=True)
         else:
             num_frames = x.shape[0]
             pooling_mask = 1.0 / num_frames
+            x = (x * pooling_mask).sum(dim=0, keepdim=True)
 
-        x = (x * pooling_mask).sum(dim=0, keepdim=True)
         x = self.proj(x)
         return x
 

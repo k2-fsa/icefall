@@ -279,6 +279,9 @@ class SoftmaxFunction(torch.autograd.Function):
 
 def softmax(x: Tensor,
             dim: int):
+    if torch.jit.is_scripting():
+        return x.softmax(dim)
+
     return SoftmaxFunction.apply(x, dim)
 
 
@@ -418,7 +421,7 @@ def ScaledLinear(*args,
 
 def ScaledConv1d(*args,
                  initial_scale: float = 1.0,
-                 **kwargs ) -> nn.Linear:
+                 **kwargs ) -> nn.Conv1d:
     """
     Behaves like a constructor of a modified version of nn.Conv1d
     that gives an easy way to set the default initial parameter scale.
@@ -758,6 +761,8 @@ class WithLoss(torch.autograd.Function):
                                     dtype=ans_grad.dtype,
                                     device=ans_grad.device)
 def with_loss(x, y):
+    if torch.jit.is_scripting():
+        return x
     # returns x but adds y.sum() to the loss function.
     return WithLoss.apply(x, y)
 

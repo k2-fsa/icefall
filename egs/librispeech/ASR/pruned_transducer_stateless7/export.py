@@ -19,29 +19,67 @@
 # This script converts several saved checkpoints
 # to a single one using model averaging.
 """
+
 Usage:
-./pruned_transducer_stateless5/export.py \
-  --exp-dir ./pruned_transducer_stateless5/exp \
+
+(1) Export to torchscript model using torch.jit.script()
+
+./pruned_transducer_stateless7/export.py \
+  --exp-dir ./pruned_transducer_stateless7/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 30 \
+  --avg 9 \
+  --jit 1
+
+It will generate a file `cpu_jit.pt` in the given `exp_dir`. You can later
+load it by `torch.jit.load("cpu_jit.pt")`.
+
+Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
+are on CPU. You can use `to("cuda")` to move them to a CUDA device.
+
+Check
+https://github.com/k2-fsa/sherpa
+for how to use the exported models outside of icefall.
+
+(2) Export `model.state_dict()`
+
+./pruned_transducer_stateless7/export.py \
+  --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
-It will generate a file exp_dir/pretrained.pt
+It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
+load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless5/decode.py`,
+To use the generated file with `pruned_transducer_stateless7/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless5/decode.py \
-        --exp-dir ./pruned_transducer_stateless5/exp \
+    ./pruned_transducer_stateless7/decode.py \
+        --exp-dir ./pruned_transducer_stateless7/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
+
+Check ./pretrained.py for its usage.
+
+Note: If you don't want to train a model from scratch, we have
+provided one for you. You can get it at
+
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+
+with the following commands:
+
+    sudo apt-get install git-lfs
+    git lfs install
+    git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp
 """
 
 import argparse
@@ -50,6 +88,8 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+import torch.nn as nn
+from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -69,8 +109,8 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
-        help="""It specifies the checkpoint to use for averaging.
+        default=30,
+        help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
@@ -88,7 +128,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=15,
+        default=9,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -97,7 +137,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -108,7 +148,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="pruned_transducer_stateless7/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -126,6 +166,9 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""True to save a model after applying torch.jit.script.
+        It will generate a file named cpu_jit.pt
+
+        Check ./jit_pretrained.py for how to use it.
         """,
     )
 
@@ -142,11 +185,10 @@ def get_parser():
     return parser
 
 
+@torch.no_grad()
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
-
-    assert args.jit is False, "Support torchscript will be added later"
 
     params = get_params()
     params.update(vars(args))
@@ -168,6 +210,8 @@ def main():
 
     logging.info("About to create model")
     model = get_transducer_model(params)
+
+    model.to(device)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -225,7 +269,6 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    decompose=True
                 )
             )
         else:
@@ -244,23 +287,27 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    decompose=True
                 )
             )
-
-    model.eval()
 
     model.to("cpu")
     model.eval()
 
-    if params.jit:
+    if params.jit is True:
+        convert_scaled_to_non_scaled(model, inplace=True)
+        logging.info("Using torch.jit.script()")
+        # We won't use the forward() method of the model in C++, so just ignore
+        # it here.
+        # Otherwise, one of its arguments is a ragged tensor and is not
+        # torch scriptabe.
+        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
-        logging.info("Not using torch.jit.script")
+        logging.info("Not using torchscript. Export model.state_dict()")
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = params.exp_dir / "pretrained.pt"
