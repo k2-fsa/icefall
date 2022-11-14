@@ -34,11 +34,11 @@ from scaling import (
     Whiten,
     Identity,
     _diag,
-    random_clamp,
     penalize_abs_values_gt,
     softmax,
     ScheduledFloat,
     FloatLike,
+    limit_param_value,
 )
 from torch import Tensor, nn
 
@@ -435,13 +435,12 @@ class ZipformerEncoderLayer(nn.Module):
                              grad_scale=0.01)
 
     def get_bypass_scale(self):
-        if torch.jit.is_scripting() or not self.training or random.random() < 0.5:
-            # the random.random() part is to ensure we get grads if self.bypass_scale becomes out of range
+        if torch.jit.is_scripting() or not self.training:
             return self.bypass_scale
-
-        return self.bypass_scale.clamp(min=float(self.bypass_clamp_min),
-                                       max=float(self.bypass_clamp_max))
-
+        else:
+            return limit_param_value(self.bypass_scale,
+                                     min=float(self.bypass_clamp_min),
+                                     max=float(self.bypass_clamp_max))
 
     def forward(
         self,
@@ -860,10 +859,10 @@ class SimpleCombiner(torch.nn.Module):
 
 
         weight1 = self.weight1
-        if self.training and random.random() < 0.5 and self.min_weight != (0., 0.):
-            weight1 = weight1.clamp(min=self.min_weight[0],
-                                    max=1.0-self.min_weight[1])
-
+        if self.training:
+            weight1 = limit_param_value(weight1,
+                                        min=self.min_weight[0],
+                                        max=1.0-self.min_weight[1])
 
         src1_dim = src1.shape[-1]
         src2_dim = src2.shape[-1]
