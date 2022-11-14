@@ -95,9 +95,11 @@ def set_batch_count(
     if isinstance(model, DDP):
         # get underlying nn.Module
         model = model.module
-    for module in model.modules():
+    for name, module in model.named_modules():
         if hasattr(module, 'batch_count'):
             module.batch_count = batch_count
+            if hasattr(module, 'name'):
+                module.name = name
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
