@@ -984,8 +984,7 @@ class RelPositionalEncoding(torch.nn.Module):
             + x.size(0),
             :
         ]
-        batch_size = x.size(1)
-        pos_emb = pos_emb.unsqueeze(0).expand(batch_size, -1, -1)  # now: (batch_size, 2*time-1, embed_dim)
+        pos_emb = pos_emb.unsqueeze(0)
         return self.dropout(pos_emb)
 
 
