@@ -1023,6 +1023,7 @@ class ScheduledFloat(torch.nn.Module):
                 next_x, next_y = self.schedule[i]
                 if batch_count >= cur_x and batch_count <= next_x:
                     return cur_y + (next_y - cur_y) * (batch_count - cur_x) / (next_x - cur_x)
+                cur_x, cur_y = next_x, next_y
             assert False
 
 FloatLike = Union[float, ScheduledFloat]
