@@ -981,6 +981,52 @@ class DoubleSwish(torch.nn.Module):
         return DoubleSwishFunction.apply(x)
 
 
+class ScheduledFloat(torch.nn.Module):
+    """
+    This object is a torch.nn.Module only because we want it to show up in [top_level module].modules();
+    it does not have a working forward() function.  You are supposed to cast it to float, as
+    in, float(parent_module.whatever), and use it as something like a dropout prob.
+
+    It is a floating point value whose value changes depending on the batch count of the
+    training loop.  It is a piecewise linear function where you specifiy the (x,y) pairs
+    in sorted order on x; x corresponds to the batch index.  For batch-index values before the
+    first x or after the last x, we just use the first or last y value.
+
+    Example:
+       self.dropout = ScheduledFloat((0.0, 0.2), (4000.0, 0.0))
+    """
+    def __init__(self,
+                 *args):
+        super().__init__()
+        # self.batch_count will be written to in the training loop.
+        self.batch_count = 0
+        assert len(args) >= 1
+        for (x,y) in args:
+            assert x >= 0
+        for i in range(len(args) - 1):
+            assert args[i + 1] > args[i], args
+        self.schedule = args
+
+    def extra_repr(self) -> str:
+        return 'batch_count={}, schedule={}'.format(self.batch_count,
+                                                    self.schedule)
+
+    def __float__(self):
+        batch_count = self.batch_count
+        if batch_count <= self.schedule[0][0]:
+            return self.schedule[0][1]
+        elif batch_count >= self.schedule[-1][0]:
+            return self.schedule[-1][1]
+        else:
+            cur_x, cur_y = self.schedule[0]
+            for i in range(1, len(self.schedule)):
+                next_x, next_y = self.schedule[i]
+                if batch_count >= cur_x and batch_count <= next_x:
+                    return cur_y + (next_y - cur_y) * (batch_count - cur_x) / (next_x - cur_x)
+            assert False
+
+FloatLike = Union[float, ScheduledFloat]
+
 
 def _test_max_eig():
     for proportion in [0.1, 0.5, 10.0]:
