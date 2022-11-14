@@ -1022,7 +1022,7 @@ class ScheduledFloat(torch.nn.Module):
             if random.random() < print_prob:
                 logging.info(f"ScheduledFloat: name={self.name}, batch_count={self.batch_count}, ans={ans}")
         batch_count = self.batch_count
-        if batch_count is None or self.training or torch.jit.is_scripting():
+        if batch_count is None or not self.training or torch.jit.is_scripting():
             return float(self.default)
         if batch_count <= self.schedule[0][0]:
             ans = self.schedule[0][1]
