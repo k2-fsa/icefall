@@ -537,7 +537,7 @@ def greedy_search(
     device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device, dtype=torch.int64
+        [-1] * (context_size - 1) + [blank_id], device=device, dtype=torch.int64
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -646,7 +646,7 @@ def greedy_search_batch(
     assert torch.all(encoder_out_lens > 0), encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
 
-    hyps = [[blank_id] * context_size for _ in range(N)]
+    hyps = [[-1] * (context_size - 1) + [blank_id] for _ in range(N)]
 
     # timestamp[n][i] is the frame index after subsampling
     # on which hyp[n][i] is decoded
@@ -2083,7 +2083,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
                     log_prob=hyp_log_prob,
                     state=state,
                     lm_score=lm_score,
-                    timestampe=new_timestamp,
+                    timestamp=new_timestamp,
                 )
                 B[i].add(new_hyp)
 

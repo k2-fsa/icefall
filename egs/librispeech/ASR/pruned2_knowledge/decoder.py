@@ -19,8 +19,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scaling import ScaledConv1d, ScaledEmbedding
 
-from icefall.utils import is_jit_tracing
-
 
 class Decoder(nn.Module):
     """This class modifies the stateless decoder from the following paper:
@@ -75,16 +73,8 @@ class Decoder(nn.Module):
                 groups=decoder_dim,
                 bias=False,
             )
-        else:
-            # It is to support torch script
-            self.conv = nn.Identity()
 
-    def forward(
-        self,
-        y: torch.Tensor,
-        need_pad: bool = True  # Annotation should be Union[bool, torch.Tensor]
-        # but, torch.jit.script does not support Union.
-    ) -> torch.Tensor:
+    def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
         Args:
           y:
@@ -95,32 +85,18 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, decoder_dim).
         """
-        if isinstance(need_pad, torch.Tensor):
-            # This is for torch.jit.trace(), which cannot handle the case
-            # when the input argument is not a tensor.
-            need_pad = bool(need_pad)
-
         y = y.to(torch.int64)
-        # this stuff about clamp() is a temporary fix for a mismatch
-        # at utterance start, we use negative ids in beam_search.py
-        if torch.jit.is_tracing():
-            # This is for exporting to PNNX via ONNX
-            embedding_out = self.embedding(y)
-        else:
-            embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(
-                -1
-            )
+        embedding_out = self.embedding(y)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
-            if need_pad:
+            if need_pad is True:
                 embedding_out = F.pad(
                     embedding_out, pad=(self.context_size - 1, 0)
                 )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
-                if not is_jit_tracing():
-                    assert embedding_out.size(-1) == self.context_size
+                assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
         embedding_out = F.relu(embedding_out)

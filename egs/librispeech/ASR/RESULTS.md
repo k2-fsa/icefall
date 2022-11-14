@@ -1,5 +1,63 @@
 ## Results
 
+### pruned_transducer_stateless7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/672> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/P7vXWqK7QVu1mU9Ene1gGg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+|                      | test-clean | test-other  | comment                                |
+|----------------------|------------|-------------|----------------------------------------|
+| greedy search        | 2.17       | 5.23        | --epoch 39 --avg 6 --max-duration 600  |
+| modified beam search | 2.15       | 5.20        | --epoch 39 --avg 6 --max-duration 600  |
+| fast beam search     | 2.15       | 5.22        | --epoch 39 --avg 6 --max-duration 600  |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,3,6,7"
+
+./pruned_transducer_stateless7/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --master-port 12535
+```
+
+The decoding commands are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search ; do
+  for epoch in 30; do
+    for avg in 9; do
+      ./pruned_transducer_stateless7/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+
+
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
 #### [lstm_transducer_stateless3](./lstm_transducer_stateless3)
