@@ -107,8 +107,7 @@ Usage:
     --rnn-lm-avg 1 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1
-    
-    
+
 (9) modified beam search with RNNLM shallow fusion + LODR
 ./pruned_transducer_stateless2/decode.py \
     --epoch 35 \
@@ -125,10 +124,8 @@ Usage:
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1 \
     --tokens-ngram 2 \
-    --ngram-lm-scale -0.14 \
-        
+    --ngram-lm-scale -0.16 \
 """
-
 
 import argparse
 import logging
@@ -417,7 +414,7 @@ def get_parser():
         type=int,
         default=3,
         help="""Token Ngram used for rescoring.
-            Used only when the decoding method is 
+            Used only when the decoding method is
             modified_beam_search_ngram_rescoring""",
     )
 
@@ -426,7 +423,7 @@ def get_parser():
         type=int,
         default=500,
         help="""ID of the backoff symbol.
-                Used only when the decoding method is 
+                Used only when the decoding method is
                 modified_beam_search_ngram_rescoring""",
     )
 
