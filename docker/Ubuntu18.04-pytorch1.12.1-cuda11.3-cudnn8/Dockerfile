@@ -68,6 +68,7 @@ RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 	cd /workspace/icefall && \
 	pip install -r requirements.txt
 
+RUN pip install kaldifeat 
 ENV PYTHONPATH /workspace/icefall:$PYTHONPATH
 
 WORKDIR /workspace/icefall
