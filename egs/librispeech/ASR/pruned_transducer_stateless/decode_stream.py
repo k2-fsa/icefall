@@ -28,6 +28,7 @@ class DecodeStream(object):
     def __init__(
         self,
         params: AttributeDict,
+        cut_id: str,
         initial_states: List[torch.Tensor],
         decoding_graph: Optional[k2.Fsa] = None,
         device: torch.device = torch.device("cpu"),
@@ -48,6 +49,7 @@ class DecodeStream(object):
             assert device == decoding_graph.device
 
         self.params = params
+        self.cut_id = cut_id
         self.LOG_EPS = math.log(1e-10)
 
         self.states = initial_states
@@ -101,6 +103,10 @@ class DecodeStream(object):
     def done(self) -> bool:
         """Return True if all the features are processed."""
         return self._done
+
+    @property
+    def id(self) -> str:
+        return self.cut_id
 
     def set_features(
         self,
