@@ -178,7 +178,7 @@ echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
 if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   lm_repo_url=https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
   log "Download pre-trained RNN-LM model from ${lm_repo_url}"
-  git clone $lm_repo_url
+  GIT_LFS_SKIP_SMUDGE=1 git clone $lm_repo_url
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"
@@ -216,7 +216,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
 
   lm_repo_url=https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
   log "Download pre-trained RNN-LM model from ${lm_repo_url}"
-  git clone $lm_repo_url
+  GIT_LFS_SKIP_SMUDGE=1 git clone $lm_repo_url
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"

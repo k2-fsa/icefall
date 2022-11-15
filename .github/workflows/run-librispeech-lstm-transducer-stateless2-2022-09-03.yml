@@ -152,7 +152,7 @@ jobs:
 
       - name: Upload decoding results for lstm_transducer_stateless2
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion'
+        if: github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'LODR'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-lstm_transducer_stateless2-2022-09-03
           path: egs/librispeech/ASR/lstm_transducer_stateless2/exp/
