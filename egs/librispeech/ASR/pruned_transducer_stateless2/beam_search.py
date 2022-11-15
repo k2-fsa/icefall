@@ -652,6 +652,10 @@ def greedy_search_batch(
     # on which hyp[n][i] is decoded
     timestamps = [[] for _ in range(N)]
 
+    # timestamp[n][i] is the frame index after subsampling
+    # on which hyp[n][i] is decoded
+    timestamps = [[] for _ in range(N)]
+
     decoder_input = torch.tensor(
         hyps,
         device=device,

@@ -114,8 +114,6 @@ for m in greedy_search fast_beam_search modified_beam_search ; do
 done
 ```
 
-
-
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
 #### [lstm_transducer_stateless3](./lstm_transducer_stateless3)
