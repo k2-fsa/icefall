@@ -18,7 +18,7 @@ on:
 
 jobs:
   run_librispeech_lstm_transducer_stateless2_2022_09_03:
-    if: github.event.label.name == 'ready' || github.event.label.name == "LODR" || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'ncnn' || github.event.label.name == 'onnx' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'LODR' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'ncnn' || github.event.label.name == 'onnx' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
