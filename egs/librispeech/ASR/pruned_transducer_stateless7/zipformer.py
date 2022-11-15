@@ -553,7 +553,7 @@ class ZipformerEncoder(nn.Module):
             final_layerdrop_prob: float = 0.05,
     ) -> None:
         super().__init__()
-        self.encoder_pos = CompactRelPositionalEncoding(pos_dim, dropout_rate=0.15)
+        self.encoder_pos = CompactRelPositionalEncoding(pos_dim, dropout_rate=0.0)
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
@@ -1031,7 +1031,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pos_head_dim: int,
             dropout: float = 0.0,
             pos_emb_skip: FloatLike = ScheduledFloat((0.0, 0.5),
-                                                     (4000.0, 0.025))
+                                                     (4000.0, 0.05))
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
