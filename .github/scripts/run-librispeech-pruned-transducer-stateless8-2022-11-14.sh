@@ -43,6 +43,7 @@ log "Export to torchscript model"
 ./pruned_transducer_stateless8/export.py \
   --exp-dir $repo/exp \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model false \
   --epoch 99 \
   --avg 1 \
   --jit 1
