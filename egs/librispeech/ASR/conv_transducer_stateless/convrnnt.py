@@ -81,8 +81,6 @@ class ConvRNNT(EncoderInterface):
             dim_feedforward=lstm_dim_feedforward,
         )
 
-        self._init_state: List[torch.Tensor] = [torch.empty(0)]
-
     def forward(
         self,
         x: torch.Tensor,
@@ -168,7 +166,7 @@ class ConvRNNT(EncoderInterface):
         self, batch_size: int = 1, device: torch.device = torch.device("cpu")
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get model initial states.
-          NOTE: the returned tensors are on the given device.
+        NOTE: the returned tensors are on the given device.
         """
         hidden_states = torch.zeros(
             (
@@ -433,13 +431,13 @@ class LocalCNNEncoder(nn.Module):
 
         self.activation = DoubleSwish()
 
-        self.conv5 = ScaledConv2d(
+        self.out = ScaledConv2d(
             64,
             1,
             kernel_size=1,
             stride=1,
             padding=0,
-            bias=bias,
+            bias=False,
         )
 
     def forward(
@@ -498,52 +496,57 @@ class LocalCNNEncoder(nn.Module):
         x = self.conv4(x)
         x = self.deriv_balancer4(x)
         x = self.activation(x)
-        # Conv5
+
+        # out
         # (N, 64, C, T) -> (N, 1, C, T) -> (N, C, T)
-        x = self.conv5(x)
+        x = self.out(x)
         x = x.squeeze(1).permute(2, 0, 1)
         return x
 
 
 class SEModule(nn.Module):
-    """SE Module as defined in original SE-Nets with a few additions
-    Modified from rwightman`s squeeze_excite.py
+    """Squeeze-and-Excitation module.
+
+    Args:
+        channels (int): Input dimension.
+        rd_ratio (int): The reduction ratio.
+
     """
 
     def __init__(
         self,
         channels,
-        rd_ratio=1.0 / 16,
-        rd_channels=None,
-        rd_divisor=8,
-        bias=True,
+        rd_ratio=16,
     ):
-        super(SEModule, self).__init__()
-        if not rd_channels:
-            rd_channels = self.make_divisible(
-                channels * rd_ratio, rd_divisor, round_limit=0.0
-            )
-        self.fc1 = nn.Conv1d(channels, rd_channels, kernel_size=1, bias=bias)
-        self.act = nn.ReLU()
-        self.fc2 = nn.Conv1d(rd_channels, channels, kernel_size=1, bias=bias)
-        self.gate = nn.Sigmoid()
+        super().__init__()
+        rd_channels = channels // rd_ratio
+        assert rd_channels > 0
+        self.fc1 = nn.Linear(channels, rd_channels)
+        self.activation1 = nn.ReLU()
+        self.fc2 = nn.Linear(rd_channels, channels)
+        self.activation2 = nn.Sigmoid()
 
     def forward(self, x, src_key_padding_mask):
-        x_se_num = src_key_padding_mask.eq(False).sum(axis=1, keepdim=True)
-        x_se_num = x_se_num.unsqueeze(1)
-        x_se = x.sum(axis=2, keepdim=True) / x_se_num
-        x_se = self.fc1(x_se)
-        x_se = self.act(x_se)
-        x_se = self.fc2(x_se)
-        return x * self.gate(x_se)
+        """Squeeze-and-Excitation module.
 
-    def make_divisible(self, v, divisor=8, min_value=None, round_limit=0.9):
-        min_value = min_value or divisor
-        new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
-        # Make sure that round down does not go down by more than 10%.
-        if new_v < round_limit * v:
-            new_v += divisor
-        return new_v
+        Args:
+            x: Input tensor (batch, channels, time)
+            src_key_padding_mask: the mask for src keys per batch (optional)
+
+        Returns:
+            torch.Tensor: Output tensor (batch, channels, time)
+        """
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(
+                src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0
+            )
+        x_se_num = (~src_key_padding_mask).sum(axis=1, keepdim=True)
+        x_se = x.sum(axis=2) / x_se_num
+        x_se = self.fc1(x_se)
+        x_se = self.activation1(x_se)
+        x_se = self.fc2(x_se)
+        x_se = self.activation2(x_se)
+        return x * x_se.unsqueeze(2)
 
 
 class GlobalCNNEncoderLayer(nn.Module):
@@ -590,7 +593,7 @@ class GlobalCNNEncoderLayer(nn.Module):
             max_positive=1.0,
         )
 
-        kernel_size=3
+        kernel_size = 3
         self.lorder = kernel_size - 1
         padding = (kernel_size - 1) // 2
         if self.causal:
@@ -604,7 +607,7 @@ class GlobalCNNEncoderLayer(nn.Module):
             padding=padding,
             groups=channels,
             bias=bias,
-            dilation=2 ** block_number
+            dilation=2 ** block_number,
         )
 
         self.deriv_balancer2 = ActivationBalancer(
@@ -626,14 +629,14 @@ class GlobalCNNEncoderLayer(nn.Module):
         )
 
         self.SE = SEModule(channels=channels)
-        self.Dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
         self.out_norm = BasicNorm(channels, learn_eps=False)
 
     def forward(
         self,
         x: torch.Tensor,
         src_key_padding_mask: Optional[torch.Tensor] = None,
-        warmup: float=1.0,
+        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute convolution module.
 
@@ -693,7 +696,7 @@ class GlobalCNNEncoderLayer(nn.Module):
 
         x = self.pointwise_conv2(x)  # (batch, channel, time)
         x = self.SE(x, src_key_padding_mask)
-        x = self.Dropout(x) + src
+        x = self.dropout(x) + src
 
         if alpha != 1.0:
             x = alpha * x + (1 - alpha) * src
@@ -778,6 +781,7 @@ class LstmEncoder(nn.Module):
       dim_feedforward:
         The dimension of feedforward network model (default=1024)
     """
+
     def __init__(
         self,
         d_model: int = 512,
@@ -928,7 +932,7 @@ class LstmEncoder(nn.Module):
             x = x + self.dropout(self.feed_forward(x))
 
             x = self.norm_final(self.balancer(x))
-            
+
             if alpha != 1.0:
                 x = alpha * x + (1 - alpha) * src
 
@@ -1211,4 +1215,3 @@ if __name__ == "__main__":
     print(f"Number of model parameters: {num_param}")
 
     _test_random_combine_main()
-
