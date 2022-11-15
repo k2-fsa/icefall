@@ -7,6 +7,8 @@
 # You will find directories ~/tmp/download/LibriSpeech after running
 # this script.
 
+set -e
+
 mkdir ~/tmp/download
 cd egs/librispeech/ASR
 ln -s ~/tmp/download .

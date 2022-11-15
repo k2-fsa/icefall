@@ -32,8 +32,9 @@ release = "0.1"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx_rtd_theme",
     "sphinx.ext.todo",
+    "sphinx_rtd_theme",
+    "sphinxcontrib.youtube",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -73,7 +74,7 @@ html_context = {
     "github_user": "k2-fsa",
     "github_repo": "icefall",
     "github_version": "master",
-    "conf_py_path": "/icefall/docs/source/",
+    "conf_py_path": "/docs/source/",
 }
 
 todo_include_todos = True

@@ -402,7 +402,7 @@ The information of the test sound files is listed below:
 
 .. code-block:: bash
 
-  $ soxi tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/*.wav
+  $ soxi tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/*.wav
 
   Input File     : 'tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav'
   Channels       : 1
@@ -461,9 +461,9 @@ The command to run HLG decoding is:
     --words-file ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/words.txt \
     --HLG ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/HLG.pt \
     --method 1best \
-    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0121.wav \
-    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0122.wav \
-    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_wavs/BAC009S0764W0123.wav
+    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav \
+    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav \
+    ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav
 
 The output is given below:
 
@@ -498,7 +498,7 @@ We do provide a colab notebook for this recipe showing how to use a pre-trained 
 |aishell asr conformer ctc colab notebook|
 
 .. |aishell asr conformer ctc colab notebook| image:: https://colab.research.google.com/assets/colab-badge.svg
-   :target: https://colab.research.google.com/drive/1qULaGvXq7PCu_P61oubfz9b53JzY4H3z
+   :target: https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing
 
 **Congratulations!** You have finished the aishell ASR recipe with
 TDNN-LSTM CTC models in ``icefall``.

@@ -322,7 +322,7 @@ def main():
 
         H = k2.ctc_topo(
             max_token=max_token_id,
-            modified=False,
+            modified=params.num_classes > 500,
             device=device,
         )
 

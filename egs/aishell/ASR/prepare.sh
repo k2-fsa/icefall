@@ -48,8 +48,13 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "stage -1: Download LM"
   # We assume that you have installed the git-lfs, if not, you could install it
   # using: `sudo apt-get install git-lfs && git-lfs install`
+  git lfs 1>/dev/null 2>&1 || (echo "please install git-lfs, consider using: sudo apt-get install git-lfs && git-lfs install" && exit 1)
+
   if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
     git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
+    pushd $dl_dir/lm
+    git lfs pull --include "3-gram.unpruned.arpa"
+    popd
   fi
 fi
 

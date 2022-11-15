@@ -164,6 +164,10 @@ class Eve(Optimizer):
                     p.mul_(1 - (weight_decay * is_above_target_rms))
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
+                # Constrain the range of scalar weights
+                if p.numel() == 1:
+                    p.clamp_(min=-10, max=2)
+
         return loss
 
 

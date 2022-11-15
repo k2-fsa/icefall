@@ -65,6 +65,8 @@ def compute_fbank_musan():
     assert len(manifests) == len(dataset_parts), (
         len(manifests),
         len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
     )
 
     musan_cuts_path = output_dir / "musan_cuts.jsonl.gz"

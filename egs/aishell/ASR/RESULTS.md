@@ -81,6 +81,58 @@ We have a tutorial in [sherpa](https://github.com/k2-fsa/sherpa) about how
 to use the pre-trained model for non-streaming ASR. See
 <https://k2-fsa.github.io/sherpa/offline_asr/conformer/aishell.html>
 
+
+#### Pruned transducer stateless 2
+
+See https://github.com/k2-fsa/icefall/pull/536
+
+[./pruned_transducer_stateless2](./pruned_transducer_stateless2)
+
+It uses pruned RNN-T.
+
+|                      | test | dev  | comment                                |
+| -------------------- | ---- | ---- | -------------------------------------- |
+| greedy search        | 5.20 | 4.78 | --epoch 72 --avg 14 --max-duration 200 |
+| modified beam search | 5.07 | 4.63 | --epoch 72 --avg 14 --max-duration 200 |
+| fast beam search     | 5.13 | 4.70 | --epoch 72 --avg 14 --max-duration 200 |
+
+Training command is:
+
+```bash
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless2/train.py \
+        --world-size 2 \
+        --num-epochs 90 \
+        --start-epoch 0 \
+        --exp-dir pruned_transducer_stateless2/exp \
+        --max-duration 200 \
+```
+
+The tensorboard log is available at
+https://tensorboard.dev/experiment/QI3PVzrGRrebxpbWUPwmkA/
+
+The decoding command is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./pruned_transducer_stateless2/decode.py \
+    --epoch 72 \
+    --avg 14 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
+    --lang-dir data/lang_char \
+    --max-duration 200 \
+    --decoding-method $m
+
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/teapoly/icefall-aishell-pruned-transducer-stateless2-2022-08-18>
+
+
 #### 2022-03-01
 
 [./transducer_stateless_modified-2](./transducer_stateless_modified-2)
