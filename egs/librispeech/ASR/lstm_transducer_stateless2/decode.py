@@ -109,7 +109,7 @@ Usage:
     --rnn-lm-tie-weights 1
 
 (9) modified beam search with RNNLM shallow fusion + LODR
-./pruned_transducer_stateless2/decode.py \
+./lstm_transducer_stateless2/decode.py \
     --epoch 35 \
     --avg 15 \
     --max-duration 600 \
