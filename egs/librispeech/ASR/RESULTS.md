@@ -1781,6 +1781,8 @@ subset so that the gigaspeech dataloader never exhausts.
 |-------------------------------------|------------|------------|---------------------------------------------|
 | greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + rnnlm shallow fusion  | 1.94     |  4.2    | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + LODR         | 1.83       | 4.03       | --iter 1224000 --avg 14  --max-duration 600 |
 | fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
 
 The training commands are:
@@ -1822,6 +1824,64 @@ for iter in 1224000; do
         --max-sym-per-frame 1 \
         --beam 4 \
         --max-contexts 32
+    done
+  done
+done
+```
+You may also decode using shallow fusion with external RNNLM. To do so you need to
+download a well-trained RNNLM from this link <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+
+```bash
+rnn_lm_scale=0.3
+
+for iter in 1224000; do
+  for avg in 14; do
+    for method in modified_beam_search_rnnlm_shallow_fusion ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32 \
+        --rnn-lm-scale $rnn_lm_scale \
+        --rnn-lm-exp-dir /path/to/RNNLM \
+        --rnn-lm-epoch 99 \
+        --rnn-lm-avg 1 \
+        --rnn-lm-num-layers 3 \
+        --rnn-lm-tie-weights 1
+    done
+  done
+done
+```
+
+If you want to try out with LODR decoding, use the following command. This assums you have a bi-gram LM trained on LibriSpeech text. You can also download the bi-gram LM from here <https://huggingface.co/marcoyang/librispeech_bigram/tree/main> and put it under the directory `data/lang_bpe_500`.
+
+```bash
+rnn_lm_scale=0.4
+
+for iter in 1224000; do
+  for avg in 14; do
+    for method in modified_beam_search_rnnlm_LODR ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32 \
+        --rnn-lm-scale $rnn_lm_scale \
+        --rnn-lm-exp-dir /path/to/RNNLM \
+        --rnn-lm-epoch 99 \
+        --rnn-lm-avg 1 \
+        --rnn-lm-num-layers 3 \
+        --rnn-lm-tie-weights 1 \
+        --tokens-ngram 2 \
+        --ngram-lm-scale -0.14
     done
   done
 done
