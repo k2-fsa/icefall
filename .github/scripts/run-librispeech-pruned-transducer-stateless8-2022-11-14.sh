@@ -10,7 +10,7 @@ log() {
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless8-2022-11-14
 
 log "Downloading pre-trained model from $repo_url"
 git lfs install
@@ -30,11 +30,20 @@ ln -s pretrained.pt epoch-99.pt
 ls -lh *.pt
 popd
 
-log "Export to torchscript model"
-./pruned_transducer_stateless7/export.py \
-  --exp-dir $repo/exp \
-  --use-averaged-model false \
+log "Decode with models exported by torch.jit.script()"
+
+./pruned_transducer_stateless8/jit_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --nn-model-filename $repo/exp/cpu_jit.pt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
+log "Export to torchscript model"
+./pruned_transducer_stateless8/export.py \
+  --exp-dir $repo/exp \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model false \
   --epoch 99 \
   --avg 1 \
   --jit 1
@@ -43,7 +52,7 @@ ls -lh $repo/exp/*.pt
 
 log "Decode with models exported by torch.jit.script()"
 
-./pruned_transducer_stateless7/jit_pretrained.py \
+./pruned_transducer_stateless8/jit_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --nn-model-filename $repo/exp/cpu_jit.pt \
   $repo/test_wavs/1089-134686-0001.wav \
@@ -53,7 +62,7 @@ log "Decode with models exported by torch.jit.script()"
 for sym in 1 2 3; do
   log "Greedy search with --max-sym-per-frame $sym"
 
-  ./pruned_transducer_stateless7/pretrained.py \
+  ./pruned_transducer_stateless8/pretrained.py \
     --method greedy_search \
     --max-sym-per-frame $sym \
     --checkpoint $repo/exp/pretrained.pt \
@@ -66,7 +75,7 @@ done
 for method in modified_beam_search beam_search fast_beam_search; do
   log "$method"
 
-  ./pruned_transducer_stateless7/pretrained.py \
+  ./pruned_transducer_stateless8/pretrained.py \
     --method $method \
     --beam-size 4 \
     --checkpoint $repo/exp/pretrained.pt \
@@ -79,12 +88,12 @@ done
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
 if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
-  mkdir -p pruned_transducer_stateless7/exp
-  ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless7/exp/epoch-999.pt
+  mkdir -p pruned_transducer_stateless8/exp
+  ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless8/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
 
   ls -lh data
-  ls -lh pruned_transducer_stateless7/exp
+  ls -lh pruned_transducer_stateless8/exp
 
   log "Decoding test-clean and test-other"
 
@@ -94,14 +103,14 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   for method in greedy_search fast_beam_search modified_beam_search; do
     log "Decoding with $method"
 
-    ./pruned_transducer_stateless7/decode.py \
+    ./pruned_transducer_stateless8/decode.py \
       --decoding-method $method \
       --epoch 999 \
       --avg 1 \
       --use-averaged-model 0 \
       --max-duration $max_duration \
-      --exp-dir pruned_transducer_stateless7/exp
+      --exp-dir pruned_transducer_stateless8/exp
   done
 
-  rm pruned_transducer_stateless7/exp/*.pt
+  rm pruned_transducer_stateless8/exp/*.pt
 fi
