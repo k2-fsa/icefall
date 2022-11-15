@@ -400,10 +400,6 @@ class ZipformerEncoderLayer(nn.Module):
                                                feedforward_dim,
                                                dropout)
 
-        self.feed_forward3 = FeedforwardModule(embed_dim,
-                                               feedforward_dim,
-                                               dropout)
-
         #self.conv_module1 = ConvolutionModule(embed_dim,
         #cnn_module_kernel)
         self.nonlin_attention_module = NonlinAttentionModule(embed_dim)
@@ -469,9 +465,6 @@ class ZipformerEncoderLayer(nn.Module):
 
         src_orig = src
 
-        # macaron style feed forward module
-        src = src + self.feed_forward1(src)
-
         # dropout rate for non-feedforward submodules
         dynamic_skip_prob = float(self.dynamic_skip_prob) if self.training else 0.0
         # multi-headed self-attention module
@@ -490,7 +483,7 @@ class ZipformerEncoderLayer(nn.Module):
             src = src + self.nonlin_attention_module(src,
                                                      attn_weights[0:1])
 
-        src = src + self.feed_forward2(src)
+        src = src + self.feed_forward1(src)
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
@@ -503,7 +496,7 @@ class ZipformerEncoderLayer(nn.Module):
         if torch.jit.is_scripting() or random.random() >= dynamic_skip_prob:
             src = src + self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.feed_forward3(src)
+        src = src + self.feed_forward2(src)
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
