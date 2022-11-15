@@ -1030,7 +1030,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             query_head_dim: int,
             pos_head_dim: int,
             dropout: float = 0.0,
-            pos_emb_skip_rate: FloatLike = 0.05,
+            pos_emb_skip_rate: FloatLike = 0.075,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
