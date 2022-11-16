@@ -481,9 +481,9 @@ def decode_dataset(
             ), "It should not decode to empty in the first batch!"
             this_batch = []
             hyp_words = []
-            for ref_text in texts:
+            for cut_id, ref_text in zip(cut_ids, texts):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             for lm_scale in results.keys():
                 results[lm_scale].extend(this_batch)
