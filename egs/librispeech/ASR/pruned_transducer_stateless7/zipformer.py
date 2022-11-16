@@ -1828,6 +1828,7 @@ def _test_zipformer_main():
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
     )
+    assert ((seq_len - 7) // 2 + 1) // 2 == f[0].shape[1], (seq_len, f.shape[1])
     f[0].sum().backward()
     c.eval()
     f = c(
