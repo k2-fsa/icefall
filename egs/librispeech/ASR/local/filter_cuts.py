@@ -101,6 +101,9 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         # Note: for ./lstm_transducer_stateless/lstm.py, the formula is
         #  T = ((num_frames - 3) // 2 - 1) // 2
 
+        # Note: for ./pruned_transducer_stateless7/zipformer.py, the formula is
+        # T = ((num_frames - 7) // 2 + 1) // 2
+
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
         if T < len(tokens):
