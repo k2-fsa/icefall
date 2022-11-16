@@ -286,7 +286,7 @@ class GlobalCNNEncoder(nn.Module):
         num_layers: the number of sub-encoder-layers
          in the GlobalCNNEncoder (required).
 
-    Examples::
+    Examples:
         >>> encoder_layer = GlobalCNNEncoderLayer(d_model=512)
         >>> global_cnn_encoder = GlobalCNNEncoder(encoder_layer, num_layers=6)
         >>> src = torch.rand(10, 32, 512)
@@ -982,12 +982,12 @@ class RandomCombine(nn.Module):
             randomized weights.
 
         The method of choosing which layers, or combinations of layers, to use,
-        is conceptually as follows::
+        is conceptually as follows:
 
-            With probability `pure_prob`::
+            With probability `pure_prob`:
                With probability `final_weight`: choose final layer,
                Else: choose random non-final layer.
-            Else::
+            Else:
                Choose initial log-weights that correspond to assigning
                weight `final_weight` to the final layer and equal
                weights to other layers; then add Gaussian noise
