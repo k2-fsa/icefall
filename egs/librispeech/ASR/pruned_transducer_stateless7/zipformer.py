@@ -1031,7 +1031,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pos_head_dim: int,
             dropout: float = 0.0,
             pos_emb_skip: FloatLike = ScheduledFloat((0.0, 0.5),
-                                                     (4000.0, 0.05))
+                                                     (4000.0, 0.075))
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
