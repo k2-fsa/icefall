@@ -167,13 +167,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
         "--initial-lr",
         type=float,
         default=0.003,
@@ -522,14 +515,6 @@ def compute_loss(
         nnet_output, encoder_memory, memory_mask = model(
             feature, supervisions, warmup=warmup
         )
-        # logging.info('feature shape: {}'.format(feature.shape))
-        # logging.info('nnet_output shape: {}'.format(nnet_output.shape))
-        # logging.info('encoder_memory shape: {}'.format(encoder_memory.shape))
-        # logging.info('memory_mask shape: {}'.format(memory_mask.shape))
-        # after the main warmup step, we keep pruned_loss_scale small
-        # for the same amount of time (model_warm_step), to avoid
-        # overwhelming the simple_loss and causing it to diverge,
-        # in case it had not fully learned the alignment yet.
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by

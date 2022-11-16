@@ -459,6 +459,7 @@ class Nbest(object):
 def one_best_decoding(
     lattice: k2.Fsa,
     use_double_scores: bool = True,
+    lm_scale_list: Optional[List[float]] = None,
 ) -> k2.Fsa:
     """Get the best path from a lattice.
 
@@ -468,11 +469,28 @@ def one_best_decoding(
       use_double_scores:
         True to use double precision floating point in the computation.
         False to use single precision.
+      lm_scale_list:
+        A list of floats representing LM score scales.
     Return:
       An FsaVec containing linear paths.
     """
-    best_path = k2.shortest_path(lattice, use_double_scores=use_double_scores)
-    return best_path
+
+    if lm_scale_list is not None:
+
+        ans = dict()
+        saved_am_scores = lattice.scores - lattice.lm_scores
+        for lm_scale in lm_scale_list:
+            am_scores = saved_am_scores / lm_scale
+            lattice.scores = am_scores + lattice.lm_scores
+
+            best_path = k2.shortest_path(
+                lattice, use_double_scores=use_double_scores
+            )
+            key = f"lm_scale_{lm_scale}"
+            ans[key] = best_path
+        return ans
+
+    return k2.shortest_path(lattice, use_double_scores=use_double_scores)
 
 
 def nbest_decoding(
