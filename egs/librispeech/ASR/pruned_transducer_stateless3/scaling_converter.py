@@ -234,9 +234,7 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
 
     assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
     for idx in range(len(scaled_lstm._flat_weights_names)):
-        scaled_weight = (
-            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
-        )
+        scaled_weight = scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
         lstm._flat_weights[idx].data.copy_(scaled_weight)
 
     return lstm
@@ -251,12 +249,10 @@ def get_submodule(model, target):
     mod: torch.nn.Module = model
     for item in atoms:
         if not hasattr(mod, item):
-            raise AttributeError(
-                mod._get_name() + " has no " "attribute `" + item + "`"
-            )
+            raise AttributeError(mod._get_name() + " has no attribute `" + item + "`")
         mod = getattr(mod, item)
         if not isinstance(mod, torch.nn.Module):
-            raise AttributeError("`" + item + "` is not " "an nn.Module")
+            raise AttributeError("`" + item + "` is not an nn.Module")
     return mod
 
 

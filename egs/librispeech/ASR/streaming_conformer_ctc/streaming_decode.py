@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
@@ -62,32 +63,36 @@ def get_parser():
         "--epoch",
         type=int,
         default=34,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help=(
+            "It specifies the checkpoint to use for decoding.Note: Epoch counts from 0."
+        ),
     )
     parser.add_argument(
         "--avg",
         type=int,
         default=20,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
+        help=(
+            "Number of checkpoints to average. Automatically select "
+            "consecutive checkpoints before the checkpoint specified by "
+            "'--epoch'. "
+        ),
     )
 
     parser.add_argument(
         "--chunk-size",
         type=int,
         default=8,
-        help="Frames of right context"
-        "-1 for whole right context, i.e. non-streaming decoding",
+        help=(
+            "Frames of right context"
+            "-1 for whole right context, i.e. non-streaming decoding"
+        ),
     )
 
     parser.add_argument(
         "--tailing-num-frames",
         type=int,
         default=20,
-        help="tailing dummy frames padded to the right,"
-        "only used during decoding",
+        help="tailing dummy frames padded to the right,only used during decoding",
     )
 
     parser.add_argument(
@@ -139,8 +144,7 @@ def get_parser():
         "--avg-models",
         type=str,
         default=None,
-        help="Manually select models to average, seperated by comma;"
-        "e.g. 60,62,63,72",
+        help="Manually select models to average, seperated by comma;e.g. 60,62,63,72",
     )
 
     return parser
@@ -248,13 +252,9 @@ def decode_one_batch(
     maxlen = nnet_output.size(1)
     topk_prob, topk_index = nnet_output.topk(1, dim=2)  # (B, maxlen, 1)
     topk_index = topk_index.view(batch_size, maxlen)  # (B, maxlen)
-    topk_index = topk_index.masked_fill_(
-        memory_key_padding_mask, 0
-    )  # (B, maxlen)
+    topk_index = topk_index.masked_fill_(memory_key_padding_mask, 0)  # (B, maxlen)
     token_ids = [token_id.tolist() for token_id in topk_index]
-    token_ids = [
-        remove_duplicates_and_blank(token_id) for token_id in token_ids
-    ]
+    token_ids = [remove_duplicates_and_blank(token_id) for token_id in token_ids]
     hyps = bpe_model.decode(token_ids)
     hyps = [s.split() for s in hyps]
     return {key: hyps}
@@ -337,9 +337,7 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
 
     return results
 
@@ -357,15 +355,18 @@ def save_results(
     test_set_wers = dict()
     if params.avg_models is not None:
         avg_models = params.avg_models.replace(",", "_")
-        result_file_prefix = f"epoch-avg-{avg_models}-chunksize \
-        -{params.chunk_size}-tailing-num-frames-{params.tailing_num_frames}-"
+        result_file_prefix = (
+            f"epoch-avg-{avg_models}-chunksize        "
+            f" -{params.chunk_size}-tailing-num-frames-{params.tailing_num_frames}-"
+        )
     else:
-        result_file_prefix = f"epoch-{params.epoch}-avg-{params.avg}-chunksize \
-        -{params.chunk_size}-tailing-num-frames-{params.tailing_num_frames}-"
+        result_file_prefix = (
+            f"epoch-{params.epoch}-avg-{params.avg}-chunksize        "
+            f" -{params.chunk_size}-tailing-num-frames-{params.tailing_num_frames}-"
+        )
     for key, results in results_dict.items():
         recog_path = (
-            params.exp_dir
-            / f"{result_file_prefix}recogs-{test_set_name}-{key}.txt"
+            params.exp_dir / f"{result_file_prefix}recogs-{test_set_name}-{key}.txt"
         )
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
@@ -374,8 +375,7 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = (
-            params.exp_dir
-            / f"{result_file_prefix}-errs-{test_set_name}-{key}.txt"
+            params.exp_dir / f"{result_file_prefix}-errs-{test_set_name}-{key}.txt"
         )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
@@ -384,9 +384,7 @@ def save_results(
             test_set_wers[key] = wer
 
         if enable_log:
-            logging.info(
-                "Wrote detailed error stats to {}".format(errs_filename)
-            )
+            logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
@@ -474,9 +472,7 @@ def main():
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
+        torch.save({"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt")
         return
 
     model.to(device)
@@ -507,9 +503,7 @@ def main():
             simulate_streaming=params.simulate_streaming,
         )
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 

@@ -73,8 +73,7 @@ def asr_text_post_processing(text: str) -> str:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="This script evaluates GigaSpeech ASR result via"
-        "SCTK's tool sclite"
+        description="This script evaluates GigaSpeech ASR result viaSCTK's tool sclite"
     )
     parser.add_argument(
         "ref",

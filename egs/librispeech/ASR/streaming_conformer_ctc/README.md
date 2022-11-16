@@ -1,20 +1,20 @@
 ## Train and Decode
-Commands of data preparation/train/decode steps are almost the same with 
+Commands of data preparation/train/decode steps are almost the same with
 ../conformer_ctc experiment except some options.
 
 Please read the code and understand following new added options before running this experiment:
 
   For data preparation:
-  
+
     Nothing new.
 
   For streaming_conformer_ctc/train.py:
-  
+
     --dynamic-chunk-training
     --short-chunk-proportion
 
   For streaming_conformer_ctc/streaming_decode.py:
-  
+
     --chunk-size
     --tailing-num-frames
     --simulate-streaming
@@ -57,10 +57,10 @@ And check md5sum values again.
 
 Finally, following files will be downloaded:
 <pre>
-streaming_models/  
-|-- lang_bpe  
-|   |-- L.pt  
-|   |-- Linv.pt  
+streaming_models/
+|-- lang_bpe
+|   |-- L.pt
+|   |-- Linv.pt
 |   |-- bpe.model
 |   |-- tokens.txt
 |   `-- words.txt

@@ -120,11 +120,7 @@ from beam_search import (
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
 from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
@@ -167,9 +163,11 @@ def get_parser():
         "--avg",
         type=int,
         default=15,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        help=(
+            "Number of checkpoints to average. Automatically select "
+            "consecutive checkpoints before the checkpoint specified by "
+            "'--epoch' and '--iter'"
+        ),
     )
 
     parser.add_argument(
@@ -265,8 +263,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -478,9 +475,7 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
-        encoder_out, encoder_out_lens = model.encoder(
-            x=feature, x_lens=feature_lens
-        )
+        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
 
@@ -550,10 +545,7 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -646,21 +638,11 @@ def decode_one_batch(
         return {"greedy_search": hyps}
     elif params.decoding_method == "fast_beam_search":
         return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-                f"temperature_{params.temperature}"
-            ): hyps
+            f"beam_{params.beam}_max_contexts_{params.max_contexts}_max_states_{params.max_states}temperature_{params.temperature}": hyps
         }
     elif params.decoding_method == "fast_beam_search":
         return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-                f"temperature_{params.temperature}"
-            ): hyps
+            f"beam_{params.beam}_max_contexts_{params.max_contexts}_max_states_{params.max_states}temperature_{params.temperature}": hyps
         }
     elif params.decoding_method in [
         "fast_beam_search_with_nbest_rescoring",
@@ -690,12 +672,7 @@ def decode_one_batch(
             key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
         return {key: hyps}
     else:
-        return {
-            (
-                f"beam_size_{params.beam_size}_"
-                f"temperature_{params.temperature}"
-            ): hyps
-        }
+        return {f"beam_size_{params.beam_size}_temperature_{params.temperature}": hyps}
 
 
 def decode_dataset(
@@ -779,9 +756,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -814,8 +789,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -939,9 +913,7 @@ def main():
         if "LG" in params.decoding_method:
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
         params.suffix += f"-temperature-{params.temperature}"
     else:
         params.suffix += f"-context-{params.context_size}"
@@ -981,8 +953,7 @@ def main():
         ]
         if len(filenames) == 0:
             raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
+                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
             )
         elif len(filenames) < params.avg:
             raise ValueError(
@@ -1032,15 +1003,10 @@ def main():
                 word_table=word_table,
                 device=device,
             )
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
             logging.info(f"G properties_str: {G.properties_str}")
             rnn_lm_model = None
-            if (
-                params.decoding_method
-                == "fast_beam_search_with_nbest_rnn_rescoring"
-            ):
+            if params.decoding_method == "fast_beam_search_with_nbest_rnn_rescoring":
                 rnn_lm_model = RnnLmModel(
                     vocab_size=params.vocab_size,
                     embedding_dim=params.rnn_lm_embedding_dim,
@@ -1065,9 +1031,7 @@ def main():
                 rnn_lm_model.eval()
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
             rnn_lm_model = None
     else:
         decoding_graph = None
