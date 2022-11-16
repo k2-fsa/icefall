@@ -1,4 +1,4 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
+# Copyright    2022  Xiaomi Corp.        (author: Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -130,15 +130,98 @@ class Transducer(nn.Module):
         )
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
+    def get_wer(
+        self,
+        sampled_paths: torch.Tensor,
+        y_padded: torch.Tensor,
+        y_lens: torch.Tensor,
+        blank_id: int = 0,
+    ):
+        batch_size, path_length = sampled_paths.shape
+        assert y_padded.size(0) == batch_size, (y_padded.shape, batch_size)
+        assert y_lens.size(0) == batch_size, (y_lens.shape, batch_size)
+
+        device = sampled_paths.device
+
+        px = k2.RaggedTensor(sampled_paths)
+        px = px.remove_values_eq(blank_id)
+        row_splits = px.shape.row_splits(1)
+        px_lens = row_splits[1:] - row_splits[:-1]
+        px = px.pad(mode="constant", padding_value=blank_id)
+
+        boundary = torch.cat(
+            [
+                torch.zeros((batch_size, 2), dtype=torch.int64, device=device),
+                px_lens.reshape(batch_size, 1),
+                y_lens.reshape(batch_size, 1),
+            ],
+            dim=1,
+        )
+
+        # wer : (batch_size, S, U)
+        wer = k2.levenshtein_distance(
+            px=px, py=y_padded.int(), boundary=boundary
+        )
+
+        wer = torch.gather(
+            wer,
+            1,
+            boundary[:, 2]
+            .reshape(wer.size(0), 1, 1)
+            .expand(wer.size(0), 1, wer.size(2)),
+        ).squeeze(1)
+
+        wer = torch.gather(
+            wer, 1, boundary[:, 3].reshape(batch_size, 1)
+        ).squeeze(1)
+
+        # wer: (batch_size,)
+        return wer
+
+    def get_init_contexts(
+        self,
+        px_grad: torch.Tensor,
+        py_grad: torch.Tensor,
+        y_padded: torch.Tensor,
+    ):
+        context_size = self.decoder.context_size
+        blank_id = self.decoder.blank_id
+        # Get contexts for each frame according to the gradients, just like we
+        # do for getting pruning bounds.
+        (B, S, T1) = px_grad.shape
+        T = py_grad.shape[-1]
+        # shape : (B, S, T)
+        tot_grad = px_grad[:, :, :T] + py_grad[:, :S, :]
+        # shape : (B, T)
+        best_idx = torch.argmax(tot_grad, dim=1)
+        # shape : (B, T, context_size)
+        state_idx = best_idx.reshape((B, T, 1)).expand(
+            (B, T, context_size)
+        ) + torch.arange(context_size, device=px_grad.device)
+        # shape : (B, context_size)
+        init_context = torch.tensor(
+            [blank_id], dtype=torch.int64, device=px_grad.device
+        ).expand(B, context_size)
+        # shape : (B, S + context_size)
+        sos_y_padded = torch.cat([init_context, y_padded], dim=1)
+        init_context = torch.gather(
+            sos_y_padded.unsqueeze(1).expand(B, T, S + context_size),
+            dim=2,
+            index=state_idx,
+        )
+        return init_context
+
     def delta_wer(
         self,
         encoder_out: torch.Tensor,
+        enhanced_encoder_out: torch.Tensor,
         encoder_out_lens: torch.Tensor,
         init_context: torch.Tensor,
         y_padded: torch.Tensor,
         y_lens: torch.Tensor,
+        num_pairs: int = 10,
         path_length: int = 20,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           encoder_out:
@@ -164,6 +247,7 @@ class Transducer(nn.Module):
           - The absolute value of pred_wer_diff, its shape is (batch_size,).
         """
         batch_size, T, encoder_dim = encoder_out.shape
+        assert y_padded.size(0) == batch_size, (y_padded.shape, batch_size)
         device = encoder_out.device
 
         blank_id = self.decoder.blank_id
@@ -171,69 +255,92 @@ class Transducer(nn.Module):
         decoder_dim = self.decoder_dim
         vocab_size = self.decoder.vocab_size
 
-        max_frame = torch.max(encoder_out_lens).item()
-        min_frame = torch.min(encoder_out_lens).item()
-
-        # t_index contains the frame ids we are sampling for each path.
-        # shape : (batch_size, 1)
-        t_index = torch.randint(
-            min_frame // 2, max_frame // 2 + 1, (batch_size, 1), device=device
-        )
+        # t_index contains the frame ids we are sampling for each pair of paths.
+        # shape : (batch_size, num_pairs)
+        t_index = torch.arange(
+            0, T + num_pairs, int(T / num_pairs), device=device
+        )[0:num_pairs]
+        t_index = t_index.reshape((1, num_pairs)).expand(batch_size, num_pairs)
         t_index = torch.remainder(t_index, encoder_out_lens.reshape(-1, 1))
 
-        # we will sample two paths for each sequence
-        num_paths = 2
-        # shape : (batch_size, num_paths)
-        t_index = t_index.expand(batch_size, num_paths)
-
         # The max frame index for each path
-        # shape : (batch_size, num_paths)
-        t_index_max = encoder_out_lens.view(batch_size, 1).expand(
-            batch_size, num_paths
+        # shape : (batch_size, num_pairs)
+        t_index_max = encoder_out_lens.view(batch_size, 1, 1).expand(
+            batch_size, num_pairs, 2
         )
 
         # left_symbols contains the left contexts of decoder for each path
-        # shape : (batch_size, num_paths, context_size)
+        # shape : (batch_size, num_pairs, context_size)
         left_symbols = torch.gather(
             init_context,
             dim=1,
             index=t_index.unsqueeze(2).expand(
-                batch_size, num_paths, context_size
+                batch_size, num_pairs, context_size
             ),
         )
-        left_symbols = left_symbols.view(batch_size * num_paths, context_size)
 
-        # It has a shape of (batch_size,) indicating whether having different
+        # we will sample two paths for each sequence
+        t_index = t_index.reshape((batch_size, num_pairs, 1)).expand(
+            batch_size, num_pairs, 2
+        )
+        left_symbols = left_symbols.reshape(
+            (batch_size, num_pairs, 1, context_size)
+        ).expand(batch_size, num_pairs, 2, context_size)
+
+        left_symbols = left_symbols.reshape(
+            batch_size * num_pairs * 2, context_size
+        )
+
+        # It has a shape of (batch_size, num_pairs) indicating whether having different
         # paths for this sequence.
-        has_diff = torch.zeros((batch_size,), device=device).bool()
-        # It has a shape of (batch_size,) indicating whether reaching final
+        has_diff = torch.zeros((batch_size, num_pairs), device=device).bool()
+        # It has a shape of (batch_size, num_pairs) indicating whether reaching final
         # for this sequence
-        reach_final = torch.zeros((batch_size,), device=device).bool()
+        reach_final = torch.zeros((batch_size, num_pairs), device=device).bool()
 
         # The pred_wer, default zeros. If there is no different symbol for the
         # sampled paths, the pred_wers for the two paths are the same.
-        pred_output = torch.zeros((batch_size, num_paths), device=device)
+        pred_wer = torch.zeros((batch_size, num_pairs, 2), device=device)
+
+        dummy_output = torch.zeros(
+            (batch_size, num_pairs, vocab_size), device=device
+        )
 
         sampled_paths_list = []
+        sampled_joiner_list = []
+        sampled_quasi_joiner_list = []
 
         while len(sampled_paths_list) < path_length:
-            # (B, num_paths, encoder_dim)
+            # (B, num_pairs, 2, encoder_dim)
             current_encoder_out = torch.gather(
-                encoder_out,
+                encoder_out.view(batch_size, T, 1, encoder_dim).expand(
+                    batch_size, T, 2, encoder_dim
+                ),
                 dim=1,
-                index=t_index.unsqueeze(2).expand(
-                    batch_size, num_paths, encoder_dim
+                index=t_index.unsqueeze(3).expand(
+                    batch_size, num_pairs, 2, encoder_dim
                 ),
             )
 
-            # (B, num_paths, decoder_dim)
-            decoder_output = self.decoder(left_symbols, need_pad=False).view(
-                batch_size, num_paths, decoder_dim
+            current_enhanced_encoder_out = torch.gather(
+                enhanced_encoder_out.view(batch_size, T, 1, encoder_dim).expand(
+                    batch_size, T, 2, encoder_dim
+                ),
+                dim=1,
+                index=t_index.unsqueeze(3).expand(
+                    batch_size, num_pairs, 2, encoder_dim
+                ),
             )
-            # joiner_output : (B, num_paths, V);
-            # wer_output : (B, num_paths, V)
-            joiner_output, wer_output = self.joiner(
-                current_encoder_out, decoder_output, extra_output=True
+
+            # (B, num_pairs, 2, decoder_dim)
+            decoder_output = self.decoder(left_symbols, need_pad=False).view(
+                batch_size, num_pairs, 2, decoder_dim
+            )
+            # joiner_output : (B, num_pairs, 2, V);
+            joiner_output = self.joiner(current_encoder_out, decoder_output)
+            # quasi_joiner_output : (B, num_pairs, 2, V)
+            quasi_joiner_output = self.quasi_joiner(
+                current_enhanced_encoder_out, decoder_output
             )
 
             probs = torch.softmax(joiner_output, -1)
@@ -241,142 +348,144 @@ class Transducer(nn.Module):
             sampler = Categorical(probs=probs)
 
             # sample one symbol for each path
-            # index : (batch_size, num_paths)
+            # index : (batch_size, num_pairs, 2)
             index = sampler.sample()
 
             # The two paths have different symbols.
-            mask = index[:, 0] != index[:, 1]
-            # shape : (batch_size,), will only be True when the two paths have
+            mask = index[:, :, 0] != index[:, :, 1]
+
+            # shape : (batch_size, num_pairs), will only be True when the two paths have
             # different symbols in the first time.
             meet_diff = mask & ~has_diff & ~reach_final
 
             has_diff |= mask
 
+            # wer_output: (B, num_pairs, 2)
             wer_output = torch.gather(
-                wer_output, dim=2, index=index.unsqueeze(2)
-            ).squeeze(2)
+                quasi_joiner_output, dim=3, index=index.unsqueeze(3)
+            ).squeeze(3)
 
             # we only get the pred_wer at the position where the two paths start
             # to have different symbols.
-            pred_output = torch.where(
-                meet_diff.reshape(batch_size, 1), wer_output, pred_output
+            pred_wer = torch.where(
+                meet_diff.reshape(batch_size, num_pairs, 1),
+                wer_output,
+                pred_wer,
             )
 
             # update (t, s) for each path
             # index == 0 means the sampled symbol is blank
+            # t_mask : (B, num_pairs, 2)
             t_mask = index == 0
             t_index = t_index + 1
 
             # if reaching final, we will ignore the sampled symbols, just append
             # blank_id to the paths.
             index = torch.where(
-                reach_final.reshape(batch_size, 1).expand(
-                    batch_size, num_paths
+                reach_final.reshape(batch_size, num_pairs, 1).expand(
+                    batch_size, num_pairs, 2
                 ),
                 blank_id,
                 index,
             )
             sampled_paths_list.append(index)
 
+            joiner_output = torch.where(
+                reach_final.reshape(batch_size, num_pairs, 1).expand(
+                    batch_size, num_pairs, vocab_size
+                ),
+                dummy_output,
+                joiner_output[:, :, 0, :],
+            )
+            sampled_joiner_list.append(joiner_output)
+
+            quasi_joiner_output = torch.where(
+                reach_final.reshape(batch_size, num_pairs, 1).expand(
+                    batch_size, num_pairs, vocab_size
+                ),
+                dummy_output,
+                quasi_joiner_output[:, :, 0, :],
+            )
+            sampled_quasi_joiner_list.append(quasi_joiner_output)
+
             final_mask = t_index >= t_index_max
 
             # Set reach_final to true when one of the paths reaching final.
-            reach_final |= final_mask[:, 0] | final_mask[:, 1]
+            reach_final = (
+                reach_final | final_mask[:, :, 0] | final_mask[:, :, 1]
+            )
 
             t_index.masked_fill_(final_mask, 0)
 
             left_symbols = left_symbols.view(
-                batch_size, num_paths, context_size
+                batch_size, num_pairs, 2, context_size
             )
             current_symbols = torch.cat(
                 [
                     left_symbols,
-                    index.unsqueeze(2),
+                    index.unsqueeze(3),
                 ],
-                dim=2,
+                dim=3,
             )
             # if the sampled symbol is blank, we only need to roll the history
             # symbols, if the sampled symbol is not blank, append the newly
             # sampled symbol.
             left_symbols = _roll_by_shifts(
-                current_symbols, t_mask.to(torch.int64)
+                current_symbols.view(
+                    batch_size, num_pairs * 2, context_size + 1
+                ),
+                t_mask.view(batch_size, num_pairs * 2).to(torch.int64),
             )
             left_symbols = left_symbols[:, :, 1:]
 
             left_symbols = left_symbols.view(
-                batch_size * num_paths, context_size
+                batch_size * num_pairs * 2, context_size
             )
 
-        # sampled_paths : (batch_size, num_paths, path_lengths)
-        sampled_paths = torch.stack(sampled_paths_list, dim=2).int()
+        # sampled_paths : (batch_size, num_pairs, 2, path_lengths)
+        sampled_paths = torch.stack(sampled_paths_list, dim=3).int()
 
-        px1 = k2.RaggedTensor(sampled_paths[:, 0, :])
-        px1 = px1.remove_values_eq(blank_id)
-        row_splits = px1.shape.row_splits(1)
-        px1_lens = row_splits[1:] - row_splits[:-1]
-        px1 = px1.pad(mode="constant", padding_value=blank_id)
+        # sampled_joiner : (batch_size, num_pairs, path_lengths, vocab_size)
+        sampled_joiner = torch.stack(sampled_joiner_list, dim=2)
+        sampled_quasi_joiner = torch.stack(sampled_quasi_joiner_list, dim=2)
 
-        boundary = torch.cat(
-            [
-                torch.zeros((batch_size, 2), dtype=torch.int64, device=device),
-                px1_lens.reshape(batch_size, 1),
-                y_lens.reshape(batch_size, 1),
-            ],
-            dim=1,
+        y_padded_expand = (
+            y_padded.reshape(y_padded.size(0), 1, y_padded.size(1))
+            .expand(y_padded.size(0), num_pairs, y_padded.size(1))
+            .reshape(y_padded.size(0) * num_pairs, y_padded.size(1))
+        )
+        y_expand_lens = (
+            y_lens.reshape(y_lens.size(0), 1)
+            .expand(y_lens.size(0), num_pairs)
+            .reshape(
+                y_lens.size(0) * num_pairs,
+            )
         )
 
-        wer1 = k2.levenshtein_distance(
-            px=px1, py=y_padded.int(), boundary=boundary
+        wer1 = self.get_wer(
+            sampled_paths=sampled_paths[:, :, 0, :].view(
+                batch_size * num_pairs, path_length
+            ),
+            y_padded=y_padded_expand,
+            y_lens=y_expand_lens,
+            blank_id=blank_id,
         )
-        wer1 = torch.gather(
-            wer1,
-            1,
-            boundary[:, 2]
-            .reshape(batch_size, 1, 1)
-            .expand(batch_size, 1, wer1.size(2)),
-        ).squeeze(1)
-        wer1 = torch.gather(
-            wer1, 1, boundary[:, 3].reshape(batch_size, 1)
-        ).squeeze(1)
+        wer1 = wer1.view(batch_size, num_pairs)
 
-        px2 = k2.RaggedTensor(sampled_paths[:, 1, :])
-        px2 = px2.remove_values_eq(blank_id)
-        row_splits = px2.shape.row_splits(1)
-        px2_lens = row_splits[1:] - row_splits[:-1]
-        px2 = px2.pad(mode="constant", padding_value=blank_id)
-
-        boundary = torch.cat(
-            [
-                torch.zeros((batch_size, 2), dtype=torch.int64, device=device),
-                px2_lens.reshape(batch_size, 1),
-                y_lens.reshape(batch_size, 1),
-            ],
-            dim=1,
+        wer2 = self.get_wer(
+            sampled_paths=sampled_paths[:, :, 1, :].view(
+                batch_size * num_pairs, path_length
+            ),
+            y_padded=y_padded_expand,
+            y_lens=y_expand_lens,
+            blank_id=blank_id,
         )
+        wer2 = wer2.view(batch_size, num_pairs)
 
-        wer2 = k2.levenshtein_distance(
-            px=px2, py=y_padded.int(), boundary=boundary
-        )
-        wer2 = torch.gather(
-            wer2,
-            1,
-            boundary[:, 2]
-            .reshape(batch_size, 1, 1)
-            .expand(batch_size, 1, wer2.size(2)),
-        ).squeeze(1)
-        wer2 = torch.gather(
-            wer2, 1, boundary[:, 3].reshape(batch_size, 1)
-        ).squeeze(1)
+        wer_diff = wer1 - wer2
+        pred_wer_diff = pred_wer[:, :, 0] - pred_wer[:, :, 1]
 
-        delta_wer = torch.pow(
-            ((wer1 - wer2) - (pred_output[:, 0] - pred_output[:, 1])), 2
-        )
-
-        return (
-            delta_wer,
-            torch.abs(wer1 - wer2),
-            torch.abs(pred_output[:, 0] - pred_output[:, 1]),
-        )
+        return (wer_diff, pred_wer_diff, sampled_joiner, sampled_quasi_joiner)
 
     def forward(
         self,
@@ -388,6 +497,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        num_pairs: int = 10,
         path_length: int = 20,
         warmup: float = 1.0,
         reduction: str = "sum",
@@ -526,54 +636,46 @@ class Transducer(nn.Module):
             warmup=warmup,
         )
 
-        l2_loss = (
-            torch.sum(torch.pow(enhanced_embedding - encoder_out.detach(), 2))
-            / vocab_size
+        l2_loss = torch.sum(
+            torch.pow(enhanced_embedding - encoder_out.detach(), 2)
+        ) / encoder_out.size(2)
+
+        init_context = self.get_init_contexts(
+            px_grad=px_grad, py_grad=py_grad, y_padded=y_padded
         )
 
-        if False:
-            # Get contexts for each frame according to the gradients, just like we
-            # do for getting pruning bounds.
-            (B, S, T1) = px_grad.shape
-            T = py_grad.shape[-1]
-            # shape : (B, S, T)
-            tot_grad = px_grad[:, :, :T] + py_grad[:, :S, :]
-            # shape : (B, T)
-            best_idx = torch.argmax(tot_grad, dim=1)
-            # shape : (B, T, context_size)
-            state_idx = best_idx.reshape((B, T, 1)).expand(
-                (B, T, context_size)
-            ) + torch.arange(context_size, device=px_grad.device)
-            # shape : (B, context_size)
-            init_context = torch.tensor(
-                [blank_id], dtype=torch.int64, device=px_grad.device
-            ).expand(B, context_size)
-            # shape : (B, S + context_size)
-            sos_y_padded = torch.cat([init_context, y_padded], dim=1)
-            init_context = torch.gather(
-                sos_y_padded.unsqueeze(1).expand(B, T, S + context_size),
-                dim=2,
-                index=state_idx,
-            )
+        # wer_diff, pred_wer_diff : (B, num_pairs)
+        (
+            wer_diff,
+            pred_wer_diff,
+            sampled_joiner,
+            sampled_quasi_joiner,
+        ) = self.delta_wer(
+            encoder_out=encoder_out,
+            enhanced_encoder_out=enhanced_embedding.detach(),
+            encoder_out_lens=x_lens,
+            init_context=init_context,
+            y_padded=y_padded,
+            y_lens=y_lens,
+            num_pairs=num_pairs,
+            path_length=path_length,
+        )
 
-            delta_wer, wer_diff, pred_wer_diff = self.delta_wer(
-                encoder_out=encoder_out,
-                encoder_out_lens=x_lens,
-                init_context=init_context,
-                y_padded=y_padded,
-                y_lens=y_lens,
-                path_length=path_length,
-            )
+        delta_wer = torch.pow(wer_diff - pred_wer_diff, 2)
 
-            return (
-                simple_loss,
-                pruned_loss,
-                delta_wer,
-                wer_diff,
-                pred_wer_diff,
-            )
+        delta_wer_loss = torch.sum(delta_wer)
 
-        return (simple_loss, pruned_loss, l2_loss)
+        predictor_wer_loss = torch.sum(
+            sampled_joiner * sampled_quasi_joiner.detach()
+        ) / (num_pairs * path_length * sampled_joiner.size(-1))
+
+        return (
+            simple_loss,
+            pruned_loss,
+            delta_wer_loss,
+            l2_loss,
+            predictor_wer_loss,
+        )
 
 
 class TransformerLM(nn.Module):

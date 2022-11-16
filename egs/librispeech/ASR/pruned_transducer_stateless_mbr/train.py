@@ -370,6 +370,13 @@ def get_parser():
         help="The scale applying to l2_loss of embedding and enhanced_embedding",
     )
 
+    parser.add_argument(
+        "--predictor-loss-scale",
+        type=float,
+        default=0.1,
+        help="The scale applying to l2_loss of embedding and enhanced_embedding",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -441,7 +448,7 @@ def get_params() -> AttributeDict:
             # parameters for joiner
             "joiner_dim": 512,
             # parameters for Noam
-            "model_warm_step": 3000,  # arg given to model, not for lrate
+            "model_warm_step": 1000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -690,8 +697,13 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        # simple_loss, pruned_loss, delta_wer, wer_diff, pred_wer_diff = model(
-        simple_loss, pruned_loss, l2_loss = model(
+        (
+            simple_loss,
+            pruned_loss,
+            delta_wer_loss,
+            l2_loss,
+            predictor_wer_loss,
+        ) = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -729,9 +741,10 @@ def compute_loss(
 
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
-        # delta_wer = delta_wer.sum()
-        # wer_diff = wer_diff.sum()
-        # pred_wer_diff = pred_wer_diff.sum()
+
+        logging.info(
+            f"simple_loss : {simple_loss}, pruned_loss : {pruned_loss}, delta_wer_loss : {delta_wer_loss}, l2_loss : {l2_loss}, predictor_wer_loss : {predictor_wer_loss}"
+        )
 
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
@@ -742,17 +755,18 @@ def compute_loss(
             if warmup < 1.0
             else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        # l2_loss_scale = (
-        # 1.0
-        # if warmup < 1.0
-        # else (0.1 if warmup > 1.0 and warmup < 2.0 else params.l2_loss_scale))
-        l2_loss_scale = params.l2_loss_scale
+        l2_loss_scale = 0.0 if warmup < 1.0 else params.l2_loss_scale
+        delta_wer_scale = 0.0 if warmup < 1.0 else params.delta_wer_scale
+        predictor_loss_scale = (
+            0.0 if warmup < 2.0 else params.predictor_loss_scale
+        )
 
         loss = (
             params.simple_loss_scale * simple_loss
             + pruned_loss_scale * pruned_loss
             + l2_loss_scale * l2_loss
-            # + params.delta_wer_scale * delta_wer
+            + delta_wer_scale * delta_wer_loss
+            + predictor_loss_scale * predictor_wer_loss
         )
 
     assert loss.requires_grad == is_training
@@ -782,9 +796,8 @@ def compute_loss(
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
     info["l2_loss"] = l2_loss.detach().cpu().item()
-    # info["delta_wer"] = delta_wer.detach().cpu().item()
-    # info["wer_diff"] = wer_diff.detach().cpu().item()
-    # info["pred_wer_diff"] = pred_wer_diff.detach().cpu().item()
+    info["delta_wer_loss"] = delta_wer_loss.detach().cpu().item()
+    info["predictor_wer_loss"] = predictor_wer_loss.detach().cpu().item()
 
     return loss, info
 
@@ -1046,7 +1059,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
@@ -1221,6 +1234,7 @@ def main():
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
+torch.autograd.set_detect_anomaly(True)
 
 if __name__ == "__main__":
     main()
