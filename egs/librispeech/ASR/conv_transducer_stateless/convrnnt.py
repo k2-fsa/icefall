@@ -318,7 +318,6 @@ class GlobalCNNEncoder(nn.Module):
     def forward(
         self,
         src: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         warmup: float = 1.0,
     ) -> torch.Tensor:
@@ -326,12 +325,10 @@ class GlobalCNNEncoder(nn.Module):
 
         Args:
             src: the sequence to the encoder (required).
-            mask: the mask for the src sequence (optional).
             src_key_padding_mask: the mask for src keys per batch (optional)
 
         Shape:
             src: (S, N, E).
-            mask: (S, S).
             src_key_padding_mask: (N, S).
             S is the source sequence length,
             T is the target sequence length,
@@ -521,9 +518,9 @@ class SEModule(nn.Module):
         super().__init__()
         rd_channels = channels // rd_ratio
         assert rd_channels > 0
-        self.fc1 = nn.Linear(channels, rd_channels)
+        self.fc1 = ScaledLinear(channels, rd_channels)
         self.activation1 = nn.ReLU()
-        self.fc2 = nn.Linear(rd_channels, channels)
+        self.fc2 = ScaledLinear(rd_channels, channels)
         self.activation2 = nn.Sigmoid()
 
     def forward(self, x, src_key_padding_mask):
@@ -540,13 +537,15 @@ class SEModule(nn.Module):
             x = x.masked_fill(
                 src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0
             )
-        x_se_num = (~src_key_padding_mask).sum(axis=1, keepdim=True)
-        x_se = x.sum(axis=2) / x_se_num
+        x_se_num = torch.cumsum(~src_key_padding_mask, dim=1).unsqueeze(1)
+        x_se = torch.cumsum(x, dim=2) / x_se_num
+        x_se = x_se.permute(0, 2, 1)
         x_se = self.fc1(x_se)
         x_se = self.activation1(x_se)
         x_se = self.fc2(x_se)
         x_se = self.activation2(x_se)
-        return x * x_se.unsqueeze(2)
+        x_se = x_se.permute(0, 2, 1)
+        return x * x_se
 
 
 class GlobalCNNEncoderLayer(nn.Module):
