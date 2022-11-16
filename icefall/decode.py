@@ -460,7 +460,7 @@ def one_best_decoding(
     lattice: k2.Fsa,
     use_double_scores: bool = True,
     lm_scale_list: Optional[List[float]] = None,
-) -> k2.Fsa:
+) -> Union[k2.Fsa, Dict[str, k2.Fsa]]:
     """Get the best path from a lattice.
 
     Args:
