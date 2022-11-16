@@ -360,21 +360,22 @@ def get_parser():
         "--delta-wer-scale",
         type=float,
         default=0.1,
-        help="The scale applying to delta_wer when it adds to the loss",
+        help="The scale applying to delta_wer_loss when it adds to the loss",
     )
 
     parser.add_argument(
         "--l2-loss-scale",
         type=float,
         default=0.1,
-        help="The scale applying to l2_loss of embedding and enhanced_embedding",
+        help="""The scale applying to l2_loss which predicts enhanced_embedding
+        to make it knows about acoustics and texts""",
     )
 
     parser.add_argument(
         "--predictor-loss-scale",
         type=float,
         default=0.1,
-        help="The scale applying to l2_loss of embedding and enhanced_embedding",
+        help="The scale applying to predictor_wer_loss",
     )
 
     add_model_arguments(parser)

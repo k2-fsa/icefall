@@ -112,6 +112,16 @@ class Transducer(nn.Module):
             (N, U, decoder_dim).
             Its output shape is (N, T, U, vocab_size). Note that its output
             contains unnormalized probs, i.e., not processed by log-softmax.
+          quasi_joiner:
+            It is another joiner to predict expected word error rate, its inputs
+            and output are the same as ``joiner``.
+          transformer_lm:
+            It is a transformer encoder that converts the texts into text
+            embeddings.
+          embedding_enhancer:
+            It is a transformer decoder (has self attention from acoustic
+            embedding and cross-attention from text embedding) that outputs an
+            enhanced embedding "knowing" both acoustics and texts.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -136,7 +146,26 @@ class Transducer(nn.Module):
         y_padded: torch.Tensor,
         y_lens: torch.Tensor,
         blank_id: int = 0,
-    ):
+    ) -> torch.Tensor:
+        """Get levenshtein distances between sampled_paths and transcripts
+        (y_padded).
+
+        Args:
+          sampled_paths:
+            A torch Tensor has a shape of (batch_size, path_length), it contains
+            the paths sampled from transducer.
+          y_padded:
+            The padded (with blank_id) transcripts, its shape is the same as
+            sampled_paths.
+          y_lens:
+            The real lens of transcripts before padding, its shape is
+            (batch_size,).
+          blank_id:
+            The blank ID.
+        Return:
+          Return a Tensor with the shape of (batch_size,) containing the
+          levenshtein distance between sampled_paths and transcripts.
+        """
         batch_size, path_length = sampled_paths.shape
         assert y_padded.size(0) == batch_size, (y_padded.shape, batch_size)
         assert y_lens.size(0) == batch_size, (y_lens.shape, batch_size)
@@ -163,6 +192,7 @@ class Transducer(nn.Module):
             px=px, py=y_padded.int(), boundary=boundary
         )
 
+        # wer : (batch_size, U)
         wer = torch.gather(
             wer,
             1,
@@ -171,11 +201,11 @@ class Transducer(nn.Module):
             .expand(wer.size(0), 1, wer.size(2)),
         ).squeeze(1)
 
+        # wer : (batch_size,)
         wer = torch.gather(
             wer, 1, boundary[:, 3].reshape(batch_size, 1)
         ).squeeze(1)
 
-        # wer: (batch_size,)
         return wer
 
     def get_init_contexts(
@@ -183,7 +213,21 @@ class Transducer(nn.Module):
         px_grad: torch.Tensor,
         py_grad: torch.Tensor,
         y_padded: torch.Tensor,
-    ):
+    ) -> torch.Tensor:
+        """Get initial left contexts for each frame according to the gradients
+        of ``px`` and ``py``.
+
+        Args:
+          px_grad:
+            The gradients of ``px``, returned by `rnnt_loss_smoothed`.
+          py_grad:
+            The gradients of ``py``, returned by `rnnt_loss_smoothed`.
+          y_padded:
+            The padded labels for each sequence.
+        Return:
+          Return a tensor with the shape of (N, T, context_size) containing the
+          left contexts for each frame.
+        """
         context_size = self.decoder.context_size
         blank_id = self.decoder.blank_id
         # Get contexts for each frame according to the gradients, just like we
@@ -222,10 +266,18 @@ class Transducer(nn.Module):
         num_pairs: int = 10,
         path_length: int = 20,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
+        """Sample paths from transducer joiner and calculate related variables
+        needed by delta_wer_loss and predictor_loss.
+
+        TODO:(Wei Kang) Add more docs describing what this function actually
+                        does.
+
         Args:
           encoder_out:
             The output of the encoder whose shape is (batch_size, T, encoder_dim)
+          enhanced_encoder_out:
+            The enhanced_embedding "knowing" both acoustics and texts, it has
+            the same shape of ``encoder_out``.
           encoder_out_lens:
             A tensor of shape (batch_size,) containing the number of frames
             before padding.
@@ -233,18 +285,23 @@ class Transducer(nn.Module):
             A tensor of shape (batch_size, T, context_size) containing the
             initial history symbols for each frame.
           y_padded:
-            The transcripts whose shape is (batch_size, S).
+            The padded labels of each sequence whose shape is (batch_size, S).
           y_lens:
             A tensor of shape (batch_size,) containing the number of symbols
             before padding.
+          num_pairs:
+            The number of pairs of paths to sample for each sequence.
           path_length:
             The length of the sampled paths.
 
         Returns:
-          Return three tensors,
-          - The delta_wer, its shape is (batch_size,)
-          - The absolute value of wer_diff, its shape is (batch_size,)
-          - The absolute value of pred_wer_diff, its shape is (batch_size,).
+          Return four tensors,
+          - The levenshtein wer difference, its shape is (batch_size, num_pairs)
+          - The prediction wer difference, its shape is (batch_size, num_pairs)
+          - The sampled joiner output, its shape is
+            (batch_size, num_pairs, path_length, vocab_size)
+          - The sampled quasi joiner output(to predict delta_wer), its shape is
+            (batch_size, num_pairs, path_length, vocab_size)
         """
         batch_size, T, encoder_dim = encoder_out.shape
         assert y_padded.size(0) == batch_size, (y_padded.shape, batch_size)
@@ -257,13 +314,16 @@ class Transducer(nn.Module):
 
         # t_index contains the frame ids we are sampling for each pair of paths.
         # shape : (batch_size, num_pairs)
+        # t_index starts from diverse positions of a sequence.
         t_index = torch.arange(
             0, T + num_pairs, int(T / num_pairs), device=device
         )[0:num_pairs]
         t_index = t_index.reshape((1, num_pairs)).expand(batch_size, num_pairs)
+        # t_index (the start frame idx) can not be larger than sequence length.
         t_index = torch.remainder(t_index, encoder_out_lens.reshape(-1, 1))
 
-        # The max frame index for each path
+        # The max frame index for each path, from which we can know whether we
+        # reaching final frame.
         # shape : (batch_size, num_pairs)
         t_index_max = encoder_out_lens.view(batch_size, 1, 1).expand(
             batch_size, num_pairs, 2
@@ -279,7 +339,8 @@ class Transducer(nn.Module):
             ),
         )
 
-        # we will sample two paths for each sequence
+        # we will sample two paths for each pair, the two paths start from the
+        # same frame idx.
         t_index = t_index.reshape((batch_size, num_pairs, 1)).expand(
             batch_size, num_pairs, 2
         )
@@ -291,17 +352,19 @@ class Transducer(nn.Module):
             batch_size * num_pairs * 2, context_size
         )
 
-        # It has a shape of (batch_size, num_pairs) indicating whether having different
-        # paths for this sequence.
+        # It has a shape of (batch_size, num_pairs) indicating whether having
+        # different paths for this pair.
         has_diff = torch.zeros((batch_size, num_pairs), device=device).bool()
-        # It has a shape of (batch_size, num_pairs) indicating whether reaching final
-        # for this sequence
+        # It has a shape of (batch_size, num_pairs) indicating whether reaching
+        # final for this pair
         reach_final = torch.zeros((batch_size, num_pairs), device=device).bool()
 
-        # The pred_wer, default zeros. If there is no different symbol for the
-        # sampled paths, the pred_wers for the two paths are the same.
+        # The pred_wer, default zeros. If there is no different symbols for the
+        # sampled pair of paths, the pred_wers for the two paths are the same.
         pred_wer = torch.zeros((batch_size, num_pairs, 2), device=device)
 
+        # dummy_output is used to fill sampled_joiner and sampled_quasi_joiner
+        # at padding positions.
         dummy_output = torch.zeros(
             (batch_size, num_pairs, vocab_size), device=device
         )
@@ -354,14 +417,14 @@ class Transducer(nn.Module):
             # The two paths have different symbols.
             mask = index[:, :, 0] != index[:, :, 1]
 
-            # shape : (batch_size, num_pairs), will only be True when the two paths have
-            # different symbols in the first time.
+            # shape : (batch_size, num_pairs), will only be True when the two
+            # paths have different symbols at the first time.
             meet_diff = mask & ~has_diff & ~reach_final
 
             has_diff |= mask
 
             # wer_output: (B, num_pairs, 2)
-            wer_output = torch.gather(
+            pred_wer_output = torch.gather(
                 quasi_joiner_output, dim=3, index=index.unsqueeze(3)
             ).squeeze(3)
 
@@ -369,7 +432,7 @@ class Transducer(nn.Module):
             # to have different symbols.
             pred_wer = torch.where(
                 meet_diff.reshape(batch_size, num_pairs, 1),
-                wer_output,
+                pred_wer_output,
                 pred_wer,
             )
 
@@ -427,6 +490,7 @@ class Transducer(nn.Module):
                 ],
                 dim=3,
             )
+
             # if the sampled symbol is blank, we only need to roll the history
             # symbols, if the sampled symbol is not blank, append the newly
             # sampled symbol.
@@ -442,7 +506,7 @@ class Transducer(nn.Module):
                 batch_size * num_pairs * 2, context_size
             )
 
-        # sampled_paths : (batch_size, num_pairs, 2, path_lengths)
+        # sampled_paths : (batch_size, num_pairs, 2, path_length)
         sampled_paths = torch.stack(sampled_paths_list, dim=3).int()
 
         # sampled_joiner : (batch_size, num_pairs, path_lengths, vocab_size)
@@ -512,6 +576,10 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          sos_id:
+            The id of start of sequence for transformer language model.
+          eos_id:
+            The id of end of sequence for transformer language model.
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -521,6 +589,10 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          num_pairs:
+            The number of pairs of paths that used to train quasi_joiner.
+          path_length:
+            The length of sampling path.
           warmup:
             A value warmup >= 0 that determines which modules are active, values
             warmup > 1 "are fully warmed up" and all modules will be active.
@@ -529,7 +601,7 @@ class Transducer(nn.Module):
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
         Returns:
-          Return the transducer loss.
+          Return the transducer loss, delta_wer_loss, l2_loss and predictor_loss.
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -645,6 +717,7 @@ class Transducer(nn.Module):
         )
 
         # wer_diff, pred_wer_diff : (B, num_pairs)
+        # sampled_joiner, sampled_quasi_joiner : (B, num_pairs, path_length, V)
         (
             wer_diff,
             pred_wer_diff,
@@ -661,9 +734,7 @@ class Transducer(nn.Module):
             path_length=path_length,
         )
 
-        delta_wer = torch.pow(wer_diff - pred_wer_diff, 2)
-
-        delta_wer_loss = torch.sum(delta_wer)
+        delta_wer_loss = torch.sum(torch.pow(wer_diff - pred_wer_diff, 2))
 
         predictor_wer_loss = torch.sum(
             sampled_joiner * sampled_quasi_joiner.detach()
@@ -742,6 +813,13 @@ class TransformerLM(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
+          y:
+            A ragged tensor with 2 axes [utt][label]. It contains labels of each
+            utterance.
+          sos_id:
+            The id of start of sequence.
+          eos_id:
+            The id of end of sequence.
           warmup:
             A floating point value that gradually increases from 0 throughout
             training; when it is >= 1.0 we are "fully warmed up".  It is used
@@ -799,6 +877,21 @@ class EmbeddingEnhancer(nn.Module):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
     ):
+        """
+        Args:
+          d_model:
+            Attention dimension.
+          nhead:
+            Number of heads in multi-head attention.
+            Must satisfy d_model // nhead == 0.
+          dim_feedforward:
+            The output dimension of the feedforward layers in encoder/decoder.
+          num_layers:
+            Number of decoder layers.
+          dropout:
+            Dropout in encoder/decoder.
+          layer_dropout (float): layer-dropout rate.
+        """
         super().__init__()
         self.encoder_pos = PositionalEncoding(d_model, dropout)
         decoder_layer = TransformerDecoderLayer(
@@ -820,7 +913,30 @@ class EmbeddingEnhancer(nn.Module):
         text_embedding_key_padding_mask: Optional[torch.Tensor] = None,
         mask_proportion: float = 0.25,
         warmup: float = 1.0,
-    ):
+    ) -> torch.Tensor:
+        """
+        Args:
+          embedding:
+            The acoustic embedding produced by transducer encoder.
+            Shape: (N, T, encoder_dim)
+          text_embedding:
+            The text embedding with the shape of (S, N, E)
+          embedding_mask:
+            The mask for the embedding.
+          text_embedding_mask:
+            The mask for the text embedding.
+          embedding_key_padding_mask:
+            The mask for the embedding keys per batch.
+          text_embedding_key_padding_mask:
+            The mask for the text embedding keys per batch.
+          mask_proportion:
+            The proportion used to mask embedding.
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
+        """
+
         N, T, C = embedding.shape
         mask = torch.randn((N, T, C), device=embedding.device)
         mask = mask > mask_proportion
