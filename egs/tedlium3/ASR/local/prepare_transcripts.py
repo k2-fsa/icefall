@@ -30,8 +30,6 @@ import re
 
 from pathlib import Path
 
-import lhotse
-
 
 def get_args():
     parser = argparse.ArgumentParser()
