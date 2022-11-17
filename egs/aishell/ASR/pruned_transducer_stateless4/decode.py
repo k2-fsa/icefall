@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless3/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless2/decode.py \
+    --epoch 84 \
+    --avg 25 \
+    --exp-dir ./pruned_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 4 \
@@ -67,8 +67,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from aishell import AIShell
-from asr_datamodule import AsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -132,7 +131,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -143,7 +142,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless2/exp",
         help="The experiment dir",
     )
 
@@ -179,7 +178,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=10,
+        default=10.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -192,16 +191,6 @@ def get_parser():
         default=16,
         help="""Used only when --decoding-method is
         fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--ngram-lm-scale",
-        type=float,
-        default=0.01,
-        help="""
-        Used only when --decoding_method is fast_beam_search_LG.
-        It specifies the scale for n-gram LM scores.
-        """,
     )
 
     parser.add_argument(
@@ -218,6 +207,16 @@ def get_parser():
         default=1,
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search_LG.
+        It specifies the scale for n-gram LM scores.
+        """,
     )
 
     parser.add_argument(
@@ -286,7 +285,7 @@ def decode_one_batch(
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
@@ -403,7 +402,7 @@ def decode_dataset(
     model: nn.Module,
     lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -417,7 +416,7 @@ def decode_dataset(
         It contains token_table and word_table that maps token ID and word ID
         to a string.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -474,7 +473,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -510,11 +509,11 @@ def save_results(
         / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
-        print("settings\tCER", file=f)
+        print("settings\tWER", file=f)
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, CER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
@@ -525,14 +524,13 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
-    params.datatang_prob = 0
 
     assert params.decoding_method in (
         "greedy_search",
@@ -565,9 +563,6 @@ def main():
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
-
-    if params.use_averaged_model:
-        params.suffix += "-use-averaged-model"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -609,9 +604,7 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -622,9 +615,7 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device), strict=False
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
             filenames = find_checkpoints(
@@ -652,8 +643,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
         else:
             assert params.avg > 0, params.avg
@@ -671,8 +661,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
 
     model.to(device)
@@ -696,14 +685,11 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # we need cut ids to display recognition results.
-    args.return_cuts = True
-    asr_datamodule = AsrDataModule(args)
-    aishell = AIShell(manifest_dir=args.manifest_dir)
+    aishell = AishellAsrDataModule(args)
     test_cuts = aishell.test_cuts()
     dev_cuts = aishell.valid_cuts()
-    test_dl = asr_datamodule.test_dataloaders(test_cuts)
-    dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
+    test_dl = aishell.test_dataloaders(test_cuts)
+    dev_dl = aishell.test_dataloaders(dev_cuts)
 
     test_sets = ["test", "dev"]
     test_dls = [test_dl, dev_dl]

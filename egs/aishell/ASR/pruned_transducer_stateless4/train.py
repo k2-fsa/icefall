@@ -37,6 +37,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 
 import argparse
+import copy
 import logging
 import random
 import warnings
@@ -68,7 +69,10 @@ from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import save_checkpoint_with_global_batch_idx
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
+)
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
@@ -253,6 +257,19 @@ def get_parser():
         type=float,
         default=6,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
+        """,
+    )
+
+    parser.add_argument(
+        "--average-period",
+        type=int,
+        default=100,
+        help="""Update the averaged model, namely `model_avg`, after processing
+        this number of batches. `model_avg` is a separate version of model,
+        in which each floating-point parameter is the average of all the
+        parameters from the start of training. Each time we take the average,
+        we do: `model_avg = model * (average_period / batch_idx_train) +
+            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
         """,
     )
 
@@ -471,6 +488,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
 def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
+    model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -490,6 +508,8 @@ def load_checkpoint_if_available(
         The return value of :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer that we are using.
       scheduler:
@@ -509,6 +529,7 @@ def load_checkpoint_if_available(
     saved_params = load_checkpoint(
         filename,
         model=model,
+        model_avg=model_avg,
         optimizer=optimizer,
         scheduler=scheduler,
     )
@@ -529,6 +550,7 @@ def load_checkpoint_if_available(
 def save_checkpoint(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
@@ -542,6 +564,8 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
+      model_avg:
+        The stored model averaged from the start of training.
       optimizer:
         The optimizer used in the training.
       sampler:
@@ -555,6 +579,7 @@ def save_checkpoint(
     save_checkpoint_impl(
         filename=filename,
         model=model,
+        model_avg=model_avg,
         params=params,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -616,7 +641,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, sym_delay, total_syms = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -700,6 +725,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
     scaler: GradScaler,
+    model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -725,6 +751,8 @@ def train_one_epoch(
         Dataloader for the validation dataset.
       scaler:
         The scaler used for mix precision training.
+      model_avg:
+        The stored model averaged from the start of training.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -771,6 +799,17 @@ def train_one_epoch(
             return
 
         if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
+
+        if (
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
@@ -778,6 +817,7 @@ def train_one_epoch(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
                 model=model,
+                model_avg=model_avg,
                 params=params,
                 optimizer=optimizer,
                 scheduler=scheduler,
@@ -908,12 +948,20 @@ def run(rank, world_size, args):
     logging.info(f"Number of model parameters: {num_param}")
 
     assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model)
+    checkpoints = load_checkpoint_if_available(
+        params=params, model=model, model_avg=model_avg
+    )
 
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=False)
+    model.device = device
 
     optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
@@ -968,6 +1016,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             graph_compiler=graph_compiler,
@@ -987,6 +1036,7 @@ def run(rank, world_size, args):
         save_checkpoint(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
             sampler=train_dl.sampler,

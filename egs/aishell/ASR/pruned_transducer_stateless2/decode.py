@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -59,6 +60,7 @@ Usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -86,8 +88,11 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -146,6 +151,7 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_LG
         """,
     )
 
@@ -161,7 +167,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=10.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -171,7 +177,7 @@ def get_parser():
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=4,
+        default=16,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -179,7 +185,7 @@ def get_parser():
     parser.add_argument(
         "--max-states",
         type=int,
-        default=8,
+        default=32,
         help="""Used only when --decoding-method is
         fast_beam_search""",
     )
@@ -191,12 +197,46 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
     )
+
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search_LG.
+        It specifies the scale for n-gram LM scores.
+        """,
+    )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
         default=1,
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
+    )
+
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
+        """,
+    )
+
+    parser.add_argument(
+        "--decode-chunk-size",
+        type=int,
+        default=16,
+        help="The chunk size for decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
     )
 
     add_model_arguments(parser)
@@ -207,7 +247,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    token_table: k2.SymbolTable,
+    lexicon: Lexicon,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
@@ -226,14 +266,15 @@ def decode_one_batch(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
-      token_table:
-        It maps token ID to a string.
+      lexicon:
+        It contains token_table and word_table that maps token ID and word ID
+        to a string.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return the decoding result. See above description for the format of
@@ -249,11 +290,29 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
-    )
+    if params.simulate_streaming:
+        feature_lens += params.left_context
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.left_context),
+            value=LOG_EPS,
+        )
+        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
+            x=feature,
+            x_lens=feature_lens,
+            chunk_size=params.decode_chunk_size,
+            left_context=params.left_context,
+            simulate_streaming=True,
+        )
+    else:
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
 
-    if params.decoding_method == "fast_beam_search":
+    if (
+        params.decoding_method == "fast_beam_search"
+        or params.decoding_method == "fast_beam_search_LG"
+    ):
         hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
@@ -304,18 +363,24 @@ def decode_one_batch(
                 )
             hyp_tokens.append(hyp)
 
-    hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
+    if params.decoding_method == "fast_beam_search_LG":
+        hyps = [
+            [lexicon.word_table[t] for t in tokens] for tokens in hyp_tokens
+        ]
+    else:
+        hyps = [
+            [lexicon.token_table[t] for t in tokens] for tokens in hyp_tokens
+        ]
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
-    elif params.decoding_method == "fast_beam_search":
-        return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-            ): hyps
-        }
+    elif "fast_beam_search" in params.decoding_method:
+        key = f"beam_{params.beam}_"
+        key += f"max_contexts_{params.max_contexts}_"
+        key += f"max_states_{params.max_states}"
+        if "LG" in params.decoding_method:
+            key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        return {key: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -324,9 +389,9 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    token_table: k2.SymbolTable,
+    lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -336,10 +401,11 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      token_table:
-        It maps a token ID to a string.
+      lexicon:
+        It contains token_table and word_table that maps token ID and word ID
+        to a string.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
         only when --decoding_method is fast_beam_search.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -368,7 +434,7 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            token_table=token_table,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
             batch=batch,
         )
@@ -396,7 +462,7 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -459,6 +525,7 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_LG",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
@@ -468,10 +535,16 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
+    if params.simulate_streaming:
+        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
+        params.suffix += f"-left-context-{params.left_context}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        if "LG" in params.decoding_method:
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
@@ -492,6 +565,11 @@ def main():
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
+
+    if params.simulate_streaming:
+        assert (
+            params.causal_convolution
+        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
@@ -534,8 +612,18 @@ def main():
     model.to(device)
     model.eval()
 
-    if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+    if "fast_beam_search" in params.decoding_method:
+        if params.decoding_method == "fast_beam_search_LG":
+            lg_filename = params.lang_dir / "LG.pt"
+            logging.info(f"Loading {lg_filename}")
+            decoding_graph = k2.Fsa.from_dict(
+                torch.load(lg_filename, map_location=device)
+            )
+            decoding_graph.scores *= params.ngram_lm_scale
+        else:
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
     else:
         decoding_graph = None
 
@@ -556,7 +644,7 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
-            token_table=lexicon.token_table,
+            lexicon=Lexicon,
             decoding_graph=decoding_graph,
         )
 
