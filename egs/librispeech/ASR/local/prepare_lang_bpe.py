@@ -150,9 +150,7 @@ def generate_lexicon(
     words_pieces_ids: List[List[int]] = sp.encode(words, out_type=int)
 
     # Now convert word piece IDs back to word piece strings.
-    words_pieces: List[List[str]] = [
-        sp.id_to_piece(ids) for ids in words_pieces_ids
-    ]
+    words_pieces: List[List[str]] = [sp.id_to_piece(ids) for ids in words_pieces_ids]
 
     lexicon = []
     for word, pieces in zip(words, words_pieces):

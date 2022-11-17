@@ -81,10 +81,12 @@ class AlimeetingAsrDataModule:
     def add_arguments(cls, parser: argparse.ArgumentParser):
         group = parser.add_argument_group(
             title="ASR data related options",
-            description="These options are used for the preparation of "
-            "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
-            "effective batch sizes, sampling strategies, applied data "
-            "augmentations, etc.",
+            description=(
+                "These options are used for the preparation of "
+                "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
+                "effective batch sizes, sampling strategies, applied data "
+                "augmentations, etc."
+            ),
         )
         group.add_argument(
             "--manifest-dir",
@@ -96,75 +98,91 @@ class AlimeetingAsrDataModule:
             "--max-duration",
             type=int,
             default=200.0,
-            help="Maximum pooled recordings duration (seconds) in a "
-            "single batch. You can reduce it if it causes CUDA OOM.",
+            help=(
+                "Maximum pooled recordings duration (seconds) in a "
+                "single batch. You can reduce it if it causes CUDA OOM."
+            ),
         )
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
             default=True,
-            help="When enabled, the batches will come from buckets of "
-            "similar duration (saves padding frames).",
+            help=(
+                "When enabled, the batches will come from buckets of "
+                "similar duration (saves padding frames)."
+            ),
         )
         group.add_argument(
             "--num-buckets",
             type=int,
             default=300,
-            help="The number of buckets for the DynamicBucketingSampler"
-            "(you might want to increase it for larger datasets).",
+            help=(
+                "The number of buckets for the DynamicBucketingSampler"
+                "(you might want to increase it for larger datasets)."
+            ),
         )
         group.add_argument(
             "--concatenate-cuts",
             type=str2bool,
             default=False,
-            help="When enabled, utterances (cuts) will be concatenated "
-            "to minimize the amount of padding.",
+            help=(
+                "When enabled, utterances (cuts) will be concatenated "
+                "to minimize the amount of padding."
+            ),
         )
         group.add_argument(
             "--duration-factor",
             type=float,
             default=1.0,
-            help="Determines the maximum duration of a concatenated cut "
-            "relative to the duration of the longest cut in a batch.",
+            help=(
+                "Determines the maximum duration of a concatenated cut "
+                "relative to the duration of the longest cut in a batch."
+            ),
         )
         group.add_argument(
             "--gap",
             type=float,
             default=1.0,
-            help="The amount of padding (in seconds) inserted between "
-            "concatenated cuts. This padding is filled with noise when "
-            "noise augmentation is used.",
+            help=(
+                "The amount of padding (in seconds) inserted between "
+                "concatenated cuts. This padding is filled with noise when "
+                "noise augmentation is used."
+            ),
         )
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
             default=False,
-            help="When enabled, use on-the-fly cut mixing and feature "
-            "extraction. Will drop existing precomputed feature manifests "
-            "if available.",
+            help=(
+                "When enabled, use on-the-fly cut mixing and feature "
+                "extraction. Will drop existing precomputed feature manifests "
+                "if available."
+            ),
         )
         group.add_argument(
             "--shuffle",
             type=str2bool,
             default=True,
-            help="When enabled (=default), the examples will be "
-            "shuffled for each epoch.",
+            help=(
+                "When enabled (=default), the examples will be shuffled for each epoch."
+            ),
         )
         group.add_argument(
             "--return-cuts",
             type=str2bool,
             default=True,
-            help="When enabled, each batch will have the "
-            "field: batch['supervisions']['cut'] with the cuts that "
-            "were used to construct it.",
+            help=(
+                "When enabled, each batch will have the "
+                "field: batch['supervisions']['cut'] with the cuts that "
+                "were used to construct it."
+            ),
         )
 
         group.add_argument(
             "--num-workers",
             type=int,
             default=2,
-            help="The number of training dataloader workers that "
-            "collect the batches.",
+            help="The number of training dataloader workers that collect the batches.",
         )
 
         group.add_argument(
@@ -178,18 +196,22 @@ class AlimeetingAsrDataModule:
             "--spec-aug-time-warp-factor",
             type=int,
             default=80,
-            help="Used only when --enable-spec-aug is True. "
-            "It specifies the factor for time warping in SpecAugment. "
-            "Larger values mean more warping. "
-            "A value less than 1 means to disable time warp.",
+            help=(
+                "Used only when --enable-spec-aug is True. "
+                "It specifies the factor for time warping in SpecAugment. "
+                "Larger values mean more warping. "
+                "A value less than 1 means to disable time warp."
+            ),
         )
 
         group.add_argument(
             "--enable-musan",
             type=str2bool,
             default=True,
-            help="When enabled, select noise from MUSAN and mix it"
-            "with training dataset. ",
+            help=(
+                "When enabled, select noise from MUSAN and mix it"
+                "with training dataset. "
+            ),
         )
 
     def train_dataloaders(
@@ -205,24 +227,20 @@ class AlimeetingAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
-            self.args.manifest_dir / "musan_cuts.jsonl.gz"
-        )
+        cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
 
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
 
         if self.args.concatenate_cuts:
             logging.info(
-                f"Using cut concatenation with duration factor "
+                "Using cut concatenation with duration factor "
                 f"{self.args.duration_factor} and gap {self.args.gap}."
             )
             # Cut concatenation should be the first transform in the list,
@@ -237,9 +255,7 @@ class AlimeetingAsrDataModule:
         input_transforms = []
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
-            logging.info(
-                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
-            )
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -282,9 +298,7 @@ class AlimeetingAsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -341,9 +355,7 @@ class AlimeetingAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Mingshuang Luo)
+# Copyright    2022  Xiaomi Corp.        (authors: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,15 +18,16 @@
 
 """
 This script takes as input supervisions json dir "data/manifests"
-consisting of supervisions_TRAIN.json and does the following:
+consisting of supervisions_train.json and does the following:
 
-1. Generate lexicon.txt.
+1. Generate lexicon_words.txt.
 
 """
 import argparse
-import json
 import logging
 from pathlib import Path
+
+import lhotse
 
 
 def get_args():
@@ -56,33 +57,24 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
         The language directory, e.g., data/lang_phone.
 
     Return:
-      The lexicon.txt file and the train.text in lang_dir.
+      The lexicon_words.txt file.
     """
-    import gzip
+    words = set()
 
-    phones = set()
+    lexicon = Path(lang_dir) / "lexicon_words.txt"
+    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
+    for s in sups:
+        # list the words units and filter the empty item
+        words_list = list(filter(None, s.text.split()))
 
-    supervisions_train = Path(manifests_dir) / "timit_supervisions_TRAIN.jsonl.gz"
-    lexicon = Path(lang_dir) / "lexicon.txt"
-
-    logging.info(f"Loading {supervisions_train}!")
-    with gzip.open(supervisions_train, "r") as load_f:
-        for line in load_f.readlines():
-            load_dict = json.loads(line)
-            text = load_dict["text"]
-            # list the phone units and filter the empty item
-            phones_list = list(filter(None, text.split()))
-
-            for phone in phones_list:
-                if phone not in phones:
-                    phones.add(phone)
+        for word in words_list:
+            if word not in words and word != "<unk>":
+                words.add(word)
 
     with open(lexicon, "w") as f:
-        for phone in sorted(phones):
-            f.write(phone + "  " + phone)
+        for word in sorted(words):
+            f.write(word + "  " + word)
             f.write("\n")
-        f.write("<UNK>  <UNK>")
-        f.write("\n")
 
 
 def main():
@@ -90,7 +82,7 @@ def main():
     manifests_dir = Path(args.manifests_dir)
     lang_dir = Path(args.lang_dir)
 
-    logging.info("Generating lexicon.txt")
+    logging.info("Generating lexicon_words.txt")
     prepare_lexicon(manifests_dir, lang_dir)
 
 

@@ -48,16 +48,19 @@ def get_parser():
         "--epoch",
         type=int,
         default=125,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help=(
+            "It specifies the checkpoint to use for decoding.Note: Epoch counts from 0."
+        ),
     )
     parser.add_argument(
         "--avg",
         type=int,
         default=20,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
+        help=(
+            "Number of checkpoints to average. Automatically select "
+            "consecutive checkpoints before the checkpoint specified by "
+            "'--epoch'. "
+        ),
     )
     parser.add_argument(
         "--exp-dir",
@@ -116,9 +119,7 @@ def decode_one_batch(
     # at entry, feature is (N, T, C)
     feature_lens = batch["supervisions"]["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
-    )
+    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
     batch_size = encoder_out.size(0)
@@ -186,9 +187,7 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -303,9 +302,7 @@ def main():
         model=model,
     )
 
-    save_results(
-        exp_dir=params.exp_dir, test_set_name="test_set", results=results
-    )
+    save_results(exp_dir=params.exp_dir, test_set_name="test_set", results=results)
 
     logging.info("Done!")
 

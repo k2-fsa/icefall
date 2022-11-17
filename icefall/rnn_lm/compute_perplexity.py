@@ -46,16 +46,19 @@ def get_parser():
         "--epoch",
         type=int,
         default=49,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        help=(
+            "It specifies the checkpoint to use for decoding.Note: Epoch counts from 0."
+        ),
     )
     parser.add_argument(
         "--avg",
         type=int,
         default=20,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
+        help=(
+            "Number of checkpoints to average. Automatically select "
+            "consecutive checkpoints before the checkpoint specified by "
+            "'--epoch'. "
+        ),
     )
 
     parser.add_argument(
@@ -194,7 +197,7 @@ def main():
 
     logging.info(f"Number of model parameters: {num_param}")
     logging.info(
-        f"Number of model parameters (requires_grad): "
+        "Number of model parameters (requires_grad): "
         f"{num_param_requires_grad} "
         f"({num_param_requires_grad/num_param_requires_grad*100}%)"
     )

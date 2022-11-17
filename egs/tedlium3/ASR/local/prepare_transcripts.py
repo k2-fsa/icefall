@@ -30,6 +30,8 @@ import re
 
 from pathlib import Path
 
+import lhotse
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -85,9 +87,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

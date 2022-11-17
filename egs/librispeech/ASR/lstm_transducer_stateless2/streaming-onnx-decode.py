@@ -109,10 +109,12 @@ def get_args():
     parser.add_argument(
         "sound_filename",
         type=str,
-        help="The input sound file(s) to transcribe. "
-        "Supported formats are those supported by torchaudio.load(). "
-        "For example, wav and flac are supported. "
-        "The sample rate has to be 16kHz.",
+        help=(
+            "The input sound file(s) to transcribe. "
+            "Supported formats are those supported by torchaudio.load(). "
+            "For example, wav and flac are supported. "
+            "The sample rate has to be 16kHz."
+        ),
     )
 
     parser.add_argument(
@@ -147,10 +149,9 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -199,9 +200,7 @@ class Model:
             sess_options=self.session_opts,
         )
 
-    def run_encoder(
-        self, x, h0, c0
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def run_encoder(self, x, h0, c0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -258,9 +257,7 @@ class Model:
             },
         )[0]
 
-        return self.run_joiner_decoder_proj(
-            torch.from_numpy(decoder_out).squeeze(1)
-        )
+        return self.run_joiner_decoder_proj(torch.from_numpy(decoder_out).squeeze(1))
 
     def run_joiner(
         self,
@@ -303,11 +300,7 @@ class Model:
 
         projected_encoder_out = self.joiner_encoder_proj.run(
             [self.joiner_encoder_proj.get_outputs()[0].name],
-            {
-                self.joiner_encoder_proj.get_inputs()[
-                    0
-                ].name: encoder_out.numpy()
-            },
+            {self.joiner_encoder_proj.get_inputs()[0].name: encoder_out.numpy()},
         )[0]
 
         return torch.from_numpy(projected_encoder_out)
@@ -326,11 +319,7 @@ class Model:
 
         projected_decoder_out = self.joiner_decoder_proj.run(
             [self.joiner_decoder_proj.get_outputs()[0].name],
-            {
-                self.joiner_decoder_proj.get_inputs()[
-                    0
-                ].name: decoder_out.numpy()
-            },
+            {self.joiner_decoder_proj.get_inputs()[0].name: decoder_out.numpy()},
         )[0]
 
         return torch.from_numpy(projected_decoder_out)
@@ -369,9 +358,7 @@ def greedy_search(
     if decoder_out is None:
         assert hyp is None, hyp
         hyp = [blank_id] * context_size
-        decoder_input = torch.tensor(
-            [hyp], dtype=torch.int64
-        )  # (1, context_size)
+        decoder_input = torch.tensor([hyp], dtype=torch.int64)  # (1, context_size)
         decoder_out = model.run_decoder(decoder_input)
     else:
         assert decoder_out.shape[0] == 1
@@ -474,9 +461,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

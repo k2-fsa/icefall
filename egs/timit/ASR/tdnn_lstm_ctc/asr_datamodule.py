@@ -63,10 +63,12 @@ class TimitAsrDataModule(DataModule):
         super().add_arguments(parser)
         group = parser.add_argument_group(
             title="ASR data related options",
-            description="These options are used for the preparation of "
-            "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
-            "effective batch sizes, sampling strategies, applied data "
-            "augmentations, etc.",
+            description=(
+                "These options are used for the preparation of "
+                "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
+                "effective batch sizes, sampling strategies, applied data "
+                "augmentations, etc."
+            ),
         )
         group.add_argument(
             "--feature-dir",
@@ -78,75 +80,91 @@ class TimitAsrDataModule(DataModule):
             "--max-duration",
             type=int,
             default=200.0,
-            help="Maximum pooled recordings duration (seconds) in a "
-            "single batch. You can reduce it if it causes CUDA OOM.",
+            help=(
+                "Maximum pooled recordings duration (seconds) in a "
+                "single batch. You can reduce it if it causes CUDA OOM."
+            ),
         )
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
             default=True,
-            help="When enabled, the batches will come from buckets of "
-            "similar duration (saves padding frames).",
+            help=(
+                "When enabled, the batches will come from buckets of "
+                "similar duration (saves padding frames)."
+            ),
         )
         group.add_argument(
             "--num-buckets",
             type=int,
             default=30,
-            help="The number of buckets for the DynamicBucketingSampler"
-            "(you might want to increase it for larger datasets).",
+            help=(
+                "The number of buckets for the DynamicBucketingSampler"
+                "(you might want to increase it for larger datasets)."
+            ),
         )
         group.add_argument(
             "--concatenate-cuts",
             type=str2bool,
             default=False,
-            help="When enabled, utterances (cuts) will be concatenated "
-            "to minimize the amount of padding.",
+            help=(
+                "When enabled, utterances (cuts) will be concatenated "
+                "to minimize the amount of padding."
+            ),
         )
         group.add_argument(
             "--duration-factor",
             type=float,
             default=1.0,
-            help="Determines the maximum duration of a concatenated cut "
-            "relative to the duration of the longest cut in a batch.",
+            help=(
+                "Determines the maximum duration of a concatenated cut "
+                "relative to the duration of the longest cut in a batch."
+            ),
         )
         group.add_argument(
             "--gap",
             type=float,
             default=1.0,
-            help="The amount of padding (in seconds) inserted between "
-            "concatenated cuts. This padding is filled with noise when "
-            "noise augmentation is used.",
+            help=(
+                "The amount of padding (in seconds) inserted between "
+                "concatenated cuts. This padding is filled with noise when "
+                "noise augmentation is used."
+            ),
         )
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
             default=False,
-            help="When enabled, use on-the-fly cut mixing and feature "
-            "extraction. Will drop existing precomputed feature manifests "
-            "if available.",
+            help=(
+                "When enabled, use on-the-fly cut mixing and feature "
+                "extraction. Will drop existing precomputed feature manifests "
+                "if available."
+            ),
         )
         group.add_argument(
             "--shuffle",
             type=str2bool,
             default=True,
-            help="When enabled (=default), the examples will be "
-            "shuffled for each epoch.",
+            help=(
+                "When enabled (=default), the examples will be shuffled for each epoch."
+            ),
         )
         group.add_argument(
             "--return-cuts",
             type=str2bool,
             default=True,
-            help="When enabled, each batch will have the "
-            "field: batch['supervisions']['cut'] with the cuts that "
-            "were used to construct it.",
+            help=(
+                "When enabled, each batch will have the "
+                "field: batch['supervisions']['cut'] with the cuts that "
+                "were used to construct it."
+            ),
         )
 
         group.add_argument(
             "--num-workers",
             type=int,
             default=2,
-            help="The number of training dataloader workers that "
-            "collect the batches.",
+            help="The number of training dataloader workers that collect the batches.",
         )
 
     def train_dataloaders(self) -> DataLoader:
@@ -154,15 +172,13 @@ class TimitAsrDataModule(DataModule):
         cuts_train = self.train_cuts()
 
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(
-            self.args.feature_dir / "musan_cuts.jsonl.gz"
-        )
+        cuts_musan = load_manifest(self.args.feature_dir / "musan_cuts.jsonl.gz")
 
         logging.info("About to create train dataset")
         transforms = [CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20))]
         if self.args.concatenate_cuts:
             logging.info(
-                f"Using cut concatenation with duration factor "
+                "Using cut concatenation with duration factor "
                 f"{self.args.duration_factor} and gap {self.args.gap}."
             )
             # Cut concatenation should be the first transform in the list,
@@ -178,9 +194,9 @@ class TimitAsrDataModule(DataModule):
         # In different Lhotse's versions, the default of num_frame_masks is
         # different.
         num_frame_masks = 10
-        num_frame_masks_parameter = inspect.signature(
-            SpecAugment.__init__
-        ).parameters["num_frame_masks"]
+        num_frame_masks_parameter = inspect.signature(SpecAugment.__init__).parameters[
+            "num_frame_masks"
+        ]
         if num_frame_masks_parameter.default == 1:
             num_frame_masks = 2
         logging.info(f"Num frame mask: {num_frame_masks}")
@@ -212,9 +228,7 @@ class TimitAsrDataModule(DataModule):
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -263,9 +277,7 @@ class TimitAsrDataModule(DataModule):
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -299,20 +311,14 @@ class TimitAsrDataModule(DataModule):
         for cuts_test in cuts:
             logging.debug("About to create test dataset")
             test = K2SpeechRecognitionDataset(
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                )
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
                 if self.args.on_the_fly_feats
                 else PrecomputedFeatures(),
                 return_cuts=self.args.return_cuts,
             )
-            sampler = SingleCutSampler(
-                cuts_test, max_duration=self.args.max_duration
-            )
+            sampler = SingleCutSampler(cuts_test, max_duration=self.args.max_duration)
             logging.debug("About to create test dataloader")
-            test_dl = DataLoader(
-                test, batch_size=None, sampler=sampler, num_workers=1
-            )
+            test_dl = DataLoader(test, batch_size=None, sampler=sampler, num_workers=1)
             test_loaders.append(test_dl)
 
         if is_list:
