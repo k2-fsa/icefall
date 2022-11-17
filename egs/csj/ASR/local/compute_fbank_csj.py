@@ -25,7 +25,9 @@ from random import Random
 from typing import List, Tuple
 
 import torch
-from lhotse import (  # fmt: off; See the following for why LilcomChunkyWriter is preferred; https://github.com/k2-fsa/icefall/pull/404; https://github.com/lhotse-speech/lhotse/pull/527; fmt: on
+
+# fmt: off
+from lhotse import (  # See the following for why LilcomChunkyWriter is preferred; https://github.com/k2-fsa/icefall/pull/404; https://github.com/lhotse-speech/lhotse/pull/527
     CutSet,
     Fbank,
     FbankConfig,
@@ -33,6 +35,8 @@ from lhotse import (  # fmt: off; See the following for why LilcomChunkyWriter i
     RecordingSet,
     SupervisionSet,
 )
+
+# fmt: on
 
 ARGPARSE_DESCRIPTION = """
 This script follows the espnet method of splitting the remaining core+noncore
@@ -92,7 +96,7 @@ def make_cutset_blueprints(
     cut_set = cut_set.shuffle(Random(RNG_SEED))
 
     logging.info(
-        "Creating valid and train cuts from core and noncore," f"split at {split}."
+        "Creating valid and train cuts from core and noncore, split at {split}."
     )
     valid_set = CutSet.from_cuts(islice(cut_set, 0, split))
 

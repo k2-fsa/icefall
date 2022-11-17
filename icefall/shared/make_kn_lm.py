@@ -45,13 +45,13 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-default_encoding = (
-    "latin-1"  # For encoding-agnostic scripts, we assume byte stream as input.
-)
+# For encoding-agnostic scripts, we assume byte stream as input.
 # Need to be very careful about the use of strip() and split()
 # in this case, because there is a latin-1 whitespace character
 # (nbsp) which is part of the unicode encoding range.
 # Ref: kaldi/egs/wsj/s5/utils/lang/bpe/prepend_words.py @ 69cd717
+default_encoding = "latin-1"
+
 strip_chars = " \t\r\n"
 whitespace = re.compile("[ \t]+")
 
@@ -65,9 +65,8 @@ class CountsForHistory:
         # The 'lambda: defaultdict(float)' is an anonymous function taking no
         # arguments that returns a new defaultdict(float).
         self.word_to_count = defaultdict(int)
-        self.word_to_context = defaultdict(
-            set
-        )  # using a set to count the number of unique contexts
+        # using a set to count the number of unique contexts
+        self.word_to_context = defaultdict(set)
         self.word_to_f = dict()  # discounted probability
         self.word_to_bow = dict()  # back-off weight
         self.total_count = 0
@@ -151,9 +150,8 @@ class NgramCounts:
 
     def add_raw_counts_from_standard_input(self):
         lines_processed = 0
-        infile = io.TextIOWrapper(
-            sys.stdin.buffer, encoding=default_encoding
-        )  # byte stream as input
+        # byte stream as input
+        infile = io.TextIOWrapper(sys.stdin.buffer, encoding=default_encoding)
         for line in infile:
             line = line.strip(strip_chars)
             self.add_raw_counts_from_line(line)
@@ -187,11 +185,10 @@ class NgramCounts:
         # This constant is used similarly to absolute discounting.
         # Return value: d is a list of floats, where d[N+1] = D_N
 
-        self.d = [
-            0
-        ]  # for the lowest order, i.e., 1-gram, we do not need to discount, thus the constant is 0
+        # for the lowest order, i.e., 1-gram, we do not need to discount, thus the constant is 0
         # This is a special case: as we currently assumed having seen all vocabularies in the dictionary,
         # but perhaps this is not the case for some other scenarios.
+        self.d = [0]
         for n in range(1, self.ngram_order):
             this_order_counts = self.counts[n]
             n1 = 0
@@ -201,11 +198,11 @@ class NgramCounts:
                 n1 += stat[1]
                 n2 += stat[2]
             assert n1 + 2 * n2 > 0
-            self.d.append(
-                max(0.1, n1 * 1.0) / (n1 + 2 * n2)
-            )  # We are doing this max(0.001, xxx) to avoid zero discounting constant D due to n1=0,
+
+            # We are doing this max(0.001, xxx) to avoid zero discounting constant D due to n1=0,
             # which could happen if the number of symbols is small.
             # Otherwise, zero discounting constant can cause division by zero in computing BOW.
+            self.d.append(max(0.1, n1 * 1.0) / (n1 + 2 * n2))
 
     def cal_f(self):
         # f(a_z) is a probability distribution of word sequence a_z.
@@ -286,11 +283,8 @@ class NgramCounts:
                         sum_z1_f_z = 0
                         _ = a_[1:]
                         _counts_for_hist = self.counts[len(_)][_]
-                        for (
-                            u
-                        ) in (
-                            a_counts_for_hist.word_to_count.keys()
-                        ):  # Should be careful here: what is Z1
+                        # Should be careful here: what is Z1
+                        for u in a_counts_for_hist.word_to_count.keys():
                             sum_z1_f_z += _counts_for_hist.word_to_f[u]
 
                         if sum_z1_f_z < 1:

@@ -137,7 +137,7 @@ def main():
     for i in range(num_sentences):
         if step and i % step == 0:
             logging.info(
-                f"Processed number of lines: {i} " f"({i/num_sentences*100: .3f}%)"
+                f"Processed number of lines: {i} ({i/num_sentences*100: .3f}%)"
             )
 
         word_ids = sentences[i]

@@ -87,7 +87,7 @@ def get_parser():
         "--tailing-num-frames",
         type=int,
         default=20,
-        help="tailing dummy frames padded to the right," "only used during decoding",
+        help="tailing dummy frames padded to the right, only used during decoding",
     )
 
     parser.add_argument(

@@ -445,7 +445,7 @@ class EmformerAttention(nn.Module):
 
         if embed_dim % nhead != 0:
             raise ValueError(
-                f"embed_dim ({embed_dim}) is not a multiple of" f"nhead ({nhead})."
+                f"embed_dim ({embed_dim}) is not a multiple of nhead ({nhead})."
             )
 
         self.embed_dim = embed_dim

@@ -195,7 +195,7 @@ class GigaSpeechAsrDataModule:
             "--small-dev",
             type=str2bool,
             default=False,
-            help="Should we use only 1000 utterances for dev " "(speeds up training)",
+            help="Should we use only 1000 utterances for dev (speeds up training)",
         )
 
     def train_dataloaders(

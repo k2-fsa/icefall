@@ -79,7 +79,7 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         total += 1
         if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. " f"Duration: {c.duration}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             removed += 1
             return False
@@ -124,7 +124,7 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
     ans = cut_set.filter(remove_short_and_long_utterances).to_eager()
     ratio = removed / total * 100
     logging.info(
-        f"Removed {removed} cuts from {total} cuts. " f"{ratio:.3f}% data is removed."
+        f"Removed {removed} cuts from {total} cuts. {ratio:.3f}% data is removed."
     )
     return ans
 
