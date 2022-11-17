@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import copy
 from typing import List, Optional, Tuple
 
 import torch
@@ -304,14 +305,15 @@ class GlobalCNNEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList(
             [
-                encoder_layer(
-                    channels=channels,
-                    block_number=i + 1,
-                    dropout=dropout,
-                    causal=causal,
+                copy.deepcopy(
+                    encoder_layer(
+                        channels=channels,
+                        block_number=i + 1,
+                        dropout=dropout,
+                        causal=causal,
+                    )
                 )
-                for i in range(num_layers)
-            ]
+                for i in range(num_layers)]
         )
         self.num_layers = num_layers
 
@@ -800,15 +802,17 @@ class LstmEncoder(nn.Module):
         assert hidden_size >= d_model, (hidden_size, d_model)
         self.layers = nn.ModuleList(
             [
-                ScaledLSTM(
-                    input_size=d_model,
-                    hidden_size=hidden_size,
-                    proj_size=d_model,
-                    num_layers=1,
-                    dropout=0.0,
-                    bidirectional=bidirectional,
+                copy.deepcopy(
+                    ScaledLSTM(
+                        input_size=d_model,
+                        hidden_size=hidden_size,
+                        proj_size=d_model,
+                        num_layers=1,
+                        dropout=0.0,
+                        bidirectional=bidirectional,
+                    )
+                    for i in range(num_layers)
                 )
-                for i in range(num_layers)
             ]
         )
         self.feed_forward = nn.Sequential(
