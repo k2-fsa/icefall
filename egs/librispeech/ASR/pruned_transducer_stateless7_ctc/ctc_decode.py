@@ -21,10 +21,10 @@
 """
 Usage:
 (1) take ctc-decoding as an example
-./pruned_transducer_stateless8/ctc_decode.py \
+./pruned_transducder_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless8/exp \
+    --exp-dir ./pruned_transducder_stateless7_ctc/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
 """
@@ -120,7 +120,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducder_stateless7_ctc/exp",
         help="The experiment dir",
     )
 
@@ -690,8 +690,6 @@ def main():
 
         if not hasattr(HLG, "lm_scores"):
             HLG.lm_scores = HLG.scores.clone()
-
-        # HLG.scores = HLG.scores * 0.4
 
     if params.decoding_method in (
         "nbest-rescoring",
