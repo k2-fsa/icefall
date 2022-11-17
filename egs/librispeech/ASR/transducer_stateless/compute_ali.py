@@ -54,19 +54,16 @@ def get_parser():
         "--epoch",
         type=int,
         default=34,
-        help=(
-            "It specifies the checkpoint to use for decoding.Note: Epoch counts from 0."
-        ),
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
         default=20,
-        help=(
-            "Number of checkpoints to average. Automatically select "
-            "consecutive checkpoints before the checkpoint specified by "
-            "'--epoch'. "
-        ),
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch'. ",
     )
 
     parser.add_argument(
@@ -127,7 +124,8 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
 
     return parser
@@ -164,7 +162,9 @@ def compute_alignments(
 
         feature_lens = supervisions["num_frames"].to(device)
 
-        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
 
         batch_size = encoder_out.size(0)
 
@@ -204,7 +204,9 @@ def compute_alignments(
         if batch_idx % 2 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
 
     return CutSet.from_cuts(cuts)
 

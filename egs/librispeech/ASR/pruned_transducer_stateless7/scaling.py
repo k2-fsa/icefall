@@ -16,12 +16,12 @@
 
 
 import collections
-import logging
-import random
-from functools import reduce
 from itertools import repeat
 from typing import Optional, Tuple, Union
+from functools import reduce
+import logging
 
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,24 +32,27 @@ from torch.nn import Embedding as ScaledEmbedding
 class ActivationBalancerFunction(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
-        x: Tensor,
-        scale_factor: Tensor,
-        sign_factor: Optional[Tensor],
-        channel_dim: int,
+            ctx,
+            x: Tensor,
+            scale_factor: Tensor,
+            sign_factor: Optional[Tensor],
+            channel_dim: int,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim += x.ndim
         ctx.channel_dim = channel_dim
-        xgt0 = x > 0
+        xgt0 = (x > 0)
         if sign_factor is None:
             ctx.save_for_backward(xgt0, scale_factor)
         else:
             ctx.save_for_backward(xgt0, scale_factor, sign_factor)
         return x
 
+
     @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+    def backward(
+        ctx, x_grad: Tensor
+    ) -> Tuple[Tensor, None, None, None]:
         if len(ctx.saved_tensors) == 3:
             xgt0, scale_factor, sign_factor = ctx.saved_tensors
             for _ in range(ctx.channel_dim, x_grad.ndim - 1):
@@ -62,22 +65,14 @@ class ActivationBalancerFunction(torch.autograd.Function):
                 scale_factor = scale_factor.unsqueeze(-1)
             factor = scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
         neg_delta_grad = x_grad.abs() * factor
-        return (
-            x_grad - neg_delta_grad,
-            None,
-            None,
-            None,
-        )
+        return x_grad - neg_delta_grad, None, None, None,
 
-
-def _compute_scale_factor(
-    x: Tensor,
-    channel_dim: int,
-    min_abs: float,
-    max_abs: float,
-    gain_factor: float,
-    max_factor: float,
-) -> Tensor:
+def _compute_scale_factor(x: Tensor,
+                          channel_dim: int,
+                          min_abs: float,
+                          max_abs: float,
+                          gain_factor: float,
+                          max_factor: float) -> Tensor:
     if channel_dim < 0:
         channel_dim += x.ndim
     sum_dims = [d for d in range(x.ndim) if d != channel_dim]
@@ -88,50 +83,43 @@ def _compute_scale_factor(
     else:
         # below_threshold is 0 if x_abs_mean > min_abs, can be at most max_factor if
         # x_abs)_mean , min_abs.
-        below_threshold = ((min_abs - x_abs_mean) * (gain_factor / min_abs)).clamp(
-            min=0, max=max_factor
-        )
+        below_threshold = ((min_abs - x_abs_mean) * (gain_factor / min_abs)).clamp(min=0, max=max_factor)
 
-    above_threshold = ((x_abs_mean - max_abs) * (gain_factor / max_abs)).clamp(
-        min=0, max=max_factor
-    )
+    above_threshold = ((x_abs_mean - max_abs) * (gain_factor / max_abs)).clamp(min=0, max=max_factor)
 
     return below_threshold - above_threshold
 
-
-def _compute_sign_factor(
-    x: Tensor,
-    channel_dim: int,
-    min_positive: float,
-    max_positive: float,
-    gain_factor: float,
-    max_factor: float,
-) -> Tensor:
+def _compute_sign_factor(x: Tensor,
+                         channel_dim: int,
+                         min_positive: float,
+                         max_positive: float,
+                         gain_factor: float,
+                         max_factor: float) -> Tensor:
     if channel_dim < 0:
         channel_dim += x.ndim
     sum_dims = [d for d in range(x.ndim) if d != channel_dim]
-    proportion_positive = torch.mean((x > 0).to(torch.float32), dim=sum_dims)
+    proportion_positive = torch.mean((x > 0).to(torch.float32),
+                                     dim=sum_dims)
     if min_positive == 0.0:
         factor1 = 0.0
     else:
         # 0 if proportion_positive >= min_positive, else can be
         # as large as max_factor.
-        factor1 = (
-            (min_positive - proportion_positive) * (gain_factor / min_positive)
-        ).clamp_(min=0, max=max_factor)
+        factor1 = ((min_positive - proportion_positive) *
+                   (gain_factor / min_positive)).clamp_(min=0, max=max_factor)
 
     if max_positive == 1.0:
         factor2 = 0.0
     else:
         # 0 if self.proportion_positive <= max_positive, else can be
         # as large as -max_factor.
-        factor2 = (
-            (proportion_positive - max_positive) * (gain_factor / (1.0 - max_positive))
-        ).clamp_(min=0, max=max_factor)
+        factor2 = ((proportion_positive - max_positive) *
+                   (gain_factor / (1.0 - max_positive))).clamp_(min=0, max=max_factor)
     sign_factor = factor1 - factor2
     # require min_positive != 0 or max_positive != 1:
     assert not isinstance(sign_factor, float)
     return sign_factor
+
 
 
 class ActivationScaleBalancerFunction(torch.autograd.Function):
@@ -140,24 +128,26 @@ class ActivationScaleBalancerFunction(torch.autograd.Function):
     min_positive=0, max_positive=1, so there are no constraints on the signs
     of the activations and only the absolute value has a constraint.
     """
-
     @staticmethod
     def forward(
-        ctx,
-        x: Tensor,
-        sign_factor: Tensor,
-        scale_factor: Tensor,
-        channel_dim: int,
+            ctx,
+            x: Tensor,
+            sign_factor: Tensor,
+            scale_factor: Tensor,
+            channel_dim: int,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim += x.ndim
         ctx.channel_dim = channel_dim
-        xgt0 = x > 0
+        xgt0 = (x > 0)
         ctx.save_for_backward(xgt0, sign_factor, scale_factor)
         return x
 
+
     @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+    def backward(
+        ctx, x_grad: Tensor
+    ) -> Tuple[Tensor, None, None, None]:
         xgt0, sign_factor, scale_factor = ctx.saved_tensors
         for _ in range(ctx.channel_dim, x_grad.ndim - 1):
             sign_factor = sign_factor.unsqueeze(-1)
@@ -165,24 +155,18 @@ class ActivationScaleBalancerFunction(torch.autograd.Function):
 
         factor = sign_factor + scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
         neg_delta_grad = x_grad.abs() * factor
-        return (
-            x_grad - neg_delta_grad,
-            None,
-            None,
-            None,
-        )
+        return x_grad - neg_delta_grad, None, None, None,
 
 
 class RandomClampFunction(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
-        x: Tensor,
-        min: Optional[float],
-        max: Optional[float],
-        prob: float,
-        reflect: float,
-    ) -> Tensor:
+            ctx,
+            x: Tensor,
+            min: Optional[float],
+            max: Optional[float],
+            prob: float,
+            reflect: float) -> Tensor:
         x_clamped = torch.clamp(x, min=min, max=max)
         mask = torch.rand_like(x) < prob
         ans = torch.where(mask, x_clamped, x)
@@ -195,32 +179,30 @@ class RandomClampFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None, None, None, None]:
-        (is_same,) = ctx.saved_tensors
+        is_same, = ctx.saved_tensors
         x_grad = ans_grad * is_same.to(ans_grad.dtype)
         reflect = ctx.reflect
-        if reflect != 0.0:
+        if reflect !=  0.0:
             x_grad = x_grad * (1.0 + reflect) - (ans_grad * reflect)
         return x_grad, None, None, None, None
 
-
-def random_clamp(
-    x: Tensor,
-    min: Optional[float] = None,
-    max: Optional[float] = None,
-    prob: float = 0.5,
-    reflect: float = 0.0,
-):
+def random_clamp(x: Tensor,
+                 min: Optional[float] = None,
+                 max: Optional[float] = None,
+                 prob: float = 0.5,
+                 reflect: float = 0.0):
     return RandomClampFunction.apply(x, min, max, prob, reflect)
 
 
-def random_cast_to_half(x: Tensor, min_abs: float = 5.0e-06) -> Tensor:
+def random_cast_to_half(x: Tensor,
+                        min_abs: float = 5.0e-06) -> Tensor:
     """
     A randomized way of casting a floating point value to half precision.
     """
     if x.dtype == torch.float16:
         return x
     x_abs = x.abs()
-    is_too_small = x_abs < min_abs
+    is_too_small = (x_abs < min_abs)
     # for elements where is_too_small is true, random_val will contain +-min_abs with
     # probability (x.abs() / min_abs), and 0.0 otherwise.  [so this preserves expectations,
     # for those elements].
@@ -233,7 +215,6 @@ class RandomGradFunction(torch.autograd.Function):
     Does nothing in forward pass; in backward pass, gets rid of very small grads using
     randomized approach that preserves expectations (intended to reduce roundoff).
     """
-
     @staticmethod
     def forward(ctx, x: Tensor, min_abs: float) -> Tensor:
         ctx.min_abs = min_abs
@@ -242,29 +223,28 @@ class RandomGradFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, None]:
         if ans_grad.dtype == torch.float16:
-            return (
-                random_cast_to_half(ans_grad.to(torch.float32), min_abs=ctx.min_abs),
-                None,
-            )
+            return random_cast_to_half(ans_grad.to(torch.float32),
+                                       min_abs=ctx.min_abs), None
         else:
             return ans_grad, None
-
 
 class RandomGrad(torch.nn.Module):
     """
     Gets rid of very small gradients using an expectation-preserving method, intended to increase
     accuracy of training when using amp (automatic mixed precision)
     """
-
-    def __init__(self, min_abs: float = 5.0e-06):
+    def __init__(self,
+                 min_abs: float = 5.0e-06):
         super(RandomGrad, self).__init__()
         self.min_abs = min_abs
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
         if torch.jit.is_scripting() or not self.training:
             return x
         else:
             return RandomGradFunction.apply(x, self.min_abs)
+
 
 
 class SoftmaxFunction(torch.autograd.Function):
@@ -272,7 +252,6 @@ class SoftmaxFunction(torch.autograd.Function):
     Tries to handle half-precision derivatives in a randomized way that should
     be more accurate for training than the default behavior.
     """
-
     @staticmethod
     def forward(ctx, x: Tensor, dim: int):
         ans = x.softmax(dim=dim)
@@ -288,7 +267,7 @@ class SoftmaxFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
-        (ans,) = ctx.saved_tensors
+        ans, = ctx.saved_tensors
         with torch.cuda.amp.autocast(enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
@@ -297,7 +276,9 @@ class SoftmaxFunction(torch.autograd.Function):
             return x_grad, None
 
 
-def softmax(x: Tensor, dim: int):
+
+def softmax(x: Tensor,
+            dim: int):
     if torch.jit.is_scripting():
         return x.softmax(dim)
 
@@ -307,17 +288,19 @@ def softmax(x: Tensor, dim: int):
 class MaxEigLimiterFunction(torch.autograd.Function):
     @staticmethod
     def forward(
-        ctx,
-        x: Tensor,
-        coeffs: Tensor,
-        direction: Tensor,
-        channel_dim: int,
-        grad_scale: float,
-    ) -> Tensor:
+            ctx,
+            x: Tensor,
+            coeffs: Tensor,
+            direction: Tensor,
+            channel_dim: int,
+            grad_scale: float) -> Tensor:
         ctx.channel_dim = channel_dim
         ctx.grad_scale = grad_scale
-        ctx.save_for_backward(x.detach(), coeffs.detach(), direction.detach())
+        ctx.save_for_backward(x.detach(),
+                              coeffs.detach(),
+                              direction.detach())
         return x
+
 
     @staticmethod
     def backward(ctx, x_grad, *args):
@@ -328,20 +311,15 @@ class MaxEigLimiterFunction(torch.autograd.Function):
             x = x_orig.transpose(ctx.channel_dim, -1).reshape(-1, num_channels)
             new_direction.requires_grad = False
             x = x - x.mean(dim=0)
-            x_var = (x**2).mean()
+            x_var = (x ** 2).mean()
             x_residual = x - coeffs * new_direction
-            x_residual_var = (x_residual**2).mean()
+            x_residual_var = (x_residual ** 2).mean()
             # `variance_proportion` is the proportion of the variance accounted for
             # by the top eigen-direction.  This is to be minimized.
             variance_proportion = (x_var - x_residual_var) / (x_var + 1.0e-20)
             variance_proportion.backward()
         x_orig_grad = x_orig.grad
-        x_extra_grad = (
-            x_orig.grad
-            * ctx.grad_scale
-            * x_grad.norm()
-            / (x_orig_grad.norm() + 1.0e-20)
-        )
+        x_extra_grad = x_orig.grad * ctx.grad_scale * x_grad.norm() / (x_orig_grad.norm() + 1.0e-20)
         return x_grad + x_extra_grad.detach(), None, None, None, None
 
 
@@ -407,12 +385,15 @@ class BasicNorm(torch.nn.Module):
             # region if it happens to exit it.
             eps = eps.clamp(min=self.eps_min, max=self.eps_max)
         scales = (
-            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + eps.exp()
+            torch.mean(x ** 2, dim=self.channel_dim, keepdim=True) + eps.exp()
         ) ** -0.5
         return x * scales
 
 
-def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
+
+def ScaledLinear(*args,
+                 initial_scale: float = 1.0,
+                 **kwargs ) -> nn.Linear:
     """
     Behaves like a constructor of a modified version of nn.Linear
     that gives an easy way to set the default initial parameter scale.
@@ -431,11 +412,16 @@ def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
     with torch.no_grad():
         ans.weight[:] *= initial_scale
         if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
+            torch.nn.init.uniform_(ans.bias,
+                                   -0.1 * initial_scale,
+                                   0.1 * initial_scale)
     return ans
 
 
-def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
+
+def ScaledConv1d(*args,
+                 initial_scale: float = 1.0,
+                 **kwargs ) -> nn.Conv1d:
     """
     Behaves like a constructor of a modified version of nn.Conv1d
     that gives an easy way to set the default initial parameter scale.
@@ -454,8 +440,11 @@ def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
     with torch.no_grad():
         ans.weight[:] *= initial_scale
         if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
+            torch.nn.init.uniform_(ans.bias,
+                                   -0.1 * initial_scale,
+                                   0.1 * initial_scale)
     return ans
+
 
 
 class ActivationBalancer(torch.nn.Module):
@@ -497,19 +486,18 @@ class ActivationBalancer(torch.nn.Module):
              from doing it at the same time.  Early in training we may use
              higher probabilities than this; it will decay to this value.
     """
-
     def __init__(
-        self,
-        num_channels: int,
-        channel_dim: int,
-        min_positive: float = 0.05,
-        max_positive: float = 0.95,
-        max_factor: float = 0.04,
-        sign_gain_factor: float = 0.01,
-        scale_gain_factor: float = 0.02,
-        min_abs: float = 0.2,
-        max_abs: float = 100.0,
-        min_prob: float = 0.1,
+            self,
+            num_channels: int,
+            channel_dim: int,
+            min_positive: float = 0.05,
+            max_positive: float = 0.95,
+            max_factor: float = 0.04,
+            sign_gain_factor: float = 0.01,
+            scale_gain_factor: float = 0.02,
+            min_abs: float = 0.2,
+            max_abs: float = 100.0,
+            min_prob: float = 0.1,
     ):
         super(ActivationBalancer, self).__init__()
         self.num_channels = num_channels
@@ -527,7 +515,9 @@ class ActivationBalancer(torch.nn.Module):
         # We occasionally sync this to a tensor called `count`, that exists to
         # make sure it is synced to disk when we load and save the model.
         self.cpu_count = 0
-        self.register_buffer("count", torch.tensor(0, dtype=torch.int64))
+        self.register_buffer('count', torch.tensor(0, dtype=torch.int64))
+
+
 
     def forward(self, x: Tensor) -> Tensor:
         if torch.jit.is_scripting() or not x.requires_grad:
@@ -545,35 +535,26 @@ class ActivationBalancer(torch.nn.Module):
 
         # the prob of doing some work exponentially decreases from 0.5 till it hits
         # a floor at min_prob (==0.1, by default)
-        prob = max(self.min_prob, 0.5 ** (1 + (count / 4000.0)))
+        prob = max(self.min_prob, 0.5 ** (1 + (count/4000.0)))
 
         if random.random() < prob:
             sign_gain_factor = 0.5
             if self.min_positive != 0.0 or self.max_positive != 1.0:
-                sign_factor = _compute_sign_factor(
-                    x,
-                    self.channel_dim,
-                    self.min_positive,
-                    self.max_positive,
-                    gain_factor=self.sign_gain_factor / prob,
-                    max_factor=self.max_factor,
-                )
+                sign_factor = _compute_sign_factor(x, self.channel_dim,
+                                                   self.min_positive, self.max_positive,
+                                                   gain_factor=self.sign_gain_factor / prob,
+                                                   max_factor=self.max_factor)
             else:
                 sign_factor = None
 
-            scale_factor = _compute_scale_factor(
-                x,
-                self.channel_dim,
-                min_abs=self.min_abs,
-                max_abs=self.max_abs,
-                gain_factor=self.scale_gain_factor / prob,
-                max_factor=self.max_factor,
-            )
+
+            scale_factor = _compute_scale_factor(x, self.channel_dim,
+                                                 min_abs=self.min_abs,
+                                                 max_abs=self.max_abs,
+                                                 gain_factor=self.scale_gain_factor / prob,
+                                                 max_factor=self.max_factor)
             return ActivationBalancerFunction.apply(
-                x,
-                scale_factor,
-                sign_factor,
-                self.channel_dim,
+                x, scale_factor, sign_factor, self.channel_dim,
             )
         else:
             return _no_op(x)
@@ -613,12 +594,13 @@ def _diag(x: Tensor):  # like .diag(), but works for tensors with 3 dims.
     else:
         (batch, dim, dim) = x.shape
         x = x.reshape(batch, dim * dim)
-        x = x[:, :: dim + 1]
+        x = x[:, ::dim+1]
         assert x.shape == (batch, dim)
         return x
 
 
-def _whitening_metric(x: Tensor, num_groups: int):
+def _whitening_metric(x: Tensor,
+                      num_groups: int):
     """
     Computes the "whitening metric", a value which will be 1.0 if all the eigenvalues of
     of the centered feature covariance are the same within each group's covariance matrix
@@ -648,21 +630,19 @@ def _whitening_metric(x: Tensor, num_groups: int):
     # the following expression is what we'd get if we took the matrix product
     # of each covariance and measured the mean of its trace, i.e.
     # the same as _diag(torch.matmul(x_covar, x_covar)).mean().
-    x_covarsq_mean_diag = (x_covar**2).sum() / (num_groups * channels_per_group)
+    x_covarsq_mean_diag = (x_covar ** 2).sum() / (num_groups * channels_per_group)
     # this metric will be >= 1.0; the larger it is, the less 'white' the data was.
-    metric = x_covarsq_mean_diag / (x_covar_mean_diag**2 + 1.0e-20)
+    metric = x_covarsq_mean_diag / (x_covar_mean_diag ** 2 + 1.0e-20)
     return metric
 
 
 class WhiteningPenaltyFunction(torch.autograd.Function):
     @staticmethod
-    def forward(
-        ctx,
-        x: Tensor,
-        num_groups: int,
-        whitening_limit: float,
-        grad_scale: float,
-    ) -> Tensor:
+    def forward(ctx,
+                x: Tensor,
+                num_groups: int,
+                whitening_limit: float,
+                grad_scale: float) -> Tensor:
         ctx.save_for_backward(x)
         ctx.num_groups = num_groups
         ctx.whitening_limit = whitening_limit
@@ -670,8 +650,9 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
         return x
 
     @staticmethod
-    def backward(ctx, x_grad: Tensor):
-        (x_orig,) = ctx.saved_tensors
+    def backward(ctx,
+                 x_grad: Tensor):
+        x_orig, = ctx.saved_tensors
         with torch.enable_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 x_detached = x_orig.to(torch.float32).detach()
@@ -680,29 +661,25 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                 metric = _whitening_metric(x_detached, ctx.num_groups)
 
                 if random.random() < 0.005 or __name__ == "__main__":
-                    logging.info(
-                        f"Whitening: num_groups={ctx.num_groups},"
-                        f" num_channels={x_orig.shape[-1]},"
-                        f" metric={metric.item():.2f} vs. limit={ctx.whitening_limit}"
-                    )
+                    logging.info(f"Whitening: num_groups={ctx.num_groups}, num_channels={x_orig.shape[-1]}, "
+                                 f"metric={metric.item():.2f} vs. limit={ctx.whitening_limit}")
 
                 (metric - ctx.whitening_limit).relu().backward()
                 penalty_grad = x_detached.grad
-                scale = ctx.grad_scale * (
-                    x_grad.to(torch.float32).norm() / (penalty_grad.norm() + 1.0e-20)
-                )
+                scale = ctx.grad_scale * (x_grad.to(torch.float32).norm() /
+                                          (penalty_grad.norm() + 1.0e-20))
                 penalty_grad = penalty_grad * scale
         return x_grad + penalty_grad.to(x_grad.dtype), None, None, None
 
 
+
 class Whiten(nn.Module):
     def __init__(
-        self,
-        num_groups: int,
-        whitening_limit: float,
-        prob: Union[float, Tuple[float, float]],
-        grad_scale: float,
-    ):
+            self,
+            num_groups: int,
+            whitening_limit: float,
+            prob: Union[float, Tuple[float,float]],
+            grad_scale: float):
         """
         Args:
           num_groups: the number of groups to divide the channel dim into before
@@ -737,7 +714,8 @@ class Whiten(nn.Module):
 
         self.grad_scale = grad_scale
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self,
+                x: Tensor) -> Tensor:
         """
         In the forward pass, this function just returns the input unmodified.
         In the backward pass, it will modify the gradients to ensure that the
@@ -757,21 +735,19 @@ class Whiten(nn.Module):
         if not x.requires_grad or random.random() > self.prob or self.grad_scale == 0:
             return _no_op(x)
         else:
-            if hasattr(self, "min_prob") and random.random() < 0.25:
+            if hasattr(self, 'min_prob') and random.random() < 0.25:
                 # occasionally switch between min_prob and max_prob, based on whether
                 # we are above or below the threshold.
-                if (
-                    _whitening_metric(x.to(torch.float32), self.num_groups)
-                    > self.whitening_limit
-                ):
+                if _whitening_metric(x.to(torch.float32), self.num_groups) > self.whitening_limit:
                     # there would be a change to the grad.
                     self.prob = self.max_prob
                 else:
                     self.prob = self.min_prob
 
-            return WhiteningPenaltyFunction.apply(
-                x, self.num_groups, self.whitening_limit, self.grad_scale
-            )
+            return WhiteningPenaltyFunction.apply(x,
+                                                  self.num_groups,
+                                                  self.whitening_limit,
+                                                  self.grad_scale)
 
 
 class WithLoss(torch.autograd.Function):
@@ -779,14 +755,11 @@ class WithLoss(torch.autograd.Function):
     def forward(ctx, x: Tensor, y: Tensor):
         ctx.y_shape = y.shape
         return x
-
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
-        return ans_grad, torch.ones(
-            ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device
-        )
-
-
+        return ans_grad, torch.ones(ctx.y_shape,
+                                    dtype=ans_grad.dtype,
+                                    device=ans_grad.device)
 def with_loss(x, y):
     if torch.jit.is_scripting():
         return x
@@ -795,7 +768,7 @@ def with_loss(x, y):
 
 
 def _no_op(x: Tensor) -> Tensor:
-    if torch.jit.is_scripting():
+    if (torch.jit.is_scripting()):
         return x
     else:
         # a no-op function that will have a node in the autograd graph,
@@ -809,7 +782,6 @@ class Identity(torch.nn.Module):
 
     def forward(self, x):
         return _no_op(x)
-
 
 class MaxEig(torch.nn.Module):
     """
@@ -831,14 +803,13 @@ class MaxEig(torch.nn.Module):
            scale: determines the scale with which we modify the gradients, relative
                to the existing / unmodified gradients
     """
-
     def __init__(
-        self,
-        num_channels: int,
-        channel_dim: int,
-        max_var_per_eig: float = 0.2,
-        min_prob: float = 0.01,
-        scale: float = 0.01,
+            self,
+            num_channels: int,
+            channel_dim: int,
+            max_var_per_eig: float = 0.2,
+            min_prob: float = 0.01,
+            scale: float = 0.01,
     ):
         super(MaxEig, self).__init__()
         self.num_channels = num_channels
@@ -854,7 +825,7 @@ class MaxEig(torch.nn.Module):
             # random parameters unchanged for comparison
             direction = torch.arange(num_channels).to(torch.float)
             direction = direction / direction.norm()
-            self.register_buffer("max_eig_direction", direction)
+            self.register_buffer('max_eig_direction', direction)
 
         self.min_prob = min_prob
         # cur_prob is the current probability we'll use to apply the ActivationBalancer.
@@ -862,12 +833,12 @@ class MaxEig(torch.nn.Module):
         # active.
         self.cur_prob = 1.0
 
+
+
     def forward(self, x: Tensor) -> Tensor:
-        if (
-            torch.jit.is_scripting()
-            or self.max_var_per_eig <= 0
-            or random.random() > self.cur_prob
-        ):
+        if (torch.jit.is_scripting() or
+            self.max_var_per_eig <= 0 or
+            random.random() > self.cur_prob):
             return _no_op(x)
 
         with torch.cuda.amp.autocast(enabled=False):
@@ -877,9 +848,7 @@ class MaxEig(torch.nn.Module):
             with torch.no_grad():
                 x = x.transpose(self.channel_dim, -1).reshape(-1, self.num_channels)
                 x = x - x.mean(dim=0)
-                new_direction, coeffs = self._find_direction_coeffs(
-                    x, self.max_eig_direction
-                )
+                new_direction, coeffs = self._find_direction_coeffs(x, self.max_eig_direction)
                 x_var = (x**2).mean()
                 x_residual = x - coeffs * new_direction
                 x_residual_var = (x_residual**2).mean()
@@ -892,10 +861,7 @@ class MaxEig(torch.nn.Module):
                 self._set_direction(0.1 * self.max_eig_direction + new_direction)
 
             if random.random() < 0.01 or __name__ == "__main__":
-                logging.info(
-                    f"variance_proportion = {variance_proportion.item()},"
-                    f" shape={tuple(orig_x.shape)}, cur_prob={self.cur_prob}"
-                )
+                logging.info(f"variance_proportion = {variance_proportion.item()}, shape={tuple(orig_x.shape)}, cur_prob={self.cur_prob}")
 
             if variance_proportion >= self.max_var_per_eig:
                 # The constraint is active.  Note, we should quite rarely
@@ -903,16 +869,17 @@ class MaxEig(torch.nn.Module):
                 # starting to diverge, should this constraint be active.
                 cur_prob = self.cur_prob
                 self.cur_prob = 1.0  # next time, do the update with probability 1.0.
-                return MaxEigLimiterFunction.apply(
-                    orig_x, coeffs, new_direction, self.channel_dim, self.scale
-                )
+                return MaxEigLimiterFunction.apply(orig_x, coeffs, new_direction,
+                                                   self.channel_dim, self.scale)
             else:
                 # let self.cur_prob exponentially approach self.min_prob, as
                 # long as the constraint is inactive.
                 self.cur_prob = 0.75 * self.cur_prob + 0.25 * self.min_prob
                 return orig_x
 
-    def _set_direction(self, direction: Tensor):
+
+    def _set_direction(self,
+                       direction: Tensor):
         """
         Sets self.max_eig_direction to a normalized version of `direction`
         """
@@ -922,37 +889,38 @@ class MaxEig(torch.nn.Module):
         if direction_sum - direction_sum == 0:  # no inf/nan
             self.max_eig_direction[:] = direction
         else:
-            logging.info(
-                f"Warning: sum of direction in MaxEig is {direction_sum}, "
-                "num_channels={self.num_channels}, channel_dim={self.channel_dim}"
-            )
+            logging.info(f"Warning: sum of direction in MaxEig is {direction_sum}, "
+                         "num_channels={self.num_channels}, channel_dim={self.channel_dim}")
 
-    def _find_direction_coeffs(
-        self, x: Tensor, prev_direction: Tensor
-    ) -> Tuple[Tensor, Tensor, Tensor]:
-        """
-            Figure out (an approximation to) the proportion of the variance of a set of
-            feature vectors that can be attributed to the top eigen-direction.
-            Args:
-             x: a Tensor of shape (num_frames, num_channels), with num_frames > 1.
-          prev_direction:  a Tensor of shape (num_channels,), that is our previous estimate
-                   of the top eigen-direction, or a random direction if this is the first
-                   iteration.  Does not have to be normalized, but should be nonzero.
 
-        Returns: (cur_direction, coeffs), where:
-             cur_direction: a Tensor of shape (num_channels,) that is the current
-                estimate of the top eigen-direction.
-             coeffs: a Tensor of shape (num_frames, 1) that minimizes, or
-                approximately minimizes, (x - coeffs * cur_direction).norm()
+    def _find_direction_coeffs(self,
+                               x: Tensor,
+                               prev_direction: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         """
+        Figure out (an approximation to) the proportion of the variance of a set of
+        feature vectors that can be attributed to the top eigen-direction.
+        Args:
+         x: a Tensor of shape (num_frames, num_channels), with num_frames > 1.
+      prev_direction:  a Tensor of shape (num_channels,), that is our previous estimate
+               of the top eigen-direction, or a random direction if this is the first
+               iteration.  Does not have to be normalized, but should be nonzero.
+
+    Returns: (cur_direction, coeffs), where:
+         cur_direction: a Tensor of shape (num_channels,) that is the current
+            estimate of the top eigen-direction.
+         coeffs: a Tensor of shape (num_frames, 1) that minimizes, or
+            approximately minimizes, (x - coeffs * cur_direction).norm()
+          """
         (num_frames, num_channels) = x.shape
         assert num_channels > 1 and num_frames > 1
         assert prev_direction.shape == (num_channels,)
         # `coeffs` are the coefficients of `prev_direction` in x.
         # actually represent the coeffs up to a constant positive factor.
         coeffs = (x * prev_direction).sum(dim=1, keepdim=True) + 1.0e-10
-        cur_direction = (x * coeffs).sum(dim=0) / ((coeffs**2).sum() + 1.0e-20)
+        cur_direction =  (x * coeffs).sum(dim=0) / ((coeffs ** 2).sum() + 1.0e-20)
         return cur_direction, coeffs
+
+
 
 
 class DoubleSwishFunction(torch.autograd.Function):
@@ -982,7 +950,7 @@ class DoubleSwishFunction(torch.autograd.Function):
         y = x * s
 
         if requires_grad:
-            deriv = y * (1 - s) + s
+            deriv = (y * (1 - s) + s)
             # notes on derivative of x * sigmoid(x - 1):
             # https://www.wolframalpha.com/input?i=d%2Fdx+%28x+*+sigmoid%28x-1%29%29
             # min \simeq -0.043638.  Take floor as -0.043637 so it's a lower bund
@@ -991,9 +959,7 @@ class DoubleSwishFunction(torch.autograd.Function):
             # floors), should be expectation-preserving.
             floor = -0.043637
             ceil = 1.2
-            d_scaled = (deriv - floor) * (255.0 / (ceil - floor)) + torch.rand_like(
-                deriv
-            )
+            d_scaled = ((deriv - floor) * (255.0 / (ceil - floor)) + torch.rand_like(deriv))
             if __name__ == "__main__":
                 # for self-testing only.
                 assert d_scaled.min() >= 0.0
@@ -1006,12 +972,12 @@ class DoubleSwishFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, y_grad: Tensor) -> Tensor:
-        (d,) = ctx.saved_tensors
+        d, = ctx.saved_tensors
         # the same constants as used in forward pass.
         floor = -0.043637
         ceil = 1.2
-        d = d * ((ceil - floor) / 255.0) + floor
-        return y_grad * d
+        d = (d * ((ceil - floor) / 255.0) + floor)
+        return (y_grad * d)
 
 
 class DoubleSwish(torch.nn.Module):
@@ -1022,6 +988,7 @@ class DoubleSwish(torch.nn.Module):
         if torch.jit.is_scripting():
             return x * torch.sigmoid(x - 1.0)
         return DoubleSwishFunction.apply(x)
+
 
 
 def _test_max_eig():
@@ -1035,9 +1002,11 @@ def _test_max_eig():
         x.requires_grad = True
 
         num_channels = 128
-        m = MaxEig(
-            num_channels, 1, 0.5, scale=0.1  # channel_dim  # max_var_per_eig
-        )  # grad_scale
+        m = MaxEig(num_channels,
+                   1, # channel_dim
+                   0.5, # max_var_per_eig
+                   scale=0.1) # grad_scale
+
 
         for _ in range(4):
             y = m(x)
@@ -1062,9 +1031,11 @@ def _test_whiten():
         x.requires_grad = True
 
         num_channels = 128
-        m = Whiten(
-            1, 5.0, prob=1.0, grad_scale=0.1  # num_groups  # whitening_limit,
-        )  # grad_scale
+        m = Whiten(1, # num_groups
+                   5.0, # whitening_limit,
+                   prob=1.0,
+                   grad_scale=0.1) # grad_scale
+
 
         for _ in range(4):
             y = m(x)
@@ -1076,6 +1047,7 @@ def _test_whiten():
             assert torch.allclose(x.grad, y_grad)
         elif proportion > 1.0:
             assert not torch.allclose(x.grad, y_grad)
+
 
 
 def _test_activation_balancer_sign():
@@ -1105,7 +1077,9 @@ def _test_activation_balancer_sign():
 def _test_activation_balancer_magnitude():
     magnitudes = torch.arange(0, 1, 0.01)
     N = 1000
-    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(-1)
+    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(
+        -1
+    )
     x = x.detach()
     x.requires_grad = True
     m = ActivationBalancer(
@@ -1137,8 +1111,8 @@ def _test_basic_norm():
     y = m(x)
 
     assert y.shape == x.shape
-    x_rms = (x**2).mean().sqrt()
-    y_rms = (y**2).mean().sqrt()
+    x_rms = (x ** 2).mean().sqrt()
+    y_rms = (y ** 2).mean().sqrt()
     print("x rms = ", x_rms)
     print("y rms = ", y_rms)
     assert y_rms < x_rms
@@ -1150,8 +1124,9 @@ def _test_double_swish_deriv():
     x.requires_grad = True
     m = DoubleSwish()
 
-    tol = (1.2 - (-0.043637)) / 255.0
+    tol = ((1.2-(-0.043637))/255.0)
     torch.autograd.gradcheck(m, x, atol=tol)
+
 
     # for self-test.
     x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
@@ -1159,16 +1134,18 @@ def _test_double_swish_deriv():
     y = m(x)
 
 
+
 def _test_softmax():
     a = torch.randn(2, 10, dtype=torch.float64)
     b = a.clone()
     a.requires_grad = True
     b.requires_grad = True
-    a.softmax(dim=1)[:, 0].sum().backward()
+    a.softmax(dim=1)[:,0].sum().backward()
     print("a grad = ", a.grad)
-    softmax(b, dim=1)[:, 0].sum().backward()
+    softmax(b, dim=1)[:,0].sum().backward()
     print("b grad = ", b.grad)
     assert torch.allclose(a.grad, b.grad)
+
 
 
 if __name__ == "__main__":

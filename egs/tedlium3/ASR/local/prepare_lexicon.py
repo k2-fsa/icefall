@@ -23,11 +23,10 @@ consisting of supervisions_train.json and does the following:
 1. Generate lexicon_words.txt.
 
 """
+import lhotse
 import argparse
 import logging
 from pathlib import Path
-
-import lhotse
 
 
 def get_args():
@@ -62,7 +61,9 @@ def prepare_lexicon(manifests_dir: str, lang_dir: str):
     words = set()
 
     lexicon = Path(lang_dir) / "lexicon_words.txt"
-    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
+    sups = lhotse.load_manifest(
+        f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz"
+    )
     for s in sups:
         # list the words units and filter the empty item
         words_list = list(filter(None, s.text.split()))
@@ -87,7 +88,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

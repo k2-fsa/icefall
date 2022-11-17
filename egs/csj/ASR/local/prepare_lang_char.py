@@ -68,7 +68,8 @@ def get_args():
         type=Path,
         default=None,
         help=(
-            "Name of lang dir. If not set, this will default to lang_char_{trans-mode}"
+            "Name of lang dir. "
+            "If not set, this will default to lang_char_{trans-mode}"
         ),
     )
 
@@ -86,7 +87,9 @@ def main():
     args = get_args()
 
     logging.basicConfig(
-        format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
+        format=(
+            "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] " "%(message)s"
+        ),
         level=logging.INFO,
     )
 
@@ -108,7 +111,8 @@ def main():
 
     words = set()
     logging.info(
-        f"Creating vocabulary from {args.train_cut.name} at {args.trans_mode} mode."
+        f"Creating vocabulary from {args.train_cut.name}"
+        f" at {args.trans_mode} mode."
     )
     for cut in train_set:
         try:
@@ -119,7 +123,8 @@ def main():
             )
         except KeyError:
             raise KeyError(
-                f"Could not find {args.trans_mode} in {cut.supervisions[0].custom}"
+                f"Could not find {args.trans_mode} in "
+                f"{cut.supervisions[0].custom}"
             )
         for t in text.split():
             if t in args.userdef_string:
@@ -138,7 +143,9 @@ def main():
 
     (args.lang_dir / "words_len").write_text(f"{len(words)}")
 
-    (args.lang_dir / "userdef_string").write_text("\n".join(args.userdef_string))
+    (args.lang_dir / "userdef_string").write_text(
+        "\n".join(args.userdef_string)
+    )
 
     (args.lang_dir / "trans_mode").write_text(args.trans_mode)
     logging.info("Done.")

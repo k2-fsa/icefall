@@ -48,10 +48,8 @@ def get_parser():
         "--batch-duration",
         type=float,
         default=600.0,
-        help=(
-            "The maximum number of audio seconds in a batch."
-            "Determines batch size dynamically."
-        ),
+        help="The maximum number of audio seconds in a batch."
+        "Determines batch size dynamically.",
     )
 
     parser.add_argument(
@@ -146,7 +144,9 @@ def main():
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
 
     log_filename = "log-compute_fbank_gigaspeech_splits"
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
     log_filename = f"{log_filename}-{date_time}"
 
     logging.basicConfig(

@@ -69,7 +69,7 @@ class Decoder(nn.Module):
                 out_channels=decoder_dim,
                 kernel_size=context_size,
                 padding=0,
-                groups=decoder_dim // 4,  # group size == 4
+                groups=decoder_dim//4,  # group size == 4
                 bias=False,
             )
 
@@ -91,7 +91,9 @@ class Decoder(nn.Module):
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:
-                embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
+                embedding_out = F.pad(
+                    embedding_out, pad=(self.context_size - 1, 0)
+                )
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output

@@ -18,10 +18,10 @@
 import math
 import warnings
 from typing import Optional, Tuple
+from sampling import create_knowledge_base, KnowledgeBaseLookup
 
 import torch
 from encoder_interface import EncoderInterface
-from sampling import KnowledgeBaseLookup, create_knowledge_base
 from scaling import (
     ActivationBalancer,
     BasicNorm,
@@ -73,9 +73,9 @@ class Conformer(EncoderInterface):
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
 
-        self.knowledge_base = create_knowledge_base(
-            knowledge_M, knowledge_N, knowledge_D
-        )
+
+        self.knowledge_base = create_knowledge_base(knowledge_M, knowledge_N,
+                                                    knowledge_D)
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
         # to the shape (N, T//subsampling_factor, d_model).
@@ -89,7 +89,7 @@ class Conformer(EncoderInterface):
         # Pass in a lambda that creates a new ConformerEncoderLayer with these
         # args.  Don't use deepcopy because we need the knowledge_base
         # to be shared.
-        encoder_layer_fn = lambda: ConformerEncoderLayer(  # noqa: E731
+        encoder_layer_fn = lambda: ConformerEncoderLayer(
             self.knowledge_base,
             d_model,
             nhead,
@@ -100,7 +100,7 @@ class Conformer(EncoderInterface):
             knowledge_M,
             knowledge_N,
             knowledge_D,
-            knowledge_K,
+            knowledge_K
         )
         self.encoder = ConformerEncoder(encoder_layer_fn, num_encoder_layers)
 
@@ -187,7 +187,9 @@ class ConformerEncoderLayer(nn.Module):
 
         self.d_model = d_model
 
-        self.self_attn = RelPositionMultiheadAttention(d_model, nhead, dropout=0.0)
+        self.self_attn = RelPositionMultiheadAttention(
+            d_model, nhead, dropout=0.0
+        )
 
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -207,14 +209,10 @@ class ConformerEncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
 
-        self.lookup = KnowledgeBaseLookup(
-            knowledge_M,
-            knowledge_N,
-            knowledge_D,
-            knowledge_K,
-            d_model,
-            knowledge_base,
-        )
+        self.lookup = KnowledgeBaseLookup(knowledge_M, knowledge_N,
+                                          knowledge_D, knowledge_K,
+                                          d_model,
+                                          knowledge_base)
 
         self.norm_final = BasicNorm(d_model)
 
@@ -313,7 +311,9 @@ class ConformerEncoder(nn.Module):
 
     def __init__(self, encoder_layer_fn, num_layers: int) -> None:
         super().__init__()
-        self.layers = nn.ModuleList([encoder_layer_fn() for i in range(num_layers)])
+        self.layers = nn.ModuleList(
+            [encoder_layer_fn() for i in range(num_layers)]
+        )
         self.num_layers = num_layers
 
     def forward(
@@ -367,7 +367,9 @@ class RelPositionalEncoding(torch.nn.Module):
 
     """
 
-    def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
+    def __init__(
+        self, d_model: int, dropout_rate: float, max_len: int = 5000
+    ) -> None:
         """Construct an PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
@@ -382,7 +384,9 @@ class RelPositionalEncoding(torch.nn.Module):
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(1) >= x.size(1) * 2 - 1:
                 # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
+                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
+                    x.device
+                ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         # Suppose `i` means to the position of query vecotr and `j` means the
@@ -657,9 +661,9 @@ class RelPositionMultiheadAttention(nn.Module):
 
         if torch.equal(query, key) and torch.equal(key, value):
             # self-attention
-            q, k, v = nn.functional.linear(query, in_proj_weight, in_proj_bias).chunk(
-                3, dim=-1
-            )
+            q, k, v = nn.functional.linear(
+                query, in_proj_weight, in_proj_bias
+            ).chunk(3, dim=-1)
 
         elif torch.equal(key, value):
             # encoder-decoder attention
@@ -728,25 +732,33 @@ class RelPositionMultiheadAttention(nn.Module):
             if attn_mask.dim() == 2:
                 attn_mask = attn_mask.unsqueeze(0)
                 if list(attn_mask.size()) != [1, query.size(0), key.size(0)]:
-                    raise RuntimeError("The size of the 2D attn_mask is not correct.")
+                    raise RuntimeError(
+                        "The size of the 2D attn_mask is not correct."
+                    )
             elif attn_mask.dim() == 3:
                 if list(attn_mask.size()) != [
                     bsz * num_heads,
                     query.size(0),
                     key.size(0),
                 ]:
-                    raise RuntimeError("The size of the 3D attn_mask is not correct.")
+                    raise RuntimeError(
+                        "The size of the 3D attn_mask is not correct."
+                    )
             else:
                 raise RuntimeError(
-                    "attn_mask's dimension {} is not supported".format(attn_mask.dim())
+                    "attn_mask's dimension {} is not supported".format(
+                        attn_mask.dim()
+                    )
                 )
             # attn_mask's dim is 3 now.
 
         # convert ByteTensor key_padding_mask to bool
-        if key_padding_mask is not None and key_padding_mask.dtype == torch.uint8:
+        if (
+            key_padding_mask is not None
+            and key_padding_mask.dtype == torch.uint8
+        ):
             warnings.warn(
-                "Byte tensor for key_padding_mask is deprecated. Use bool tensor"
-                " instead."
+                "Byte tensor for key_padding_mask is deprecated. Use bool tensor instead."
             )
             key_padding_mask = key_padding_mask.to(torch.bool)
 
@@ -783,7 +795,9 @@ class RelPositionMultiheadAttention(nn.Module):
         # first compute matrix a and matrix c
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
-        matrix_ac = torch.matmul(q_with_bias_u, k)  # (batch, head, time1, time2)
+        matrix_ac = torch.matmul(
+            q_with_bias_u, k
+        )  # (batch, head, time1, time2)
 
         # compute matrix b and matrix d
         matrix_bd = torch.matmul(
@@ -791,9 +805,13 @@ class RelPositionMultiheadAttention(nn.Module):
         )  # (batch, head, time1, 2*time1-1)
         matrix_bd = self.rel_shift(matrix_bd)
 
-        attn_output_weights = matrix_ac + matrix_bd  # (batch, head, time1, time2)
+        attn_output_weights = (
+            matrix_ac + matrix_bd
+        )  # (batch, head, time1, time2)
 
-        attn_output_weights = attn_output_weights.view(bsz * num_heads, tgt_len, -1)
+        attn_output_weights = attn_output_weights.view(
+            bsz * num_heads, tgt_len, -1
+        )
 
         assert list(attn_output_weights.size()) == [
             bsz * num_heads,
@@ -827,9 +845,13 @@ class RelPositionMultiheadAttention(nn.Module):
         attn_output = torch.bmm(attn_output_weights, v)
         assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]
         attn_output = (
-            attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+            attn_output.transpose(0, 1)
+            .contiguous()
+            .view(tgt_len, bsz, embed_dim)
         )
-        attn_output = nn.functional.linear(attn_output, out_proj_weight, out_proj_bias)
+        attn_output = nn.functional.linear(
+            attn_output, out_proj_weight, out_proj_bias
+        )
 
         if need_weights:
             # average attention weights over heads
@@ -852,7 +874,9 @@ class ConvolutionModule(nn.Module):
 
     """
 
-    def __init__(self, channels: int, kernel_size: int, bias: bool = True) -> None:
+    def __init__(
+        self, channels: int, kernel_size: int, bias: bool = True
+    ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
