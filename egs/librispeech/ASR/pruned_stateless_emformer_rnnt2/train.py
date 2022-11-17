@@ -209,42 +209,45 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
         "--prune-range",
         type=int,
         default=5,
-        help="The prune range for rnnt loss, it means how many symbols(context)"
-        "we are using to compute the loss",
+        help=(
+            "The prune range for rnnt loss, it means how many symbols(context)"
+            "we are using to compute the loss"
+        ),
     )
 
     parser.add_argument(
         "--lm-scale",
         type=float,
         default=0.25,
-        help="The scale to smooth the loss with lm "
-        "(output of prediction network) part.",
+        help=(
+            "The scale to smooth the loss with lm (output of prediction network) part."
+        ),
     )
 
     parser.add_argument(
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)part.",
     )
 
     parser.add_argument(
         "--simple-loss-scale",
         type=float,
         default=0.5,
-        help="To get pruning ranges, we will calculate a simple version"
-        "loss(joiner is just addition), this simple loss also uses for"
-        "training (as a regularization item). We will scale the simple loss"
-        "with this parameter before adding to the final loss.",
+        help=(
+            "To get pruning ranges, we will calculate a simple version"
+            "loss(joiner is just addition), this simple loss also uses for"
+            "training (as a regularization item). We will scale the simple loss"
+            "with this parameter before adding to the final loss."
+        ),
     )
 
     parser.add_argument(
@@ -566,11 +569,7 @@ def compute_loss(
         function enables autograd during computation; when it is False, it
         disables autograd.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -599,9 +598,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     info["utterances"] = feature.size(0)
@@ -782,9 +779,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -908,8 +903,7 @@ def run(rank, world_size, args):
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Duration: {c.duration}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             return False
 
