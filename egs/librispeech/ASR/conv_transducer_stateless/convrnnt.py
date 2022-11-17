@@ -800,20 +800,16 @@ class LstmEncoder(nn.Module):
         self.hidden_size = hidden_size
 
         assert hidden_size >= d_model, (hidden_size, d_model)
+        self.layer = ScaledLSTM(
+            input_size=d_model,
+            hidden_size=hidden_size,
+            proj_size=d_model,
+            num_layers=1,
+            dropout=0.0,
+            bidirectional=bidirectional,
+        )
         self.layers = nn.ModuleList(
-            [
-                copy.deepcopy(
-                    ScaledLSTM(
-                        input_size=d_model,
-                        hidden_size=hidden_size,
-                        proj_size=d_model,
-                        num_layers=1,
-                        dropout=0.0,
-                        bidirectional=bidirectional,
-                    )
-                    for i in range(num_layers)
-                )
-            ]
+            [copy.deepcopy(self.layer) for i in range(num_layers)]
         )
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
