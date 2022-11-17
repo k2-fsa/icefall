@@ -156,9 +156,7 @@ class Model:
             assert ret == 0, ret
 
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
-            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(
-                torch.int32
-            )
+            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
             hx = torch.from_numpy(ncnn_out2.numpy()).clone()
             cx = torch.from_numpy(ncnn_out3.numpy()).clone()
             return encoder_out, encoder_out_lens, hx, cx
@@ -201,8 +199,7 @@ def read_sound_files(
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
         assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
+            f"expected sample rate: {expected_sample_rate}. " f"Given: {sample_rate}"
         )
         # We use only the first channel
         ans.append(wave[0])
@@ -286,9 +283,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

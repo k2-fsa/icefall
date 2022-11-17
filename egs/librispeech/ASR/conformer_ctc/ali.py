@@ -231,9 +231,7 @@ def compute_alignments(
         labels_ali = get_alignments(best_path, kind="labels")
         aux_labels_ali = get_alignments(best_path, kind="aux_labels")
         assert len(labels_ali) == len(aux_labels_ali) == len(cut_list)
-        for cut, labels, aux_labels in zip(
-            cut_list, labels_ali, aux_labels_ali
-        ):
+        for cut, labels, aux_labels in zip(cut_list, labels_ali, aux_labels_ali):
             cut.labels_alignment = labels_writer.store_array(
                 key=cut.id,
                 value=np.asarray(labels, dtype=np.int32),
@@ -258,9 +256,7 @@ def compute_alignments(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
 
     return CutSet.from_cuts(cuts)
 
@@ -289,9 +285,7 @@ def main():
 
     out_labels_ali_filename = out_dir / f"labels_{params.dataset}.h5"
     out_aux_labels_ali_filename = out_dir / f"aux_labels_{params.dataset}.h5"
-    out_manifest_filename = (
-        out_dir / f"librispeech_cuts_{params.dataset}.jsonl.gz"
-    )
+    out_manifest_filename = out_dir / f"librispeech_cuts_{params.dataset}.jsonl.gz"
 
     for f in (
         out_labels_ali_filename,
