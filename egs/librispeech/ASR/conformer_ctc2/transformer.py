@@ -401,7 +401,6 @@ class TransformerEncoderLayer(nn.Module):
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        activation: str = "relu",
     ) -> None:
         super(TransformerEncoderLayer, self).__init__()
 
@@ -426,11 +425,6 @@ class TransformerEncoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-
-    # def __setstate__(self, state):
-    #     if "activation" not in state:
-    #         state["activation"] = nn.functional.relu
-    #     super(TransformerEncoderLayer, self).__setstate__(state)
 
     def forward(
         self,
@@ -523,7 +517,6 @@ class TransformerDecoderLayer(nn.Module):
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        # activation: str = "relu",
         normalize_before: bool = True,
     ) -> None:
         super(TransformerDecoderLayer, self).__init__()
@@ -547,11 +540,6 @@ class TransformerDecoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-
-    # def __setstate__(self, state):
-    #     if "activation" not in state:
-    #         state["activation"] = nn.functional.relu
-    #     super(TransformerDecoderLayer, self).__setstate__(state)
 
     def forward(
         self,
@@ -637,15 +625,6 @@ class TransformerDecoderLayer(nn.Module):
         return tgt
 
 
-def _get_activation_fn(activation: str):
-    if activation == "relu":
-        return nn.functional.relu
-    elif activation == "gelu":
-        return nn.functional.gelu
-
-    raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
-
-
 class TransformerEncoder(nn.Module):
     r"""TransformerEncoder is a stack of N encoder layers
 
@@ -690,7 +669,7 @@ class TransformerEncoder(nn.Module):
         """
         output = src
 
-        for i, mod in enumerate(self.layers):
+        for mod in self.layers:
             output = mod(
                 output,
                 src_mask=mask,
@@ -751,7 +730,7 @@ class TransformerDecoder(nn.Module):
         """
         output = tgt
 
-        for i, mod in enumerate(self.layers):
+        for mod in self.layers:
             output = mod(
                 output,
                 memory,
