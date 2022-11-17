@@ -932,8 +932,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         # but it does so more slowly than T for large absolute values of T.
         # The formula is chosen so that d(x_compressed )/dx is 1 around x == 0, which
         # is important.
-        x_compressed = compression_length * x.sign() * (x.abs() + compression_length).log()
-
+        x_compressed = compression_length * x.sign() * ((x.abs() + compression_length).log() - math.log(compression_length))
 
         # length_factor is chosen so that the FFT can exactly separate points
         # close to the origin (T == 0).  So this part of the formulation is not really
