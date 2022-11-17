@@ -158,12 +158,12 @@ def generate_lexicon(
     for word, pieces in zip(words, words_pieces):
         lexicon.append((word, pieces))
 
-    # The OOV word is <UNK>
-    lexicon.append(("<UNK>", [sp.id_to_piece(sp.unk_id())]))
+#     # The OOV word is <UNK>
+#     lexicon.append(("<UNK>", [sp.id_to_piece(sp.unk_id())]))
+    # The OOV word is <unk>
+    lexicon.append(("<unk>", ["▁", sp.id_to_piece(sp.unk_id())]))
 
-    token2id: Dict[str, int] = dict()
-    for i in range(sp.vocab_size()):
-        token2id[sp.id_to_piece(i)] = i
+    token2id: Dict[str, int] = {sp.id_to_piece(i): i for i in range(sp.vocab_size())}
 
     return lexicon, token2id
 
@@ -204,7 +204,9 @@ def main():
 
     words = word_sym_table.symbols
 
-    excluded = ["<eps>", "!SIL", "<SPOKEN_NOISE>", "<UNK>", "#0", "<s>", "</s>"]
+    excluded = [
+        "<eps>", "!SIL", "!sil", "<SPOKEN_NOISE>", "<UNK>", "<unk>" "#0", "<s>", "</s>"
+    ]
     for w in excluded:
         if w in words:
             words.remove(w)
