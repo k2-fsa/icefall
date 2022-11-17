@@ -21,17 +21,19 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from attention import MultiheadAttention
 from label_smoothing import LabelSmoothingLoss
+from subsampling import Conv2dSubsampling
+from attention import MultiheadAttention
+from torch.nn.utils.rnn import pad_sequence
+
 from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledEmbedding,
     ScaledLinear,
+    ScaledEmbedding,
 )
-from subsampling import Conv2dSubsampling
-from torch.nn.utils.rnn import pad_sequence
+
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]
@@ -208,7 +210,9 @@ class Transformer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
-        x = self.encoder(x, src_key_padding_mask=mask, warmup=warmup)  # (T, N, C)
+        x = self.encoder(
+            x, src_key_padding_mask=mask, warmup=warmup
+        )  # (T, N, C)
 
         return x, mask
 
@@ -257,17 +261,23 @@ class Transformer(nn.Module):
         """
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device)
         ys_out_pad = ys_out_pad.to(device)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
+            device
+        )
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -328,17 +338,23 @@ class Transformer(nn.Module):
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
+        ys_in_pad = pad_sequence(
+            ys_in, batch_first=True, padding_value=float(eos_id)
+        )
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
+        ys_out_pad = pad_sequence(
+            ys_out, batch_first=True, padding_value=float(-1)
+        )
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
         ys_out_pad = ys_out_pad.to(device, dtype=torch.int64)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
+            device
+        )
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -943,7 +959,9 @@ def encoder_padding_mask(
         1,
     ).to(torch.int32)
 
-    lengths = [0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)]
+    lengths = [
+        0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)
+    ]
     for idx in range(supervision_segments.size(0)):
         # Note: TorchScript doesn't allow to unpack tensors as tuples
         sequence_idx = supervision_segments[idx, 0].item()
@@ -964,7 +982,9 @@ def encoder_padding_mask(
     return mask
 
 
-def decoder_padding_mask(ys_pad: torch.Tensor, ignore_id: int = -1) -> torch.Tensor:
+def decoder_padding_mask(
+    ys_pad: torch.Tensor, ignore_id: int = -1
+) -> torch.Tensor:
     """Generate a length mask for input.
 
     The masked position are filled with True,

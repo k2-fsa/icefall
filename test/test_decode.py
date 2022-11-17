@@ -23,7 +23,6 @@ You can run this file in one of the two ways:
 """
 
 import k2
-
 from icefall.decode import Nbest
 
 

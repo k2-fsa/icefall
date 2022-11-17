@@ -21,10 +21,9 @@ import os
 from pathlib import Path
 
 import torch
+from vq_utils import CodebookIndexExtractor
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
-from vq_utils import CodebookIndexExtractor
-
 from icefall.utils import AttributeDict, str2bool
 
 

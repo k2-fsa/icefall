@@ -69,8 +69,8 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
-from icefall import diagnostics
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
+from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -89,7 +89,9 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+LRSchedulerType = Union[
+    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
+]
 
 
 def get_parser():
@@ -496,7 +498,11 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+    device = (
+        model.device
+        if isinstance(model, DDP)
+        else next(model.parameters()).device
+    )
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -525,7 +531,9 @@ def compute_loss(
         # Works with a phone lexicon
         decoding_graph = graph_compiler.compile(texts)
     else:
-        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
+        raise ValueError(
+            f"Unsupported type of graph compiler: {type(graph_compiler)}"
+        )
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -552,7 +560,9 @@ def compute_loss(
             #
             # See https://github.com/k2-fsa/icefall/issues/97
             # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
+            unsorted_token_ids = graph_compiler.texts_to_ids(
+                supervisions["text"]
+            )
             att_loss = mmodel.decoder_forward(
                 encoder_memory,
                 memory_mask,
@@ -570,7 +580,9 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
     info["ctc_loss"] = ctc_loss.detach().cpu().item()
     if params.att_rate != 0.0:
         info["att_loss"] = att_loss.detach().cpu().item()
@@ -708,7 +720,8 @@ def train_one_epoch(
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
                 logging.error(
-                    f"failing batch size:{batch_size} failing batch names {batch_name}"
+                    f"failing batch size:{batch_size} "
+                    f"failing batch names {batch_name}"
                 )
             raise
 
@@ -763,9 +776,9 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}"
             )
-            if loss_info["ctc_loss"] == float("inf") or loss_info["att_loss"] == float(
-                "inf"
-            ):
+            if loss_info["ctc_loss"] == float("inf") or loss_info[
+                "att_loss"
+            ] == float("inf"):
                 logging.error(
                     "Your loss contains inf, something goes wrong"
                     f"failing batch names {batch_name}"
@@ -778,7 +791,9 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+                tot_loss.write_summary(
+                    tb_writer, "train/tot_", params.batch_idx_train
+                )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -870,7 +885,7 @@ def run(rank, world_size, args):
         graph_compiler.eos_id = 1
     else:
         raise ValueError(
-            "Unsupported type of lang dir (we expected it to have "
+            f"Unsupported type of lang dir (we expected it to have "
             f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
         )
 

@@ -89,24 +89,20 @@ def get_parser():
         "--avg",
         type=int,
         default=15,
-        help=(
-            "Number of checkpoints to average. Automatically select "
-            "consecutive checkpoints before the checkpoint specified by "
-            "'--epoch' and '--iter'"
-        ),
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
         default=True,
-        help=(
-            "Whether to load averaged model. Currently it only supports "
-            "using --epoch. If True, it would decode with the averaged model "
-            "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-            "Actually only the models with epoch number of `epoch-avg` and "
-            "`epoch` are loaded for averaging. "
-        ),
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
     )
 
     parser.add_argument(
@@ -137,7 +133,8 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -186,12 +183,13 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
             if len(filenames) == 0:
                 raise ValueError(
-                    f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
                 )
             elif len(filenames) < params.avg:
                 raise ValueError(
@@ -214,12 +212,13 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
             if len(filenames) == 0:
                 raise ValueError(
-                    f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
                 )
             elif len(filenames) < params.avg + 1:
                 raise ValueError(
@@ -247,7 +246,7 @@ def main():
             filename_start = f"{params.exp_dir}/epoch-{start}.pt"
             filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
             logging.info(
-                "Calculating the averaged model over epoch range from "
+                f"Calculating the averaged model over epoch range from "
                 f"{start} (excluded) to {params.epoch}"
             )
             model.to(device)
@@ -283,7 +282,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

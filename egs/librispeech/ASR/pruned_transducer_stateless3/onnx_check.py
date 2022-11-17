@@ -203,7 +203,9 @@ def test_joiner(
         )
 
         # Now test encoder_proj
-        joiner_encoder_proj_inputs = {encoder_proj_input_name: encoder_out.numpy()}
+        joiner_encoder_proj_inputs = {
+            encoder_proj_input_name: encoder_out.numpy()
+        }
         joiner_encoder_proj_out = joiner_encoder_proj_session.run(
             [encoder_proj_output_name], joiner_encoder_proj_inputs
         )[0]
@@ -212,10 +214,16 @@ def test_joiner(
         torch_joiner_encoder_proj_out = model.joiner.encoder_proj(encoder_out)
         assert torch.allclose(
             joiner_encoder_proj_out, torch_joiner_encoder_proj_out, atol=1e-5
-        ), ((joiner_encoder_proj_out - torch_joiner_encoder_proj_out).abs().max())
+        ), (
+            (joiner_encoder_proj_out - torch_joiner_encoder_proj_out)
+            .abs()
+            .max()
+        )
 
         # Now test decoder_proj
-        joiner_decoder_proj_inputs = {decoder_proj_input_name: decoder_out.numpy()}
+        joiner_decoder_proj_inputs = {
+            decoder_proj_input_name: decoder_out.numpy()
+        }
         joiner_decoder_proj_out = joiner_decoder_proj_session.run(
             [decoder_proj_output_name], joiner_decoder_proj_inputs
         )[0]
@@ -224,7 +232,11 @@ def test_joiner(
         torch_joiner_decoder_proj_out = model.joiner.decoder_proj(decoder_out)
         assert torch.allclose(
             joiner_decoder_proj_out, torch_joiner_decoder_proj_out, atol=1e-5
-        ), ((joiner_decoder_proj_out - torch_joiner_decoder_proj_out).abs().max())
+        ), (
+            (joiner_decoder_proj_out - torch_joiner_decoder_proj_out)
+            .abs()
+            .max()
+        )
 
 
 @torch.no_grad()
@@ -276,7 +288,9 @@ def main():
 
 if __name__ == "__main__":
     torch.manual_seed(20220727)
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()
