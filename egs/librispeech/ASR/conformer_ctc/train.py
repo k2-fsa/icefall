@@ -393,9 +393,7 @@ def compute_loss(
         # Works with a phone lexicon
         decoding_graph = graph_compiler.compile(texts)
     else:
-        raise ValueError(
-            f"Unsupported type of graph compiler: {type(graph_compiler)}"
-        )
+        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -422,9 +420,7 @@ def compute_loss(
             #
             # See https://github.com/k2-fsa/icefall/issues/97
             # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(
-                supervisions["text"]
-            )
+            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
             att_loss = mmodel.decoder_forward(
                 encoder_memory,
                 memory_mask,
@@ -453,9 +449,7 @@ def compute_loss(
     info["utt_duration"] = supervisions["num_frames"].sum().item()
     # averaged padding proportion over utterances
     info["utt_pad_proportion"] = (
-        ((feature.size(1) - supervisions["num_frames"]) / feature.size(1))
-        .sum()
-        .item()
+        ((feature.size(1) - supervisions["num_frames"]) / feature.size(1)).sum().item()
     )
 
     return loss, info
@@ -568,9 +562,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -660,7 +652,7 @@ def run(rank, world_size, args):
         graph_compiler.eos_id = 1
     else:
         raise ValueError(
-            f"Unsupported type of lang dir (we expected it to have "
+            "Unsupported type of lang dir (we expected it to have "
             f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
         )
 
@@ -733,9 +725,7 @@ def run(rank, world_size, args):
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:

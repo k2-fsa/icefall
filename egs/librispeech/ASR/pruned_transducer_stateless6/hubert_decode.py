@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import torch
-
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
 
@@ -81,18 +80,17 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-
+        # hyps is a list, every element is decode result of a sentence.
         hyps = hubert_model.ctc_greedy_search(batch)
 
         texts = batch["supervisions"]["text"]
-        assert len(hyps) == len(texts)
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         this_batch = []
-
-        for hyp_text, ref_text in zip(hyps, texts):
+        assert len(hyps) == len(texts)
+        for cut_id, hyp_text, ref_text in zip(cut_ids, hyps, texts):
             ref_words = ref_text.split()
             hyp_words = hyp_text.split()
-            this_batch.append((ref_words, hyp_words))
-
+            this_batch.append((cut_id, ref_words, hyp_words))
         results["ctc_greedy_search"].extend(this_batch)
 
         num_cuts += len(texts)
@@ -100,9 +98,7 @@ def decode_dataset(
         if batch_idx % 20 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -125,9 +121,7 @@ def save_results(
             )
             test_set_wers[key] = wer
 
-            logging.info(
-                "Wrote detailed error stats to {}".format(errs_filename)
-            )
+            logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.res_dir / f"wer-summary-{test_set_name}.txt"
@@ -156,9 +150,7 @@ def main():
     # reset some parameters needed by hubert.
     params.update(HubertXlargeFineTuned.get_params())
 
-    params.res_dir = (
-        params.exp_dir / f"ctc_greedy_search-{params.teacher_model_id}"
-    )
+    params.res_dir = params.exp_dir / f"ctc_greedy_search-{params.teacher_model_id}"
 
     setup_logger(f"{params.res_dir}/log/log-ctc_greedy_search")
     logging.info("Decoding started")
@@ -191,9 +183,7 @@ def main():
             params=params,
         )
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 

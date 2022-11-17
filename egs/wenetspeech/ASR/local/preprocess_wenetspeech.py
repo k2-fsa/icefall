@@ -23,6 +23,8 @@ from pathlib import Path
 from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
 
+from icefall import setup_logger
+
 # Similar text filtering and normalization procedure as in:
 # https://github.com/SpeechColab/WenetSpeech/blob/main/toolkits/kaldi/wenetspeech_data_prep.sh
 
@@ -48,13 +50,17 @@ def preprocess_wenet_speech():
     output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
 
+    # Note: By default, we preprocess all sub-parts.
+    # You can delete those that you don't need.
+    # For instance, if you don't want to use the L subpart, just remove
+    # the line below containing "L"
     dataset_parts = (
-        "L",
-        "M",
-        "S",
         "DEV",
         "TEST_NET",
         "TEST_MEETING",
+        "S",
+        "M",
+        "L",
     )
 
     logging.info("Loading manifest (may take 10 minutes)")
@@ -65,6 +71,13 @@ def preprocess_wenet_speech():
         prefix="wenetspeech",
     )
     assert manifests is not None
+
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
 
     for partition, m in manifests.items():
         logging.info(f"Processing {partition}")
@@ -81,10 +94,13 @@ def preprocess_wenet_speech():
         logging.info(f"Normalizing text in {partition}")
         for sup in m["supervisions"]:
             text = str(sup.text)
-            logging.info(f"Original text: {text}")
+            orig_text = text
             sup.text = normalize_text(sup.text)
             text = str(sup.text)
-            logging.info(f"Normalize text: {text}")
+            if len(orig_text) != len(text):
+                logging.info(
+                    f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
+                )
 
         # Create long-recording cut manifests.
         logging.info(f"Processing {partition}")
@@ -99,22 +115,16 @@ def preprocess_wenet_speech():
                 f"Speed perturb for {partition} with factors 0.9 and 1.1 "
                 "(Perturbing may take 8 minutes and saving may take 20 minutes)"
             )
-            cut_set = (
-                cut_set
-                + cut_set.perturb_speed(0.9)
-                + cut_set.perturb_speed(1.1)
-            )
+            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 
 
 def main():
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
-    logging.basicConfig(format=formatter, level=logging.INFO)
+    setup_logger(log_filename="./log-preprocess-wenetspeech")
 
     preprocess_wenet_speech()
+    logging.info("Done")
 
 
 if __name__ == "__main__":
