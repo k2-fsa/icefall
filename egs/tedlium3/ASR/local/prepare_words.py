@@ -56,7 +56,7 @@ def prepare_words(lang_dir: str) -> None:
 
     foreign_chr_check = re.compile(r"[^a-z']")
 
-    logging.info(f"Loading {words_orig_path.name}!")
+    logging.info(f"Loading {words_orig_path.name}")
     with open(words_orig_path, "r", encoding="utf8") as f:
         words = {
             w for w_compl in f for w in w_compl.strip("-\n").split('_')

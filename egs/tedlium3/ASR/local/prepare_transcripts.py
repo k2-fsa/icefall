@@ -61,7 +61,7 @@ def prepare_transcripts(input_text_path: Path, output_text_path: Path) -> None:
 
     foreign_chr_check = re.compile(r"[^a-z']")
 
-    logging.info(f"Loading {input_text_path.name}!")
+    logging.info(f"Loading {input_text_path.name}")
     with open(input_text_path, "r", encoding="utf8") as f:
         texts = {t.rstrip("\n") for t in f}
 

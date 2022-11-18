@@ -650,7 +650,11 @@ class ActivationBalancer(torch.nn.Module):
         self.balance_prob = balance_prob
 
     def forward(self, x: Tensor) -> Tensor:
-        if random.random() >= self.balance_prob:
+        if (
+            torch.jit.is_scripting()
+            or is_jit_tracing()
+            or random.random() >= self.balance_prob
+        ):
             return x
         else:
             return ActivationBalancerFunction.apply(

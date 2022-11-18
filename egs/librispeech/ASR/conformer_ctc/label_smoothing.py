@@ -45,6 +45,7 @@ class LabelSmoothingLoss(torch.nn.Module):
         """
         super().__init__()
         assert 0.0 <= label_smoothing < 1.0
+        assert reduction in ("none", "sum", "mean")
         self.ignore_index = ignore_index
         self.label_smoothing = label_smoothing
         self.reduction = reduction
@@ -100,9 +101,9 @@ class LabelSmoothingLoss(torch.nn.Module):
         )
 
         loss = -1 * (torch.log_softmax(x, dim=1) * true_dist)
+        if self.reduction == "none":
+            return loss
         if self.reduction == "sum":
             return loss.sum()
-        elif self.reduction == "mean":
-            return loss.sum() / (~ignored).sum()
         else:
-            return loss.sum(dim=-1)
+            return loss.sum() / (~ignored).sum()
