@@ -984,7 +984,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
 
         """
 
-        shift = 0 if self.training else int(round(random.normalvariate(0, 1) * float(self.random_shift)))
+        shift = int(round(random.normalvariate(0, 1) * float(self.random_shift))) if self.training else 0
         self.extend_pe(x, shift)
 
         pos_emb = self.pe[
