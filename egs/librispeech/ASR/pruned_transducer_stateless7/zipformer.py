@@ -16,35 +16,32 @@
 # limitations under the License.
 
 import copy
-import itertools
-import logging
 import math
-import random
 import warnings
+import itertools
 from typing import List, Optional, Tuple, Union
-
+import logging
 import torch
+import random
 from encoder_interface import EncoderInterface
-from scaling import (
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-)
 from scaling import (
     ActivationBalancer,
     BasicNorm,
-    DoubleSwish,
-    Identity,
     MaxEig,
+    DoubleSwish,
     ScaledConv1d,
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     Whiten,
+    Identity,
     _diag,
-    penalize_abs_values_gt,
     random_clamp,
+    penalize_abs_values_gt,
     softmax,
 )
 from torch import Tensor, nn
 
-from icefall.dist import get_rank
 from icefall.utils import make_pad_mask
+from icefall.dist import get_rank
 
 
 class Zipformer(EncoderInterface):
@@ -92,7 +89,7 @@ class Zipformer(EncoderInterface):
         self.batch_count = 0
         self.warmup_end = warmup_batches
 
-        for u, d in zip(encoder_unmasked_dims, encoder_dims):
+        for u,d in zip(encoder_unmasked_dims, encoder_dims):
             assert u <= d, (u, d)
 
         # self.encoder_embed converts the input of shape (N, T, num_features)
@@ -100,9 +97,9 @@ class Zipformer(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> (T - 7)//2
         #   (2) embedding: num_features -> encoder_dims
-        self.encoder_embed = Conv2dSubsampling(
-            num_features, encoder_dims[0], dropout=dropout
-        )
+        self.encoder_embed = Conv2dSubsampling(num_features, encoder_dims[0],
+                                               dropout=dropout)
+
 
         # each one will be ZipformerEncoder or DownsampledZipformerEncoder
         encoders = []
@@ -126,13 +123,13 @@ class Zipformer(EncoderInterface):
                 num_encoder_layers[i],
                 dropout,
                 warmup_begin=warmup_batches * (i + 1) / (num_encoders + 1),
-                warmup_end=warmup_batches * (i + 2) / (num_encoders + 1),
+                warmup_end=warmup_batches * (i + 2) / (num_encoders + 1)
             )
 
             if zipformer_downsampling_factors[i] != 1:
                 encoder = DownsampledZipformerEncoder(
                     encoder,
-                    input_dim=encoder_dims[i - 1] if i > 0 else encoder_dims[0],
+                    input_dim=encoder_dims[i-1] if i > 0 else encoder_dims[0],
                     output_dim=encoder_dims[i],
                     downsample=zipformer_downsampling_factors[i],
                 )
@@ -142,11 +139,10 @@ class Zipformer(EncoderInterface):
         # initializes self.skip_layers and self.skip_modules
         self._init_skip_modules()
 
-        self.downsample_output = AttentionDownsample(
-            encoder_dims[-1],
-            encoder_dims[-1],
-            downsample=output_downsampling_factor,
-        )
+        self.downsample_output = AttentionDownsample(encoder_dims[-1],
+                                                     encoder_dims[-1],
+                                                     downsample=output_downsampling_factor)
+
 
     def _get_layer_skip_dropout_prob(self):
         if not self.training:
@@ -170,33 +166,27 @@ class Zipformer(EncoderInterface):
         skip_modules = []
         z = self.zipformer_downsampling_factors
         for i in range(len(z)):
-            if i <= 1 or z[i - 1] <= z[i]:
+            if i <= 1 or z[i-1] <= z[i]:
                 skip_layers.append(None)
                 skip_modules.append(SimpleCombinerIdentity())
             else:
                 # TEMP
-                for j in range(i - 2, -1, -1):
+                for j in range(i-2, -1, -1):
                     if z[j] <= z[i] or j == 0:
                         # TEMP logging statement.
-                        logging.info(
-                            f"At encoder stack {i}, which has"
-                            f" downsampling_factor={z[i]}, we will combine the outputs"
-                            f" of layers {j} and {i-1}, with"
-                            f" downsampling_factors={z[j]} and {z[i-1]}."
-                        )
+                        logging.info(f"At encoder stack {i}, which has downsampling_factor={z[i]}, we will "
+                                     f"combine the outputs of layers {j} and {i-1}, with downsampling_factors={z[j]} and {z[i-1]}.")
                         skip_layers.append(j)
-                        skip_modules.append(
-                            SimpleCombiner(
-                                self.encoder_dims[j],
-                                self.encoder_dims[i - 1],
-                                min_weight=(0.0, 0.25),
-                            )
-                        )
+                        skip_modules.append(SimpleCombiner(self.encoder_dims[j],
+                                                           self.encoder_dims[i-1],
+                                                           min_weight=(0.0,0.25)))
                         break
         self.skip_layers = skip_layers
         self.skip_modules = nn.ModuleList(skip_modules)
 
-    def get_feature_masks(self, x: torch.Tensor) -> List[float]:
+    def get_feature_masks(
+            self,
+            x: torch.Tensor) -> List[float]:
         # Note: The actual return type is Union[List[float], List[Tensor]],
         # but to make torch.jit.script() work, we use List[float]
         """
@@ -216,56 +206,46 @@ class Zipformer(EncoderInterface):
         """
         num_encoders = len(self.encoder_dims)
         if torch.jit.is_scripting() or not self.training:
-            return [1.0] * num_encoders
+                return [ 1.0 ] * num_encoders
 
         (num_frames0, batch_size, _encoder_dims0) = x.shape
 
-        assert self.encoder_dims[0] == _encoder_dims0, (
-            self.encoder_dims,
-            _encoder_dims0,
-        )
+
+        assert self.encoder_dims[0] == _encoder_dims0, (self.encoder_dims, _encoder_dims0)
 
         max_downsampling_factor = max(self.zipformer_downsampling_factors)
 
-        num_frames_max = num_frames0 + max_downsampling_factor - 1
+        num_frames_max = (num_frames0 + max_downsampling_factor - 1)
+
 
         feature_mask_dropout_prob = 0.15
 
         # frame_mask_max shape: (num_frames_max, batch_size, 1)
-        frame_mask_max = (
-            torch.rand(num_frames_max, batch_size, 1, device=x.device)
-            > feature_mask_dropout_prob
-        ).to(x.dtype)
+        frame_mask_max = (torch.rand(num_frames_max, batch_size, 1,
+                                    device=x.device) >
+                          feature_mask_dropout_prob).to(x.dtype)
 
         feature_masks = []
         for i in range(num_encoders):
             ds = self.zipformer_downsampling_factors[i]
-            upsample_factor = max_downsampling_factor // ds
+            upsample_factor = (max_downsampling_factor // ds)
 
-            frame_mask = (
-                frame_mask_max.unsqueeze(1)
-                .expand(num_frames_max, upsample_factor, batch_size, 1)
-                .reshape(num_frames_max * upsample_factor, batch_size, 1)
-            )
+            frame_mask = (frame_mask_max.unsqueeze(1).expand(num_frames_max, upsample_factor,
+                                                            batch_size, 1)
+                          .reshape(num_frames_max * upsample_factor, batch_size, 1))
             num_frames = (num_frames0 + ds - 1) // ds
             frame_mask = frame_mask[:num_frames]
-            feature_mask = torch.ones(
-                num_frames,
-                batch_size,
-                self.encoder_dims[i],
-                dtype=x.dtype,
-                device=x.device,
-            )
+            feature_mask = torch.ones(num_frames, batch_size, self.encoder_dims[i],
+                                      dtype=x.dtype, device=x.device)
             u = self.encoder_unmasked_dims[i]
             feature_mask[:, :, u:] *= frame_mask
             feature_masks.append(feature_mask)
 
         return feature_masks
 
+
     def forward(
-        self,
-        x: torch.Tensor,
-        x_lens: torch.Tensor,
+        self, x: torch.Tensor, x_lens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -285,19 +265,13 @@ class Zipformer(EncoderInterface):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         lengths = (x_lens - 7) >> 1
-        assert x.size(0) == lengths.max().item(), (
-            x.shape,
-            lengths,
-            lengths.max(),
-        )
+        assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
         mask = make_pad_mask(lengths)
 
         outputs = []
         feature_masks = self.get_feature_masks(x)
 
-        for i, (module, skip_module) in enumerate(
-            zip(self.encoders, self.skip_modules)
-        ):
+        for i, (module, skip_module) in enumerate(zip(self.encoders, self.skip_modules)):
             ds = self.zipformer_downsampling_factors[i]
             k = self.skip_layers[i]
             if isinstance(k, int):
@@ -306,11 +280,9 @@ class Zipformer(EncoderInterface):
                     x = skip_module(outputs[k], x)
                 elif (not self.training) or random.random() > layer_skip_dropout_prob:
                     x = skip_module(outputs[k], x)
-            x = module(
-                x,
-                feature_mask=feature_masks[i],
-                src_key_padding_mask=None if mask is None else mask[..., ::ds],
-            )
+            x = module(x,
+                       feature_mask=feature_masks[i],
+                       src_key_padding_mask=None if mask is None else mask[...,::ds])
             outputs.append(x)
 
         x = self.downsample_output(x)
@@ -340,16 +312,15 @@ class ZipformerEncoderLayer(nn.Module):
         >>> pos_emb = torch.rand(32, 19, 512)
         >>> out = encoder_layer(src, pos_emb)
     """
-
     def __init__(
-        self,
-        d_model: int,
-        attention_dim: int,
-        nhead: int,
-        feedforward_dim: int = 2048,
-        dropout: float = 0.1,
-        cnn_module_kernel: int = 31,
-        pos_dim: int = 4,
+            self,
+            d_model: int,
+            attention_dim: int,
+            nhead: int,
+            feedforward_dim: int = 2048,
+            dropout: float = 0.1,
+            cnn_module_kernel: int = 31,
+            pos_dim: int = 4,
     ) -> None:
         super(ZipformerEncoderLayer, self).__init__()
 
@@ -359,24 +330,29 @@ class ZipformerEncoderLayer(nn.Module):
         self.batch_count = 0
 
         self.self_attn = RelPositionMultiheadAttention(
-            d_model,
-            attention_dim,
-            nhead,
-            pos_dim,
-            dropout=0.0,
+            d_model, attention_dim, nhead, pos_dim, dropout=0.0,
         )
 
         self.pooling = PoolingModule(d_model)
 
-        self.feed_forward1 = FeedforwardModule(d_model, feedforward_dim, dropout)
+        self.feed_forward1 = FeedforwardModule(d_model,
+                                               feedforward_dim,
+                                               dropout)
 
-        self.feed_forward2 = FeedforwardModule(d_model, feedforward_dim, dropout)
+        self.feed_forward2 = FeedforwardModule(d_model,
+                                              feedforward_dim,
+                                              dropout)
 
-        self.feed_forward3 = FeedforwardModule(d_model, feedforward_dim, dropout)
+        self.feed_forward3 = FeedforwardModule(d_model,
+                                              feedforward_dim,
+                                              dropout)
 
-        self.conv_module1 = ConvolutionModule(d_model, cnn_module_kernel)
 
-        self.conv_module2 = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module1 = ConvolutionModule(d_model,
+                                              cnn_module_kernel)
+
+        self.conv_module2 = ConvolutionModule(d_model,
+                                              cnn_module_kernel)
 
         self.norm_final = BasicNorm(d_model)
 
@@ -384,18 +360,14 @@ class ZipformerEncoderLayer(nn.Module):
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(
-            d_model,
-            channel_dim=-1,
-            min_positive=0.45,
-            max_positive=0.55,
+            d_model, channel_dim=-1,
+            min_positive=0.45, max_positive=0.55,
             max_abs=6.0,
         )
-        self.whiten = Whiten(
-            num_groups=1,
-            whitening_limit=5.0,
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
+        self.whiten = Whiten(num_groups=1,
+                             whitening_limit=5.0,
+                             prob=(0.025, 0.25),
+                             grad_scale=0.01)
 
     def get_bypass_scale(self):
         if torch.jit.is_scripting() or not self.training:
@@ -410,9 +382,8 @@ class ZipformerEncoderLayer(nn.Module):
         if self.batch_count > warmup_period:
             clamp_min = final_clamp_min
         else:
-            clamp_min = initial_clamp_min - (self.batch_count / warmup_period) * (
-                initial_clamp_min - final_clamp_min
-            )
+            clamp_min = (initial_clamp_min -
+                         (self.batch_count / warmup_period) * (initial_clamp_min - final_clamp_min))
         return self.bypass_scale.clamp(min=clamp_min, max=1.0)
 
     def get_dynamic_dropout_rate(self):
@@ -427,9 +398,8 @@ class ZipformerEncoderLayer(nn.Module):
         if self.batch_count > warmup_period:
             return final_dropout_rate
         else:
-            return initial_dropout_rate - (
-                initial_dropout_rate * final_dropout_rate
-            ) * (self.batch_count / warmup_period)
+            return (initial_dropout_rate -
+                    (initial_dropout_rate * final_dropout_rate) * (self.batch_count / warmup_period))
 
     def forward(
         self,
@@ -538,14 +508,13 @@ class ZipformerEncoder(nn.Module):
         >>> src = torch.rand(10, 32, 512)
         >>> out = zipformer_encoder(src)
     """
-
     def __init__(
-        self,
-        encoder_layer: nn.Module,
-        num_layers: int,
-        dropout: float,
-        warmup_begin: float,
-        warmup_end: float,
+            self,
+            encoder_layer: nn.Module,
+            num_layers: int,
+            dropout: float,
+            warmup_begin: float,
+            warmup_end: float
     ) -> None:
         super().__init__()
         # will be written to, see set_batch_count() Note: in inference time this
@@ -559,7 +528,8 @@ class ZipformerEncoder(nn.Module):
         # so that we can keep this consistent across worker tasks (for efficiency).
         self.module_seed = torch.randint(0, 1000, ()).item()
 
-        self.encoder_pos = RelPositionalEncoding(encoder_layer.d_model, dropout)
+        self.encoder_pos = RelPositionalEncoding(encoder_layer.d_model,
+                                                 dropout)
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
@@ -568,12 +538,14 @@ class ZipformerEncoder(nn.Module):
 
         assert 0 <= warmup_begin <= warmup_end, (warmup_begin, warmup_end)
 
-        delta = (1.0 / num_layers) * (warmup_end - warmup_begin)
+
+        delta = (1. / num_layers) * (warmup_end - warmup_begin)
         cur_begin = warmup_begin
         for i in range(num_layers):
             self.layers[i].warmup_begin = cur_begin
             cur_begin += delta
             self.layers[i].warmup_end = cur_begin
+
 
     def get_layers_to_drop(self, rnd_seed: int):
         ans = set()
@@ -607,14 +579,12 @@ class ZipformerEncoder(nn.Module):
                 # linearly interpolate
                 t = (batch_count - layer_warmup_begin) / layer_warmup_end
                 assert 0.0 <= t < 1.001, t
-                return initial_layerdrop_prob + t * (
-                    final_layerdrop_prob - initial_layerdrop_prob
-                )
+                return initial_layerdrop_prob + t * (final_layerdrop_prob - initial_layerdrop_prob)
 
         shared_rng = random.Random(batch_count + self.module_seed)
         independent_rng = random.Random(rnd_seed)
 
-        layerdrop_probs = [get_layerdrop_prob(i) for i in range(num_layers)]
+        layerdrop_probs = [ get_layerdrop_prob(i) for i in range(num_layers) ]
         tot = sum(layerdrop_probs)
         # Instead of drawing the samples independently, we first randomly decide
         # how many layers to drop out, using the same random number generator between
@@ -634,12 +604,10 @@ class ZipformerEncoder(nn.Module):
                 if len(ans) == num_to_drop:
                     break
         if shared_rng.random() < 0.005 or __name__ == "__main__":
-            logging.info(
-                f"warmup_begin={self.warmup_begin:.1f},"
-                f" warmup_end={self.warmup_end:.1f}, batch_count={batch_count:.1f},"
-                f" num_to_drop={num_to_drop}, layers_to_drop={ans}"
-            )
+            logging.info(f"warmup_begin={self.warmup_begin:.1f}, warmup_end={self.warmup_end:.1f}, "
+                         f"batch_count={batch_count:.1f}, num_to_drop={num_to_drop}, layers_to_drop={ans}")
         return ans
+
 
     def forward(
         self,
@@ -671,6 +639,7 @@ class ZipformerEncoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
+
         if torch.jit.is_scripting():
             layers_to_drop = []
         else:
@@ -701,31 +670,28 @@ class DownsampledZipformerEncoder(nn.Module):
     after convolutional downsampling, and then upsampled again at the output, and combined
     with the origin input, so that the output has the same shape as the input.
     """
-
-    def __init__(
-        self,
-        encoder: nn.Module,
-        input_dim: int,
-        output_dim: int,
-        downsample: int,
-    ):
+    def __init__(self,
+                 encoder: nn.Module,
+                 input_dim: int,
+                 output_dim: int,
+                 downsample: int):
         super(DownsampledZipformerEncoder, self).__init__()
         self.downsample_factor = downsample
         self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
         self.encoder = encoder
         self.upsample = SimpleUpsample(output_dim, downsample)
-        self.out_combiner = SimpleCombiner(
-            input_dim, output_dim, min_weight=(0.0, 0.25)
-        )
+        self.out_combiner = SimpleCombiner(input_dim,
+                                           output_dim,
+                                           min_weight=(0.0, 0.25))
 
-    def forward(
-        self,
-        src: Tensor,
-        # Note: the type of feature_mask should be Unino[float, Tensor],
-        # but to make torch.jit.script() happ, we use float here
-        feature_mask: float = 1.0,
-        mask: Optional[Tensor] = None,
-        src_key_padding_mask: Optional[Tensor] = None,
+
+    def forward(self,
+                src: Tensor,
+                # Note: the type of feature_mask should be Unino[float, Tensor],
+                # but to make torch.jit.script() happ, we use float here
+                feature_mask: float = 1.0,
+                mask: Optional[Tensor] = None,
+                src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         r"""Downsample, go through encoder, upsample.
 
@@ -752,43 +718,42 @@ class DownsampledZipformerEncoder(nn.Module):
         src = self.downsample(src)
         ds = self.downsample_factor
         if mask is not None:
-            mask = mask[::ds, ::ds]
+            mask = mask[::ds,::ds]
 
         src = self.encoder(
-            src,
-            feature_mask=feature_mask,
-            mask=mask,
-            src_key_padding_mask=mask,
+            src, feature_mask=feature_mask, mask=mask, src_key_padding_mask=mask,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
-        src = src[: src_orig.shape[0]]
+        src = src[:src_orig.shape[0]]
 
         return self.out_combiner(src_orig, src)
-
 
 class AttentionDownsample(torch.nn.Module):
     """
     Does downsampling with attention, by weighted sum, and a projection..
     """
-
-    def __init__(self, in_channels: int, out_channels: int, downsample: int):
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 downsample: int):
         """
         Require out_channels > in_channels.
         """
         super(AttentionDownsample, self).__init__()
-        self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
+        self.query = nn.Parameter(torch.randn(in_channels) * (in_channels ** -0.5))
 
         # fill in the extra dimensions with a projection of the input
         if out_channels > in_channels:
-            self.extra_proj = nn.Linear(
-                in_channels * downsample, out_channels - in_channels, bias=False
-            )
+            self.extra_proj = nn.Linear(in_channels * downsample,
+                                        out_channels - in_channels,
+                                        bias=False)
         else:
             self.extra_proj = None
         self.downsample = downsample
 
-    def forward(self, src: Tensor) -> Tensor:
+    def forward(self,
+                src: Tensor) -> Tensor:
         """
         x: (seq_len, batch_size, in_channels)
         Returns a tensor of shape
@@ -802,14 +767,16 @@ class AttentionDownsample(torch.nn.Module):
         if seq_len != d_seq_len * ds:
             # right-pad src, repeating the last element.
             pad = d_seq_len * ds - seq_len
-            src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
+            src_extra = src[src.shape[0]-1:].expand(pad, src.shape[1], src.shape[2])
             src = torch.cat((src, src_extra), dim=0)
             assert src.shape[0] == d_seq_len * ds, (src.shape[0], d_seq_len, ds)
 
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
         scores = (src * self.query).sum(dim=-1, keepdim=True)
 
-        scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+        scores =  penalize_abs_values_gt(scores,
+                                         limit=10.0,
+                                         penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
 
@@ -828,12 +795,14 @@ class SimpleUpsample(torch.nn.Module):
     A very simple form of upsampling that mostly just repeats the input, but
     also adds a position-specific bias.
     """
-
-    def __init__(self, num_channels: int, upsample: int):
+    def __init__(self,
+                 num_channels: int,
+                 upsample: int):
         super(SimpleUpsample, self).__init__()
         self.bias = nn.Parameter(torch.randn(upsample, num_channels) * 0.01)
 
-    def forward(self, src: Tensor) -> Tensor:
+    def forward(self,
+                src: Tensor) -> Tensor:
         """
         x: (seq_len, batch_size, num_channels)
         Returns a tensor of shape
@@ -846,14 +815,12 @@ class SimpleUpsample(torch.nn.Module):
         src = src.reshape(seq_len * upsample, batch_size, num_channels)
         return src
 
-
 class SimpleCombinerIdentity(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
     def forward(self, src1: Tensor, src2: Tensor) -> Tensor:
         return src1
-
 
 class SimpleCombiner(torch.nn.Module):
     """
@@ -864,14 +831,18 @@ class SimpleCombiner(torch.nn.Module):
          dim2: the dimension of the second input, e.g. 384.
     The output will have the same dimension as dim2.
     """
-
-    def __init__(self, dim1: int, dim2: int, min_weight: Tuple[float] = (0.0, 0.0)):
+    def __init__(self,
+                 dim1: int,
+                 dim2: int,
+                 min_weight: Tuple[float] = (0., 0.)):
         super(SimpleCombiner, self).__init__()
         assert dim2 >= dim1, (dim2, dim1)
         self.weight1 = nn.Parameter(torch.zeros(()))
         self.min_weight = min_weight
 
-    def forward(self, src1: Tensor, src2: Tensor) -> Tensor:
+    def forward(self,
+                src1: Tensor,
+                src2: Tensor) -> Tensor:
         """
         src1: (*, dim1)
         src2: (*, dim2)
@@ -882,14 +853,10 @@ class SimpleCombiner(torch.nn.Module):
 
         weight1 = self.weight1
         if not torch.jit.is_scripting():
-            if (
-                self.training
-                and random.random() < 0.25
-                and self.min_weight != (0.0, 0.0)
-            ):
-                weight1 = weight1.clamp(
-                    min=self.min_weight[0], max=1.0 - self.min_weight[1]
-                )
+            if self.training and random.random() < 0.25 and self.min_weight != (0., 0.):
+                weight1 = weight1.clamp(min=self.min_weight[0],
+                                        max=1.0-self.min_weight[1])
+
 
         src1 = src1 * weight1
         src2 = src2 * (1.0 - weight1)
@@ -902,7 +869,10 @@ class SimpleCombiner(torch.nn.Module):
             else:
                 src1 = src1[:src2_dim]
 
+
         return src1 + src2
+
+
 
 
 class RelPositionalEncoding(torch.nn.Module):
@@ -918,7 +888,9 @@ class RelPositionalEncoding(torch.nn.Module):
 
     """
 
-    def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
+    def __init__(
+        self, d_model: int, dropout_rate: float, max_len: int = 5000
+    ) -> None:
         """Construct a PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
@@ -933,7 +905,9 @@ class RelPositionalEncoding(torch.nn.Module):
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(1) >= x.size(0) * 2 - 1:
                 # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
+                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
+                    x.device
+                ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         # Suppose `i` means to the position of query vecotr and `j` means the
@@ -981,6 +955,7 @@ class RelPositionalEncoding(torch.nn.Module):
         return self.dropout(pos_emb)
 
 
+
 class RelPositionMultiheadAttention(nn.Module):
     r"""Multi-Head Attention layer with relative position encoding
 
@@ -1017,46 +992,34 @@ class RelPositionMultiheadAttention(nn.Module):
         self.head_dim = attention_dim // num_heads
         self.pos_dim = pos_dim
         assert self.head_dim % 2 == 0, self.head_dim
-        assert self.head_dim * num_heads == attention_dim, (
-            self.head_dim,
-            num_heads,
-            attention_dim,
-        )
+        assert (
+            self.head_dim * num_heads == attention_dim
+        ), (self.head_dim, num_heads, attention_dim)
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
-        in_proj_dim = (
-            2 * attention_dim
-            + attention_dim // 2  # query, key
-            + pos_dim * num_heads  # value
-        )  # positional encoding query
+        in_proj_dim = (2 * attention_dim +  # query, key
+                       attention_dim // 2 + # value
+                       pos_dim * num_heads)  # positional encoding query
 
-        self.in_proj = ScaledLinear(
-            embed_dim,
-            in_proj_dim,
-            bias=True,
-            initial_scale=self.head_dim**-0.25,
-        )
+        self.in_proj = ScaledLinear(embed_dim, in_proj_dim, bias=True,
+                                    initial_scale=self.head_dim**-0.25)
 
         # self.whiten_values is applied on the values in forward();
         # it just copies the keys but prevents low-rank distribution by modifying grads.
-        self.whiten_values = Whiten(
-            num_groups=num_heads,
-            whitening_limit=2.0,
-            prob=(0.025, 0.25),
-            grad_scale=0.025,
-        )
-        self.whiten_keys = Whiten(
-            num_groups=num_heads,
-            whitening_limit=2.0,
-            prob=(0.025, 0.25),
-            grad_scale=0.025,
-        )
+        self.whiten_values = Whiten(num_groups=num_heads,
+                                    whitening_limit=2.0,
+                                    prob=(0.025, 0.25),
+                                    grad_scale=0.025)
+        self.whiten_keys = Whiten(num_groups=num_heads,
+                                  whitening_limit=2.0,
+                                  prob=(0.025, 0.25),
+                                  grad_scale=0.025)
+
 
         # linear transformation for positional encoding.
-        self.linear_pos = ScaledLinear(
-            embed_dim, num_heads * pos_dim, bias=False, initial_scale=0.05
-        )
+        self.linear_pos = ScaledLinear(embed_dim, num_heads * pos_dim, bias=False,
+                                       initial_scale=0.05)
 
         # the following are for diagnosics only, see --print-diagnostics option.
         # they only copy their inputs.
@@ -1068,16 +1031,14 @@ class RelPositionMultiheadAttention(nn.Module):
         )
 
         self.in_proj2 = nn.Linear(embed_dim, attention_dim // 2, bias=False)
-        self.out_proj2 = ScaledLinear(
-            attention_dim // 2, embed_dim, bias=True, initial_scale=0.05
-        )
+        self.out_proj2 = ScaledLinear(attention_dim // 2, embed_dim, bias=True,
+                                      initial_scale=0.05)
         # self.whiten_values2 is applied on the values in forward2()
-        self.whiten_values2 = Whiten(
-            num_groups=num_heads,
-            whitening_limit=2.0,
-            prob=(0.025, 0.25),
-            grad_scale=0.025,
-        )
+        self.whiten_values2 = Whiten(num_groups=num_heads,
+                                     whitening_limit=2.0,
+                                     prob=(0.025, 0.25),
+                                     grad_scale=0.025)
+
 
     def forward(
         self,
@@ -1137,6 +1098,7 @@ class RelPositionMultiheadAttention(nn.Module):
         )
         return x, weights
 
+
     def multi_head_attention_forward(
         self,
         x_proj: Tensor,
@@ -1194,23 +1156,25 @@ class RelPositionMultiheadAttention(nn.Module):
 
         head_dim = attention_dim // num_heads
         pos_dim = self.pos_dim  # positional-encoding dim per head
-        assert head_dim * num_heads == attention_dim, (
-            f"attention_dim must be divisible by num_heads: {head_dim}, {num_heads},"
-            f" {attention_dim}"
-        )
+        assert (
+            head_dim * num_heads == attention_dim
+            ), f"attention_dim must be divisible by num_heads: {head_dim}, {num_heads}, {attention_dim}"
+
 
         # self-attention
-        q = x_proj[..., 0:attention_dim]
-        k = x_proj[..., attention_dim : 2 * attention_dim]
+        q = x_proj[...,0:attention_dim]
+        k = x_proj[...,attention_dim:2*attention_dim]
         value_dim = attention_dim // 2
-        v = x_proj[..., 2 * attention_dim : 2 * attention_dim + value_dim]
+        v = x_proj[...,2*attention_dim:2*attention_dim+value_dim]
         # p is the position-encoding query, its dimension is num_heads*pos_dim..
-        p = x_proj[..., 2 * attention_dim + value_dim :]
+        p = x_proj[...,2*attention_dim+value_dim:]
+
 
         k = self.whiten_keys(k)  # does nothing in the forward pass.
         v = self.whiten_values(v)  # does nothing in the forward pass.
         q = self.copy_query(q)  # for diagnostics only, does nothing.
         p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
+
 
         if attn_mask is not None:
             assert (
@@ -1231,25 +1195,33 @@ class RelPositionMultiheadAttention(nn.Module):
             if attn_mask.dim() == 2:
                 attn_mask = attn_mask.unsqueeze(0)
                 if list(attn_mask.size()) != [1, seq_len, seq_len]:
-                    raise RuntimeError("The size of the 2D attn_mask is not correct.")
+                    raise RuntimeError(
+                        "The size of the 2D attn_mask is not correct."
+                    )
             elif attn_mask.dim() == 3:
                 if list(attn_mask.size()) != [
                     bsz * num_heads,
                     seq_len,
                     seq_len,
                 ]:
-                    raise RuntimeError("The size of the 3D attn_mask is not correct.")
+                    raise RuntimeError(
+                        "The size of the 3D attn_mask is not correct."
+                    )
             else:
                 raise RuntimeError(
-                    "attn_mask's dimension {} is not supported".format(attn_mask.dim())
+                    "attn_mask's dimension {} is not supported".format(
+                        attn_mask.dim()
+                    )
                 )
             # attn_mask's dim is 3 now.
 
         # convert ByteTensor key_padding_mask to bool
-        if key_padding_mask is not None and key_padding_mask.dtype == torch.uint8:
+        if (
+            key_padding_mask is not None
+            and key_padding_mask.dtype == torch.uint8
+        ):
             warnings.warn(
-                "Byte tensor for key_padding_mask is deprecated. Use bool tensor"
-                " instead."
+                "Byte tensor for key_padding_mask is deprecated. Use bool tensor instead."
             )
             key_padding_mask = key_padding_mask.to(torch.bool)
 
@@ -1257,6 +1229,7 @@ class RelPositionMultiheadAttention(nn.Module):
         p = p.reshape(seq_len, bsz, num_heads, pos_dim)
         k = k.reshape(seq_len, bsz, num_heads, head_dim)
         v = v.reshape(seq_len, bsz * num_heads, head_dim // 2).transpose(0, 1)
+
 
         if key_padding_mask is not None:
             assert key_padding_mask.size(0) == bsz, "{} == {}".format(
@@ -1266,9 +1239,12 @@ class RelPositionMultiheadAttention(nn.Module):
                 key_padding_mask.size(1), seq_len
             )
 
+
+
         q = q.permute(1, 2, 0, 3)  # (batch, head, time1, head_dim)
         p = p.permute(1, 2, 0, 3)  # (batch, head, time1, pos_dim)
         k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
+
 
         seq_len2 = 2 * seq_len - 1
         pos = pos.reshape(1, seq_len2, num_heads, pos_dim).permute(0, 2, 3, 1)
@@ -1280,16 +1256,13 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, seq_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        pos_weights = pos_weights.as_strided((bsz, num_heads, seq_len, seq_len),
+                                             (pos_weights.stride(0),
+                                              pos_weights.stride(1),
+                                              pos_weights.stride(2)-pos_weights.stride(3),
+                                              pos_weights.stride(3)),
+                                              storage_offset=pos_weights.stride(3) * (seq_len - 1))
+
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
@@ -1302,9 +1275,10 @@ class RelPositionMultiheadAttention(nn.Module):
                 # this mechanism instead of, say, a limit on entropy, because once the entropy
                 # gets very small gradients through the softmax can become very small, and
                 # some mechanisms like that become ineffective.
-                attn_output_weights = penalize_abs_values_gt(
-                    attn_output_weights, limit=25.0, penalty=1.0e-04
-                )
+                attn_output_weights = penalize_abs_values_gt(attn_output_weights,
+                                                             limit=25.0,
+                                                             penalty=1.0e-04)
+
 
         # attn_output_weights: (batch, head, time1, time2)
         attn_output_weights = attn_output_weights.view(
@@ -1346,19 +1320,19 @@ class RelPositionMultiheadAttention(nn.Module):
         )
 
         attn_output = torch.bmm(attn_output_weights, v)
-        assert list(attn_output.size()) == [
-            bsz * num_heads,
-            seq_len,
-            head_dim // 2,
-        ]
+        assert list(attn_output.size()) == [bsz * num_heads, seq_len,
+                                            head_dim // 2]
         attn_output = (
             attn_output.transpose(0, 1)
             .contiguous()
             .view(seq_len, bsz, attention_dim // 2)
         )
-        attn_output = nn.functional.linear(attn_output, out_proj_weight, out_proj_bias)
+        attn_output = nn.functional.linear(
+            attn_output, out_proj_weight, out_proj_bias
+        )
 
         return attn_output, attn_output_weights
+
 
     def forward2(
         self,
@@ -1398,7 +1372,11 @@ class RelPositionMultiheadAttention(nn.Module):
         # returned value is of shape (seq_len, bsz, embed_dim), like x.
         return self.out_proj2(attn_output)
 
-    def _print_attn_stats(self, attn_weights: Tensor, attn_output: Tensor):
+
+    def _print_attn_stats(
+            self,
+            attn_weights: Tensor,
+            attn_output: Tensor):
         # attn_weights: (batch_size * num_heads, seq_len, seq_len)
         # attn_output: (bsz * num_heads, seq_len, head_dim)
         (n, seq_len, head_dim) = attn_output.shape
@@ -1409,50 +1387,39 @@ class RelPositionMultiheadAttention(nn.Module):
             with torch.cuda.amp.autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_output = attn_output.to(torch.float32)
-                attn_weights_entropy = (
-                    -((attn_weights + 1.0e-20).log() * attn_weights)
-                    .sum(dim=-1)
-                    .reshape(bsz, num_heads, seq_len)
-                    .mean(dim=(0, 2))
-                )
+                attn_weights_entropy = -((attn_weights + 1.0e-20).log() * attn_weights).sum(
+                    dim=-1).reshape(bsz, num_heads, seq_len).mean(dim=(0,2))
                 attn_output = attn_output.reshape(bsz, num_heads, seq_len, head_dim)
-                attn_output = attn_output.permute(1, 0, 2, 3).reshape(
-                    num_heads, bsz * seq_len, head_dim
-                )
+                attn_output = attn_output.permute(1, 0, 2, 3).reshape(num_heads, bsz * seq_len, head_dim)
                 attn_output_mean = attn_output.mean(dim=1, keepdim=True)
                 attn_output = attn_output - attn_output_mean
-                attn_covar = torch.matmul(attn_output.transpose(1, 2), attn_output) / (
-                    bsz * seq_len
-                )
+                attn_covar = torch.matmul(attn_output.transpose(1, 2), attn_output) / (bsz * seq_len)
                 # attn_covar: (num_heads, head_dim, head_dim)
-                # eigs, _ = torch.symeig(attn_covar)
-                # logging.info(f"attn_weights_entropy = {attn_weights_entropy}, output_eigs = {eigs}")
+                #eigs, _ = torch.symeig(attn_covar)
+                #logging.info(f"attn_weights_entropy = {attn_weights_entropy}, output_eigs = {eigs}")
 
                 attn_covar = _diag(attn_covar).mean(dim=1)  # (num_heads,)
                 embed_dim = self.in_proj2.weight.shape[1]
-                in_proj_covar = (
-                    self.in_proj2.weight.reshape(num_heads, head_dim, embed_dim) ** 2
-                ).mean(dim=(1, 2))
-                out_proj_covar = (
-                    self.out_proj2.weight.reshape(embed_dim, num_heads, head_dim) ** 2
-                ).mean(dim=(0, 2))
-                logging.info(
-                    f"attn_weights_entropy = {attn_weights_entropy},"
-                    f" covar={attn_covar}, in_proj_covar={in_proj_covar},"
-                    f" out_proj_covar={out_proj_covar}"
-                )
+                in_proj_covar = (self.in_proj2.weight.reshape(num_heads, head_dim, embed_dim) ** 2).mean(dim=(1,2))
+                out_proj_covar = (self.out_proj2.weight.reshape(embed_dim, num_heads, head_dim) ** 2).mean(dim=(0,2))
+                logging.info(f"attn_weights_entropy = {attn_weights_entropy}, covar={attn_covar}, in_proj_covar={in_proj_covar}, out_proj_covar={out_proj_covar}")
+
+
 
 
 class PoolingModule(nn.Module):
     """
     Averages the input over the time dimension and project with a square matrix.
     """
-
-    def __init__(self, d_model: int):
+    def __init__(self,
+                 d_model: int):
         super().__init__()
-        self.proj = ScaledLinear(d_model, d_model, initial_scale=0.1, bias=False)
+        self.proj = ScaledLinear(d_model, d_model,
+                                 initial_scale=0.1, bias=False)
 
-    def forward(self, x: Tensor, key_padding_mask: Optional[Tensor] = None):
+    def forward(self,
+                x: Tensor,
+                key_padding_mask: Optional[Tensor] = None):
         """
         Args:
            x: a Tensor of shape (T, N, C)
@@ -1463,7 +1430,7 @@ class PoolingModule(nn.Module):
         """
         if key_padding_mask is not None:
             pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
-            pooling_mask = pooling_mask / pooling_mask.sum(dim=1, keepdim=True)
+            pooling_mask = (pooling_mask / pooling_mask.sum(dim=1, keepdim=True))
             pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
             # now pooling_mask: (T, N, 1)
             x = (x * pooling_mask).sum(dim=0, keepdim=True)
@@ -1477,19 +1444,24 @@ class PoolingModule(nn.Module):
 
 
 class FeedforwardModule(nn.Module):
-    """Feedforward module in Zipformer model."""
-
-    def __init__(self, d_model: int, feedforward_dim: int, dropout: float):
+    """Feedforward module in Zipformer model.
+    """
+    def __init__(self,
+                 d_model: int,
+                 feedforward_dim: int,
+                 dropout: float):
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(d_model, feedforward_dim)
-        self.balancer = ActivationBalancer(
-            feedforward_dim, channel_dim=-1, max_abs=10.0, min_prob=0.25
-        )
+        self.balancer = ActivationBalancer(feedforward_dim,
+                                           channel_dim=-1, max_abs=10.0,
+                                           min_prob=0.25)
         self.activation = DoubleSwish()
         self.dropout = nn.Dropout(dropout)
-        self.out_proj = ScaledLinear(feedforward_dim, d_model, initial_scale=0.01)
+        self.out_proj = ScaledLinear(feedforward_dim, d_model,
+                                     initial_scale=0.01)
 
-    def forward(self, x: Tensor):
+    def forward(self,
+                x: Tensor):
         x = self.in_proj(x)
         x = self.balancer(x)
         x = self.activation(x)
@@ -1509,7 +1481,9 @@ class ConvolutionModule(nn.Module):
 
     """
 
-    def __init__(self, channels: int, kernel_size: int, bias: bool = True) -> None:
+    def __init__(
+        self, channels: int, kernel_size: int, bias: bool = True
+    ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
@@ -1539,10 +1513,7 @@ class ConvolutionModule(nn.Module):
         # the correct range.
         self.deriv_balancer1 = ActivationBalancer(
             2 * channels,
-            channel_dim=1,
-            max_abs=10.0,
-            min_positive=0.05,
-            max_positive=1.0,
+            channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
         )
 
         self.depthwise_conv = nn.Conv1d(
@@ -1556,10 +1527,8 @@ class ConvolutionModule(nn.Module):
         )
 
         self.deriv_balancer2 = ActivationBalancer(
-            channels,
-            channel_dim=1,
-            min_positive=0.05,
-            max_positive=1.0,
+            channels, channel_dim=1,
+            min_positive=0.05, max_positive=1.0,
             max_abs=20.0,
         )
 
@@ -1575,10 +1544,9 @@ class ConvolutionModule(nn.Module):
             initial_scale=0.05,
         )
 
-    def forward(
-        self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
+    def forward(self,
+                x: Tensor,
+                src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         """Compute convolution module.
 
@@ -1658,7 +1626,8 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
             ),
-            ActivationBalancer(layer1_channels, channel_dim=1),
+            ActivationBalancer(layer1_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer1_channels,
@@ -1667,20 +1636,23 @@ class Conv2dSubsampling(nn.Module):
                 stride=2,
                 padding=0,
             ),
-            ActivationBalancer(layer2_channels, channel_dim=1),
+            ActivationBalancer(layer2_channels,
+                               channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
                 in_channels=layer2_channels,
                 out_channels=layer3_channels,
                 kernel_size=3,
-                stride=(1, 2),  # (time, freq)
+                stride=(1, 2), # (time, freq)
             ),
-            ActivationBalancer(layer3_channels, channel_dim=1),
+            ActivationBalancer(layer3_channels,
+                               channel_dim=1),
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2) - 1) // 2
         self.out = ScaledLinear(out_height * layer3_channels, out_channels)
         self.dropout = nn.Dropout(dropout)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -1701,7 +1673,6 @@ class Conv2dSubsampling(nn.Module):
         # Now x is of shape (N, (T-7)//2, odim)
         x = self.dropout(x)
         return x
-
 
 class AttentionCombine(nn.Module):
     """
@@ -1746,11 +1717,14 @@ class AttentionCombine(nn.Module):
 
         self.random_prob = random_prob
         self.single_prob = single_prob
-        self.weight = torch.nn.Parameter(torch.zeros(num_channels, num_inputs))
+        self.weight  = torch.nn.Parameter(torch.zeros(num_channels,
+                                                     num_inputs))
         self.bias = torch.nn.Parameter(torch.zeros(num_inputs))
 
         assert 0 <= random_prob <= 1, random_prob
         assert 0 <= single_prob <= 1, single_prob
+
+
 
     def forward(self, inputs: List[Tensor]) -> Tensor:
         """Forward function.
@@ -1782,35 +1756,28 @@ class AttentionCombine(nn.Module):
 
         if self.training:
             # random masking..
-            mask_start = torch.randint(
-                low=1,
-                high=int(num_inputs / self.random_prob),
-                size=(num_frames,),
-                device=scores.device,
-            ).unsqueeze(1)
+            mask_start = torch.randint(low=1, high=int(num_inputs / self.random_prob),
+                                       size=(num_frames,), device=scores.device).unsqueeze(1)
             # mask will have rows like: [ False, False, False, True, True, .. ]
-            arange = (
-                torch.arange(num_inputs, device=scores.device)
-                .unsqueeze(0)
-                .expand(num_frames, num_inputs)
-            )
+            arange = torch.arange(num_inputs, device=scores.device).unsqueeze(0).expand(
+                num_frames, num_inputs)
             mask = arange >= mask_start
 
-            apply_single_prob = torch.logical_and(
-                torch.rand(size=(num_frames, 1), device=scores.device)
-                < self.single_prob,
-                mask_start < num_inputs,
-            )
-            single_prob_mask = torch.logical_and(
-                apply_single_prob, arange < mask_start - 1
-            )
+            apply_single_prob = torch.logical_and(torch.rand(size=(num_frames, 1),
+                                                             device=scores.device) < self.single_prob,
+                                                  mask_start < num_inputs)
+            single_prob_mask = torch.logical_and(apply_single_prob,
+                                                 arange < mask_start - 1)
 
-            mask = torch.logical_or(mask, single_prob_mask)
+            mask = torch.logical_or(mask,
+                                    single_prob_mask)
 
-            scores = scores.masked_fill(mask, float("-inf"))
+            scores = scores.masked_fill(mask, float('-inf'))
 
         if self.training and random.random() < 0.1:
-            scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+            scores =  penalize_abs_values_gt(scores,
+                                             limit=10.0,
+                                             penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
 
@@ -1825,6 +1792,7 @@ class AttentionCombine(nn.Module):
         return ans
 
 
+
 def _test_random_combine():
     print("_test_random_combine()")
     num_inputs = 3
@@ -1833,8 +1801,8 @@ def _test_random_combine():
         num_channels=num_channels,
         num_inputs=num_inputs,
         random_prob=0.5,
-        single_prob=0.0,
-    )
+        single_prob=0.0)
+
 
     x = [torch.ones(3, 4, num_channels) for _ in range(num_inputs)]
 
@@ -1851,10 +1819,7 @@ def _test_zipformer_main():
     # Just make sure the forward pass runs.
 
     c = Zipformer(
-        num_features=feature_dim,
-        encoder_dims=(64, 96),
-        encoder_unmasked_dims=(48, 64),
-        nhead=(4, 4),
+        num_features=feature_dim, encoder_dims=(64,96), encoder_unmasked_dims=(48,64), nhead=(4,4)
     )
     batch_size = 5
     seq_len = 20
@@ -1872,16 +1837,17 @@ def _test_zipformer_main():
     )
     f  # to remove flake8 warnings
 
-
 def _test_conv2d_subsampling():
     num_features = 80
     encoder_dims = 384
     dropout = 0.1
-    encoder_embed = Conv2dSubsampling(num_features, encoder_dims, dropout=dropout)
+    encoder_embed = Conv2dSubsampling(num_features, encoder_dims,
+                                               dropout=dropout)
     for i in range(20, 40):
         x = torch.rand(2, i, num_features)
         y = encoder_embed(x)
         assert (x.shape[1] - 7) // 2 == y.shape[1], (x.shape[1], y.shape[1])
+
 
 
 if __name__ == "__main__":

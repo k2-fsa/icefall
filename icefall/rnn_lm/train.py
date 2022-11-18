@@ -446,13 +446,17 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+                tot_loss.write_summary(
+                    tb_writer, "train/tot_", params.batch_idx_train
+                )
 
                 tb_writer.add_scalar(
                     "train/current_ppl", this_batch_ppl, params.batch_idx_train
                 )
 
-                tb_writer.add_scalar("train/tot_ppl", tot_ppl, params.batch_idx_train)
+                tb_writer.add_scalar(
+                    "train/tot_ppl", tot_ppl, params.batch_idx_train
+                )
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -467,7 +471,8 @@ def train_one_epoch(
 
             valid_ppl = math.exp(valid_info["loss"] / valid_info["frames"])
             logging.info(
-                f"Epoch {params.cur_epoch}, validation: {valid_info}, ppl: {valid_ppl}"
+                f"Epoch {params.cur_epoch}, validation: {valid_info}, "
+                f"ppl: {valid_ppl}"
             )
 
             if tb_writer is not None:

@@ -26,6 +26,7 @@ from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
 
+
 ARGPARSE_DESCRIPTION = """
 This file computes fbank features of the musan dataset.
 It looks for manifests in the directory data/manifests.
@@ -83,7 +84,9 @@ def compute_fbank_musan(manifest_dir: Path, fbank_dir: Path):
         # create chunks of Musan with duration 5 - 10 seconds
         musan_cuts = (
             CutSet.from_manifests(
-                recordings=combine(part["recordings"] for part in manifests.values())
+                recordings=combine(
+                    part["recordings"] for part in manifests.values()
+                )
             )
             .cut_into_windows(10.0)
             .filter(lambda c: c.duration > 5)
@@ -104,15 +107,21 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("--manifest-dir", type=Path, help="Path to save manifests")
-    parser.add_argument("--fbank-dir", type=Path, help="Path to save fbank features")
+    parser.add_argument(
+        "--manifest-dir", type=Path, help="Path to save manifests"
+    )
+    parser.add_argument(
+        "--fbank-dir", type=Path, help="Path to save fbank features"
+    )
 
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = get_args()
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan(args.manifest_dir, args.fbank_dir)

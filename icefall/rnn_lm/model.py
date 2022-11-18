@@ -129,7 +129,9 @@ class RnnLmModel(torch.nn.Module):
         tokens_eos = add_eos(tokens, eos_id)
         sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
 
-        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+        sentence_lengths = (
+            sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+        )
 
         x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
         y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)
@@ -159,12 +161,12 @@ class RnnLmModel(torch.nn.Module):
         if state:
             h, c = state
         else:
-            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.input_size).to(
-                device
-            )
-            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.input_size).to(
-                device
-            )
+            h = torch.zeros(
+                self.rnn.num_layers, batch_size, self.rnn.input_size
+            ).to(device)
+            c = torch.zeros(
+                self.rnn.num_layers, batch_size, self.rnn.input_size
+            ).to(device)
 
         embedding = self.input_embedding(tokens)
         rnn_out, states = self.rnn(embedding, (h, c))
@@ -179,8 +181,12 @@ class RnnLmModel(torch.nn.Module):
         if state:
             h, c = state
         else:
-            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.input_size)
-            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.input_size)
+            h = torch.zeros(
+                self.rnn.num_layers, batch_size, self.rnn.input_size
+            )
+            c = torch.zeros(
+                self.rnn.num_layers, batch_size, self.rnn.input_size
+            )
 
         device = next(self.parameters()).device
 
@@ -188,7 +194,9 @@ class RnnLmModel(torch.nn.Module):
         tokens_eos = add_eos(tokens, eos_id)
         sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
 
-        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+        sentence_lengths = (
+            sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+        )
 
         x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
         y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)

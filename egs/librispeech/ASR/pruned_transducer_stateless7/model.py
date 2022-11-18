@@ -15,15 +15,14 @@
 # limitations under the License.
 
 
-import random
-
 import k2
 import torch
 import torch.nn as nn
+import random
 from encoder_interface import EncoderInterface
-from scaling import penalize_abs_values_gt
 
 from icefall.utils import add_sos
+from scaling import penalize_abs_values_gt
 
 
 class Transducer(nn.Module):
@@ -66,8 +65,7 @@ class Transducer(nn.Module):
         self.joiner = joiner
 
         self.simple_am_proj = nn.Linear(
-            encoder_dim,
-            vocab_size,
+            encoder_dim, vocab_size,
         )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
@@ -135,16 +133,18 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
+        boundary = torch.zeros(
+            (x.size(0), 4), dtype=torch.int64, device=x.device
+        )
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
 
-        # if self.training and random.random() < 0.25:
+        #if self.training and random.random() < 0.25:
         #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
+        #if self.training and random.random() < 0.25:
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
         with torch.cuda.amp.autocast(enabled=False):

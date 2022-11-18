@@ -50,7 +50,11 @@ from pathlib import Path
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
@@ -83,11 +87,9 @@ def get_parser():
         "--avg",
         type=int,
         default=15,
-        help=(
-            "Number of checkpoints to average. Automatically select "
-            "consecutive checkpoints before the checkpoint specified by "
-            "'--epoch' and '--iter'"
-        ),
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
@@ -118,7 +120,8 @@ def get_parser():
         "--context-size",
         type=int,
         default=1,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
 
     add_model_arguments(parser)
@@ -154,7 +157,8 @@ def main():
         ]
         if len(filenames) == 0:
             raise ValueError(
-                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
             )
         elif len(filenames) < params.avg:
             raise ValueError(
@@ -187,7 +191,9 @@ def main():
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
-        filename = params.exp_dir / f"cpu_jit-epoch-{params.epoch}-avg-{params.avg}.pt"
+        filename = (
+            params.exp_dir / f"cpu_jit-epoch-{params.epoch}-avg-{params.avg}.pt"
+        )
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
@@ -195,14 +201,17 @@ def main():
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = (
-            params.exp_dir / f"pretrained-epoch-{params.epoch}-avg-{params.avg}.pt"
+            params.exp_dir
+            / f"pretrained-epoch-{params.epoch}-avg-{params.avg}.pt"
         )
         torch.save({"model": model.state_dict()}, str(filename))
         logging.info(f"Saved to {filename}")
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()
