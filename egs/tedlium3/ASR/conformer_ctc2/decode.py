@@ -218,14 +218,14 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--lm-dir",
+        "--lm-path",
         type=str,
-        default="data/lm",
-        help="""The n-gram LM dir.
-        It should contain either G_4_gram.pt or G_4_gram.fst.txt
+        default="data/lm/G_4_gram.pt",
+        help="""The n-gram LM dir for rescoring.
+        It should contain either lm_fname.pt or lm_fname.fst.txt
         """,
     )
-    
+
     parser.add_argument(
         "--result-dir",
         type=str,
@@ -707,7 +707,7 @@ def main() -> None:
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
-    args.lm_dir = Path(args.lm_dir)
+    args.lm_path = Path(args.lm_path)
     args.result_dir = Path(args.result_dir)
     
     if args.result_dir.is_dir():
@@ -765,35 +765,60 @@ def main() -> None:
         "whole-lattice-rescoring",
         "attention-decoder",
     ):
-        if not (params.lm_dir / "G_4_gram.pt").is_file():
-            logging.info("Loading G_4_gram.fst.txt")
-            logging.warning("It may take 8 minutes.")
-            with open(params.lm_dir / "G_4_gram.fst.txt") as f:
-                first_word_disambig_id = lexicon.word_table["#0"]
+        assert params.lm_path.suffix in (".pt", ".txt")
 
-                G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-                # G.aux_labels is not needed in later computations, so
-                # remove it here.
-                del G.aux_labels
-                # CAUTION: The following line is crucial.
-                # Arcs entering the back-off state have label equal to #0.
-                # We have to change it to 0 here.
-                G.labels[G.labels >= first_word_disambig_id] = 0
-                # See https://github.com/k2-fsa/k2/issues/874
-                # for why we need to set G.properties to None
-                G.__dict__["_properties"] = None
-                G = k2.Fsa.from_fsas([G]).to(device)
-                G = k2.arc_sort(G)
-                # Save a dummy value so that it can be loaded in C++.
-                # See https://github.com/pytorch/pytorch/issues/67902
-                # for why we need to do this.
-                G.dummy = 1
-
-                torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
-        else:
-            logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
+        if params.lm_path.is_file() and params.lm_path.suffix == ".pt":
+            logging.info(f"Loading pre-compiled {params.lm_path.name}")
+            d = torch.load(params.lm_path, map_location=device)
             G = k2.Fsa.from_dict(d)
+        elif not params.lm_path.is_file() and params.lm_path.suffix == ".txt":
+            raise FileNotFindError(f"No such language model file: '{params.lm_path}'")
+        else:
+            # here we pass only if LM filename ends with '.pt' and doesn't exist
+            # or if LM filename ends '.txt' and exists.
+            if (
+                not params.lm_path.is_file()
+                and params.lm_path.suffix == ".pt"
+                and not (params.lm_path.parent / f"{params.lm_path.stem}.fst.txt").is_file()
+            ):
+                raise FileNotFindError(
+                    f"No such language model file: '{params.lm_path}'\n"
+                    "'.fst.txt' representation of the language model was "
+                    "not found either."
+                )
+            else:
+                # whatever params.lm_path.name we got lm_name.pt or lm_name.fst.txt
+                # we are going to load lm_name.fst.txt here
+                params.lm_path = (
+                    params.lm_path.parent / params.lm_path.name.replace(".pt", ".fst.txt")
+                )
+                logging.info(f"Loading {params.lm_path.name}")
+                logging.warning("It may take 8 minutes.")
+                with open(params.lm_path) as f:
+                    first_word_disambig_id = lexicon.word_table["#0"]
+
+                    G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+                    # G.aux_labels is not needed in later computations, so
+                    # remove it here.
+                    del G.aux_labels
+                    # CAUTION: The following line is crucial.
+                    # Arcs entering the back-off state have label equal to #0.
+                    # We have to change it to 0 here.
+                    G.labels[G.labels >= first_word_disambig_id] = 0
+                    # See https://github.com/k2-fsa/k2/issues/874
+                    # for why we need to set G.properties to None
+                    G.__dict__["_properties"] = None
+                    G = k2.Fsa.from_fsas([G]).to(device)
+                    G = k2.arc_sort(G)
+                    # Save a dummy value so that it can be loaded in C++.
+                    # See https://github.com/pytorch/pytorch/issues/67902
+                    # for why we need to do this.
+                    G.dummy = 1
+
+                    torch.save(
+                        G.as_dict(),
+                        params.lm_path.parent / params.lm_path.name.replace(".fst.txt", ".pt")
+                    )
 
         if params.method in [
             "whole-lattice-rescoring",
