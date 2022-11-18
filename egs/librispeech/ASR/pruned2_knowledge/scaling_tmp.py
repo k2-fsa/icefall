@@ -15,23 +15,21 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple
-
 import torch
 import torch.nn as nn
 from torch import Tensor
+from typing import Tuple, Optional
 
 
-def _activation_balancer_loss(
-    mean_pos: Tensor,
-    mean_neg: Tensor,
-    min_positive: float,  # e.g. 0.05
-    max_positive: float,  # e.g. 0.95
-    max_factor: float,  # e.g. 0.01
-    min_abs: float,  # e.g. 0.2
-    max_abs: float,  # e.g. 100.0
-    eps: float = 1.0e-10,
-):
+
+def _activation_balancer_loss(mean_pos: Tensor,
+                              mean_neg: Tensor,
+                              min_positive: float, # e.g. 0.05
+                              max_positive: float, # e.g. 0.95
+                              max_factor: float, # e.g. 0.01
+                              min_abs: float, # e.g. 0.2
+                              max_abs: float, # e.g. 100.0
+                              eps: float = 1.0e-10):
     """
     Returns a loss-function for the ActivationBalancer module.  This loss
     function is not exposed to the user but is used internally, and eventually
@@ -52,32 +50,28 @@ def _activation_balancer_loss(
     """
     loss_parts = []
 
-    x_mean = mean_pos - mean_neg
-    x_mean_abs = (mean_pos + mean_neg + eps).detach()
-    x_rel_mean = x_mean / x_mean_abs
+    x_mean = mean_positive - mean_negative
+    x_mean_abs = (mean_positive + mean_negative + eps).detach()
+    x_rel_mean= x_mean / x_mean_abs
 
     if min_positive != 0.0:
         # e.g. x_mean_floor = -0.95 + 0.05 = -0.9
-        x_rel_mean_floor = -(1 - min_positive) + min_positive
-        min_positive_loss = (x_rel_mean_floor - x_rel_mean).relu().sum() * (
-            1.0 / (2 * min_positive)
-        )
+        x_rel_mean_floor = (-(1-min_positive) + min_positive)
+        min_positive_loss = (x_rel_mean_floor - x_rel_mean).relu().sum() * (1.0 / (2*min_positive))
         # this part of the loss would be 1.0 * num_channels if all these constraints were
         # 100% violated.
         loss_parts.append(min_positive_loss)
 
     if max_positive != 1.0:
         # e.g. x_mean_floor =  -0.05 + 0.95 = 0.8
-        x_rel_mean_ceil = -(1.0 - max_positive) + max_positive
-        max_positive_loss = (x_rel_mean - x_rel_mean_ceil).relu().sum() * (
-            1.0 / (1 - x_rel_mean_ceil)
-        )
+        x_rel_mean_ceil = - (1.0-max_positive) + max_positive
+        max_positive_loss = (x_rel_mean - x_rel_mean_ceil).relu().sum() * (1.0 / (1 - x_rel_mean_ceil))
         # this part of the loss would be 1.0 * num_channels if all these constraints were
         # 100% violated.
         loss_parts.append(max_positive_loss)
 
     if min_abs != 0.0:
-        min_abs_loss = (min_abs - x_mean_abs).relu().sum() / min_abs
+        min_abs_loss = min_abs - x_mean_abs).relu().sum() / min_abs
         # this part of the loss would be 1.0 * num_channels if all these constraints were
         # 100% violated.
         loss_parts.append(min_abs_loss)
@@ -88,53 +82,43 @@ def _activation_balancer_loss(
         # 100% violated.
         loss_parts.append(max_abs_loss)
 
+
     # the min_positive and 1 - max_positive are "ballast" added to the
     denom = mean_pos + mean_neg + (min_positive + (1 - max_positive))
-    # num
+    num
 
     if min_positive != 0.0:
-        pass
+
+
 
 
 class ActivationBalancerFunction(torch.autograd.Function):
     @staticmethod
-    def forward(
-        ctx,
-        x: Tensor,
-        channel_dim: int,
-        min_positive: float,  # e.g. 0.05
-        max_positive: float,  # e.g. 0.95
-        max_factor: float,  # e.g. 0.01
-        min_abs: float,  # e.g. 0.2
-        max_abs: float,  # e.g. 100.0
+    def forward(ctx, x: Tensor,
+                channel_dim: int,
+                min_positive: float, # e.g. 0.05
+                max_positive: float, # e.g. 0.95
+                max_factor: float, # e.g. 0.01
+                min_abs: float, # e.g. 0.2
+                max_abs: float, # e.g. 100.0
     ) -> Tensor:
         if x.requires_grad:
             if channel_dim < 0:
                 channel_dim += x.ndim
             sum_dims = [d for d in range(x.ndim) if d != channel_dim]
             xgt0 = x > 0
-            proportion_positive = torch.mean(
-                xgt0.to(x.dtype), dim=sum_dims, keepdim=True
-            )
-            factor1 = (
-                (min_positive - proportion_positive).relu()
-                * (max_factor / min_positive)
-                if min_positive != 0.0
-                else 0.0
-            )
-            factor2 = (
-                (proportion_positive - max_positive).relu()
-                * (max_factor / (max_positive - 1.0))
-                if max_positive != 1.0
-                else 0.0
-            )
+            proportion_positive = torch.mean(xgt0.to(x.dtype), dim=sum_dims, keepdim=True)
+            factor1 = ((min_positive - proportion_positive).relu() * (max_factor / min_positive)
+                       if min_positive != 0.0 else 0.0)
+            factor2 = ((proportion_positive - max_positive).relu() * (max_factor / (max_positive - 1.0))
+                       if max_positive != 1.0 else 0.0)
             factor = factor1 + factor2
             if isinstance(factor, float):
                 factor = torch.zeros_like(proportion_positive)
 
             mean_abs = torch.mean(x.abs(), dim=sum_dims, keepdim=True)
-            below_threshold = mean_abs < min_abs
-            above_threshold = mean_abs > max_abs
+            below_threshold = (mean_abs < min_abs)
+            above_threshold = (mean_abs > max_abs)
 
             ctx.save_for_backward(factor, xgt0, below_threshold, above_threshold)
             ctx.max_factor = max_factor
@@ -142,16 +126,11 @@ class ActivationBalancerFunction(torch.autograd.Function):
         return x
 
     @staticmethod
-    def backward(
-        ctx, x_grad: Tensor
-    ) -> Tuple[Tensor, None, None, None, None, None, None]:
+    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None, None, None, None]:
         factor, xgt0, below_threshold, above_threshold = ctx.saved_tensors
         dtype = x_grad.dtype
-        scale_factor = (
-            (below_threshold.to(dtype) - above_threshold.to(dtype))
-            * (xgt0.to(dtype) - 0.5)
-            * (ctx.max_factor * 2.0)
-        )
+        scale_factor = ((below_threshold.to(dtype) - above_threshold.to(dtype)) *
+                        (xgt0.to(dtype) - 0.5) * (ctx.max_factor * 2.0))
 
         neg_delta_grad = x_grad.abs() * (factor + scale_factor)
         return x_grad - neg_delta_grad, None, None, None, None, None, None
@@ -184,28 +163,27 @@ class BasicNorm(torch.nn.Module):
        learn_eps: if true, we learn epsilon; if false, we keep it
          at the initial value.
     """
-
-    def __init__(
-        self,
-        num_channels: int,
-        channel_dim: int = -1,  # CAUTION: see documentation.
-        eps: float = 0.25,
-        learn_eps: bool = True,
-    ) -> None:
+    def __init__(self,
+                 num_channels: int,
+                 channel_dim: int = -1,  # CAUTION: see documentation.
+                 eps: float = 0.25,
+                 learn_eps: bool = True) -> None:
         super(BasicNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         if learn_eps:
             self.eps = nn.Parameter(torch.tensor(eps).log().detach())
         else:
-            self.register_buffer("eps", torch.tensor(eps).log().detach())
+            self.register_buffer('eps', torch.tensor(eps).log().detach())
+
 
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
-        scales = (
-            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + self.eps.exp()
-        ) ** -0.5
+        scales = (torch.mean(x**2, dim=self.channel_dim, keepdim=True) +
+                  self.eps.exp()) ** -0.5
         return x * scales
+
+
 
 
 class ScaledLinear(nn.Linear):
@@ -229,26 +207,27 @@ class ScaledLinear(nn.Linear):
        inherited from nn.Linear.  For modules with small fan-in, this
        may be larger than optimal.
     """
-
-    def __init__(self, *args, initial_scale: float = 1.0, **kwargs):
+    def __init__(self, *args,
+                 initial_scale: float = 1.0,
+                 **kwargs):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
-            self.register_parameter("bias_scale", None)
+            self.register_parameter('bias_scale', None)
 
         self._reset_parameters()  # Overrides the reset_parameters in nn.Linear
 
     def _reset_parameters(self):
         std = 0.01
-        a = (3**0.5) * std
+        a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in**-0.5  # 1/sqrt(fan_in)
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
             if self.bias is not None:
@@ -258,67 +237,56 @@ class ScaledLinear(nn.Linear):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        return (None if self.bias is None else
+                self.bias * self.bias_scale.exp())
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.nn.functional.linear(input, self.get_weight(), self.get_bias())
+        return torch.nn.functional.linear(input, self.get_weight(),
+                                          self.get_bias())
 
 
 class ScaledConv1d(nn.Conv1d):
-    def __init__(self, *args, initial_scale=1.0, **kwargs):
+    def __init__(self, *args,
+                 initial_scale=1.0, **kwargs):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
         self.weight_scale = nn.Parameter(initial_scale.clone().detach())
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
-            self.register_parameter("bias_scale", None)
+            self.register_parameter('bias_scale', None)
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
         std = 0.01
-        a = (3**0.5) * std
+        a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in**-0.5  # 1/sqrt(fan_in)
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
             if self.bias is not None:
                 self.bias_scale += torch.tensor(scale / std).log()
 
+
     def get_weight(self):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        return (None if self.bias is None else
+                self.bias * self.bias_scale.exp())
 
     def forward(self, input: Tensor) -> Tensor:
         F = torch.nn.functional
-        if self.padding_mode != "zeros":
-            return F.conv1d(
-                F.pad(
-                    input,
-                    self._reversed_padding_repeated_twice,
-                    mode=self.padding_mode,
-                ),
-                self.get_weight(),
-                self.get_bias(),
-                self.stride,
-                _single(0),  # noqa: F821
-                self.dilation,
-                self.groups,
-            )
-        return F.conv1d(
-            input,
-            self.get_weight(),
-            self.get_bias(),
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
+        if self.padding_mode != 'zeros':
+            return F.conv1d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+                            self.get_weight(), self.get_bias(), self.stride,
+                            _single(0), self.dilation, self.groups)
+        return F.conv1d(input, self.get_weight(), self.get_bias(), self.stride,
+                        self.padding, self.dilation, self.groups)
+
 
 
 class ScaledConv2d(nn.Conv2d):
@@ -329,56 +297,43 @@ class ScaledConv2d(nn.Conv2d):
         if self.bias is not None:
             self.bias_scale = nn.Parameter(initial_scale.clone().detach())
         else:
-            self.register_parameter("bias_scale", None)
+            self.register_parameter('bias_scale', None)
         self._reset_parameters()  # Overrides the reset_parameters in base class
 
     def _reset_parameters(self):
         std = 0.01
-        a = (3**0.5) * std
+        a = (3 ** 0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in**-0.5  # 1/sqrt(fan_in)
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
             if self.bias is not None:
                 self.bias_scale += torch.tensor(scale / std).log()
 
+
     def get_weight(self):
         return self.weight * self.weight_scale.exp()
 
     def get_bias(self):
-        return None if self.bias is None else self.bias * self.bias_scale.exp()
+        return (None if self.bias is None else
+                self.bias * self.bias_scale.exp())
 
     def _conv_forward(self, input, weight):
         F = torch.nn.functional
-        if self.padding_mode != "zeros":
-            return F.conv2d(
-                F.pad(
-                    input,
-                    self._reversed_padding_repeated_twice,
-                    mode=self.padding_mode,
-                ),
-                weight,
-                self.get_bias(),
-                self.stride,
-                _pair(0),  # noqa: F821
-                self.dilation,
-                self.groups,
-            )
-        return F.conv2d(
-            input,
-            weight,
-            self.get_bias(),
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
+        if self.padding_mode != 'zeros':
+            return F.conv2d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+                            weight, self.get_bias(), self.stride,
+                            _pair(0), self.dilation, self.groups)
+        return F.conv2d(input, weight, self.get_bias(), self.stride,
+                        self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         return self._conv_forward(input, self.get_weight())
+
+
 
 
 class ActivationBalancer(torch.nn.Module):
@@ -409,16 +364,12 @@ class ActivationBalancer(torch.nn.Module):
                we allow, before we start to modify the derivatives to prevent
                this.
     """
-
-    def __init__(
-        self,
-        channel_dim: int,
-        min_positive: float = 0.05,
-        max_positive: float = 0.95,
-        max_factor: float = 0.01,
-        min_abs: float = 0.2,
-        max_abs: float = 100.0,
-    ):
+    def __init__(self, channel_dim: int,
+                 min_positive: float = 0.05,
+                 max_positive: float = 0.95,
+                 max_factor: float = 0.01,
+                 min_abs: float = 0.2,
+                 max_abs: float = 100.0):
         super(ActivationBalancer, self).__init__()
         self.channel_dim = channel_dim
         self.min_positive = min_positive
@@ -428,15 +379,10 @@ class ActivationBalancer(torch.nn.Module):
         self.max_abs = max_abs
 
     def forward(self, x: Tensor) -> Tensor:
-        return ActivationBalancerFunction.apply(
-            x,
-            self.channel_dim,
-            self.min_positive,
-            self.max_positive,
-            self.max_factor,
-            self.min_abs,
-            self.max_abs,
-        )
+        return ActivationBalancerFunction.apply(x, self.channel_dim,
+                                                self.min_positive, self.max_positive,
+                                                self.max_factor, self.min_abs,
+                                                self.max_abs)
 
 
 class DoubleSwishFunction(torch.autograd.Function):
@@ -454,7 +400,6 @@ class DoubleSwishFunction(torch.autograd.Function):
                      = double_swish(x) * (1-s(x)) + s(x)
      ... so we just need to remember s(x) but not x itself.
     """
-
     @staticmethod
     def forward(ctx, x: Tensor) -> Tensor:
         x = x.detach()
@@ -466,15 +411,16 @@ class DoubleSwishFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, y_grad: Tensor) -> Tensor:
         s, y = ctx.saved_tensors
-        return (y * (1 - s) + s) * y_grad
-
+        return (y * (1-s) + s) * y_grad
 
 class DoubleSwish(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
-        that we approximate closely with x * sigmoid(x-1).
+           that we approximate closely with x * sigmoid(x-1).
         """
         return DoubleSwishFunction.apply(x)
+
+
 
 
 class ScaledEmbedding(nn.Module):
@@ -545,13 +491,8 @@ class ScaledEmbedding(nn.Module):
                  [ 0.0000,  0.0000,  0.0000],
                  [-0.1655,  0.9897,  0.0635]]])
     """
-    __constants__ = [
-        "num_embeddings",
-        "embedding_dim",
-        "padding_idx",
-        "scale_grad_by_freq",
-        "sparse",
-    ]
+    __constants__ = ['num_embeddings', 'embedding_dim', 'padding_idx',
+                     'scale_grad_by_freq', 'sparse']
 
     num_embeddings: int
     embedding_dim: int
@@ -560,40 +501,33 @@ class ScaledEmbedding(nn.Module):
     weight: Tensor
     sparse: bool
 
-    def __init__(
-        self,
-        num_embeddings: int,
-        embedding_dim: int,
-        padding_idx: Optional[int] = None,
-        scale_grad_by_freq: bool = False,
-        sparse: bool = False,
-    ) -> None:
+    def __init__(self, num_embeddings: int, embedding_dim: int, padding_idx: Optional[int] = None,
+                 scale_grad_by_freq: bool = False,
+                 sparse: bool = False) -> None:
         super(ScaledEmbedding, self).__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         if padding_idx is not None:
             if padding_idx > 0:
-                assert (
-                    padding_idx < self.num_embeddings
-                ), "Padding_idx must be within num_embeddings"
+                assert padding_idx < self.num_embeddings, 'Padding_idx must be within num_embeddings'
             elif padding_idx < 0:
-                assert (
-                    padding_idx >= -self.num_embeddings
-                ), "Padding_idx must be within num_embeddings"
+                assert padding_idx >= -self.num_embeddings, 'Padding_idx must be within num_embeddings'
                 padding_idx = self.num_embeddings + padding_idx
         self.padding_idx = padding_idx
         self.scale_grad_by_freq = scale_grad_by_freq
 
-        self.scale = nn.Parameter(torch.zeros(()))  # see reset_parameters()
+        self.scale = nn.Parameter(torch.zeros(())) # see reset_parameters()
         self.sparse = sparse
 
         self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
         self.reset_parameters()
 
+
+
     def reset_parameters(self) -> None:
         std = 0.01
         nn.init.normal_(self.weight, std=std)
-        nn.init.constant_(self.scale, torch.tensor(1.0 / std).log())
+        nn.init.constant_(self.scale, torch.tensor(1.0/std).log())
 
         if self.padding_idx is not None:
             with torch.no_grad():
@@ -603,37 +537,24 @@ class ScaledEmbedding(nn.Module):
         F = torch.nn.functional
         scale = self.scale.exp()
         if input.numel() < self.num_embeddings:
-            return (
-                F.embedding(
-                    input,
-                    self.weight,
-                    self.padding_idx,
-                    None,
-                    2.0,  # None, 2.0 relate to normalization
-                    self.scale_grad_by_freq,
-                    self.sparse,
-                )
-                * scale
-            )
+            return F.embedding(
+                input, self.weight, self.padding_idx,
+                None, 2.0, # None, 2.0 relate to normalization
+                 self.scale_grad_by_freq, self.sparse) * scale
         else:
             return F.embedding(
-                input,
-                self.weight * scale,
-                self.padding_idx,
-                None,
-                2.0,  # None, 2.0 relates to normalization
-                self.scale_grad_by_freq,
-                self.sparse,
-            )
+                input, self.weight * scale, self.padding_idx,
+                None, 2.0, # None, 2.0 relates to normalization
+                self.scale_grad_by_freq, self.sparse)
 
     def extra_repr(self) -> str:
-        s = "{num_embeddings}, {embedding_dim}, scale={scale}"
+        s = '{num_embeddings}, {embedding_dim}, scale={scale}'
         if self.padding_idx is not None:
-            s += ", padding_idx={padding_idx}"
+            s += ', padding_idx={padding_idx}'
         if self.scale_grad_by_freq is not False:
-            s += ", scale_grad_by_freq={scale_grad_by_freq}"
+            s += ', scale_grad_by_freq={scale_grad_by_freq}'
         if self.sparse is not False:
-            s += ", sparse=True"
+            s += ', sparse=True'
         return s.format(**self.__dict__)
 
 
@@ -644,13 +565,8 @@ def _test_activation_balancer_sign():
     x = 1.0 * (torch.rand(probs.numel(), N) < probs.unsqueeze(-1))
     x = x.detach()
     x.requires_grad = True
-    m = ActivationBalancer(
-        channel_dim=0,
-        min_positive=0.05,
-        max_positive=0.95,
-        max_factor=0.2,
-        min_abs=0.0,
-    )
+    m = ActivationBalancer(channel_dim=0, min_positive=0.05, max_positive=0.95,
+                           max_factor=0.2, min_abs=0.0)
 
     y_grad = torch.sign(torch.randn(probs.numel(), N))
 
@@ -660,22 +576,17 @@ def _test_activation_balancer_sign():
     print("_test_activation_balancer_sign: y grad = ", y_grad)
     print("_test_activation_balancer_sign: x grad = ", x.grad)
 
-
 def _test_activation_balancer_magnitude():
     channel_dim = 0
     magnitudes = torch.arange(0, 1, 0.01)
     N = 1000
-    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(-1)
+    x = torch.sign(torch.randn(magnitudes.numel(), N))  * magnitudes.unsqueeze(-1)
     x = x.detach()
     x.requires_grad = True
-    m = ActivationBalancer(
-        channel_dim=0,
-        min_positive=0.0,
-        max_positive=1.0,
-        max_factor=0.2,
-        min_abs=0.2,
-        max_abs=0.8,
-    )
+    m = ActivationBalancer(channel_dim=0,
+                           min_positive=0.0, max_positive=1.0,
+                           max_factor=0.2,
+                           min_abs=0.2, max_abs=0.8)
 
     y_grad = torch.sign(torch.randn(magnitudes.numel(), N))
 
@@ -710,7 +621,7 @@ def _test_double_swish_deriv():
     torch.autograd.gradcheck(m, x)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     _test_activation_balancer_sign()
     _test_activation_balancer_magnitude()
     _test_basic_norm()

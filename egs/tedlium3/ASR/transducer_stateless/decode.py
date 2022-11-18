@@ -81,19 +81,16 @@ def get_parser():
         "--epoch",
         type=int,
         default=29,
-        help=(
-            "It specifies the checkpoint to use for decoding.Note: Epoch counts from 0."
-        ),
+        help="It specifies the checkpoint to use for decoding."
+        "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
         default=13,
-        help=(
-            "Number of checkpoints to average. Automatically select "
-            "consecutive checkpoints before the checkpoint specified by "
-            "'--epoch'. "
-        ),
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch'. ",
     )
 
     parser.add_argument(
@@ -133,7 +130,8 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -252,7 +250,9 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    encoder_out, encoder_out_lens = model.encoder(
+        x=feature, x_lens=feature_lens
+    )
     hyps = []
     batch_size = encoder_out.size(0)
 
@@ -275,7 +275,9 @@ def decode_one_batch(
                 model=model, encoder_out=encoder_out_i, beam=params.beam_size
             )
         else:
-            raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
+            raise ValueError(
+                f"Unsupported decoding method: {params.decoding_method}"
+            )
         hyps.append(sp.decode(hyp).split())
 
     if params.decoding_method == "greedy_search":
@@ -346,7 +348,9 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
     return results
 
 
@@ -379,7 +383,8 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir
+        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)

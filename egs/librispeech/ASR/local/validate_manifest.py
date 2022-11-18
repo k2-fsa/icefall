@@ -64,7 +64,8 @@ def validate_supervision_and_cut_time_bounds(c: Cut):
 
     if s.end > c.end:
         raise ValueError(
-            f"{c.id}: Supervision end time {s.end} is larger than cut end time {c.end}"
+            f"{c.id}: Supervision end time {s.end} is larger "
+            f"than cut end time {c.end}"
         )
 
 
@@ -84,7 +85,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

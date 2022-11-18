@@ -160,24 +160,20 @@ def get_parser():
         "--avg",
         type=int,
         default=15,
-        help=(
-            "Number of checkpoints to average. Automatically select "
-            "consecutive checkpoints before the checkpoint specified by "
-            "'--epoch' and '--iter'"
-        ),
+        help="Number of checkpoints to average. Automatically select "
+        "consecutive checkpoints before the checkpoint specified by "
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
         default=True,
-        help=(
-            "Whether to load averaged model. Currently it only supports "
-            "using --epoch. If True, it would decode with the averaged model "
-            "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-            "Actually only the models with epoch number of `epoch-avg` and "
-            "`epoch` are loaded for averaging. "
-        ),
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
     )
 
     parser.add_argument(
@@ -248,7 +244,8 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -345,7 +342,9 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
-        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+        encoder_out, encoder_out_lens = model.encoder(
+            x=feature, x_lens=feature_lens
+        )
 
     hyps = []
 
@@ -361,7 +360,10 @@ def decode_one_batch(
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
-    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -407,7 +409,11 @@ def decode_one_batch(
         return {"greedy_search": hyps}
     elif params.decoding_method == "fast_beam_search":
         return {
-            f"beam_{params.beam}_max_contexts_{params.max_contexts}_max_states_{params.max_states}": hyps
+            (
+                f"beam_{params.beam}_"
+                f"max_contexts_{params.max_contexts}_"
+                f"max_states_{params.max_states}"
+            ): hyps
         }
     else:
         return {f"beam_size_{params.beam_size}": hyps}
@@ -478,7 +484,9 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
     return results
 
 
@@ -511,7 +519,8 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir
+        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -580,12 +589,13 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
             if len(filenames) == 0:
                 raise ValueError(
-                    f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
                 )
             elif len(filenames) < params.avg:
                 raise ValueError(
@@ -608,12 +618,13 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
             if len(filenames) == 0:
                 raise ValueError(
-                    f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
                 )
             elif len(filenames) < params.avg + 1:
                 raise ValueError(
@@ -641,7 +652,7 @@ def main():
             filename_start = f"{params.exp_dir}/epoch-{start}.pt"
             filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
             logging.info(
-                "Calculating the averaged model over epoch range from "
+                f"Calculating the averaged model over epoch range from "
                 f"{start} (excluded) to {params.epoch}"
             )
             model.to(device)
@@ -709,7 +720,8 @@ def main():
         )
 
     dev_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+        str(path)
+        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
     ]
     cuts_dev_webdataset = CutSet.from_webdataset(
         dev_shards,
@@ -719,7 +731,8 @@ def main():
     )
 
     test_net_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+        str(path)
+        for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
     ]
     cuts_test_net_webdataset = CutSet.from_webdataset(
         test_net_shards,
@@ -730,7 +743,9 @@ def main():
 
     test_meeting_shards = [
         str(path)
-        for path in sorted(glob.glob(os.path.join(test_meeting, "shared-*.tar")))
+        for path in sorted(
+            glob.glob(os.path.join(test_meeting, "shared-*.tar"))
+        )
     ]
     cuts_test_meeting_webdataset = CutSet.from_webdataset(
         test_meeting_shards,

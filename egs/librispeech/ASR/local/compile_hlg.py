@@ -57,7 +57,7 @@ def get_args():
     return parser.parse_args()
 
 
-def compile_HLG(lang_dir: str, lm: str = "G_3_gram") -> k2.Fsa:
+def compile_HLG(lang_dir: str, lm: str="G_3_gram") -> k2.Fsa:
     """
     Args:
       lang_dir:
@@ -159,7 +159,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

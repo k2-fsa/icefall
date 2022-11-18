@@ -20,7 +20,11 @@ import pytest
 import torch
 import torch.nn as nn
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint, save_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 
 @pytest.fixture

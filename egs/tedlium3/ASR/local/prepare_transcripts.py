@@ -24,6 +24,7 @@ that includes tedlium_supervisions_train.jsonl.gz and does the following:
 1. Generate text.
 
 """
+import lhotse
 import argparse
 import logging
 import re
@@ -85,7 +86,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

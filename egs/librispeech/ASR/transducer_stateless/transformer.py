@@ -250,7 +250,9 @@ def _get_activation_fn(activation: str):
     elif activation == "gelu":
         return nn.functional.gelu
 
-    raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
+    raise RuntimeError(
+        "activation should be relu/gelu, not {}".format(activation)
+    )
 
 
 class PositionalEncoding(nn.Module):
