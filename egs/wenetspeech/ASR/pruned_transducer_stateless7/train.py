@@ -1034,15 +1034,15 @@ def run(rank, world_size, args):
     valid_cuts = wenetspeech.valid_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 19 seconds
+        # Keep only utterances with duration between 1 second and 15 seconds
         #
-        # Caution: There is a reason to select 19.0 here. Please see
+        # Caution: There is a reason to select 15.0 here. Please see
         # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 19.0
+        return 1.0 <= c.duration <= 15.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
