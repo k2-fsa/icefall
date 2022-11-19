@@ -77,15 +77,6 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
     )
-    
-    parser.add_argument(
-        "--att-rate",
-        type=float,
-        default=0.8,
-        help="""The attention rate.
-        The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
-        """,
-    )
 
     parser.add_argument(
         "--dim-feedforward",
@@ -436,7 +427,8 @@ def decode_one_batch(
         hyps = bpe_model.decode(token_ids)
 
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        hyps = [s.split() for s in hyps]
+        unk = bpe_model.decode(bpe_model.unk_id()).strip()
+        hyps = [[w for w in s.split() if w != unk] for s in hyps]
         key = "ctc-decoding"
 
         return {key: hyps}
@@ -452,7 +444,8 @@ def decode_one_batch(
         hyps = bpe_model.decode(hyps)
 
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-        hyps = [s.split() for s in hyps]
+        unk = bpe_model.decode(bpe_model.unk_id()).strip()
+        hyps = [[w for w in s.split() if w != unk] for s in hyps]
         key = "ctc-greedy-search"
         return {key: hyps}
 

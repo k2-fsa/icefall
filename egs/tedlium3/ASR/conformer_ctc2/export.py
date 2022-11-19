@@ -74,15 +74,6 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
     )
-    
-    parser.add_argument(
-        "--att-rate",
-        type=float,
-        default=0.8,
-        help="""The attention rate.
-        The total loss is (1 -  att_rate) * ctc_loss + att_rate * att_loss
-        """,
-    )
 
     parser.add_argument(
         "--dim-feedforward",
