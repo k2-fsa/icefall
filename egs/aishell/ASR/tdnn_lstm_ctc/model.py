@@ -66,10 +66,7 @@ class TdnnLstm(nn.Module):
             nn.BatchNorm1d(num_features=500, affine=False),
         )
         self.lstms = nn.ModuleList(
-            [
-                nn.LSTM(input_size=500, hidden_size=500, num_layers=1)
-                for _ in range(5)
-            ]
+            [nn.LSTM(input_size=500, hidden_size=500, num_layers=1) for _ in range(5)]
         )
         self.lstm_bnorms = nn.ModuleList(
             [nn.BatchNorm1d(num_features=500, affine=False) for _ in range(5)]
