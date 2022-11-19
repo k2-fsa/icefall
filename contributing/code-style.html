@@ -91,9 +91,9 @@
 <p>The following versions of the above tools are used:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">black</span> <span class="pre">==</span> <span class="pre">12.6b0</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">flake8</span> <span class="pre">==</span> <span class="pre">3.9.2</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">isort</span> <span class="pre">==</span> <span class="pre">5.9.2</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">black</span> <span class="pre">==</span> <span class="pre">22.3.0</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flake8</span> <span class="pre">==</span> <span class="pre">5.0.4</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">isort</span> <span class="pre">==</span> <span class="pre">5.10.1</span></code></p></li>
 </ul>
 </div></blockquote>
 <p>After running the following commands:</p>
@@ -136,8 +136,15 @@ it should succeed this time:</p>
 <p>If you want to check the style of your code before <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">commit</span></code>, you
 can do the following:</p>
 <blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ pre-commit install
+$ pre-commit run
+</pre></div>
+</div>
+</div></blockquote>
+<p>Or without installing the pre-commit hooks:</p>
+<blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> icefall
-$ pip install <span class="nv">black</span><span class="o">==</span><span class="m">21</span>.6b0 <span class="nv">flake8</span><span class="o">==</span><span class="m">3</span>.9.2 <span class="nv">isort</span><span class="o">==</span><span class="m">5</span>.9.2
+$ pip install <span class="nv">black</span><span class="o">==</span><span class="m">22</span>.3.0 <span class="nv">flake8</span><span class="o">==</span><span class="m">5</span>.0.4 <span class="nv">isort</span><span class="o">==</span><span class="m">5</span>.10.1
 $ black --check your_changed_file.py
 $ black your_changed_file.py  <span class="c1"># modify it in-place</span>
 $
