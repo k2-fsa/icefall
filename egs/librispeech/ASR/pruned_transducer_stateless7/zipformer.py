@@ -1288,25 +1288,46 @@ class AttentionSqueeze(nn.Module):
                                              bottleneck_dim,
                                              bias=False)
 
+
+        # the main reason for this balancer is to keep the bottleneck activations in a "reasonable"
+        # dynamic range, to avoid parameter-size 'drift' where to_bottleneck_proj gets large and from_bottleneck_proj
+        # gets small or vice versa.
         # Caution: this cannot work correctly with an extremeley small batch size, e.g. if
         # we were training with a single very long audio sequence, or just 2 or 3 sequences
         # at a time.  We make max_factor small to reduce the harm this could cause
         # (although when the grads get back past the averaging operation they would
         # be quite small and would probably not hurt the rest of the model much.)
-        self.balancer = ActivationBalancer(
-            embed_dim, channel_dim=-1,
+        self.bottleneck_balancer = ActivationBalancer(
+            bottleneck_dim, channel_dim=-1,
             min_positive=0.05, max_positive=0.95,
-            min_abs=0.1,
-            max_abs=50.0,
+            min_abs=0.2,
+            max_abs=1.0,
             max_factor=0.02,
-            min_prob=0.2,
+            min_prob=0.1,
         )
-        self.activation = DoubleSwish()
+
+        # the next two balancers are only to stop parameter-magnitude 'drift': we have
+        # too many degrees of freedom for the scales of the various activations.
+        # Make them run with very low probability, since only a small application of
+        # these balancers should be enough to stop such "drift"; and, for speed,
+        # put no limitation on the signs (so: min_positive=0, max_positive=1).
+        self.scale_balancer = ActivationBalancer(
+            embed_dim, channel_dim=-1,
+            min_positive=0.0, max_positive=1.0,
+            min_abs=0.2,  max_abs=1.0,
+            min_prob=0.025,
+        )
+        self.activation_balancer = ActivationBalancer(
+            embed_dim, channel_dim=-1,
+            min_positive=0.0, max_positive=1.0,
+            min_abs=0.2,  max_abs=1.0,
+            min_prob=0.025,
+        )
 
         self.from_bottleneck_proj =  ScaledLinear(bottleneck_dim, embed_dim)
 
         self.out_proj = ScaledLinear(embed_dim, embed_dim,
-                                     bias=False, initial_scale=0.1)
+                                     bias=False, initial_scale=0.05)
 
         self.out_whiten = Whiten(num_groups=1,
                                  whitening_limit=10.0,
@@ -1334,11 +1355,13 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         # (num_heads, batch_size, seq_len, seq_len) x (num_heads, batch_size, seq_len, head_dim)
         #  -> (num_heads, batch_size, seq_len, head_dim)
         bottleneck = torch.matmul(attn_weights, bottleneck)
-        bottleneck = self.balancer(bottleneck)
-        bottleneck = self.activation(bottleneck)
+        bottleneck = self.bottleneck_balancer(bottleneck)
         bottleneck = bottleneck.permute(2, 1, 0, 3) # (seq_len, batch_size, num_heads, head_dim)
         bottleneck = bottleneck.reshape(seq_len, batch_size, bottleneck_dim)
         scales = self.from_bottleneck_proj(bottleneck)
+
+        scales = self.scale_balancer(scales)
+        x = self.activation_balancer(x)
 
         x = self.in_proj(x)
         x = x * scales
@@ -1398,7 +1421,7 @@ class NonlinAttentionModule(nn.Module):
 
         # deriv_balancer corresponds to deriv_balancer2 in ConvolutionMOdule
         self.deriv_balancer = ActivationBalancer(
-            channels, channel_dim=1,
+            channels, channel_dim=-1,
             min_positive=0.05, max_positive=1.0,
             max_abs=20.0,
         )
@@ -1439,8 +1462,8 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         # now x: (num_heads, batch_size, seq_len, head_dim)
         x = torch.matmul(attn_weights, x)
         # now x: (num_heads, batch_size, seq_len, head_dim)
-        x = self.deriv_balancer(x)
         x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
+        x = self.deriv_balancer(x)
         x = self.activation(x)
         x = self.out_proj(x)
 

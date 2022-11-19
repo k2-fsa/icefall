@@ -122,40 +122,6 @@ def _compute_sign_factor(x: Tensor,
 
 
 
-class ActivationScaleBalancerFunction(torch.autograd.Function):
-    """
-    This object is used in class ActivationBalancer when the user specified
-    min_positive=0, max_positive=1, so there are no constraints on the signs
-    of the activations and only the absolute value has a constraint.
-    """
-    @staticmethod
-    def forward(
-            ctx,
-            x: Tensor,
-            sign_factor: Tensor,
-            scale_factor: Tensor,
-            channel_dim: int,
-    ) -> Tensor:
-        if channel_dim < 0:
-            channel_dim += x.ndim
-        ctx.channel_dim = channel_dim
-        xgt0 = (x > 0)
-        ctx.save_for_backward(xgt0, sign_factor, scale_factor)
-        return x
-
-
-    @staticmethod
-    def backward(
-        ctx, x_grad: Tensor
-    ) -> Tuple[Tensor, None, None, None]:
-        xgt0, sign_factor, scale_factor = ctx.saved_tensors
-        for _ in range(ctx.channel_dim, x_grad.ndim - 1):
-            sign_factor = sign_factor.unsqueeze(-1)
-            scale_factor = scale_factor.unsqueeze(-1)
-
-        factor = sign_factor + scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
-        neg_delta_grad = x_grad.abs() * factor
-        return x_grad - neg_delta_grad, None, None, None,
 
 
 def random_cast_to_half(x: Tensor,
@@ -465,6 +431,7 @@ class ActivationBalancer(torch.nn.Module):
         # loop.
         self.batch_count = 0
 
+        # actually self.num_channels is no longer needed except for an assertion.
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.min_positive = min_positive
@@ -489,6 +456,7 @@ class ActivationBalancer(torch.nn.Module):
         prob = max(self.min_prob, 0.5 ** (1 + (self.batch_count / 4000.0)))
 
         if random.random() < prob:
+            assert x.shape[self.channel_dim] == self.num_channels
             sign_gain_factor = 0.5
             if self.min_positive != 0.0 or self.max_positive != 1.0:
                 sign_factor = _compute_sign_factor(x, self.channel_dim,
