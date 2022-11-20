@@ -18,37 +18,37 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless2/decode.py \
-        --iter 128000 \
-        --avg 5 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
+./pruned_transducer_stateless7/decode.py \
+        --iter 105000 \
+        --avg 10 \
+        --exp-dir ./pruned_transducer_stateless7/exp \
         --max-duration 100 \
         --decoding-method greedy_search
 
 (2) beam search
-./pruned_transducer_stateless2/decode.py \
-        --iter 696000 \
+./pruned_transducer_stateless7/decode.py \
+        --iter 105000 \
         --avg 10 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
+        --exp-dir ./pruned_transducer_stateless7/exp \
+        --max-duration 500 \
         --decoding-method beam_search \
         --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless2/decode.py \
-        --iter 696000 \
+./pruned_transducer_stateless7/decode.py \
+        --iter 105000 \
         --avg 10 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 100 \
+        --exp-dir ./pruned_transducer_stateless7/exp \
+        --max-duration 500 \
         --decoding-method modified_beam_search \
         --beam-size 4
 
 (4) fast beam search
-./pruned_transducer_stateless2/decode.py \
-        --iter 696000 \
+./pruned_transducer_stateless7/decode.py \
+        --iter 105000 \
         --avg 10 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --max-duration 1500 \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+        --max-duration 500 \
         --decoding-method fast_beam_search \
         --beam 4 \
         --max-contexts 4 \

@@ -24,22 +24,11 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./pruned_transducer_stateless7/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 15 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
+  --max-duration 150 \
+    --use-fp16 True
 
 """
 
@@ -61,7 +50,6 @@ import torch.nn as nn
 from asr_datamodule import AmiAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
