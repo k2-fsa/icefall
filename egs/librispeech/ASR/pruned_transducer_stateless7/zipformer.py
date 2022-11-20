@@ -472,6 +472,8 @@ class ZipformerEncoderLayer(nn.Module):
         # multi-headed self-attention module
         use_self_attn = (random.random() >= dynamic_skip_rate)
 
+        src = src + self.feed_forward1(src)
+
         if torch.jit.is_scripting() or use_self_attn:
             # attn_weights: (num_heads, batch_size, seq_len, seq_len)
             attn_weights = self.self_attn_weights(
@@ -488,8 +490,6 @@ class ZipformerEncoderLayer(nn.Module):
 
         if torch.jit.is_scripting() or random.random() >= dynamic_skip_rate:
             src = src + self.small_conv_module(src, src_key_padding_mask=src_key_padding_mask)
-
-        src = src + self.feed_forward1(src)
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
