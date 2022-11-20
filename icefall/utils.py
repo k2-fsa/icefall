@@ -192,16 +192,8 @@ def encode_supervisions(
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
-            torch.div(
-                supervisions["start_frame"],
-                subsampling_factor,
-                rounding_mode="floor",
-            ),
-            torch.div(
-                supervisions["num_frames"],
-                subsampling_factor,
-                rounding_mode="floor",
-            ),
+            supervisions["start_frame"] // subsampling_factor,
+            supervisions["num_frames"] // subsampling_factor,
         ),
         1,
     ).to(torch.int32)
