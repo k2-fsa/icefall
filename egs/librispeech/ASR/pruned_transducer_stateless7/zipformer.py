@@ -943,7 +943,10 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         # length_factor is chosen so that the FFT can exactly separate points
         # close to the origin (T == 0).  So this part of the formulation is not really
         # heuristic.
-        length_factor =  self.embed_dim / (2.0 * math.pi) # todo: test this.
+        length_factor =  self.embed_dim / (2.0 * math.pi)
+        # multiplying length_factor by this heuristic constant should reduce the resolution near to the
+        # origin, i.e. reduce its ability to separate points near zero.
+        length_factor *= 2.0
 
         # note for machine implementations: if atan is not available, we can use:
         #   x.sign() * ((1 / (x.abs() + 1)) - 1)  * (-math.pi/2)
