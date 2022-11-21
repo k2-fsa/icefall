@@ -18,6 +18,7 @@ augmentation are applied on top of the pooled data.
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
+| greedy search             |  19.60  |  18.58  | --avg-last-n 10 --max-duration 500 |
 | beam search               |  19.18  |  18.00  | --avg-last-n 10 --max-duration 500 |
 | modified beam search      |  19.23  |  18.06  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | fast beam search          |  19.46  |  18.35  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
@@ -26,6 +27,7 @@ augmentation are applied on top of the pooled data.
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
+| greedy search             |  31.49  |  32.87  | --avg-last-n 10 --max-duration 500 |
 | beam search               |  31.28  |  32.63  | --avg-last-n 10 --max-duration 500 |
 | modified beam search      |  31.16  |  32.61  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | fast beam search          |  31.14  |  32.52  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
@@ -34,6 +36,7 @@ augmentation are applied on top of the pooled data.
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
+| greedy search             |  22.64  |  23.58  | --avg-last-n 10 --max-duration 500 |
 | beam search               |  22.09  |  23.03  | --avg-last-n 10 --max-duration 500 |
 | modified beam search      |  22.08  |  23.03  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
 | fast beam search          |  22.45  |  23.38  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
@@ -57,6 +60,14 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 The decoding command is:
 ```
+# greedy search
+./pruned_transducer_stateless7/decode.py \
+        --iter 105000 \
+        --avg 10 \
+        --exp-dir ./pruned_transducer_stateless7/exp \
+        --max-duration 500 \
+        --decoding-method greedy_search
+
 # modified beam search
 ./pruned_transducer_stateless7/decode.py \
         --iter 105000 \
