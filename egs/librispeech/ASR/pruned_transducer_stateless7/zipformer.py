@@ -1424,8 +1424,8 @@ class NonlinAttentionModule(nn.Module):
         )
         # give it a high limit, because it is quite high-dimensional and is
         # a projection of a lower-dimensional embedding.
-        self.whiten = Whiten(num_groups=1,
-                             whitening_limit=40.0,
+        self.whiten = Whiten(num_groups=2,
+                             whitening_limit=20.0,
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
