@@ -122,7 +122,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="1280,1280,1280,1792,1280,1280",
+        default="1536,1536,2048,1536,1536,1536",
         help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
     )
 
