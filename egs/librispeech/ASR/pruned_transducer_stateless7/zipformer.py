@@ -1415,10 +1415,18 @@ class NonlinAttentionModule(nn.Module):
 
         self.in_proj = nn.Linear(channels, 2 * channels, bias=True)
 
+        # balancer goes after the glu mechanism.
+        self.balancer = ActivationBalancer(
+            channels, channel_dim=-1,
+            min_positive=0.2, max_positive=0.8,
+            min_abs=0.2, max_abs=10.0,
+            min_prob=0.1,
+        )
         self.whiten = Whiten(num_groups=1,
-                             whitening_limit=10.0,
+                             whitening_limit=20.0,
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
+
 
         self.activation = Identity()  # for diagnostics.
         self.out_proj = ScaledLinear(channels, channels,
@@ -1446,6 +1454,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
 
         # GLU mechanism
         x = s.sigmoid() * v
+        x = self.balancer(x)
         x = self.whiten(x)
 
         (seq_len, batch_size, embed_dim) = x.shape
