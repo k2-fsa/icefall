@@ -18,28 +18,25 @@ augmentation are applied on top of the pooled data.
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             |  19.60  |  18.58  | --avg-last-n 10 --max-duration 500 |
-| beam search               |  19.18  |  18.00  | --avg-last-n 10 --max-duration 500 |
-| modified beam search      |  19.23  |  18.06  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
-| fast beam search          |  19.46  |  18.35  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
+| greedy search             |  19.25  |  17.83  | --epoch 14 --avg 8 --max-duration 500 |
+| modified beam search      |  18.92  |  17.40  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 |
+| fast beam search          |  19.44  |  18.04  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
 
 **WERs for SDM:**
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             |  31.49  |  32.87  | --avg-last-n 10 --max-duration 500 |
-| beam search               |  31.28  |  32.63  | --avg-last-n 10 --max-duration 500 |
-| modified beam search      |  31.16  |  32.61  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
-| fast beam search          |  31.14  |  32.52  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
+| greedy search             |  31.32  |  32.38  | --epoch 14 --avg 8 --max-duration 500 |
+| modified beam search      |  31.25  |  32.21  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 |
+| fast beam search          |  31.11  |  32.10  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
 
 **WERs for GSS-enhanced MDM:**
 
 |                           | dev | test | comment                                  |
 |---------------------------|------------|------------|------------------------------------------|
-| greedy search             |  22.64  |  23.58  | --avg-last-n 10 --max-duration 500 |
-| beam search               |  22.09  |  23.03  | --avg-last-n 10 --max-duration 500 |
-| modified beam search      |  22.08  |  23.03  | --avg-last-n 10 --max-duration 500 --beam-size 4 |
-| fast beam search          |  22.45  |  23.38  | --avg-last-n 10 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
+| greedy search             |  22.05  |  22.93  | --epoch 14 --avg 8 --max-duration 500 |
+| modified beam search      |  21.67  |  22.43  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 |
+| fast beam search          |  22.21  |  22.83  | --epoch 14 --avg 8 --max-duration 500 --beam-size 4 --max-contexts 4 --max-states 8 |
 
 The training command for reproducing is given below:
 
@@ -62,8 +59,8 @@ The decoding command is:
 ```
 # greedy search
 ./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
+        --epoch 14 \
+        --avg 8 \
         --exp-dir ./pruned_transducer_stateless7/exp \
         --max-duration 500 \
         --decoding-method greedy_search
@@ -87,15 +84,6 @@ The decoding command is:
         --beam 4 \
         --max-contexts 4 \
         --max-states 8
-
-# beam search
-./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
-        --exp-dir ./pruned_transducer_stateless7/exp \
-        --max-duration 500 \
-        --decoding-method beam_search \
-        --beam-size 4
 ```
 
 Pretrained model is available at <https://huggingface.co/desh2608/icefall-asr-ami-pruned-transducer-stateless7>
