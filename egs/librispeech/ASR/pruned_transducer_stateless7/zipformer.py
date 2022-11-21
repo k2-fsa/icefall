@@ -1419,7 +1419,7 @@ class NonlinAttentionModule(nn.Module):
         self.to_value = nn.Linear(channels, channels, bias=True)
 
 
-        # deriv_balancer corresponds to deriv_balancer2 in ConvolutionMOdule
+        # deriv_balancer corresponds to deriv_balancer2 in ConvolutionModule
         self.deriv_balancer = ActivationBalancer(
             channels, channel_dim=-1,
             min_positive=0.05, max_positive=1.0,
