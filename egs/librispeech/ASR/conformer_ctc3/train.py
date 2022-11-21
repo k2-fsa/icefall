@@ -311,7 +311,9 @@ def get_parser():
         type=float,
         default=0.0,
         help="""A constant to penalize symbol delay, which is applied on
-        the nnet_output after log-softmax. """,
+        the nnet_output after log-softmax.
+        We recommend using --delay-penalty instead.
+        See https://github.com/k2-fsa/icefall/pull/669 for details.""",
     )
 
     add_model_arguments(parser)

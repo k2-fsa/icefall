@@ -68,6 +68,7 @@ class CTCModel(nn.Module):
         We first split utterance into sub-utterances according to the
         blank probs, and then add sawtooth-like "blank-bonus" values to
         the blank probs.
+        See https://github.com/k2-fsa/icefall/pull/669 for details.
 
         Args:
           encoder_out:
