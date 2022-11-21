@@ -63,10 +63,7 @@ def _compute_mmi_loss_exact_optimized(
 
     # [0, num_fsas, 1, num_fsas, 2, num_fsas, ... ]
     num_den_graphs_indexes = (
-        torch.stack([num_graphs_indexes, den_graphs_indexes])
-        .t()
-        .reshape(-1)
-        .to(device)
+        torch.stack([num_graphs_indexes, den_graphs_indexes]).t().reshape(-1).to(device)
     )
 
     num_den_reordered_graphs = k2.index(num_den_graphs, num_den_graphs_indexes)
@@ -122,13 +119,9 @@ def _compute_mmi_loss_exact_non_optimized(
         den_graphs, dense_fsa_vec, output_beam=beam_size, max_arcs=2147483600
     )
 
-    num_tot_scores = num_lats.get_tot_scores(
-        log_semiring=True, use_double_scores=True
-    )
+    num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
-    den_tot_scores = den_lats.get_tot_scores(
-        log_semiring=True, use_double_scores=True
-    )
+    den_tot_scores = den_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
     tot_scores = num_tot_scores - den_scale * den_tot_scores
 
@@ -170,13 +163,9 @@ def _compute_mmi_loss_pruned(
         max_active_states=10000,
     )
 
-    num_tot_scores = num_lats.get_tot_scores(
-        log_semiring=True, use_double_scores=True
-    )
+    num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
-    den_tot_scores = den_lats.get_tot_scores(
-        log_semiring=True, use_double_scores=True
-    )
+    den_tot_scores = den_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
     tot_scores = num_tot_scores - den_scale * den_tot_scores
 

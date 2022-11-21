@@ -157,9 +157,7 @@ def add_alignment(
         for ali_path in part_ali_dir.rglob("*.alignment.txt"):
             ali = parse_alignments(ali_path)
             alignments.update(ali)
-        logging.info(
-            f"{part} has {len(alignments.keys())} cuts with alignments."
-        )
+        logging.info(f"{part} has {len(alignments.keys())} cuts with alignments.")
 
         # add alignment attribute and write out
         cuts_in = load_manifest_lazy(cuts_in_path)
@@ -170,18 +168,14 @@ def add_alignment(
                     if origin_id in alignments:
                         ali = alignments[origin_id]
                     else:
-                        logging.info(
-                            f"Warning: {origin_id} does not have alignment."
-                        )
+                        logging.info(f"Warning: {origin_id} does not have alignment.")
                         ali = []
                     subcut.alignment = {"word": ali}
                 writer.write(cut, flush=True)
 
 
 def main():
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     parser = get_parser()

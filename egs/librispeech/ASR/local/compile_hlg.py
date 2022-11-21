@@ -41,6 +41,13 @@ from icefall.lexicon import Lexicon
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--lm",
+        type=str,
+        default="G_3_gram",
+        help="""Stem name for LM used in HLG compiling.
+        """,
+    )
+    parser.add_argument(
         "--lang-dir",
         type=str,
         help="""Input and output directory.
@@ -50,11 +57,13 @@ def get_args():
     return parser.parse_args()
 
 
-def compile_HLG(lang_dir: str) -> k2.Fsa:
+def compile_HLG(lang_dir: str, lm: str = "G_3_gram") -> k2.Fsa:
     """
     Args:
       lang_dir:
         The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
+      lm:
+        The language stem base name.
 
     Return:
       An FSA representing HLG.
@@ -65,15 +74,15 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     H = k2.ctc_topo(max_token_id)
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
-    if Path("data/lm/G_3_gram.pt").is_file():
-        logging.info("Loading pre-compiled G_3_gram")
-        d = torch.load("data/lm/G_3_gram.pt")
+    if Path(f"data/lm/{lm}.pt").is_file():
+        logging.info(f"Loading pre-compiled {lm}")
+        d = torch.load(f"data/lm/{lm}.pt")
         G = k2.Fsa.from_dict(d)
     else:
-        logging.info("Loading G_3_gram.fst.txt")
-        with open("data/lm/G_3_gram.fst.txt") as f:
+        logging.info(f"Loading {lm}.fst.txt")
+        with open(f"data/lm/{lm}.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
+            torch.save(G.as_dict(), f"data/lm/{lm}.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
@@ -144,15 +153,13 @@ def main():
 
     logging.info(f"Processing {lang_dir}")
 
-    HLG = compile_HLG(lang_dir)
+    HLG = compile_HLG(lang_dir, args.lm)
     logging.info(f"Saving HLG.pt to {lang_dir}")
     torch.save(HLG.as_dict(), f"{lang_dir}/HLG.pt")
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
