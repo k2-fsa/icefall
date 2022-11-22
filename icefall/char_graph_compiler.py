@@ -122,5 +122,4 @@ class CharCtcTrainingGraphCompiler(object):
           piece IDs.
         """
         graph = k2.ctc_graph(token_ids, modified=modified, device=self.device)
-        graph._is_repeat_token_ = graph.labels != graph.aux_labels
         return graph
