@@ -185,6 +185,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   git lfs pull --include "exp/pretrained.pt"
   popd
 
+  mkdir -p lstm_transducer_stateless2/exp
   ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
   ls -lh lstm_transducer_stateless2/exp
 
@@ -226,6 +227,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
   git lfs pull --include "exp/pretrained.pt"
   popd
 
+  mkdir -p lstm_transducer_stateless2/exp
   ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
   ls -lh lstm_transducer_stateless2/exp
 
