@@ -465,8 +465,10 @@ class ZipformerEncoderLayer(nn.Module):
         src_orig = src
 
         momentum_alpha = 0.66
-        # the -0.5 below is "how strong" to make the negative momentum.
-        momentum_rate = -0.5 * (1.0 / (1 - momentum_alpha))
+        # the -0.333 below is "how strong" to make the negative momentum.
+        # the (1-momentum_alpha) cancels out the 1/(1-momentum_alpha) factor from
+        # adding up powers of momentum_alpha
+        momentum_rate = -0.333 * (1 - momentum_alpha)
         momentum = 0.0
 
 
