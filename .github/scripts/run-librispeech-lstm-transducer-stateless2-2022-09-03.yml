@@ -183,15 +183,18 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"
-  cd exp
-  ln -s pretrained.pt epoch-88.pt
   popd
+
+  ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
+  ls -lh lstm_transducer_stateless2/exp
+
+  log "Decoding test-clean and test-other"
 
   ./lstm_transducer_stateless2/decode.py \
     --use-averaged-model 0 \
-    --epoch 99 \
+    --epoch 999 \
     --avg 1 \
-    --exp-dir $repo/exp \
+    --exp-dir lstm_transducer_stateless2/exp \
     --lang-dir $repo/data/lang_bpe_500 \
     --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --max-duration 600 \
@@ -221,13 +224,16 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"
-  cd exp
-  ln -s pretrained.pt epoch-88.pt
   popd
+
+  ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
+  ls -lh lstm_transducer_stateless2/exp
+
+  log "Decoding test-clean and test-other"
 
   ./lstm_transducer_stateless2/decode.py \
     --use-averaged-model 0 \
-    --epoch 99 \
+    --epoch 999 \
     --avg 1 \
     --exp-dir $repo/exp \
     --lang-dir $repo/data/lang_bpe_500 \
