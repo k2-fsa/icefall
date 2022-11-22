@@ -561,11 +561,13 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                 x: Tensor,
                 num_groups: int,
                 whitening_limit: float,
-                grad_scale: float) -> Tensor:
+                grad_scale: float,
+                name: Optional[str]) -> Tensor:
         ctx.save_for_backward(x)
         ctx.num_groups = num_groups
         ctx.whitening_limit = whitening_limit
         ctx.grad_scale = grad_scale
+        ctx.name = name
         return x
 
     @staticmethod
@@ -580,7 +582,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                 metric = _whitening_metric(x_detached, ctx.num_groups)
 
                 if random.random() < 0.005 or __name__ == "__main__":
-                    logging.info(f"Whitening: num_groups={ctx.num_groups}, num_channels={x_orig.shape[-1]}, "
+                    logging.info(f"Whitening: name={ctx.name}, num_groups={ctx.num_groups}, num_channels={x_orig.shape[-1]}, "
                                  f"metric={metric.item():.2f} vs. limit={ctx.whitening_limit}")
 
                 (metric - ctx.whitening_limit).relu().backward()
@@ -588,7 +590,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                 scale = ctx.grad_scale * (x_grad.to(torch.float32).norm() /
                                           (penalty_grad.norm() + 1.0e-20))
                 penalty_grad = penalty_grad * scale
-        return x_grad + penalty_grad.to(x_grad.dtype), None, None, None
+        return x_grad + penalty_grad.to(x_grad.dtype), None, None, None, None
 
 
 
@@ -630,7 +632,7 @@ class Whiten(nn.Module):
             (self.min_prob, self.max_prob) = prob
             assert 0 < self.min_prob < self.max_prob <= 1
             self.prob = self.max_prob
-
+        self.name = None # will be set in training loop
         self.grad_scale = grad_scale
 
     def forward(self,
@@ -666,7 +668,8 @@ class Whiten(nn.Module):
             return WhiteningPenaltyFunction.apply(x,
                                                   self.num_groups,
                                                   self.whitening_limit,
-                                                  self.grad_scale)
+                                                  self.grad_scale,
+                                                  self.name)
 
 
 class WithLoss(torch.autograd.Function):

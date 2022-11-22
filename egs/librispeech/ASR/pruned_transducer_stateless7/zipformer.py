@@ -464,6 +464,12 @@ class ZipformerEncoderLayer(nn.Module):
 
         src_orig = src
 
+        momentum_alpha = 0.66
+        # the -0.5 below is "how strong" to make the negative momentum.
+        momentum_rate = -0.5 * (1.0 / (1 - momentum_alpha))
+        momentum = 0.0
+
+
         # dropout rate for non-feedforward submodules
         dynamic_skip_rate = float(self.dynamic_skip_rate) if self.training else 0.0
         # multi-headed self-attention module
@@ -478,30 +484,40 @@ class ZipformerEncoderLayer(nn.Module):
                 key_padding_mask=src_key_padding_mask,
             )
 
+        def add_to_src(src, momentum, x):
+            src = src + x + momentum_rate * momentum
+            momentum = (momentum * momentum_alpha) + x
+            return src, momentum
+
+
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.nonlin_attention_module(src,
-                                                     attn_weights[0:1])
+            src, momentum = add_to_src(src, momentum,
+                                       self.nonlin_attention_module(src, attn_weights[0:1]))
 
 
-        src = src + self.feed_forward1(src)
+        src, momentum = add_to_src(src, momentum,
+                                   self.feed_forward1(src))
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.attention_squeeze1(src, attn_weights[1:2])
+            src, momentum = add_to_src(src, momentum,
+                                       self.attention_squeeze1(src, attn_weights[1:2]))
 
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.self_attn(
-                src, attn_weights)
+            src, momentum = add_to_src(src, momentum, self.self_attn(
+                src, attn_weights))
 
         if torch.jit.is_scripting() or random.random() >= dynamic_skip_rate:
-            src = src + self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
+            src, momentum = add_to_src(src, momentum,
+                                       self.conv_module(src, src_key_padding_mask=src_key_padding_mask))
 
-        src = src + self.feed_forward2(src)
+        src, momentum = add_to_src(src, momentum,
+                                   self.feed_forward2(src))
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.attention_squeeze2(src, attn_weights[2:3])
-
+            src, momentum = add_to_src(src, momentum,
+                                       self.attention_squeeze2(src, attn_weights[2:3]))
 
         src = self.norm_final(self.balancer(src))
 
