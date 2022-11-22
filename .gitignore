@@ -11,6 +11,7 @@ log
 *.bak
 *-bak
 *bak.py
+<<<<<<< HEAD
 
 # Ignore Mac system files
 .DS_store
@@ -30,3 +31,7 @@ node_modules
 
 # Ignore SASS config files
 .sass-cache
+=======
+*.param
+*.bin
+>>>>>>> 500792d0f1d8da67c1bd70b3066c78cf36811ce3

@@ -193,9 +193,7 @@ def force_alignment(
         decoder_out = model.decoder(decoder_input, need_pad=False)
         # decoder_output is of shape (num_active_items, 1, decoder_output_dim)
 
-        current_encoder_out = current_encoder_out.expand(
-            decoder_out.size(0), 1, -1
-        )
+        current_encoder_out = current_encoder_out.expand(decoder_out.size(0), 1, -1)
 
         logits = model.joiner(
             current_encoder_out,

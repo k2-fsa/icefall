@@ -6,6 +6,8 @@
 # You will find directories `~/tmp/giga-dev-dataset-fbank` after running
 # this script.
 
+set -e
+
 mkdir -p ~/tmp
 cd ~/tmp
 

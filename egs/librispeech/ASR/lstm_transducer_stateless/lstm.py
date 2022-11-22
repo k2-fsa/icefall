@@ -116,6 +116,8 @@ class RNN(EncoderInterface):
         Period of auxiliary layers used for random combiner during training.
         If set to 0, will not use the random combiner (Default).
         You can set a positive integer to use the random combiner, e.g., 3.
+      is_pnnx:
+        True to make this class exportable via PNNX.
     """
 
     def __init__(
@@ -129,6 +131,7 @@ class RNN(EncoderInterface):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
+        is_pnnx: bool = False,
     ) -> None:
         super(RNN, self).__init__()
 
@@ -142,7 +145,13 @@ class RNN(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+        self.encoder_embed = Conv2dSubsampling(
+            num_features,
+            d_model,
+            is_pnnx=is_pnnx,
+        )
+
+        self.is_pnnx = is_pnnx
 
         self.num_encoder_layers = num_encoder_layers
         self.d_model = d_model
@@ -209,7 +218,13 @@ class RNN(EncoderInterface):
         # lengths = ((x_lens - 3) // 2 - 1) // 2 # issue an warning
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
-        lengths = (((x_lens - 3) >> 1) - 1) >> 1
+        if not self.is_pnnx:
+            lengths = (((x_lens - 3) >> 1) - 1) >> 1
+        else:
+            lengths1 = torch.floor((x_lens - 3) / 2)
+            lengths = torch.floor((lengths1 - 1) / 2)
+            lengths = lengths.to(x_lens)
+
         if not torch.jit.is_tracing():
             assert x.size(0) == lengths.max().item()
 
@@ -359,7 +374,7 @@ class RNNEncoderLayer(nn.Module):
                 # for cell state
                 assert states[1].shape == (1, src.size(1), self.rnn_hidden_size)
             src_lstm, new_states = self.lstm(src, states)
-        src = src + self.dropout(src_lstm)
+        src = self.dropout(src_lstm) + src
 
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
@@ -505,6 +520,7 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 8,
         layer2_channels: int = 32,
         layer3_channels: int = 128,
+        is_pnnx: bool = False,
     ) -> None:
         """
         Args:
@@ -517,6 +533,9 @@ class Conv2dSubsampling(nn.Module):
             Number of channels in layer1
           layer1_channels:
             Number of channels in layer2
+          is_pnnx:
+            True if we are converting the model to PNNX format.
+            False otherwise.
         """
         assert in_channels >= 9
         super().__init__()
@@ -559,6 +578,10 @@ class Conv2dSubsampling(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
+        # ncnn supports only batch size == 1
+        self.is_pnnx = is_pnnx
+        self.conv_out_dim = self.out.weight.shape[1]
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
 
@@ -572,9 +595,15 @@ class Conv2dSubsampling(nn.Module):
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-3)//2-1)//2, ((idim-3)//2-1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
+
+        if torch.jit.is_tracing() and self.is_pnnx:
+            x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
+            x = self.out(x)
+        else:
+            # Now x is of shape (N, odim, ((T-3)//2-1)//2, ((idim-3)//2-1)//2)
+            b, c, t, f = x.size()
+            x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
+
         # Now x is of shape (N, ((T-3)//2-1))//2, odim)
         x = self.out_norm(x)
         x = self.out_balancer(x)
@@ -643,9 +672,7 @@ class RandomCombine(nn.Module):
         self.stddev = stddev
 
         self.final_log_weight = (
-            torch.tensor(
-                (final_weight / (1 - final_weight)) * (self.num_inputs - 1)
-            )
+            torch.tensor((final_weight / (1 - final_weight)) * (self.num_inputs - 1))
             .log()
             .item()
         )
@@ -742,16 +769,14 @@ class RandomCombine(nn.Module):
         # final contains self.num_inputs - 1 in all elements
         final = torch.full((num_frames,), self.num_inputs - 1, device=device)
         # nonfinal contains random integers in [0..num_inputs - 2], these are for non-final weights.  # noqa
-        nonfinal = torch.randint(
-            self.num_inputs - 1, (num_frames,), device=device
-        )
+        nonfinal = torch.randint(self.num_inputs - 1, (num_frames,), device=device)
 
         indexes = torch.where(
             torch.rand(num_frames, device=device) < final_prob, final, nonfinal
         )
-        ans = torch.nn.functional.one_hot(
-            indexes, num_classes=self.num_inputs
-        ).to(dtype=dtype)
+        ans = torch.nn.functional.one_hot(indexes, num_classes=self.num_inputs).to(
+            dtype=dtype
+        )
         return ans
 
     def _get_random_mixed_weights(
@@ -773,7 +798,7 @@ class RandomCombine(nn.Module):
         """
         logprobs = (
             torch.randn(num_frames, self.num_inputs, dtype=dtype, device=device)
-            * self.stddev
+            * self.stddev  # noqa
         )
         logprobs[:, -1] += self.final_log_weight
         return logprobs.softmax(dim=1)

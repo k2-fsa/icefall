@@ -29,13 +29,39 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from lstmp import LSTMP
 from scaling import (
+    ActivationBalancer,
+    BasicNorm,
     ScaledConv1d,
     ScaledConv2d,
     ScaledEmbedding,
     ScaledLinear,
     ScaledLSTM,
 )
+
+
+class NonScaledNorm(nn.Module):
+    """See BasicNorm for doc"""
+
+    def __init__(
+        self,
+        num_channels: int,
+        eps_exp: float,
+        channel_dim: int = -1,  # CAUTION: see documentation.
+    ):
+        super().__init__()
+        self.num_channels = num_channels
+        self.channel_dim = channel_dim
+        self.eps_exp = eps_exp
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if not torch.jit.is_tracing():
+            assert x.shape[self.channel_dim] == self.num_channels
+        scales = (
+            torch.mean(x * x, dim=self.channel_dim, keepdim=True) + self.eps_exp
+        ).pow(-0.5)
+        return x * scales
 
 
 def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
@@ -60,8 +86,8 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
     linear = torch.nn.Linear(
         in_features=scaled_linear.in_features,
         out_features=scaled_linear.out_features,
-        bias=True,  # otherwise, it throws errors when converting to PNNX format.
-        # device=weight.device,  # Pytorch version before v1.9.0 does not has
+        bias=True,  # otherwise, it throws errors when converting to PNNX format
+        # device=weight.device,  # Pytorch version before v1.9.0 does not have
         # this argument. Comment out for now, we will
         # see if it will raise error for versions
         # after v1.9.0
@@ -174,6 +200,16 @@ def scaled_embedding_to_embedding(
     return embedding
 
 
+def convert_basic_norm(basic_norm: BasicNorm) -> NonScaledNorm:
+    assert isinstance(basic_norm, BasicNorm), type(BasicNorm)
+    norm = NonScaledNorm(
+        num_channels=basic_norm.num_channels,
+        eps_exp=basic_norm.eps.data.exp().item(),
+        channel_dim=basic_norm.channel_dim,
+    )
+    return norm
+
+
 def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
     """Convert an instance of ScaledLSTM to nn.LSTM.
 
@@ -198,15 +234,13 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
 
     assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
     for idx in range(len(scaled_lstm._flat_weights_names)):
-        scaled_weight = (
-            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
-        )
+        scaled_weight = scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
         lstm._flat_weights[idx].data.copy_(scaled_weight)
 
     return lstm
 
 
-# Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule
+# Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
 # get_submodule was added to nn.Module at v1.9.0
 def get_submodule(model, target):
     if target == "":
@@ -224,7 +258,11 @@ def get_submodule(model, target):
     return mod
 
 
-def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
+def convert_scaled_to_non_scaled(
+    model: nn.Module,
+    inplace: bool = False,
+    is_onnx: bool = False,
+):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
     and `nn.Conv2d`.
@@ -235,6 +273,9 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
       inplace:
         If True, the input model is modified inplace.
         If False, the input model is copied and we modify the copied version.
+      is_onnx:
+        If True, we are going to export the model to ONNX. In this case,
+        we will convert nn.LSTM with proj_size to LSTMP.
     Return:
       Return a model without scaled layers.
     """
@@ -256,8 +297,18 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
             d[name] = scaled_conv2d_to_conv2d(m)
         elif isinstance(m, ScaledEmbedding):
             d[name] = scaled_embedding_to_embedding(m)
+        elif isinstance(m, BasicNorm):
+            d[name] = convert_basic_norm(m)
         elif isinstance(m, ScaledLSTM):
-            d[name] = scaled_lstm_to_lstm(m)
+            if is_onnx:
+                d[name] = LSTMP(scaled_lstm_to_lstm(m))
+                # See
+                # https://github.com/pytorch/pytorch/issues/47887
+                #  d[name] = torch.jit.script(LSTMP(scaled_lstm_to_lstm(m)))
+            else:
+                d[name] = scaled_lstm_to_lstm(m)
+        elif isinstance(m, ActivationBalancer):
+            d[name] = nn.Identity()
 
     for k, v in d.items():
         if "." in k:
