@@ -227,12 +227,8 @@ class BasicNorm(torch.nn.Module):
         if not is_jit_tracing():
             assert x.shape[self.channel_dim] == self.num_channels
         scales = (
-<<<<<<< HEAD
             torch.mean(x**2, dim=self.channel_dim, keepdim=True)
             + self.eps.exp()
-=======
-            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + self.eps.exp()
->>>>>>> 500792d0f1d8da67c1bd70b3066c78cf36811ce3
         ) ** -0.5
         return x * scales
 
