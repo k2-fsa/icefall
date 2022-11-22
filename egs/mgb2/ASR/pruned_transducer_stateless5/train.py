@@ -48,9 +48,9 @@ import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
-import nvidia_smi
-from torch.nn.utils import clip_grad_norm_
+
 import k2
+import nvidia_smi
 import optim
 import sentencepiece as spm
 import torch
@@ -68,6 +68,7 @@ from optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
@@ -81,9 +82,7 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -206,8 +205,7 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        help="The initial learning rate.  This value should not need " "to be changed.",
     )
 
     parser.add_argument(
@@ -230,8 +228,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -254,8 +251,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)" "part.",
     )
 
     parser.add_argument(
@@ -593,11 +589,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -644,14 +636,9 @@ def compute_loss(
         # overwhelming the simple_loss and causing it to diverge,
         # in case it had not fully learned the alignment yet.
         pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -659,9 +646,7 @@ def compute_loss(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
 
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     # info["utterances"] = feature.size(0)
@@ -783,14 +768,10 @@ def train_one_epoch(
                         sp=sp,
                         batch=batch,
                         is_training=True,
-                        warmup=(
-                            params.batch_idx_train / params.model_warm_step
-                        ),
+                        warmup=(params.batch_idx_train / params.model_warm_step),
                     )
                 # summary stats
-                tot_loss = (
-                    tot_loss * (1 - 1 / params.reset_interval)
-                ) + loss_info
+                tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
                 # NOTE: We use reduction==sum and loss is computed over utterances
                 # in the batch and there is no normalization to it so far.
@@ -877,9 +858,7 @@ def train_one_epoch(
                     world_size=world_size,
                 )
                 model.train()
-                logging.info(
-                    f"Epoch {params.cur_epoch}, validation: {valid_info}"
-                )
+                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
                 if tb_writer is not None:
                     valid_info.write_summary(
                         tb_writer, "train/valid_", params.batch_idx_train
@@ -1031,9 +1010,7 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = MGB2.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
+    train_dl = MGB2.train_dataloaders(train_cuts, sampler_state_dict=sampler_state_dict)
 
     valid_cuts = MGB2.dev_cuts()
     valid_dl = MGB2.test_dataloaders(valid_cuts)

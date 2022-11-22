@@ -8,19 +8,20 @@ import logging
 from pathlib import Path
 from shutil import copyfile
 from typing import Optional, Tuple
+
 import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import MGB2AsrDataModule
 from conformer import Conformer
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
-from lhotse.cut import Cut
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
@@ -389,9 +390,7 @@ def compute_loss(
             #
             # See https://github.com/k2-fsa/icefall/issues/97
             # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(
-                supervisions["text"]
-            )
+            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
 
             att_loss = mmodel.decoder_forward(
                 encoder_memory,
@@ -550,9 +549,7 @@ def train_one_epoch(
                     world_size=world_size,
                 )
                 model.train()
-                logging.info(
-                    f"Epoch {params.cur_epoch}, validation: {valid_info}"
-                )
+                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
                 if tb_writer is not None:
                     valid_info.write_summary(
                         tb_writer, "train/valid_", params.batch_idx_train
@@ -675,9 +672,7 @@ def run(rank, world_size, args):
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:

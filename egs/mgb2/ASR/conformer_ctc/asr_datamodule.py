@@ -3,14 +3,14 @@
 
 
 import argparse
-import torch
 import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy, load_manifest
+import torch
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -21,8 +21,9 @@ from lhotse.dataset import (
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
-from torch.utils.data import DataLoader
 from lhotse.utils import fix_random_seed
+from torch.utils.data import DataLoader
+
 from icefall.utils import str2bool
 
 
@@ -186,14 +187,10 @@ class MGB2AsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest(
-                self.args.manifest_dir / "cuts_musan.jsonl.gz"
-            )
+            cuts_musan = load_manifest(self.args.manifest_dir / "cuts_musan.jsonl.gz")
 
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -215,9 +212,7 @@ class MGB2AsrDataModule:
         input_transforms = []
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
-            logging.info(
-                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
-            )
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -260,9 +255,7 @@ class MGB2AsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -317,9 +310,7 @@ class MGB2AsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -366,9 +357,7 @@ class MGB2AsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train_shuf.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_train_shuf.jsonl.gz")
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:

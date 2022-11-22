@@ -287,8 +287,7 @@ class Eden(LRScheduler):
         factor = (
             (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
         ) ** -0.25 * (
-            ((self.epoch**2 + self.lr_epochs**2) / self.lr_epochs**2)
-            ** -0.25
+            ((self.epoch**2 + self.lr_epochs**2) / self.lr_epochs**2) ** -0.25
         )
         return [x * factor for x in self.base_lrs]
 
