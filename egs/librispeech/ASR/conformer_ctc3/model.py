@@ -81,7 +81,7 @@ class CTCModel(nn.Module):
         output = self.ctc_output_module(encoder_out)
         log_prob = nn.functional.log_softmax(output, dim=-1)
 
-        if delay_penalty > 0:
+        if self.training and delay_penalty > 0:
             T_arange = torch.arange(encoder_out.shape[1]).to(
                 device=encoder_out.device
             )
