@@ -212,7 +212,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
   bigramlm_repo=$(basename $bigram_repo_url)
   pushd $bigramlm_repo
   git lfs pull --include "2gram.fst.txt"
-  ln -s 2gram.fst.txt $abs_repo/data/lang_bpe_500/.
+  cp 2gram.fst.txt $abs_repo/data/lang_bpe_500/.
   popd
 
   lm_repo_url=https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
