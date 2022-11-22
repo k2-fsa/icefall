@@ -37,9 +37,7 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument(
-        "--manifest-dir", type=Path, help="Path to cutset manifests"
-    )
+    parser.add_argument("--manifest-dir", type=Path, help="Path to cutset manifests")
 
     return parser.parse_args()
 

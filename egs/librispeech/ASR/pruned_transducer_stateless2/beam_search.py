@@ -580,9 +580,9 @@ def greedy_search(
         if y not in (blank_id, unk_id):
             hyp.append(y)
             timestamp.append(t)
-            decoder_input = torch.tensor(
-                [hyp[-context_size:]], device=device
-            ).reshape(1, context_size)
+            decoder_input = torch.tensor([hyp[-context_size:]], device=device).reshape(
+                1, context_size
+            )
 
             decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -775,9 +775,7 @@ class HypothesisList(object):
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
+            torch.logaddexp(old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob)
         else:
             self._data[key] = hyp
 
@@ -793,9 +791,7 @@ class HypothesisList(object):
           Return the hypothesis that has the largest `log_prob`.
         """
         if length_norm:
-            return max(
-                self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
-            )
+            return max(self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys))
         else:
             return max(self._data.values(), key=lambda hyp: hyp.log_prob)
 
@@ -990,9 +986,7 @@ def modified_beam_search(
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
 
-        log_probs = (logits / temperature).log_softmax(
-            dim=-1
-        )  # (num_hyps, vocab_size)
+        log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
 
         log_probs.add_(ys_log_probs)
 
@@ -1004,9 +998,7 @@ def modified_beam_search(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -1676,9 +1668,7 @@ def fast_beam_search_with_nbest_rnn_rescoring(
         for rnn_scale in rnn_lm_scale_list:
             key = f"ngram_lm_scale_{n_scale}_rnn_lm_scale_{rnn_scale}"
             tot_scores = (
-                am_scores.values
-                + n_scale * ngram_lm_scores
-                + rnn_scale * rnn_lm_scores
+                am_scores.values + n_scale * ngram_lm_scores + rnn_scale * rnn_lm_scores
             )
             ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
             max_indexes = ragged_tot_scores.argmax()
@@ -1804,9 +1794,7 @@ def modified_beam_search_ngram_rescoring(
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
 
-        log_probs = (logits / temperature).log_softmax(
-            dim=-1
-        )  # (num_hyps, vocab_size)
+        log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
 
         log_probs.add_(ys_log_probs)
         vocab_size = log_probs.size(-1)
@@ -1816,9 +1804,7 @@ def modified_beam_search_ngram_rescoring(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -1841,9 +1827,7 @@ def modified_beam_search_ngram_rescoring(
                     state_cost = hyp.state_cost
 
                 # We only keep AM scores in new_hyp.log_prob
-                new_log_prob = (
-                    topk_log_probs[k] - hyp.state_cost.lm_score * lm_scale
-                )
+                new_log_prob = topk_log_probs[k] - hyp.state_cost.lm_score * lm_scale
 
                 new_hyp = Hypothesis(
                     ys=new_ys, log_prob=new_log_prob, state_cost=state_cost
@@ -1995,9 +1979,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
         """
         for all hyps with a non-blank new token, score this token.
         It is a little confusing here because this for-loop
@@ -2032,10 +2014,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
         # forward RNNLM to get new states and scores
         if len(token_list) != 0:
             tokens_to_score = (
-                torch.tensor(token_list)
-                .to(torch.int64)
-                .to(device)
-                .reshape(-1, 1)
+                torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
             )
 
             hs = torch.cat(hs, dim=1).to(device)
@@ -2067,9 +2046,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
 
                     ys.append(new_token)
                     new_timestamp.append(t)
-                    hyp_log_prob += (
-                        lm_score[new_token] * lm_scale
-                    )  # add the lm score
+                    hyp_log_prob += lm_score[new_token] * lm_scale  # add the lm score
 
                     lm_score = scores[count]
                     state = (

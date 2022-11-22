@@ -3,7 +3,7 @@ profile = "black"
 skip = ["icefall/__init__.py"]
 
 [tool.black]
-line-length = 80
+line-length = 88
 exclude = '''
 /(
     \.git
