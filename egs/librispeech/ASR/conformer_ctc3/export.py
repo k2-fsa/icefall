@@ -202,7 +202,6 @@ def main():
                     f" --iter {params.iter}, --avg {params.avg}"
                 )
             logging.info(f"averaging {filenames}")
-            model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
@@ -213,7 +212,6 @@ def main():
                 if i >= 1:
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
-            model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
@@ -236,7 +234,6 @@ def main():
                 "Calculating the averaged model over iteration checkpoints"
                 f" from {filename_start} (excluded) to {filename_end}"
             )
-            model.to(device)
             model.load_state_dict(
                 average_checkpoints_with_averaged_model(
                     filename_start=filename_start,
@@ -254,7 +251,6 @@ def main():
                 f"Calculating the averaged model over epoch range from "
                 f"{start} (excluded) to {params.epoch}"
             )
-            model.to(device)
             model.load_state_dict(
                 average_checkpoints_with_averaged_model(
                     filename_start=filename_start,
@@ -267,11 +263,10 @@ def main():
     model.eval()
 
     if params.jit_trace:
-        # We won't use the forward() method of the model in C++, so just ignore
-        # it here.
-        # Otherwise, one of its arguments is a ragged tensor and is not
-        # torch scriptabe.
+        # TODO: will support streaming mode
+        assert not params.streaming_model
         convert_scaled_to_non_scaled(model, inplace=True)
+
         logging.info("Using torch.jit.trace()")
 
         x = torch.zeros(1, 100, 80, dtype=torch.float32)
@@ -282,7 +277,7 @@ def main():
         traced_model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
-        logging.info("Not using torch.jit.script")
+        logging.info("Not using torch.jit.trace()")
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = params.exp_dir / "pretrained.pt"
