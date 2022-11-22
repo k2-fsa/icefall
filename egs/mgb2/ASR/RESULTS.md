@@ -59,6 +59,9 @@ done
 
 #### 2022-06-04
 
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+https://huggingface.co/AmirHussein/icefall-asr-mgb2-conformer_ctc-2022-27-06
+
 The best WER, as of 2022-06-04, for the MGB2 test dataset is below
 
 Using whole lattice HLG decoding + n-gram LM rescoring 
