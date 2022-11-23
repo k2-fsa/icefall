@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conformer_ctc/compile_hlg.py
+../../../librispeech/ASR/local/compile_hlg.py
