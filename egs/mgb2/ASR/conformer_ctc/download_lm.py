@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conformer_ctc/download_lm.py
+../../../librispeech/ASR/local/download_lm.py
