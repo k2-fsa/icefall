@@ -1443,16 +1443,6 @@ class NonlinAttentionModule(nn.Module):
                                      initial_scale=0.05)
 
 
-        # put quite strict limits on the min_positive and max_positive at the output,
-        # because we noticed that poorly-trained instances of NonlinAttentionModule seem
-        # to have a larger mean-offset at the output for some reason.
-        self.out_balancer = ActivationBalancer(
-            channels, channel_dim=-1,
-            min_positive=0.45, max_positive=0.55,
-            min_abs=0.005, max_abs=1.0,
-            min_prob=0.05,
-        )
-
 
     def forward(self,
                 x: Tensor,
