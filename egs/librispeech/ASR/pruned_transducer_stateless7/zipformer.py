@@ -336,6 +336,11 @@ class Zipformer(EncoderInterface):
         return x, lengths
 
 
+def _whitening_schedule(x: float) -> ScheduledFloat:
+    return ScheduledFloat((0.0, x),
+                          (12000.0, 2.0 * x),
+                          default=x)
+
 class ZipformerEncoderLayer(nn.Module):
     """
     Args:
@@ -424,7 +429,7 @@ class ZipformerEncoderLayer(nn.Module):
             max_abs=6.0,
         )
         self.whiten = Whiten(num_groups=1,
-                             whitening_limit=5.0,
+                             whitening_limit=_whitening_schedule(4.0),
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
@@ -1048,9 +1053,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.in_proj = ScaledLinear(embed_dim, in_proj_dim, bias=True,
                                     initial_scale=query_head_dim**-0.25)
 
-        # .. TODO: tune this limit? whitening_limit.
         self.whiten_keys = Whiten(num_groups=num_heads,
-                                  whitening_limit=2.0,
+                                  whitening_limit=_whitening_schedule(2.0),
                                   prob=(0.025, 0.25),
                                   grad_scale=0.025)
 
@@ -1227,7 +1231,7 @@ class SelfAttention(nn.Module):
                                      initial_scale=0.05)
 
         self.whiten = Whiten(num_groups=1,
-                             whitening_limit=15.0,
+                             whitening_limit=_whitening_schedule(7.5),
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
@@ -1331,7 +1335,7 @@ class AttentionSqueeze(nn.Module):
                                      bias=False, initial_scale=0.05)
 
         self.out_whiten = Whiten(num_groups=1,
-                                 whitening_limit=15.0,
+                                 whitening_limit=_whitening_schedule(7.5),
                                  prob=(0.01, 0.1),
                                  grad_scale=0.01)
 
@@ -1388,7 +1392,7 @@ class FeedforwardModule(nn.Module):
         self.out_proj = ScaledLinear(feedforward_dim, embed_dim,
                                      initial_scale=0.01)
         self.out_whiten =  Whiten(num_groups=1,
-                                  whitening_limit=15.0,
+                                  whitening_limit=_whitening_schedule(7.5),
                                   prob=(0.025, 0.25),
                                   grad_scale=0.01)
 
@@ -1433,7 +1437,7 @@ class NonlinAttentionModule(nn.Module):
                                      initial_scale=0.05)
 
         self.whiten = Whiten(num_groups=1,
-                             whitening_limit=15.0,
+                             whitening_limit=_whitening_schedule(7.5),
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
@@ -1555,7 +1559,7 @@ class ConvolutionModule(nn.Module):
         )
 
         self.out_whiten = Whiten(num_groups=1,
-                                 whitening_limit=15.0,
+                                 whitening_limit=_whitening_schedule(7.5),
                                  prob=(0.01, 0.1),
                                  grad_scale=0.01)
 
