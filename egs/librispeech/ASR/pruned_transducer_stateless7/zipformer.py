@@ -29,6 +29,7 @@ from scaling import (
     BasicNorm,
     MaxEig,
     DoubleSwish,
+    TanSwish,
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     Whiten,
@@ -1317,7 +1318,7 @@ class AttentionSqueeze(nn.Module):
             max_factor=0.02,
             min_prob=0.1,
         )
-        self.bottleneck_activation = nn.Tanh()   # in bottleneck
+        self.bottleneck_activation = TanSwish()   # in bottleneck
         self.activation = Identity() # for diagnostics
 
         # the next two balancers are only to stop parameter-magnitude 'drift': we have
