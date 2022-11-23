@@ -367,7 +367,7 @@ class ZipformerEncoderLayer(nn.Module):
             # to work correctly.
             layer_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
             dynamic_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.0), default=0),
-            squeeze_const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
+            const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
             bypass_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.25), default=0),
             bypass_max: FloatLike = 1.0,
     ) -> None:
@@ -382,7 +382,7 @@ class ZipformerEncoderLayer(nn.Module):
         # ever becoming zero.
         self.bypass_min = copy.deepcopy(bypass_min)
         self.bypass_max = copy.deepcopy(bypass_max)
-        self.squeeze_const_attention_rate = copy.deepcopy(squeeze_const_attention_rate)
+        self.const_attention_rate = copy.deepcopy(const_attention_rate)
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim, pos_dim=pos_dim, num_heads=num_heads,
@@ -480,27 +480,23 @@ class ZipformerEncoderLayer(nn.Module):
                 key_padding_mask=src_key_padding_mask,
             )
 
-
-            squeeze_weights = attn_weights[1:2]
-            if random.random() < float(self.squeeze_const_attention_rate):
-                # this form of dropout makes the attention-weights used for the
-                # squeeze-excite modules constant wherever they are not masked.  The intention
-                # is to encourage these modules to do something similar to an averaging-over-time
-                # operation.
-                squeeze_weights = (squeeze_weights > 0.0).to(squeeze_weights.dtype)
-                # make sure they sum to 1 over the last axis.
-                squeeze_weights = squeeze_weights * (1.0 / squeeze_weights.sum(dim=-1, keepdim=True))
+            first_attn_weights = attn_weights[0:3]
+            if random.random() < float(self.const_attention_rate):
+                # Make attention weights constant.  The intention is to
+                # encourage these modules to do something similar to an
+                # averaging-over-time operation.
+                first_attn_weights = (first_attn_weights > 0.0).to(first_attn_weights.dtype)
+                first_attn_weights = first_attn_weights * (1.0 / first_attn_weights.sum(dim=-1, keepdim=True))
 
         if torch.jit.is_scripting() or use_self_attn:
             src = src + self.nonlin_attention_module(src,
-                                                     attn_weights[0:1])
-
+                                                     first_attn_weights[0:1])
 
         src = src + self.feed_forward1(src)
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.attention_squeeze1(src, squeeze_weights)
+            src = src + self.attention_squeeze1(src, first_attn_weights[1:2])
 
         if torch.jit.is_scripting() or use_self_attn:
             src = src + self.self_attn(
@@ -513,7 +509,7 @@ class ZipformerEncoderLayer(nn.Module):
 
         # pooling module
         if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.attention_squeeze2(src, squeeze_weights)
+            src = src + self.attention_squeeze2(src, first_attn_weights[2:3])
 
         src = self.norm_final(self.balancer(src))
 
