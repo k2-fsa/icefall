@@ -1649,7 +1649,6 @@ class SqueezeExcite1d(nn.Module):
 
         bottleneck = self.to_bottleneck_proj(bottleneck)
         bottleneck = self.bottleneck_activation(bottleneck)
-        bottleneck = self.bottleneck_activation(bottleneck)
         scale = self.from_bottleneck_proj(bottleneck)
         scale = self.balancer(scale)
         scale = self.activation(scale)
