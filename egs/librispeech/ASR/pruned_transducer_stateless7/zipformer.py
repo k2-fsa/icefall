@@ -1464,6 +1464,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
             # very small probability to save time).
             s = penalize_abs_values_gt(s, limit=20.0, penalty=1.0e-04)
 
+        v = self.whiten(v)
         # GLU mechanism
         x = s.sigmoid() * v
         x = self.balancer(x)
@@ -1480,7 +1481,6 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
 
         x = self.activation(x)  # diagnostics only, it's the identity.
         x = self.out_proj(x)
-        x = self.whiten(x)
         return x
 
 
