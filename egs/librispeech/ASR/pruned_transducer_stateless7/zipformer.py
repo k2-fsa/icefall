@@ -1055,7 +1055,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                                     initial_scale=query_head_dim**-0.25)
 
         self.whiten_keys = Whiten(num_groups=num_heads,
-                                  whitening_limit=_whitening_schedule(2.0),
+                                  whitening_limit=_whitening_schedule(3.0),
                                   prob=(0.025, 0.25),
                                   grad_scale=0.025)
 
