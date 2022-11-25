@@ -1390,8 +1390,10 @@ class FeedforwardModule(nn.Module):
                                                   min_prob=0.25)
         self.activation = DoubleSwish()
         self.dropout = nn.Dropout(dropout)
-        self.out_proj = ScaledLinear(feedforward_dim, embed_dim,
-                                     initial_scale=0.01)
+        self.out_proj = LinearWithAuxLoss(feedforward_dim, embed_dim,
+                                          initial_scale=0.01,
+                                          aux_grad_scale=ScheduledFloat((0.0, 0.1), (1000.0, 0.01)),
+                                          )
         self.out_whiten =  Whiten(num_groups=1,
                                   whitening_limit=_whitening_schedule(7.5),
                                   prob=(0.025, 0.25),
