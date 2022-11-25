@@ -1392,7 +1392,7 @@ class FeedforwardModule(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.out_proj = LinearWithAuxLoss(feedforward_dim, embed_dim,
                                           initial_scale=0.01,
-                                          aux_grad_scale=ScheduledFloat((0.0, 0.1), (1000.0, 0.01)),
+                                          aux_grad_scale=ScheduledFloat((0.0, 0.2), (1000.0, 0.01)),
                                           )
         self.out_whiten =  Whiten(num_groups=1,
                                   whitening_limit=_whitening_schedule(7.5),
