@@ -368,6 +368,13 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--show-dominant-parameters",
+        type=str2bool,
+        default=False,
+        help="Whether to show dominant parameters.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -988,7 +995,11 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = ScaledAdam(model.parameters(), lr=params.base_lr, clipping_scale=2.0)
+    parameters_names = []
+    parameters_names.append([name_param_pair[0] for name_param_pair in model.named_parameters()])
+    optimizer = ScaledAdam(model.parameters(), lr=params.base_lr,
+            clipping_scale=2.0, parameters_names=parameters_names,
+            show_dominant_parameters=params.show_dominant_parameters)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
