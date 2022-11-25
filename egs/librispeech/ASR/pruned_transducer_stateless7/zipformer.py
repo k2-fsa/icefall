@@ -32,6 +32,7 @@ from scaling import (
     TanSwish,
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+    LinearWithAuxLoss,
     Whiten,
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     penalize_abs_values_gt,
@@ -1288,9 +1289,8 @@ class AttentionSqueeze(nn.Module):
         self.in_proj = nn.Linear(embed_dim, embed_dim,
                                  bias=False)
 
-        self.to_bottleneck_proj =  nn.Linear(embed_dim,
-                                             bottleneck_dim,
-                                             bias=False)
+        self.to_bottleneck_proj = LinearWithAuxLoss(embed_dim,
+                                                    bottleneck_dim)
 
 
         # the main reason for this balancer is to keep the bottleneck activations in a "reasonable"
