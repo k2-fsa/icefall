@@ -291,7 +291,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     mkdir -p $out_dir
 
     if [ ! -f $out_dir/valid.txt ]; then
-      files=$dl_dir/xbmu_amdo31/resource/dev_text
+      files=$dl_dir/xbmu_amdo31/data/transcript/dev_text
       for f in ${files[@]}; do
         cat $f | cut -d " " -f 2-
       done > $out_dir/valid.txt
@@ -314,7 +314,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
     mkdir -p $out_dir
 
     if [ ! -f $out_dir/test.txt ]; then
-        files=$dl_dir/xbmu_amdo31/resource/test_text
+        files=$dl_dir/xbmu_amdo31/data/transcript/test_text
         cat $f | cut -d " " -f 2- > $out_dir/test.txt
     fi
 
