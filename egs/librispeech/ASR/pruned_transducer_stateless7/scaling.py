@@ -396,6 +396,8 @@ class LinearWithAuxLossFunction(torch.autograd.Function):
         In the backward pass it will include an auxiliary loss based on predicting x from
         matmul(y, weight).
         """
+        if torch.is_autocast_enabled():
+            x = x.to(torch.float16)
         ctx.save_for_backward(x, weight, alpha)
         ctx.aux_grad_scale = aux_grad_scale
         return torch.matmul(x, weight.t())
@@ -491,10 +493,14 @@ class LinearWithAuxLoss(nn.Module):
         aux_grad_scale = float(self.aux_grad_scale)
         if (not self.training or torch.jit.is_scripting() or
             aux_grad_scale == 0.0 or random.random() > float(self.prob)):
-            return torch.matmul(x, self.weight.t()) + self.bias
+            return torch.nn.functional.linear(x, self.weight, self.bias)
         else:
-            return LinearWithAuxLossFunction.apply(x, self.weight, self.alpha,
-                                                   aux_grad_scale) + self.bias
+            ans = LinearWithAuxLossFunction.apply(x, self.weight, self.alpha,
+                                                  aux_grad_scale)
+            if self.bias is not None:
+                ans += self.bias
+            return ans
+
 
 def ScaledLinear(*args,
                  initial_scale: float = 1.0,
