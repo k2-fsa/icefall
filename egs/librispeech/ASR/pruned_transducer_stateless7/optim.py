@@ -42,7 +42,7 @@ class BatchedOptimizer(Optimizer):
         super(BatchedOptimizer, self).__init__(params, defaults)
 
     @contextlib.contextmanager
-    def batched_params(self, param_group, group_params_names=None):
+    def batched_params(self, param_group, group_params_names):
         """
         This function returns (technically, yields) a list of
           of tuples (p, state), where
@@ -85,7 +85,9 @@ class BatchedOptimizer(Optimizer):
             batches_names[key].append(named_p)
 
         batches_names_keys = list(batches_names.keys())
-        sorted_idx = sorted(range(len(batches_names)), key=lambda i: batches_names_keys[i])
+        sorted_idx = sorted(
+            range(len(batches_names)), key=lambda i: batches_names_keys[i]
+        )
         batches_names = [batches_names[batches_names_keys[idx]] for idx in sorted_idx]
         batches = [batches[batches_names_keys[idx]] for idx in sorted_idx]
 
@@ -174,7 +176,7 @@ class ScaledAdam(BatchedOptimizer):
         size_update_period=4,
         clipping_update_period=100,
         parameters_names=None,
-        show_dominant_parameters=False,
+        show_dominant_parameters=True,
     ):
 
         defaults = dict(
@@ -211,7 +213,7 @@ class ScaledAdam(BatchedOptimizer):
                 loss = closure()
 
         batch = True
-        assert len(self.param_groups)  == len(self.parameters_names)
+        assert len(self.param_groups) == len(self.parameters_names)
 
         for group, group_params_names in zip(self.param_groups, self.parameters_names):
 
@@ -381,42 +383,52 @@ class ScaledAdam(BatchedOptimizer):
             return ans
 
     def _show_gradient_dominating_parameter(self, pairs, tot_sumsq):
-        # ori means calculated with state["param_rms"]
-        # cur means calculated with "param_rms" of current param.
-        # bt is short batch
-        # all_sumsq_ori_rms
-        all_sumsq_ori = {}
-        all_sumsq_cur = {}
+        all_sumsq_orig = {}
         for (p, state, batch_param_names) in pairs:
             # p is a stacked batch parameters.
-            grad = p.grad
+            batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
-                batch_sumsq_ori = grad**2  # sum() to change shape [1] to []
-                batch_sumsq_cur = batch_sumsq_ori  # sum() to change shape [1] to []
+                batch_sumsq_orig = batch_grad**2
                 # Dummpy values used by following `zip` statement.
-                batch_rms_ori = torch.zeros(p.shape[0])
-                batch_rms_cur = batch_rms_ori
+                batch_rms_orig = torch.ones(p.shape[0])
             else:
-                batch_rms_ori = state["param_rms"]
-                batch_sumsq_ori = ((grad * batch_rms_ori) ** 2).sum(dim=list(range(1, grad.ndim)))
+                batch_rms_orig = state["param_rms"]
+                batch_sumsq_orig = ((batch_grad * batch_rms_orig) ** 2).sum(
+                    dim=list(range(1, batch_grad.ndim))
+                )
 
-                batch_rms_cur = (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
-                batch_sumsq_cur = ((grad * batch_rms_cur) ** 2).sum(dim=list(range(1, grad.ndim)))
+            for name, sumsq_orig, rms, grad in zip(
+                batch_param_names, batch_sumsq_orig, batch_rms_orig, batch_grad
+            ):
 
-            for name, sumsq_ori, sumsq_cur in zip(
-                    batch_param_names, batch_sumsq_ori, batch_sumsq_cur):
+                proportion_orig = sumsq_orig / tot_sumsq
+                all_sumsq_orig[name] = (proportion_orig, sumsq_orig, rms, grad)
 
-                proportion_ori = sumsq_ori / tot_sumsq
-                proportion_cur = sumsq_cur / tot_sumsq
-
-                all_sumsq_ori[name] = (proportion_ori, sumsq_ori)
-                all_sumsq_cur[name] = (proportion_cur, sumsq_cur)
-
-        for rms_type, all_sumsq in zip(("ori", "cur"), (all_sumsq_ori, all_sumsq_cur)):
-            sorted_by_proportion = {k: v for k, v in sorted(all_sumsq.items(), key=lambda item: item[1][0], reverse=True)}
-            dominant_param_name = next(iter(sorted_by_proportion))
-            dominant_proportion, dominant_sumsq = sorted_by_proportion[dominant_param_name]
-            logging.info(f"Dominant sumsq with {rms_type}_rms: {dominant_param_name} {dominant_proportion}  {dominant_sumsq} {tot_sumsq}")
+        assert torch.isclose(
+            sum([value[0] for value in all_sumsq_orig.values()]).cpu(),
+            torch.tensor(1.0),
+        )
+        sorted_by_proportion = {
+            k: v
+            for k, v in sorted(
+                all_sumsq_orig.items(), key=lambda item: item[1][0], reverse=True
+            )
+        }
+        dominant_param_name = next(iter(sorted_by_proportion))
+        (
+            dominant_proportion,
+            dominant_sumsq,
+            dominant_rms,
+            dominant_grad,
+        ) = sorted_by_proportion[dominant_param_name]
+        logging.info(
+            f"Parameter Dominanting tot_sumsq {dominant_param_name}"
+            f" with proportion {dominant_proportion:.2f},"
+            f" where dominant_sumsq=(grad_sumsq*orig_rms_sq)"
+            f"={dominant_sumsq:.3e},"
+            f" grad_sumsq = {(dominant_grad**2).sum():.3e},"
+            f" orig_rms_sq={(dominant_rms**2).item():.3e}"
+        )
 
     def _step_one_batch(
         self, group: dict, p: Tensor, state: dict, clipping_scale: float
