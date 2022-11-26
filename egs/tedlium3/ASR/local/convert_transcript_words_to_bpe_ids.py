@@ -25,9 +25,7 @@ import sentencepiece as spm
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--texts", type=List[str], help="The input transcripts list."
-    )
+    parser.add_argument("--texts", type=List[str], help="The input transcripts list.")
     parser.add_argument(
         "--bpe-model",
         type=str,

@@ -26,11 +26,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from scaling import (
-    ActivationBalancer,
-    BasicNorm,
-    Whiten,
-)
+from scaling import ActivationBalancer, BasicNorm, Whiten
 
 
 class NonScaledNorm(nn.Module):

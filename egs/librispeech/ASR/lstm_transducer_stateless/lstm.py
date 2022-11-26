@@ -672,9 +672,7 @@ class RandomCombine(nn.Module):
         self.stddev = stddev
 
         self.final_log_weight = (
-            torch.tensor(
-                (final_weight / (1 - final_weight)) * (self.num_inputs - 1)
-            )
+            torch.tensor((final_weight / (1 - final_weight)) * (self.num_inputs - 1))
             .log()
             .item()
         )
@@ -771,16 +769,14 @@ class RandomCombine(nn.Module):
         # final contains self.num_inputs - 1 in all elements
         final = torch.full((num_frames,), self.num_inputs - 1, device=device)
         # nonfinal contains random integers in [0..num_inputs - 2], these are for non-final weights.  # noqa
-        nonfinal = torch.randint(
-            self.num_inputs - 1, (num_frames,), device=device
-        )
+        nonfinal = torch.randint(self.num_inputs - 1, (num_frames,), device=device)
 
         indexes = torch.where(
             torch.rand(num_frames, device=device) < final_prob, final, nonfinal
         )
-        ans = torch.nn.functional.one_hot(
-            indexes, num_classes=self.num_inputs
-        ).to(dtype=dtype)
+        ans = torch.nn.functional.one_hot(indexes, num_classes=self.num_inputs).to(
+            dtype=dtype
+        )
         return ans
 
     def _get_random_mixed_weights(

@@ -55,9 +55,7 @@ def split_spgispeech_train():
 
     # Add speed perturbation
     train_cuts = (
-        train_cuts
-        + train_cuts.perturb_speed(0.9)
-        + train_cuts.perturb_speed(1.1)
+        train_cuts + train_cuts.perturb_speed(0.9) + train_cuts.perturb_speed(1.1)
     )
 
     # Write the manifests to disk.
@@ -73,9 +71,7 @@ def split_spgispeech_train():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     split_spgispeech_train()

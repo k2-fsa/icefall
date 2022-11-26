@@ -18,10 +18,9 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from scaling import ScaledLinear
 from torch import Tensor
 from torch.nn.init import xavier_normal_
-
-from scaling import ScaledLinear
 
 
 class MultiheadAttention(nn.Module):
@@ -76,9 +75,7 @@ class MultiheadAttention(nn.Module):
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
-        self._qkv_same_embed_dim = (
-            self.kdim == embed_dim and self.vdim == embed_dim
-        )
+        self._qkv_same_embed_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
         self.num_heads = num_heads
         self.dropout = dropout
@@ -94,9 +91,7 @@ class MultiheadAttention(nn.Module):
             self.v_proj_weight = ScaledLinear(self.vdim, embed_dim, bias=bias)
             self.register_parameter("in_proj_weight", None)
         else:
-            self.in_proj_weight = ScaledLinear(
-                embed_dim, 3 * embed_dim, bias=bias
-            )
+            self.in_proj_weight = ScaledLinear(embed_dim, 3 * embed_dim, bias=bias)
             self.register_parameter("q_proj_weight", None)
             self.register_parameter("k_proj_weight", None)
             self.register_parameter("v_proj_weight", None)
@@ -107,12 +102,8 @@ class MultiheadAttention(nn.Module):
         self.out_proj = ScaledLinear(embed_dim, embed_dim, bias=bias)
 
         if add_bias_kv:
-            self.bias_k = nn.Parameter(
-                torch.empty((1, 1, embed_dim), **factory_kwargs)
-            )
-            self.bias_v = nn.Parameter(
-                torch.empty((1, 1, embed_dim), **factory_kwargs)
-            )
+            self.bias_k = nn.Parameter(torch.empty((1, 1, embed_dim), **factory_kwargs))
+            self.bias_v = nn.Parameter(torch.empty((1, 1, embed_dim), **factory_kwargs))
         else:
             self.bias_k = self.bias_v = None
 
