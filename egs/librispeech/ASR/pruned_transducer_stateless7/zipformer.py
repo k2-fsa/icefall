@@ -343,9 +343,9 @@ def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
                           default=x)
 
 def _aux_grad_scale() -> float:
-    return 0.2
+    return 0.1
 def _aux_grad_prob() -> ScheduledFloat:
-    return ScheduledFloat((0.0, 0.25), (1000.0, 0.0125))
+    return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
 
 class ZipformerEncoderLayer(nn.Module):
     """
