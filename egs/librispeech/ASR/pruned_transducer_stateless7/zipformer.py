@@ -343,7 +343,7 @@ def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
                           default=x)
 
 def _aux_grad_scale() -> float:
-    return 0.1
+    return 0.05
 def _aux_grad_prob() -> ScheduledFloat:
     return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
 
