@@ -421,7 +421,7 @@ class LinearWithAuxLossFunction(torch.autograd.Function):
                 # recompute y as we need the gradient; this is easier to implement than
                 # saving y in the context.
                 y = torch.matmul(x, weight.t())
-                z = alpha * torch.matmul(y, weight)
+                z = alpha.exp() * torch.matmul(y, weight)
                 diff = x - z
                 dims_to_mean = tuple(range(x.ndim-1))
                 mean = diff.mean(dim=dims_to_mean)
@@ -452,7 +452,7 @@ class LinearWithAuxLoss(nn.Module):
       Suppose the input is x, and this layer computes:
           y = M x
      (the bias is applied separately), then we define:
-          z = alpha * M^T y
+          z = exp(alpha) * M^T y
       where alpha is learnable; and the auxiliary loss will be:
          aux_loss = normalize_mean(z - x)^2.
       (normalize_mean refers to subtracting the average value per channel,
@@ -485,7 +485,7 @@ class LinearWithAuxLoss(nn.Module):
                                      0.01 * initial_scale)
         else:
             self.register_parameter('bias', None)
-        self.alpha = nn.Parameter(torch.tensor(1.0))
+        self.alpha = nn.Parameter(torch.tensor(0.0))
 
 
     def forward(self,
