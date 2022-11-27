@@ -893,7 +893,7 @@ class LimitParamValue(torch.autograd.Function):
 
 def limit_param_value(x: Tensor,
                       min: float, max: float,
-                      prob: float = 0.2):
+                      prob: float = 0.6):
     # You apply this to (typically) an nn.Parameter during training to ensure that its
     # (elements mostly) stays within a supplied range.  This is done by modifying the
     # gradients in backprop.
