@@ -432,6 +432,75 @@ def decode_one_batch(
         assert bpe_model is not None
         decoding_graph = H
 
+    if params.decoding_method in ["1best", "nbest", "nbest-oracle"]:
+        hlg_scale_list = [0.2, 0.4, 0.6, 0.8, 1.0]
+
+        ori_scores = decoding_graph.scores.clone()
+
+        ans = {}
+        for hlg_scale in hlg_scale_list:
+            decoding_graph.scores = ori_scores * hlg_scale
+            lattice = get_lattice(
+                nnet_output=nnet_output,
+                decoding_graph=decoding_graph,
+                supervision_segments=supervision_segments,
+                search_beam=params.search_beam,
+                output_beam=params.output_beam,
+                min_active_states=params.min_active_states,
+                max_active_states=params.max_active_states,
+                subsampling_factor=params.subsampling_factor,
+            )
+            key_suffix = f"-HLG-scale-{hlg_scale}"
+
+            if params.decoding_method == "nbest-oracle":
+                # Note: You can also pass rescored lattices to it.
+                # We choose the HLG decoded lattice for speed reasons
+                # as HLG decoding is faster and the oracle WER
+                # is only slightly worse than that of rescored lattices.
+                best_path = nbest_oracle(
+                    lattice=lattice,
+                    num_paths=params.num_paths,
+                    ref_texts=supervisions["text"],
+                    word_table=word_table,
+                    nbest_scale=params.nbest_scale,
+                    oov="<UNK>",
+                )
+                hyps = get_texts(best_path)
+                hyps = [[word_table[i] for i in ids] for ids in hyps]
+                key = f"oracle-{params.num_paths}-nbest-scale-{params.nbest_scale}"  # noqa
+                timestamps = [[] for _ in range(len(hyps))]
+                ans[key + key_suffix] = (hyps, timestamps)
+
+            elif params.decoding_method in ["1best", "nbest"]:
+                if params.decoding_method == "1best":
+                    best_path = one_best_decoding(
+                        lattice=lattice,
+                        use_double_scores=params.use_double_scores,
+                    )
+                    key = "no-rescore"
+                    res = get_texts_with_timestamp(best_path)
+                    hyps, timestamps = parse_hyp_and_timestamp(
+                        res=res,
+                        subsampling_factor=params.subsampling_factor,
+                        frame_shift_ms=params.frame_shift_ms,
+                        word_table=word_table,
+                    )
+                else:
+                    best_path = nbest_decoding(
+                        lattice=lattice,
+                        num_paths=params.num_paths,
+                        use_double_scores=params.use_double_scores,
+                        nbest_scale=params.nbest_scale,
+                    )
+                    key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
+                    hyps = get_texts(best_path)
+                    hyps = [[word_table[i] for i in ids] for ids in hyps]
+                    timestamps = [[] for _ in range(len(hyps))]
+
+                ans[key + key_suffix] = (hyps, timestamps)
+
+        return ans
+
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=decoding_graph,
@@ -459,52 +528,6 @@ def decode_one_batch(
             frame_shift_ms=params.frame_shift_ms,
         )
         key = "ctc-decoding"
-        return {key: (hyps, timestamps)}
-
-    if params.decoding_method == "nbest-oracle":
-        # Note: You can also pass rescored lattices to it.
-        # We choose the HLG decoded lattice for speed reasons
-        # as HLG decoding is faster and the oracle WER
-        # is only slightly worse than that of rescored lattices.
-        best_path = nbest_oracle(
-            lattice=lattice,
-            num_paths=params.num_paths,
-            ref_texts=supervisions["text"],
-            word_table=word_table,
-            nbest_scale=params.nbest_scale,
-            oov="<UNK>",
-        )
-        hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
-        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
-        timestamps = [[] for _ in range(len(hyps))]
-        return {key: (hyps, timestamps)}
-
-    if params.decoding_method in ["1best", "nbest"]:
-        if params.decoding_method == "1best":
-            best_path = one_best_decoding(
-                lattice=lattice, use_double_scores=params.use_double_scores
-            )
-            key = "no_rescore"
-            res = get_texts_with_timestamp(best_path)
-            hyps, timestamps = parse_hyp_and_timestamp(
-                res=res,
-                subsampling_factor=params.subsampling_factor,
-                frame_shift_ms=params.frame_shift_ms,
-                word_table=word_table,
-            )
-        else:
-            best_path = nbest_decoding(
-                lattice=lattice,
-                num_paths=params.num_paths,
-                use_double_scores=params.use_double_scores,
-                nbest_scale=params.nbest_scale,
-            )
-            key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
-            hyps = get_texts(best_path)
-            hyps = [[word_table[i] for i in ids] for ids in hyps]
-            timestamps = [[] for _ in range(len(hyps))]
-
         return {key: (hyps, timestamps)}
 
     assert params.decoding_method in [

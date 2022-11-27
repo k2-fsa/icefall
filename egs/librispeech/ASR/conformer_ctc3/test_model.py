@@ -23,6 +23,8 @@ To run this file, do:
     python ./conformer_ctc3/test_model.py
 """
 
+import torch
+
 from train import get_params, get_ctc_model
 
 
@@ -43,6 +45,10 @@ def test_model():
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
 
+    features = torch.randn(2, 100, 80)
+    feature_lengths = torch.full((2,), 100)
+    model(x=features, x_lens=feature_lengths)
+
 
 def test_model_streaming():
     params = get_params()
@@ -60,6 +66,11 @@ def test_model_streaming():
 
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
+
+    features = torch.randn(2, 100, 80)
+    feature_lengths = torch.full((2,), 100)
+    encoder_out, _ = model.encoder(x=features, x_lens=feature_lengths)
+    model.get_ctc_output(encoder_out)
 
 
 def main():

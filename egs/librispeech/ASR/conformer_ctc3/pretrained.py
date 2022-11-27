@@ -19,17 +19,13 @@
 
 
 """
-Usage (take streaming mode as an example):
+Usage (for non-streaming mode):
 
 (1) ctc-decoding
 ./conformer_ctc3/pretrained.py \
   --checkpoint conformer_ctc3/exp/pretrained.pt \
   --bpe-model data/lang_bpe_500/bpe.model \
   --method ctc-decoding \
-  --simulate-streaming 1 \
-  --causal-convolution 1 \
-  --decode-chunk-size 8 \
-  --left-context 32 \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
 
@@ -39,10 +35,6 @@ Usage (take streaming mode as an example):
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --method 1best \
-  --simulate-streaming 1 \
-  --causal-convolution 1 \
-  --decode-chunk-size 8 \
-  --left-context 32 \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
 
@@ -53,10 +45,6 @@ Usage (take streaming mode as an example):
   --words-file data/lang_bpe_500/words.txt  \
   --G data/my_lm/G_4_gram.pt \
   --method nbest-rescoring \
-  --simulate-streaming 1 \
-  --causal-convolution 1 \
-  --decode-chunk-size 8 \
-  --left-context 32 \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
 
@@ -67,10 +55,6 @@ Usage (take streaming mode as an example):
   --words-file data/lang_bpe_500/words.txt  \
   --G data/my_lm/G_4_gram.pt \
   --method whole-lattice-rescoring \
-  --simulate-streaming 1 \
-  --causal-convolution 1 \
-  --decode-chunk-size 8 \
-  --left-context 32 \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
 """

@@ -78,7 +78,7 @@ from icefall.decode import (
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
-from icefall.utils import get_texts, str2bool
+from icefall.utils import get_texts
 
 from train import add_model_arguments, get_params
 from decode import get_decoding_params
@@ -197,29 +197,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--simulate-streaming",
-        type=str2bool,
-        default=False,
-        help="""Whether to simulate streaming in decoding, this is a good way to
-        test a streaming model.
-        """,
-    )
-
-    parser.add_argument(
-        "--decode-chunk-size",
-        type=int,
-        default=16,
-        help="The chunk size for decoding (in frames after subsampling)",
-    )
-
-    parser.add_argument(
-        "--left-context",
-        type=int,
-        default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
-    )
-
-    parser.add_argument(
         "--sample-rate",
         type=int,
         default=16000,
@@ -274,11 +251,6 @@ def main():
     params.update(get_decoding_params())
     params.update(vars(args))
     params.vocab_size = params.num_classes
-
-    if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
 
     logging.info(f"{params}")
 
