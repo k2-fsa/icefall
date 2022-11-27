@@ -1298,19 +1298,15 @@ class AttentionSqueeze(nn.Module):
                                                     bottleneck_dim)
 
 
-        # the main reason for this balancer is to keep the bottleneck activations in a "reasonable"
-        # dynamic range, to avoid parameter-size 'drift' where to_bottleneck_proj gets large and from_bottleneck_proj
-        # gets small or vice versa.
-        # Caution: this cannot work correctly with an extremeley small batch size, e.g. if
-        # we were training with a single very long audio sequence, or just 2 or 3 sequences
-        # at a time.  We make max_factor small to reduce the harm this could cause
-        # (although when the grads get back past the averaging operation they would
-        # be quite small and would probably not hurt the rest of the model much.)
+        # bottleneck_balancer is before the actiation.  Mostly, for well-trained
+        # instances of this module, the mean absolute values per channel are in
+        # the range 0.1 to 0.4.  We apply the upper limit of 0.4 at the
+        # beginning, and make it looser over time.
         self.bottleneck_balancer = ActivationBalancer(
             bottleneck_dim, channel_dim=-1,
             min_positive=0.05, max_positive=0.95,
             min_abs=0.05,
-            max_abs=10.0,
+            max_abs=ScheduledFloat((0.0, 0.4), (20000.0, 5.0)),
             max_factor=0.02,
             min_prob=0.1,
         )
@@ -1441,7 +1437,7 @@ class NonlinAttentionModule(nn.Module):
             channels // 2, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            min_abs=0.2,
+            min_abs=1.5,
             max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
         )
         self.sigmoid = nn.Sigmoid()
@@ -1536,6 +1532,7 @@ class ConvolutionModule(nn.Module):
             2 * channels, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
+            min_abs=1.5,
             max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
         )
 
@@ -1556,7 +1553,7 @@ class ConvolutionModule(nn.Module):
             channels, channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 20.0), default=10),
+            max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=10),
         )
 
         self.activation = DoubleSwish()
