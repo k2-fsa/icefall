@@ -604,7 +604,7 @@ class ActivationBalancer(torch.nn.Module):
             min_positive: FloatLike = 0.05,
             max_positive: FloatLike = 0.95,
             max_factor: FloatLike = 0.04,
-            sign_gain_factor: FloatLike = 1.0,
+            sign_gain_factor: FloatLike = 0.04,
             scale_gain_factor: FloatLike = 0.02,
             min_abs: FloatLike = 0.2,
             max_abs: FloatLike = 100.0,
