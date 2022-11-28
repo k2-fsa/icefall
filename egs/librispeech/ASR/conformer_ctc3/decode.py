@@ -76,8 +76,15 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
+from train import add_model_arguments, get_ctc_model, get_params
 
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
+from icefall.checkpoint import (
+    average_checkpoints,
+    average_checkpoints_with_averaged_model,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -85,15 +92,6 @@ from icefall.decode import (
     one_best_decoding,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
-)
-
-from train import add_model_arguments, get_params, get_ctc_model
-
-from icefall.checkpoint import (
-    average_checkpoints,
-    average_checkpoints_with_averaged_model,
-    find_checkpoints,
-    load_checkpoint,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -583,9 +581,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[
-    str, List[Tuple[str, List[str], List[str], List[float], List[float]]]
-]:
+) -> Dict[str, List[Tuple[str, List[str], List[str], List[float], List[float]]]]:
     """Decode dataset.
 
     Args:
@@ -664,9 +660,7 @@ def decode_dataset(
                 cut_ids, hyps, texts, timestamps_hyp, timestamps_ref
             ):
                 ref_words = ref_text.split()
-                this_batch.append(
-                    (cut_id, ref_words, hyp_words, time_ref, time_hyp)
-                )
+                this_batch.append((cut_id, ref_words, hyp_words, time_ref, time_hyp))
 
             results[name].extend(this_batch)
 
@@ -675,9 +669,7 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -715,8 +707,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -743,9 +734,7 @@ def save_results(
         note = ""
     logging.info(s)
 
-    s = "\nFor {}, symbol-delay of different settings are:\n".format(
-        test_set_name
-    )
+    s = "\nFor {}, symbol-delay of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_delays:
         s += "{}\tmean: {}s, variance: {}{}\n".format(key, val[0], val[1], note)
@@ -894,9 +883,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -923,9 +912,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"

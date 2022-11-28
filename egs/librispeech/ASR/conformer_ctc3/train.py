@@ -58,12 +58,12 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 import argparse
 import copy
-import k2
 import logging
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
+import k2
 import optim
 import torch
 import torch.multiprocessing as mp
@@ -88,10 +88,10 @@ from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
-from icefall.graph_compiler import CtcTrainingGraphCompiler
-from icefall.lexicon import Lexicon
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.graph_compiler import CtcTrainingGraphCompiler
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
@@ -100,9 +100,7 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -541,9 +539,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[
-        BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler
-    ],
+    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -570,11 +566,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -607,9 +599,7 @@ def compute_loss(
         # Works with a phone lexicon
         decoding_graph = graph_compiler.compile(texts)
     else:
-        raise ValueError(
-            f"Unsupported type of graph compiler: {type(graph_compiler)}"
-        )
+        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -665,9 +655,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[
-        BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler
-    ],
+    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -703,9 +691,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: Union[
-        BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler
-    ],
+    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -830,9 +816,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -1066,9 +1050,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: Union[
-        BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler
-    ],
+    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
     params: AttributeDict,
     warmup: float,
 ):

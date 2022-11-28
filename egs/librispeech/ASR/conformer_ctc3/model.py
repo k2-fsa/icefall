@@ -18,11 +18,12 @@
 
 
 import math
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
-from typing import Tuple
 
 
 class CTCModel(nn.Module):
@@ -82,9 +83,7 @@ class CTCModel(nn.Module):
         log_prob = nn.functional.log_softmax(output, dim=-1)
 
         if self.training and delay_penalty > 0:
-            T_arange = torch.arange(encoder_out.shape[1]).to(
-                device=encoder_out.device
-            )
+            T_arange = torch.arange(encoder_out.shape[1]).to(device=encoder_out.device)
             # split into sub-utterances using the blank-id
             mask = log_prob[:, :, 0] >= math.log(blank_threshold)  # (B, T)
             mask[:, 0] = True
@@ -119,7 +118,5 @@ class CTCModel(nn.Module):
         """
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(encoder_out_lens > 0)
-        nnet_output = self.get_ctc_output(
-            encoder_out, delay_penalty=delay_penalty
-        )
+        nnet_output = self.get_ctc_output(encoder_out, delay_penalty=delay_penalty)
         return nnet_output, encoder_out_lens
