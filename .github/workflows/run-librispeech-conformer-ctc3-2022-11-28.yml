@@ -143,10 +143,6 @@ jobs:
           find exp/1best -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/1best -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
-          echo "===nbest==="
-          find exp/nbest -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/nbest -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
-
       - name: Upload decoding results for librispeech conformer_ctc3
         uses: actions/upload-artifact@v2
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'

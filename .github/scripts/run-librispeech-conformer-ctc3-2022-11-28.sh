@@ -32,7 +32,7 @@ popd
 
 log "Decode with models exported by torch.jit.trace()"
 
-for m in ctc-decoding 1best nbest; do
+for m in ctc-decoding 1best; do
   ./conformer_ctc3/jit_pretrained.py \
     --model-filename $repo/exp/jit_trace.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
@@ -60,7 +60,7 @@ ls -lh $repo/exp/*.pt
 
 log "Decode with models exported by torch.jit.trace()"
 
-for m in ctc-decoding 1best nbest; do
+for m in ctc-decoding 1best; do
   ./conformer_ctc3/jit_pretrained.py \
     --model-filename $repo/exp/jit_trace.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
@@ -74,7 +74,7 @@ for m in ctc-decoding 1best nbest; do
     $repo/test_wavs/1221-135766-0002.wav
 done
 
-for m in ctc-decoding 1best nbest; do
+for m in ctc-decoding 1best; do
   ./conformer_ctc3/pretrained.py \
     --checkpoint $repo/exp/pretrained.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
@@ -103,7 +103,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   # use a small value for decoding with CPU
   max_duration=100
 
-  for method in ctc-decoding 1best nbest; do
+  for method in ctc-decoding 1best; do
     log "Decoding with $method"
     ./conformer_ctc3/decode.py \
       --epoch 999 \
