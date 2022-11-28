@@ -1307,7 +1307,7 @@ class AttentionSqueeze(nn.Module):
             bottleneck_dim, channel_dim=-1,
             min_positive=0.05, max_positive=0.95,
             min_abs=0.05,
-            max_abs=ScheduledFloat((0.0, 0.4), (20000.0, 5.0), default=1.0),
+            max_abs=ScheduledFloat((0.0, 0.5), (4000.0, 1.0), default=1.0),
             max_factor=0.02,
             min_prob=0.1,
         )
