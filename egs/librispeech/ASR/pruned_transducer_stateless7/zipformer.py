@@ -1393,7 +1393,7 @@ class FeedforwardModule(nn.Module):
         self.hidden_balancer = ActivationBalancer(feedforward_dim,
                                                   channel_dim=-1,
                                                   min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
-                                                  min_abs=1.0,
+                                                  min_abs=1.5,
                                                   max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=10),
                                                   min_prob=0.25)
         self.activation = DoubleSwish()
