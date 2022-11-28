@@ -70,7 +70,9 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
+from decode import get_decoding_params
 from torch.nn.utils.rnn import pad_sequence
+from train import add_model_arguments, get_ctc_model, get_params
 
 from icefall.decode import (
     get_lattice,
@@ -79,9 +81,6 @@ from icefall.decode import (
     rescore_with_whole_lattice,
 )
 from icefall.utils import get_texts, str2bool
-
-from train import add_model_arguments, get_params, get_ctc_model
-from decode import get_decoding_params
 
 
 def get_parser():
@@ -259,8 +258,7 @@ def read_sound_files(
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
         assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
+            f"expected sample rate: {expected_sample_rate}. " f"Given: {sample_rate}"
         )
         # We use only the first channel
         ans.append(wave[0])
@@ -321,9 +319,7 @@ def main():
     features = fbank(waves)
     feature_lengths = [f.size(0) for f in features]
 
-    features = pad_sequence(
-        features, batch_first=True, padding_value=math.log(1e-10)
-    )
+    features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
     # model forward
@@ -456,9 +452,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()
