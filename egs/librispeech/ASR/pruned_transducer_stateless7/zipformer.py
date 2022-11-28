@@ -1314,11 +1314,11 @@ class AttentionSqueeze(nn.Module):
         self.bottleneck_activation = TanSwish()   # in bottleneck
         self.activation = Identity() # for diagnostics
 
-        # the next two balancers are only to stop parameter-magnitude 'drift': we have
-        # too many degrees of freedom for the scales of the various activations.
-        # Make them run with very low probability, since only a small application of
-        # these balancers should be enough to stop such "drift"; and, for speed,
-        # put no limitation on the signs (so: min_positive=0, max_positive=1).
+        # the reason for the min_abs and max_abs limits on the next two
+        # balancers are only to stop parameter-magnitude 'drift': we have too
+        # many degrees of freedom for the scales of the various activations.
+        # Make them run with very low probability, since only a small
+        # application of these balancers should be enough to stop such "drift".
         self.scale_balancer = ActivationBalancer(
             embed_dim, channel_dim=-1,
             min_positive=0.2, max_positive=0.8,
