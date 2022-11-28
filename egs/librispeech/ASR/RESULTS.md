@@ -1,5 +1,106 @@
 ## Results
 
+### LibriSpeech BPE training results (Conformer CTC, supporting delay penalty)
+
+#### [conformer_ctc3](./conformer_ctc3)
+
+It implements Conformer model training with CTC loss.
+For streaming mode, it supports symbol delay penalty.
+
+See <https://github.com/k2-fsa/icefall/pull/669> for more details.
+
+##### training on full librispeech
+
+This model contains 12 encoder layers. The number of model parameters is 77352694.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment              |
+|-------------------------------------|------------|------------|----------------------|
+| ctc-decoding                        | 3.09       | 7.62       | --epoch 25 --avg 7   |
+| 1best                               | 2.87       | 6.44       | --epoch 25 --avg 7   |
+| nbest                               | 2.88       | 6.5        | --epoch 25 --avg 7   |
+| nbest-rescoring                     | 2.71       | 6.1        | --epoch 25 --avg 7   |
+| whole-lattice-rescoring             | 2.71       | 6.04       | --epoch 25 --avg 7   |
+
+The training command is:
+
+```bash
+./conformer_ctc3/train.py \
+  --world-size 4 \
+  --num-epochs 25 \
+  --start-epoch 1 \
+  --exp-dir conformer_ctc3/full \
+  --full-libri 1 \
+  --max-duration 300 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/4jbxIQ2SQIaQeRqsR6bOSA>
+
+The decoding command using different methods is:
+```bash
+for method in ctc-decoding 1best nbest nbest-rescoring whole-lattice-rescoring; do
+  ./conformer_ctc3/decode.py \
+    --epoch 25 \
+    --avg 7 \
+    --exp-dir conformer_ctc3/exp \
+    --max-duration 300 \
+    --decoding-method $method \
+    --manifest-dir data/fbank \
+    --lm-dir data/lm \
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-conformer-ctc3-2022-11-27>
+
+The command to train a streaming model with symbol delay penalty is:
+```bash
+./conformer_ctc3/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir conformer_ctc3/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 25 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --delay-penalty 0.1
+```
+To evaluate symbol delay, you should:
+(1) Generate cuts with word-time alignments:
+```bash
+./local/add_alignment_librispeech.py \
+  --alignments-dir data/alignment \
+  --cuts-in-dir data/fbank \
+  --cuts-out-dir data/fbank_ali
+```
+(2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
+For example:
+```bash
+./conformer_ctc3/decode.py \
+  --epoch 25 \
+  --avg 7 \
+  --exp-dir ./conformer_ctc3/exp \
+  --max-duration 300 \
+  --decoding-method ctc-decoding \
+  --simulate-streaming 1 \
+  --causal-convolution 1 \
+  --decode-chunk-size 16 \
+  --left-context 64 \
+  --manifest-dir data/fbank_ali
+```
+Note: It supports to calculate symbol delay with following decoding methods:
+  - ctc-greedy-search
+  - ctc-decoding
+  - 1best
+
+
 ### pruned_transducer_stateless8 (zipformer + multidataset)
 
 See <https://github.com/k2-fsa/icefall/pull/675> for more details.
@@ -113,7 +214,6 @@ for m in greedy_search fast_beam_search modified_beam_search ; do
   done
 done
 ```
-
 
 
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)

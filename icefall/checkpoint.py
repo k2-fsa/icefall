@@ -298,7 +298,7 @@ def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
         if not result:
             logging.warn(f"Invalid checkpoint filename {c}")
             continue
-        
+
         iter_checkpoints.append((int(result.group(1)), c))
 
     # iter_checkpoints is a list of tuples. Each tuple contains
