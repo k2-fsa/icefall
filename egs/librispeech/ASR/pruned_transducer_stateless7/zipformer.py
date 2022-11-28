@@ -1459,18 +1459,19 @@ class NonlinAttentionModule(nn.Module):
     """
 
     def __init__(
-        self, channels: int,
+            self, channels: int, ratio: int = 8,
     ) -> None:
         super().__init__()
 
-        self.in_proj = nn.Linear(channels, channels + channels // 2, bias=True)
+        assert channels % ratio == 0
+        self.in_proj = nn.Linear(channels, channels + channels // ratio, bias=True)
 
         # balancer that goes before the sigmoid.  Have quite a large min_abs value, at 2.0,
         # because we noticed that well-trained instances of this module have abs-value before the sigmoid
         # starting from about 3, and poorly-trained instances of the module have smaller abs values
         # before the sigmoid.
         self.balancer = ActivationBalancer(
-            channels // 2, channel_dim=-1,
+            channels // ratio, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
             min_abs=2.0,
@@ -1512,7 +1513,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         s = self.balancer(s)
         s = self.sigmoid(s)
 
-        s = s.unsqueeze(-1).expand(-1, -1, -1, 2).reshape(seq_len, batch_size, num_channels)
+        s = s.unsqueeze(-1).expand(-1, -1, -1, ratio).reshape(seq_len, batch_size, num_channels)
 
         x = x * s
 
