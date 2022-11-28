@@ -52,8 +52,12 @@ For example:
     --exp-dir ./conformer_ctc3/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding \
+    --simulate-streaming 1 \
+    --causal-convolution 1 \
+    --decode-chunk-size 16 \
+    --left-context 64 \
     --manifest-dir data/fbank_ali
-Note: It supports to calculate symbol delay with following decoding methods:
+Note: It supports calculating symbol delay with following decoding methods:
     - ctc-greedy-search
     - ctc-decoding
     - 1best

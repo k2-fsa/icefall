@@ -52,8 +52,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --causal-convolution 1 \
   --short-chunk-size 25 \
   --num-left-chunks 4 \
-  --max-duration 300
-
+  --max-duration 300 \
+  --delay-penalty 0.0
 """
 
 import argparse

@@ -43,7 +43,7 @@ Usage (for non-streaming mode):
   --checkpoint conformer_ctc3/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
-  --G data/my_lm/G_4_gram.pt \
+  --G data/lm/G_4_gram.pt \
   --method nbest-rescoring \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
@@ -53,7 +53,7 @@ Usage (for non-streaming mode):
   --checkpoint conformer_ctc3/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
-  --G data/my_lm/G_4_gram.pt \
+  --G data/lm/G_4_gram.pt \
   --method whole-lattice-rescoring \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
