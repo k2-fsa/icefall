@@ -134,6 +134,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--attention-share-layers",
+        type=str,
+        default="2",
+        help="Number of layers that share attention weights within each zipformer stack: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
         "--encoder-dim",
         type=str,
         default="384",
@@ -488,6 +495,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         value_head_dim=to_int_tuple(params.value_head_dim),
         pos_dim=params.pos_dim,
         num_heads=to_int_tuple(params.num_heads),
+        attention_share_layers=to_int_tuple(params.attention_share_layers),
         feedforward_dim=to_int_tuple(params.feedforward_dim),
         cnn_module_kernel=to_int_tuple(params.cnn_module_kernel),
         dropout=0.1,
