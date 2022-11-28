@@ -1463,6 +1463,7 @@ class NonlinAttentionModule(nn.Module):
     ) -> None:
         super().__init__()
 
+        self.ratio = ratio
         assert channels % ratio == 0
         self.in_proj = nn.Linear(channels, channels + channels // ratio, bias=True)
 
@@ -1513,7 +1514,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         s = self.balancer(s)
         s = self.sigmoid(s)
 
-        s = s.unsqueeze(-1).expand(-1, -1, -1, ratio).reshape(seq_len, batch_size, num_channels)
+        s = s.unsqueeze(-1).expand(-1, -1, -1, self.ratio).reshape(seq_len, batch_size, num_channels)
 
         x = x * s
 
