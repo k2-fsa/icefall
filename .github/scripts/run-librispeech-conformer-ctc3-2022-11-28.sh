@@ -112,7 +112,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --exp-dir conformer_ctc3/exp/ \
       --max-duration $max_duration \
       --decoding-method $method \
-      --lm-dir data/lm \
+      --lm-dir data/lm
   done
 
   rm conformer_ctc3/exp/*.pt
