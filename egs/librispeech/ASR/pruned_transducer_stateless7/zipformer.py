@@ -1433,12 +1433,15 @@ class NonlinAttentionModule(nn.Module):
 
         self.in_proj = nn.Linear(channels, channels, bias=True)
 
-        # balancer that goes before the sigmoid.
+        # balancer that goes before the sigmoid.  Have quite a large min_abs value, at 2.0,
+        # because we noticed that well-trained instances of this module have abs-value before the sigmoid
+        # starting from about 3, and poorly-trained instances of the module have smaller abs values
+        # before the sigmoid.
         self.balancer = ActivationBalancer(
             channels // 2, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            min_abs=1.5,
+            min_abs=2.0,
             max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
         )
         self.sigmoid = nn.Sigmoid()
