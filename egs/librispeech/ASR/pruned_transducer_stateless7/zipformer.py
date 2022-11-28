@@ -352,8 +352,9 @@ def _aux_grad_scale() -> float:
 def _aux_grad_prob_out() -> ScheduledFloat:
     return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
 def _aux_grad_prob_in() -> ScheduledFloat:
-    return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
-#return ScheduledFloat((0.0, 0.25), (1000.0, 0.0))
+    return ScheduledFloat((0.0, 0.25), (1000.0, 0.0))
+    #return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
+
 
 
 class ZipformerEncoderLayer(nn.Module):
