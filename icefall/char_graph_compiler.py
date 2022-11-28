@@ -71,9 +71,7 @@ class CharCtcTrainingGraphCompiler(object):
         for text in texts:
             text = re.sub(whitespace, "", text)
             sub_ids = [
-                self.token_table[txt]
-                if txt in self.token_table
-                else self.oov_id
+                self.token_table[txt] if txt in self.token_table else self.oov_id
                 for txt in text
             ]
             ids.append(sub_ids)
@@ -96,9 +94,7 @@ class CharCtcTrainingGraphCompiler(object):
         for text in texts:
             text = text.split("/")
             sub_ids = [
-                self.token_table[txt]
-                if txt in self.token_table
-                else self.oov_id
+                self.token_table[txt] if txt in self.token_table else self.oov_id
                 for txt in text
             ]
             ids.append(sub_ids)

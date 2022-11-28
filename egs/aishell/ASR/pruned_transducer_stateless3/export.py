@@ -132,8 +132,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=1,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     add_model_arguments(parser)
@@ -166,9 +165,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -195,9 +194,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -252,9 +251,7 @@ def main():
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
-        filename = (
-            params.exp_dir / f"cpu_jit-epoch-{params.epoch}-avg-{params.avg}.pt"
-        )
+        filename = params.exp_dir / f"cpu_jit-epoch-{params.epoch}-avg-{params.avg}.pt"
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
@@ -262,17 +259,14 @@ def main():
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = (
-            params.exp_dir
-            / f"pretrained-epoch-{params.epoch}-avg-{params.avg}.pt"
+            params.exp_dir / f"pretrained-epoch-{params.epoch}-avg-{params.avg}.pt"
         )
         torch.save({"model": model.state_dict()}, str(filename))
         logging.info(f"Saved to {filename}")
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()
