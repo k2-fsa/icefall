@@ -1720,7 +1720,7 @@ class Conv2dSubsampling(nn.Module):
 
         self.scale = nn.Parameter(torch.ones(out_height * layer3_channels))
         self.scale_max = 1.0
-        self.scale_min = ScheduledFloat((0.0, 0.9), (4000.0, 0.01))
+        self.scale_min = ScheduledFloat((0.0, 0.9), (4000.0, 0.2))
 
         self.out = LinearWithAuxLoss(out_height * layer3_channels, out_channels,
                                      aux_grad_scale=_aux_grad_scale(), prob=_aux_grad_prob_out())
