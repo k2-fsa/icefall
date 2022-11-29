@@ -130,7 +130,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--lstm-hidden-size",
         type=int,
-        default=640,
+        default=1024,
         help="Hidden dim for LSTM layers.",
     )
 
@@ -144,7 +144,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--lstm-dim-feedforward",
         type=int,
-        default=1024,
+        default=2048,
         help="Dim feedforward for LSTM layers.",
     )
 

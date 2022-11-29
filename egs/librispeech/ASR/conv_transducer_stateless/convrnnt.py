@@ -42,8 +42,8 @@ class ConvRNNT(EncoderInterface):
         d_model: int = 512,
         num_global_cnn_encoder_layers: int = 6,
         num_lstm_encoder_layers: int = 7,
-        lstm_hidden_size: int = 640,
-        lstm_dim_feedforward: int = 1024,
+        lstm_hidden_size: int = 1024,
+        lstm_dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
@@ -80,6 +80,15 @@ class ConvRNNT(EncoderInterface):
             dropout=dropout,
             layer_dropout=layer_dropout,
             dim_feedforward=lstm_dim_feedforward,
+            aux_layers=list(
+                range(
+                    num_lstm_encoder_layers // 3,
+                    num_lstm_encoder_layers - 1,
+                    aux_layer_period,
+                )
+            )
+            if aux_layer_period > 0
+            else None,
         )
 
     def forward(
@@ -132,7 +141,6 @@ class ConvRNNT(EncoderInterface):
         x = self.global_cnn_encoder(
             src_x,
             src_key_padding_mask=src_key_padding_mask,
-            warmup=warmup,
         )  # (T, N, C)
 
         x = self.transform(torch.cat((src_x, x), dim=2))
@@ -321,7 +329,6 @@ class GlobalCNNEncoder(nn.Module):
         self,
         src: torch.Tensor,
         src_key_padding_mask: Optional[torch.Tensor] = None,
-        warmup: float = 1.0,
     ) -> torch.Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -343,7 +350,6 @@ class GlobalCNNEncoder(nn.Module):
             src = mod(
                 src,
                 src_key_padding_mask=src_key_padding_mask,
-                warmup=warmup,
             )
 
         return src
@@ -496,7 +502,7 @@ class LocalCNNEncoder(nn.Module):
         x = self.deriv_balancer4(x)
         x = self.activation(x)
 
-        # out
+        # Out
         # (N, 64, C, T) -> (N, 1, C, T) -> (N, C, T)
         x = self.out(x)
         x = x.squeeze(1).permute(2, 0, 1)
@@ -567,7 +573,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         channels: int,
         block_number: int,
         dropout: float = 0.1,
-        layer_dropout: float = 0.075,
         bias: bool = True,
         causal: bool = True,
     ) -> None:
@@ -575,7 +580,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         super().__init__()
 
         self.causal = causal
-        self.layer_dropout = layer_dropout
         self.block_number = block_number
 
         self.pointwise_conv1 = ScaledConv1d(
@@ -637,15 +641,12 @@ class GlobalCNNEncoderLayer(nn.Module):
         self,
         x: torch.Tensor,
         src_key_padding_mask: Optional[torch.Tensor] = None,
-        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute convolution module.
 
         Args:
             x: Input tensor (#time, batch, channels).
             src_key_padding_mask: the mask for src keys per batch (optional)
-            warmup: controls selective bypass of of layers; if < 1.0, we will
-              bypass layers more frequently.
 
         Returns:
             torch.Tensor: Output tensor (#time, batch, channels).
@@ -653,18 +654,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         # exchange the temporal dimension and the feature dimension
         x = x.permute(1, 2, 0)  # (#batch, channels, time)
         src = x
-
-        warmup_scale = min(0.1 + warmup, 1.0)
-        # alpha = 1.0 means fully use this encoder layer, 0.0 would mean
-        # completely bypass it.
-        if self.training:
-            alpha = (
-                warmup_scale
-                if torch.rand(()).item() <= (1.0 - self.layer_dropout)
-                else 0.1
-            )
-        else:
-            alpha = 1.0
 
         # GLU mechanism
         x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
@@ -698,9 +687,6 @@ class GlobalCNNEncoderLayer(nn.Module):
         x = self.pointwise_conv2(x)  # (batch, channel, time)
         x = self.SE(x, src_key_padding_mask)
         x = self.dropout(x) + src
-
-        if alpha != 1.0:
-            x = alpha * x + (1 - alpha) * src
 
         return x.permute(2, 0, 1)  # (N, C, T) -> (T, N, C)
 
@@ -786,12 +772,13 @@ class LstmEncoder(nn.Module):
     def __init__(
         self,
         d_model: int = 512,
-        hidden_size: int = 640,
+        hidden_size: int = 1024,
         num_layers: int = 7,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         bidirectional: bool = False,
-        dim_feedforward: int = 1024,
+        dim_feedforward: int = 2048,
+        aux_layers: Optional[List[int]] = None,
     ) -> None:
         super().__init__()
         self.layer_dropout = layer_dropout
@@ -800,16 +787,21 @@ class LstmEncoder(nn.Module):
         self.hidden_size = hidden_size
 
         assert hidden_size >= d_model, (hidden_size, d_model)
-        self.layer = ScaledLSTM(
-            input_size=d_model,
-            hidden_size=hidden_size,
-            proj_size=d_model,
-            num_layers=1,
-            dropout=0.0,
-            bidirectional=bidirectional,
-        )
+        
         self.layers = nn.ModuleList(
-            [copy.deepcopy(self.layer) for i in range(num_layers)]
+            [
+                copy.deepcopy(
+                    ScaledLSTM(
+                        input_size=d_model,
+                        hidden_size=hidden_size,
+                        proj_size=d_model,
+                        num_layers=1,
+                        dropout=0.0,
+                        bidirectional=bidirectional,
+                    )
+                )
+                for i in range(num_layers)
+            ]
         )
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -1177,8 +1169,8 @@ def _test_random_combine_main():
         num_features=feature_dim,
         d_model=512,
         num_global_cnn_encoder_layers=6,
-        lstm_hidden_size=640,
-        lstm_dim_feedforward=1024,
+        lstm_hidden_size=1024,
+        lstm_dim_feedforward=2048,
         num_lstm_encoder_layers=7,
     )
     batch_size = 5
@@ -1198,8 +1190,8 @@ if __name__ == "__main__":
         num_features=feature_dim,
         d_model=512,
         num_global_cnn_encoder_layers=6,
-        lstm_hidden_size=640,
-        lstm_dim_feedforward=1024,
+        lstm_hidden_size=1024,
+        lstm_dim_feedforward=2048,
         num_lstm_encoder_layers=7,
     )
     batch_size = 5
