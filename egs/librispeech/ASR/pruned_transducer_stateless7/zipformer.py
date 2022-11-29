@@ -441,7 +441,7 @@ class ZipformerEncoderLayer(nn.Module):
         self.balancer = ActivationBalancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
-            max_abs=6.0,
+            min_abs=0.4, max_abs=6.0,
         )
         self.whiten = Whiten(num_groups=1,
                              whitening_limit=_whitening_schedule(4.0, ratio=3.0),
