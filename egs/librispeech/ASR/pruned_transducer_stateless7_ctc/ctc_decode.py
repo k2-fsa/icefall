@@ -21,10 +21,10 @@
 """
 Usage:
 (1) take ctc-decoding as an example
-./pruned_transducder_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducder_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
 """
@@ -119,7 +119,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducder_stateless7_ctc/exp",
+        default="pruned_transducer_stateless7_ctc/exp",
         help="The experiment dir",
     )
 
@@ -190,6 +190,14 @@ def get_parser():
         Used only when "method" is one of the following values:
         nbest, nbest-rescoring, and nbest-oracle
         A smaller value results in more unique paths.
+        """,
+    )
+
+    parser.add_argument(
+        "--hlg-scale",
+        type=float,
+        default=0.8,
+        help="""The scale to be applied to `hlg.scores`.
         """,
     )
 
@@ -314,69 +322,6 @@ def decode_one_batch(
         assert bpe_model is not None
         decoding_graph = H
 
-    if params.decoding_method in ["1best", "nbest", "nbest-oracle"]:
-        hlg_scale_list = [0.2, 0.4, 0.6, 0.8, 1.0]
-
-        ori_scores = decoding_graph.scores.clone()
-
-        ans = {}
-        for hlg_scale in hlg_scale_list:
-            decoding_graph.scores = ori_scores * hlg_scale
-            lattice = get_lattice(
-                nnet_output=nnet_output,
-                decoding_graph=decoding_graph,
-                supervision_segments=supervision_segments,
-                search_beam=params.search_beam,
-                output_beam=params.output_beam,
-                min_active_states=params.min_active_states,
-                max_active_states=params.max_active_states,
-                subsampling_factor=params.subsampling_factor,
-            )
-            key_suffix = f"-HLG-scale-{hlg_scale}"
-
-            if params.decoding_method == "nbest-oracle":
-                # Note: You can also pass rescored lattices to it.
-                # We choose the HLG decoded lattice for speed reasons
-                # as HLG decoding is faster and the oracle WER
-                # is only slightly worse than that of rescored lattices.
-                best_path = nbest_oracle(
-                    lattice=lattice,
-                    num_paths=params.num_paths,
-                    ref_texts=supervisions["text"],
-                    word_table=word_table,
-                    nbest_scale=params.nbest_scale,
-                    oov="<UNK>",
-                )
-                hyps = get_texts(best_path)
-                hyps = [[word_table[i] for i in ids] for ids in hyps]
-                key = f"oracle-{params.num_paths}-nbest-scale-{params.nbest_scale}"  # noqa
-                ans[key + key_suffix] = hyps
-
-            elif params.decoding_method in ["1best", "nbest"]:
-                if params.decoding_method == "1best":
-                    best_path = one_best_decoding(
-                        lattice=lattice,
-                        use_double_scores=params.use_double_scores,
-                    )
-                    key = "no-rescore"
-                else:
-                    best_path = nbest_decoding(
-                        lattice=lattice,
-                        num_paths=params.num_paths,
-                        use_double_scores=params.use_double_scores,
-                        nbest_scale=params.nbest_scale,
-                    )
-                    key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
-
-                hyps = get_texts(best_path)
-                hyps = [[word_table[i] for i in ids] for ids in hyps]
-                ans[key + key_suffix] = hyps
-
-        # recover the its scores
-        decoding_graph.scores = ori_scores * hlg_scale
-
-        return ans
-
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=decoding_graph,
@@ -404,6 +349,43 @@ def decode_one_batch(
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
         key = "ctc-decoding"
+        return {key: hyps}
+
+    if params.decoding_method == "nbest-oracle":
+        # Note: You can also pass rescored lattices to it.
+        # We choose the HLG decoded lattice for speed reasons
+        # as HLG decoding is faster and the oracle WER
+        # is only slightly worse than that of rescored lattices.
+        best_path = nbest_oracle(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            ref_texts=supervisions["text"],
+            word_table=word_table,
+            nbest_scale=params.nbest_scale,
+            oov="<UNK>",
+        )
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
+        return {key: hyps}
+
+    if params.decoding_method in ["1best", "nbest"]:
+        if params.decoding_method == "1best":
+            best_path = one_best_decoding(
+                lattice=lattice, use_double_scores=params.use_double_scores
+            )
+            key = "no_rescore"
+        else:
+            best_path = nbest_decoding(
+                lattice=lattice,
+                num_paths=params.num_paths,
+                use_double_scores=params.use_double_scores,
+                nbest_scale=params.nbest_scale,
+            )
+            key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
+
+        hyps = get_texts(best_path)
+        hyps = [[word_table[i] for i in ids] for ids in hyps]
         return {key: hyps}
 
     assert params.decoding_method in [
@@ -655,6 +637,8 @@ def main():
 
         if not hasattr(HLG, "lm_scores"):
             HLG.lm_scores = HLG.scores.clone()
+
+        HLG.scores *= params.hlg_scale
 
     if params.decoding_method in (
         "nbest-rescoring",
