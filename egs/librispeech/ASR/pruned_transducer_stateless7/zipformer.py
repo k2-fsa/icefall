@@ -1459,7 +1459,7 @@ class NonlinAttentionModule(nn.Module):
     """
 
     def __init__(
-            self, channels: int, ratio: int = 8,
+            self, channels: int, ratio: int = 2,
     ) -> None:
         super().__init__()
 
