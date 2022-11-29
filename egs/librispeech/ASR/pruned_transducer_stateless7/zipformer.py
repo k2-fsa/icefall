@@ -1327,10 +1327,9 @@ class AttentionSqueeze(nn.Module):
         # beginning, and make it looser over time.
         self.bottleneck_balancer = ActivationBalancer(
             bottleneck_dim, channel_dim=-1,
-            min_positive=0.05, max_positive=0.95,
+            min_positive=0.2, max_positive=0.8,
             min_abs=0.05,
             max_abs=ScheduledFloat((0.0, 0.5), (4000.0, 1.0), default=1.0),
-            max_factor=0.02,
             min_prob=0.1,
         )
         self.bottleneck_activation = TanSwish()   # in bottleneck
