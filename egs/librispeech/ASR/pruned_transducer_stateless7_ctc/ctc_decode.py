@@ -63,7 +63,6 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     get_texts,
-    make_pad_mask,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -223,43 +222,6 @@ def get_decoding_params() -> AttributeDict:
     return params
 
 
-def ctc_greedy_search(
-    ctc_probs: torch.Tensor,
-    nnet_output_lens: torch.Tensor,
-) -> List[List[int]]:
-    """Apply CTC greedy search
-    Args:
-      ctc_probs (torch.Tensor): (batch, max_len, feat_dim)
-      nnet_output_lens (torch.Tensor): (batch, )
-    Returns:
-      List[List[int]]: best path result
-    """
-    topk_prob, topk_index = ctc_probs.topk(1, dim=2)  # (B, maxlen, 1)
-    topk_index = topk_index.squeeze(2)  # (B, maxlen)
-    mask = make_pad_mask(nnet_output_lens)
-    topk_index = topk_index.masked_fill_(mask, 0)  # (B, maxlen)
-    hyps = [hyp.tolist() for hyp in topk_index]
-    scores = topk_prob.max(1)
-    ret_hyps = []
-    for i in range(len(hyps)):
-        hyp = remove_duplicates_and_blank(hyps[i])
-        ret_hyps.append(hyp)
-    return ret_hyps, scores
-
-
-def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
-    # modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
-    new_hyp: List[int] = []
-    cur = 0
-    while cur < len(hyp):
-        if hyp[cur] != 0:
-            new_hyp.append(hyp[cur])
-        prev = cur
-        while cur < len(hyp) and hyp[cur] == hyp[prev]:
-            cur += 1
-    return new_hyp
-
-
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -409,6 +371,9 @@ def decode_one_batch(
                 hyps = get_texts(best_path)
                 hyps = [[word_table[i] for i in ids] for ids in hyps]
                 ans[key + key_suffix] = hyps
+
+        # recover the its scores
+        decoding_graph.scores = ori_scores * hlg_scale
 
         return ans
 
