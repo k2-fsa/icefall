@@ -187,6 +187,9 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
 
   mkdir -p lstm_transducer_stateless2/exp
   ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
+  ln -s $PWD/$repo/data/lang_bpe_500 data/
+
+  ls -lh data
   ls -lh lstm_transducer_stateless2/exp
 
   log "Decoding test-clean and test-other"
@@ -196,8 +199,6 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
     --epoch 999 \
     --avg 1 \
     --exp-dir lstm_transducer_stateless2/exp \
-    --lang-dir $repo/data/lang_bpe_500 \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --max-duration 600 \
     --decoding-method modified_beam_search_rnnlm_shallow_fusion \
     --beam 4 \
@@ -229,6 +230,9 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
 
   mkdir -p lstm_transducer_stateless2/exp
   ln -sf $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
+  ln -s $PWD/$repo/data/lang_bpe_500 data/
+
+  ls -lh data
   ls -lh lstm_transducer_stateless2/exp
 
   log "Decoding test-clean and test-other"
@@ -237,9 +241,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
     --use-averaged-model 0 \
     --epoch 999 \
     --avg 1 \
-    --exp-dir $repo/exp \
-    --lang-dir $repo/data/lang_bpe_500 \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --exp-dir lstm_transducer_stateless2/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search_rnnlm_LODR \
     --beam 4 \
