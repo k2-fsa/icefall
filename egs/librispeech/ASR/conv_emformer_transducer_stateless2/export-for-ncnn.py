@@ -64,7 +64,7 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train2 import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -154,8 +154,9 @@ def get_parser():
 
     return parser
 
+
 def export_encoder_model_jit_trace(
-    encoder_model: nn.Module,
+    encoder_model: torch.nn.Module,
     encoder_filename: str,
 ) -> None:
     """Export the given encoder model with torch.jit.trace()
@@ -171,18 +172,69 @@ def export_encoder_model_jit_trace(
     chunk_length = encoder_model.chunk_length  # before subsampling
     right_context_length = encoder_model.right_context_length  # before subsampling
     pad_length = right_context_length + 2 * 4 + 3
+    s = f'chunk_length: {chunk_length}, '
+    s += f'right_context_length: {right_context_length}\n'
+    logging.info(s)
 
     T = chunk_length + pad_length
 
     x = torch.zeros(1, T, 80, dtype=torch.float32)
     # TODO(fangjun): Remove x_lens
     x_lens = torch.tensor([T], dtype=torch.int64)
-    states = encoder_model.get_init_states()
-    states = f.encoder.init_states()
+    states = encoder_model.init_states()
+    states = encoder_model.init_states()
 
     traced_model = torch.jit.trace(encoder_model, (x, x_lens, states))
     traced_model.save(encoder_filename)
     logging.info(f"Saved to {encoder_filename}")
+
+def export_decoder_model_jit_trace(
+    decoder_model: torch.nn.Module,
+    decoder_filename: str,
+) -> None:
+    """Export the given decoder model with torch.jit.trace()
+
+    Note: The argument need_pad is fixed to False.
+
+    Args:
+      decoder_model:
+        The input decoder model
+      decoder_filename:
+        The filename to save the exported model.
+    """
+    y = torch.zeros(10, decoder_model.context_size, dtype=torch.int64)
+    need_pad = torch.tensor([False])
+
+    traced_model = torch.jit.trace(decoder_model, (y, need_pad))
+    traced_model.save(decoder_filename)
+    logging.info(f"Saved to {decoder_filename}")
+
+
+def export_joiner_model_jit_trace(
+    joiner_model: torch.nn.Module,
+    joiner_filename: str,
+) -> None:
+    """Export the given joiner model with torch.jit.trace()
+
+    Note: The argument project_input is fixed to True. A user should not
+    project the encoder_out/decoder_out by himself/herself. The exported joiner
+    will do that for the user.
+
+    Args:
+      joiner_model:
+        The input joiner model
+      joiner_filename:
+        The filename to save the exported model.
+
+    """
+    encoder_out_dim = joiner_model.encoder_proj.weight.shape[1]
+    decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
+    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
+    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+
+    traced_model = torch.jit.trace(joiner_model, (encoder_out, decoder_out))
+    traced_model.save(joiner_filename)
+    logging.info(f"Saved to {joiner_filename}")
 
 
 @torch.no_grad()
@@ -291,9 +343,18 @@ def main():
 
     convert_scaled_to_non_scaled(model, inplace=True)
     logging.info("Using torch.jit.trace()")
+
+    logging.info('Exporting encoder')
     encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
     export_encoder_model_jit_trace(model.encoder, encoder_filename)
 
+    logging.info('Exporting decoder')
+    decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
+    export_decoder_model_jit_trace(model.decoder, decoder_filename)
+
+    logging.info('Exporting joiner')
+    joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
+    export_joiner_model_jit_trace(model.joiner, joiner_filename)
 
 
 if __name__ == "__main__":

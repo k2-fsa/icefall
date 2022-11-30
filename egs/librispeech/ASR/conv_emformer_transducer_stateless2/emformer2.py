@@ -37,7 +37,6 @@ from icefall.utils import make_pad_mask
 
 LOG_EPSILON = math.log(1e-10)
 
-
 def unstack_states(
     states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
 ) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]:
@@ -383,8 +382,12 @@ class ConvolutionModule(nn.Module):
             - output right_context of shape (R, B, D).
             - updated cache tensor of shape (B, D, cache_size).
         """
-        U, B, D = utterance.size()
-        R, _, _ = right_context.size()
+        #  U, B, D = utterance.size()
+        #  R, _, _ = right_context.size()
+        U = self.chunk_length
+        B = 1
+        D = self.channels
+        R = self.right_context_length
 
         # point-wise conv
         x = torch.cat([utterance, right_context], dim=0)  # (U + R, B, D)
@@ -437,6 +440,10 @@ class EmformerAttention(nn.Module):
         self,
         embed_dim: int,
         nhead: int,
+        left_context_length : int,
+        chunk_length : int,
+        right_context_length : int,
+        memory_size: int,
         dropout: float = 0.0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
@@ -454,6 +461,11 @@ class EmformerAttention(nn.Module):
         self.negative_inf = negative_inf
         self.head_dim = embed_dim // nhead
         self.dropout = dropout
+
+        self.left_context_length = left_context_length
+        self.right_context_length = right_context_length
+        self.chunk_length = chunk_length
+        self.memory_size = memory_size
 
         self.emb_to_key_value = ScaledLinear(embed_dim, 2 * embed_dim, bias=True)
         self.emb_to_query = ScaledLinear(embed_dim, embed_dim, bias=True)
@@ -526,9 +538,16 @@ class EmformerAttention(nn.Module):
         left_context_val: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Underlying chunk-wise attention implementation."""
-        U, B, _ = utterance.size()
-        R = right_context.size(0)
-        M = memory.size(0)
+        #  U, B, _ = utterance.size()
+        #  R = right_context.size(0)
+        #  M = memory.size(0)
+
+        U = self.chunk_length
+        B = 1
+        R = self.right_context_length
+        M = self.memory_size
+        L = self.left_context_length
+
         scaling = float(self.head_dim) ** -0.5
 
         # compute query with [right_context, utterance].
@@ -544,29 +563,43 @@ class EmformerAttention(nn.Module):
             # this is used in inference mode
             key = torch.cat([key[: M + R], left_context_key, key[M + R :]])
             value = torch.cat([value[: M + R], left_context_val, value[M + R :]])
-        Q = query.size(0)
+
+        #  Q = query.size(0)
+        Q = U+R
+
         # KV = key.size(0)
 
-        reshaped_query, reshaped_key, reshaped_value = [
-            tensor.contiguous().view(-1, B * self.nhead, self.head_dim).transpose(0, 1)
-            for tensor in [query, key, value]
-        ]  # (B * nhead, Q or KV, head_dim)
+        reshaped_query = query.view(Q, self.nhead, self.head_dim).permute(1, 0, 2)
+        reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(1,0,2)
+        reshaped_value = value.view(M + R + U + L, self.nhead, self.head_dim).permute(1,0,2)
+
+        #  reshaped_query, reshaped_key, reshaped_value = [
+        #      tensor.contiguous().view(-1, B * self.nhead, self.head_dim).transpose(0, 1)
+        #      for tensor in [query, key, value]
+        #  ]  # (B * nhead, Q or KV, head_dim)
         attention_weights = torch.bmm(
-            reshaped_query * scaling, reshaped_key.transpose(1, 2)
+            reshaped_query * scaling, reshaped_key.permute(0, 2, 1)
         )  # (B * nhead, Q, KV)
 
         # compute attention probabilities
-        attention_probs = self._gen_attention_probs(
-            attention_weights, attention_mask, padding_mask
-        )
+        if False:
+            attention_probs = self._gen_attention_probs(
+                attention_weights, attention_mask, padding_mask
+            )
+        else:
+            attention_probs = nn.functional.softmax(attention_weights, dim=-1)
 
         # compute attention outputs
         attention = torch.bmm(attention_probs, reshaped_value)
         assert attention.shape == (B * self.nhead, Q, self.head_dim)
-        attention = attention.transpose(0, 1).contiguous().view(Q, B, self.embed_dim)
+        attention = attention.permute(1, 0, 2).reshape(-1, self.embed_dim)
+        # TODO(fangjun): ncnn does not support reshape(-1, 1, self.embed_dim)
+        # We have to change InnerProduct in ncnn to ignore the extra dim below
+        attention = attention.unsqueeze(1)
 
         # apply output projection
         output_right_context_utterance = self.out_proj(attention)
+        # The return shape of output_right_context_utterance is (10, 1, 512)
 
         return output_right_context_utterance, key, value
 
@@ -695,14 +728,19 @@ class EmformerAttention(nn.Module):
             - attention value of left context and utterance, which would be
               cached for next computation, with shape (L + U, B, D).
         """
-        U = utterance.size(0)
-        R = right_context.size(0)
-        L = left_context_key.size(0)
-        M = memory.size(0)
+        #  U = utterance.size(0)
+        #  R = right_context.size(0)
+        #  L = left_context_key.size(0)
+        #  M = memory.size(0)
+
+        U = self.chunk_length
+        R = self.right_context_length
+        L = self.left_context_length
+        M = self.memory_size
 
         # query = [right context, utterance]
         Q = R + U
-        # key, value = [memory, right context, left context, uttrance]
+        # key, value = [memory, right context, left context, utterance]
         KV = M + R + L + U
         attention_mask = torch.zeros(Q, KV).to(
             dtype=torch.bool, device=utterance.device
@@ -774,6 +812,10 @@ class EmformerEncoderLayer(nn.Module):
         self.attention = EmformerAttention(
             embed_dim=d_model,
             nhead=nhead,
+            left_context_length=left_context_length,
+            chunk_length=chunk_length,
+            memory_size=memory_size,
+            right_context_length=right_context_length,
             dropout=dropout,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
@@ -817,6 +859,7 @@ class EmformerEncoderLayer(nn.Module):
 
         self.layer_dropout = layer_dropout
         self.left_context_length = left_context_length
+        self.right_context_length = right_context_length
         self.chunk_length = chunk_length
         self.memory_size = memory_size
         self.d_model = d_model
@@ -834,12 +877,19 @@ class EmformerEncoderLayer(nn.Module):
         2) attention key and value in current chunk's computation, which would
         be resued in next chunk's computation.
         """
+        # attn_cache[0].shape (self.memory_size, 1, 512)
+        # memory.shape (1, 1, 512)
+        # attn_cache[1].shape (self.left_context_length, 1, 512)
+        # attn_cache[2].shape (self.left_context_length, 1, 512)
+        # next_key.shape (self.left_context_length + self.right_context_utterance, 1, 512)
+        # next_value.shape (self.left_context_length + self.right_context_utterance, 1, 512)
         new_memory = torch.cat([attn_cache[0], memory])
+        # TODO(fangjun): Remove torch.cat
         new_key = torch.cat([attn_cache[1], next_key])
         new_val = torch.cat([attn_cache[2], next_val])
-        attn_cache[0] = new_memory[new_memory.size(0) - self.memory_size :]
-        attn_cache[1] = new_key[new_key.size(0) - self.left_context_length :]
-        attn_cache[2] = new_val[new_val.size(0) - self.left_context_length :]
+        attn_cache[0] = new_memory[1:]
+        attn_cache[1] = new_key[-self.left_context_length :]
+        attn_cache[2] = new_val[-self.left_context_length :]
         return attn_cache
 
     def _apply_conv_module_forward(
@@ -922,12 +972,14 @@ class EmformerEncoderLayer(nn.Module):
         left_context_val = attn_cache[2]
 
         if self.use_memory:
-            memory = self.summary_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
-                :1, :, :
-            ]
+            memory = torch.mean(utterance, dim=0, keepdim=True)
+
+            #  memory = self.summary_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
+            #          :1, :, :
+            #  ]
         else:
             memory = torch.empty(0).to(dtype=utterance.dtype, device=utterance.device)
-        (output_right_context_utterance, next_key, next_val,) = self.attention.infer(
+        (output_right_context_utterance, next_key, next_val) = self.attention.infer(
             utterance=utterance,
             right_context=right_context,
             memory=pre_memory,
@@ -1016,10 +1068,9 @@ class EmformerEncoderLayer(nn.Module):
         self,
         utterance: torch.Tensor,
         right_context: torch.Tensor,
-        attn_cache: List[torch.Tensor],
-        conv_cache: torch.Tensor,
+        cache: List[torch.Tensor],
         padding_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """Forward pass for inference.
 
          B: batch size;
@@ -1048,8 +1099,10 @@ class EmformerEncoderLayer(nn.Module):
              - output attention cache;
              - output convolution cache.
         """
-        R = right_context.size(0)
+        R = self.right_context_length
         src = torch.cat([right_context, utterance])
+        attn_cache = cache[:3]
+        conv_cache = cache[3]
 
         # macaron style feed forward module
         src = src + self.dropout(self.feed_forward_macaron(src))
@@ -1074,8 +1127,7 @@ class EmformerEncoderLayer(nn.Module):
         return (
             output_utterance,
             output_right_context,
-            attn_cache,
-            conv_cache,
+            attn_cache + [conv_cache]
         )
 
 
@@ -1327,7 +1379,7 @@ class EmformerEncoder(nn.Module):
         ).to(torch.bool)
         return attention_mask
 
-    def forward(
+    def _forward(
         self, x: torch.Tensor, lengths: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for training and validation mode.
@@ -1383,11 +1435,11 @@ class EmformerEncoder(nn.Module):
         x: torch.Tensor,
         lengths: torch.Tensor,
         num_processed_frames: torch.Tensor,
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        states: List[torch.Tensor],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        List[torch.Tensor],
     ]:
         """Forward pass for streaming inference.
 
@@ -1419,95 +1471,115 @@ class EmformerEncoder(nn.Module):
         """
         assert num_processed_frames.shape == (x.size(1),)
 
-        attn_caches = states[0]
-        assert len(attn_caches) == self.num_encoder_layers, len(attn_caches)
-        for i in range(len(attn_caches)):
-            assert attn_caches[i][0].shape == (
-                self.memory_size,
-                x.size(1),
-                self.d_model,
-            ), attn_caches[i][0].shape
-            assert attn_caches[i][1].shape == (
-                self.left_context_length,
-                x.size(1),
-                self.d_model,
-            ), attn_caches[i][1].shape
-            assert attn_caches[i][2].shape == (
-                self.left_context_length,
-                x.size(1),
-                self.d_model,
-            ), attn_caches[i][2].shape
+        if False:
+            attn_caches = states[0]
+            assert len(attn_caches) == self.num_encoder_layers, len(attn_caches)
+            for i in range(len(attn_caches)):
+                assert attn_caches[i][0].shape == (
+                    self.memory_size,
+                    x.size(1),
+                    self.d_model,
+                ), attn_caches[i][0].shape
+                assert attn_caches[i][1].shape == (
+                    self.left_context_length,
+                    x.size(1),
+                    self.d_model,
+                ), attn_caches[i][1].shape
+                assert attn_caches[i][2].shape == (
+                    self.left_context_length,
+                    x.size(1),
+                    self.d_model,
+                ), attn_caches[i][2].shape
 
-        conv_caches = states[1]
-        assert len(conv_caches) == self.num_encoder_layers, len(conv_caches)
-        for i in range(len(conv_caches)):
-            assert conv_caches[i].shape == (
-                x.size(1),
-                self.d_model,
-                self.cnn_module_kernel - 1,
-            ), conv_caches[i].shape
+            conv_caches = states[1]
+            assert len(conv_caches) == self.num_encoder_layers, len(conv_caches)
+            for i in range(len(conv_caches)):
+                assert conv_caches[i].shape == (
+                    x.size(1),
+                    self.d_model,
+                    self.cnn_module_kernel - 1,
+                ), conv_caches[i].shape
 
-        right_context = x[-self.right_context_length :]
-        utterance = x[: -self.right_context_length]
+
+        if False:
+            right_context = x[-self.right_context_length :]
+            utterance = x[: -self.right_context_length]
+        else:
+            right_context = x[self.chunk_length:]
+            utterance = x[:self.chunk_length]
+        # lengths = chunk_length + right_context_length
         output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
 
-        # calcualte padding mask to mask out initial zero caches
-        chunk_mask = make_pad_mask(output_lengths).to(x.device)
-        memory_mask = (
-            (
-                (num_processed_frames >> self.shift).view(x.size(1), 1)
-                <= torch.arange(self.memory_size, device=x.device).expand(
-                    x.size(1), self.memory_size
+
+        if False:
+            # calculate padding mask to mask out initial zero caches
+            chunk_mask = make_pad_mask(output_lengths).to(x.device)
+            memory_mask = (
+                (
+                    (num_processed_frames >> self.shift).view(x.size(1), 1)
+                    <= torch.arange(self.memory_size, device=x.device).expand(
+                        x.size(1), self.memory_size
+                    )
+                ).flip(1)
+                if self.use_memory
+                else torch.empty(0).to(dtype=torch.bool, device=x.device)
+            )
+            left_context_mask = (
+                num_processed_frames.view(x.size(1), 1)
+                <= torch.arange(self.left_context_length, device=x.device).expand(
+                    x.size(1), self.left_context_length
                 )
             ).flip(1)
-            if self.use_memory
-            else torch.empty(0).to(dtype=torch.bool, device=x.device)
-        )
-        left_context_mask = (
-            num_processed_frames.view(x.size(1), 1)
-            <= torch.arange(self.left_context_length, device=x.device).expand(
-                x.size(1), self.left_context_length
+            right_context_mask = torch.zeros(
+                x.size(1),
+                self.right_context_length,
+                dtype=torch.bool,
+                device=x.device,
             )
-        ).flip(1)
-        right_context_mask = torch.zeros(
-            x.size(1),
-            self.right_context_length,
-            dtype=torch.bool,
-            device=x.device,
-        )
-        padding_mask = torch.cat(
-            [memory_mask, right_context_mask, left_context_mask, chunk_mask],
-            dim=1,
-        )
+            padding_mask = torch.cat(
+                [memory_mask, right_context_mask, left_context_mask, chunk_mask],
+                dim=1,
+            )
 
         output = utterance
-        output_attn_caches: List[List[torch.Tensor]] = []
-        output_conv_caches: List[torch.Tensor] = []
+        output_states : List[torch.Tensor] = []
         for layer_idx, layer in enumerate(self.emformer_layers):
+            start = layer_idx*4
+            end = start + 4
+            cache = states[start:end]
+
             (
                 output,
                 right_context,
-                output_attn_cache,
-                output_conv_cache,
+                output_cache,
             ) = layer.infer(
                 output,
                 right_context,
-                padding_mask=padding_mask,
-                attn_cache=attn_caches[layer_idx],
-                conv_cache=conv_caches[layer_idx],
+                padding_mask=None,
+                cache=cache,
             )
-            output_attn_caches.append(output_attn_cache)
-            output_conv_caches.append(output_conv_cache)
+            output_states.extend(output_cache)
 
-        output_states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
-            output_attn_caches,
-            output_conv_caches,
-        )
         return output, output_lengths, output_states
 
     @torch.jit.export
-    def init_states(self, device: torch.device = torch.device("cpu")):
+    def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:
         """Create initial states."""
+        #
+        states = []
+        # layer0: attn cache, conv cache, 3 tensors + 1 tensor
+        # layer1: attn cache, conv cache, 3 tensors +  1 tensor
+        # layer2: attn cache, conv cache, 3 tensors + 1 tensor
+        # ...
+        # last layer: attn cache, conv cache, 3 tensors + 1 tensor
+        for i in range(self.num_encoder_layers):
+                states.append(torch.zeros(self.memory_size, 1, self.d_model, device=device))
+                states.append(torch.zeros(self.left_context_length, 1, self.d_model, device=device))
+                states.append(torch.zeros(self.left_context_length, 1, self.d_model, device=device))
+
+                states.append(torch.zeros(1, self.d_model, self.cnn_module_kernel - 1, device=device))
+        return states
+
         attn_caches = [
             [
                 torch.zeros(self.memory_size, self.d_model, device=device),
@@ -1545,6 +1617,7 @@ class Emformer(EncoderInterface):
         memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        is_pnnx: bool = True,
     ):
         super().__init__()
 
@@ -1571,7 +1644,8 @@ class Emformer(EncoderInterface):
         # That is, it does two things simultaneously:
         #   (1) subsampling: T -> T//subsampling_factor
         #   (2) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+        self.encoder_embed = Conv2dSubsampling(num_features, d_model, is_pnnx=is_pnnx)
+        self.is_pnnx = is_pnnx
 
         self.encoder = EmformerEncoder(
             chunk_length=chunk_length // subsampling_factor,
@@ -1589,7 +1663,7 @@ class Emformer(EncoderInterface):
             negative_inf=negative_inf,
         )
 
-    def forward(
+    def _forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for training and non-streaming inference.
@@ -1630,17 +1704,15 @@ class Emformer(EncoderInterface):
 
         return output, output_lengths
 
-    @torch.jit.export
-    def infer(
+    def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        num_processed_frames: torch.Tensor,
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        states: List[torch.Tensor],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        List[torch.Tensor],
     ]:
         """Forward pass for streaming inference.
 
@@ -1671,14 +1743,24 @@ class Emformer(EncoderInterface):
               right_context at the end.
             - updated states from current chunk's computation.
         """
+        num_processed_frames = torch.tensor([0])
+
         x = self.encoder_embed(x)
         # drop the first and last frames
         x = x[:, 1:-1, :]
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # Caution: We assume the subsampling factor is 4!
-        x_lens = (((x_lens - 1) >> 1) - 1) >> 1
+
+        if not self.is_pnnx:
+            x_lens = (((x_lens - 1) >> 1) - 1) >> 1
+        else:
+            lengths1 = torch.floor((x_lens - 1) / 2)
+            lengths = torch.floor((lengths1 - 1) / 2)
+            x_lens = lengths.to(x_lens)
+
         x_lens -= 2
+
         assert x.size(0) == x_lens.max().item()
 
         num_processed_frames = num_processed_frames >> 2
@@ -1692,7 +1774,7 @@ class Emformer(EncoderInterface):
         return output, output_lengths, output_states
 
     @torch.jit.export
-    def init_states(self, device: torch.device = torch.device("cpu")):
+    def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:
         """Create initial states."""
         return self.encoder.init_states(device)
 
@@ -1715,6 +1797,7 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 8,
         layer2_channels: int = 32,
         layer3_channels: int = 128,
+        is_pnnx: bool = False,
     ) -> None:
         """
         Args:
@@ -1727,6 +1810,9 @@ class Conv2dSubsampling(nn.Module):
             Number of channels in layer1
           layer1_channels:
             Number of channels in layer2
+          is_pnnx:
+            True if we are converting the model to PNNX format.
+            False otherwise.
         """
         assert in_channels >= 7
         super().__init__()
@@ -1769,6 +1855,10 @@ class Conv2dSubsampling(nn.Module):
             channel_dim=-1, min_positive=0.45, max_positive=0.55
         )
 
+        # ncnn supports only batch size == 1
+        self.is_pnnx = is_pnnx
+        self.conv_out_dim = self.out.weight.shape[1]
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
 
@@ -1782,9 +1872,14 @@ class Conv2dSubsampling(nn.Module):
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
-        # Now x is of shape (N, odim, ((T-1)//2 - 1)//2, ((idim-1)//2 - 1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
+
+        if torch.jit.is_tracing() and self.is_pnnx:
+            x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
+            x = self.out(x)
+        else:
+            # Now x is of shape (N, odim, ((T-1)//2-1)//2, ((idim-1)//2-1)//2)
+            b, c, t, f = x.size()
+            x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out_norm(x)
         x = self.out_balancer(x)
