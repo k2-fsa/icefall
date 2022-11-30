@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# flake8: noqa
 #
 # Copyright      2022  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
 #
@@ -19,7 +18,7 @@
 
 import argparse
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import ncnn
 import sentencepiece as spm
@@ -88,6 +87,29 @@ class Model:
         self.init_decoder(args)
         self.init_joiner(args)
 
+        self.num_layers = 12
+        self.memory_size = 32
+        self.d_model = 512
+        self.cnn_module_kernel = 31
+
+        self.left_context_length = 32 // 4  # after subsampling
+        self.chunk_length = 32  # before subsampling
+        right_context_length = 8  # before subsampling
+        pad_length = right_context_length + 2 * 4 + 3
+        self.T = self.chunk_length + pad_length
+
+    def get_init_states(self) -> List[torch.Tensor]:
+        states = []
+
+        for i in range(self.num_layers):
+            s0 = torch.zeros(self.memory_size, self.d_model)
+            s1 = torch.zeros(self.left_context_length, self.d_model)
+            s2 = torch.zeros(self.left_context_length, self.d_model)
+            s3 = torch.zeros(self.d_model, self.cnn_module_kernel - 1)
+            states.extend([s0, s1, s2, s3])
+
+        return states
+
     def init_encoder(self, args):
         encoder_net = ncnn.Net()
         encoder_net.opt.use_packing_layout = False
@@ -122,38 +144,76 @@ class Model:
 
         self.joiner_net = joiner_net
 
-    def run_encoder(self, x, states):
+    def run_encoder(
+        self,
+        x: torch.Tensor,
+        states: List[torch.Tensor],
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        """
+        Args:
+          x:
+            A tensor of shape (T, C)
+          states:
+            A list of tensors. len(states) == self.num_layers * 4
+        Returns:
+          Return a tuple containing:
+           - encoder_out, a tensor of shape (T, encoder_dim).
+           - next_states, a list of tensors containing the next states
+        """
         with self.encoder_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
+            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
+
             x_lens = torch.tensor([x.size(0)], dtype=torch.float32)
             ex.input("in1", ncnn.Mat(x_lens.numpy()).clone())
-            ex.input("in2", ncnn.Mat(states[0].numpy()).clone())
-            ex.input("in3", ncnn.Mat(states[1].numpy()).clone())
 
+            # layer0 in2-in5
+            # layer1 in6-in9
+            for i in range(self.num_layers):
+                offset = 2 + i * 4
+                name = f"in{offset}"
+                # (32, 1, 512) -> (32, 512)
+                ex.input(name, ncnn.Mat(states[i * 4 + 0].numpy()).clone())
+
+                name = f"in{offset+1}"
+                #  (8, 1, 512) -> (8, 512)
+                ex.input(name, ncnn.Mat(states[i * 4 + 1].numpy()).clone())
+
+                name = f"in{offset+2}"
+                #  (8, 1, 512) -> (8, 512)
+                ex.input(name, ncnn.Mat(states[i * 4 + 2].numpy()).clone())
+
+                name = f"in{offset+3}"
+                #  (1, 512, 2) -> (512, 2)
+                ex.input(name, ncnn.Mat(states[i * 4 + 3].numpy()).clone())
+
+            import pdb
+
+            #  pdb.set_trace()
             ret, ncnn_out0 = ex.extract("out0")
-            assert ret == 0, ret
-
-            ret, ncnn_out1 = ex.extract("out1")
-            assert ret == 0, ret
-
-            ret, ncnn_out2 = ex.extract("out2")
-            assert ret == 0, ret
-
-            ret, ncnn_out3 = ex.extract("out3")
-            assert ret == 0, ret
-
+            #  assert ret == 0, ret
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
-            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
-            hx = torch.from_numpy(ncnn_out2.numpy()).clone()
-            cx = torch.from_numpy(ncnn_out3.numpy()).clone()
-            return encoder_out, encoder_out_lens, hx, cx
+
+            # TODO(fangjun): remove out1
+            #  ret, ncnn_out1 = ex.extract("out1")
+            #  assert ret == 0, ret
+            #  encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
+
+            out_states: List[torch.Tensor] = []
+            for i in range(4 * self.num_layers):
+                name = f"out{i+2}"
+                ret, ncnn_out_state = ex.extract(name)
+                assert ret == 0, ret
+                ncnn_out_state = torch.from_numpy(ncnn_out_state.numpy())
+                out_states.append(ncnn_out_state)
+
+            return encoder_out, out_states
 
     def run_decoder(self, decoder_input):
         assert decoder_input.dtype == torch.int32
 
         with self.decoder_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
+            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(decoder_input.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
@@ -162,7 +222,7 @@ class Model:
 
     def run_joiner(self, encoder_out, decoder_out):
         with self.joiner_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
+            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(encoder_out.numpy()).clone())
             ex.input("in1", ncnn.Mat(decoder_out.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
@@ -219,7 +279,6 @@ def greedy_search(
     decoder_out: Optional[torch.Tensor] = None,
     hyp: Optional[List[int]] = None,
 ):
-    assert encoder_out.ndim == 1
     context_size = 2
     blank_id = 0
 
@@ -232,13 +291,17 @@ def greedy_search(
         assert decoder_out.ndim == 1
         assert hyp is not None, hyp
 
-    joiner_out = model.run_joiner(encoder_out, decoder_out)
-    y = joiner_out.argmax(dim=0).item()
-    if y != blank_id:
-        hyp.append(y)
-        decoder_input = hyp[-context_size:]
-        decoder_input = torch.tensor(decoder_input, dtype=torch.int32)
-        decoder_out = model.run_decoder(decoder_input).squeeze(0)
+    T = encoder_out.size(0)
+    for t in range(T):
+        cur_encoder_out = encoder_out[t]
+
+        joiner_out = model.run_joiner(cur_encoder_out, decoder_out)
+        y = joiner_out.argmax(dim=0).item()
+        if y != blank_id:
+            hyp.append(y)
+            decoder_input = hyp[-context_size:]
+            decoder_input = torch.tensor(decoder_input, dtype=torch.int32)
+            decoder_out = model.run_decoder(decoder_input).squeeze(0)
 
     return hyp, decoder_out
 
@@ -266,28 +329,20 @@ def main():
     )[0]
     logging.info(wave_samples.shape)
 
-    num_encoder_layers = 12
-    batch_size = 1
-    d_model = 512
-    rnn_hidden_size = 1024
+    tail_padding = torch.zeros(int(0.3 * sample_rate), dtype=torch.float32)
 
-    states = (
-        torch.zeros(num_encoder_layers, batch_size, d_model),
-        torch.zeros(
-            num_encoder_layers,
-            batch_size,
-            rnn_hidden_size,
-        ),
-    )
+    wave_samples = torch.cat([wave_samples, tail_padding])
+
+    states = model.get_init_states()
 
     hyp = None
     decoder_out = None
 
     num_processed_frames = 0
-    segment = 9
-    offset = 4
+    segment = model.T
+    offset = model.chunk_length
 
-    chunk = 3200  # 0.2 second
+    chunk = int(1 * sample_rate)  # 0.2 second
 
     start = 0
     while start < wave_samples.numel():
@@ -305,27 +360,8 @@ def main():
                 frames.append(online_fbank.get_frame(num_processed_frames + i))
             num_processed_frames += offset
             frames = torch.cat(frames, dim=0)
-            encoder_out, encoder_out_lens, hx, cx = model.run_encoder(frames, states)
-            states = (hx, cx)
-            hyp, decoder_out = greedy_search(
-                model, encoder_out.squeeze(0), decoder_out, hyp
-            )
-    online_fbank.accept_waveform(
-        sampling_rate=sample_rate, waveform=torch.zeros(8000, dtype=torch.int32)
-    )
-
-    online_fbank.input_finished()
-    while online_fbank.num_frames_ready - num_processed_frames >= segment:
-        frames = []
-        for i in range(segment):
-            frames.append(online_fbank.get_frame(num_processed_frames + i))
-        num_processed_frames += offset
-        frames = torch.cat(frames, dim=0)
-        encoder_out, encoder_out_lens, hx, cx = model.run_encoder(frames, states)
-        states = (hx, cx)
-        hyp, decoder_out = greedy_search(
-            model, encoder_out.squeeze(0), decoder_out, hyp
-        )
+            encoder_out, states = model.run_encoder(frames, states)
+            hyp, decoder_out = greedy_search(model, encoder_out, decoder_out, hyp)
 
     context_size = 2
 
