@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conformer_ctc/convert_transcript_words_to_tokens.py
+../../../librispeech/ASR/local/convert_transcript_words_to_tokens.py

@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conformer_ctc/generate_unique_lexicon.py
+../../../librispeech/ASR/local/generate_unique_lexicon.py
