@@ -30,12 +30,12 @@ from pathlib import Path
 from typing import Optional
 
 import sentencepiece as spm
+
 import torch
 from filter_cuts import filter_cuts
+from icefall.utils import get_executor
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
-
-from icefall.utils import get_executor
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -108,9 +108,7 @@ def compute_fbank_xbmu_amdo31(bpe_model: Optional[str] = None):
 
             if "train" in partition:
                 cut_set = (
-                    cut_set
-                    + cut_set.perturb_speed(0.9)
-                    + cut_set.perturb_speed(1.1)
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
@@ -124,9 +122,7 @@ def compute_fbank_xbmu_amdo31(bpe_model: Optional[str] = None):
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()

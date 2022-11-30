@@ -12,7 +12,7 @@ stop_stage=100
 #
 #  - $dl_dir/xbmu_amdo31
 #      You can find data, resource, etc, inside it.
-#      You can download them from https://www.openslr.org/x
+#      You can download them from https://huggingface.co/datasets/syzym/xbmu_amdo31
 #
 #  - $dl_dir/lm
 #      This directory contains the following files downloaded from
@@ -77,8 +77,10 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   #   ln -sfv /path/to/xbmu_amdo31 $dl_dir/xbmu_amdo31
   #
-  if [ ! -d $dl_dir/xbmu_amdo31/data/wav/train ]; then
-    lhotse download xbmu_amdo31 $dl_dir
+  
+  if [ ! -f $dl_dir/xbmu_amdo31 ]; then
+    git lfs 1>/dev/null 2>&1 || (echo "please install git-lfs, consider using: sudo apt-get install git-lfs && git-lfs install" && exit 1)
+    lhotse download xbmu-amdo31 $dl_dir
   fi
 
   # If you have pre-downloaded it to /path/to/musan,

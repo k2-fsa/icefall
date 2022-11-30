@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
+from icefall.utils import str2bool
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
-from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
-    CutConcatenate,
+from lhotse.dataset import (
+    CutConcatenate,  # noqa F401 for PrecomputedFeatures
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
@@ -35,14 +36,12 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
-    AudioSamples,
+from lhotse.dataset.input_strategies import (
+    AudioSamples,  # noqa F401 For AudioSamples
     OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
-
-from icefall.utils import str2bool
 
 
 class _SeedWorkers:
@@ -408,7 +407,3 @@ class Xbmu_AmdoAsrDataModule:
         logging.info(f"About to get test cuts from {f}")
         cuts_test = load_manifest_lazy(f)
         return cuts_test
-
-
-
-

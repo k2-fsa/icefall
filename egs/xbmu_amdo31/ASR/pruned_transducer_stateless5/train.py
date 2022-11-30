@@ -52,26 +52,16 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
+import sentencepiece as spm
+
 import k2
 import optim
-import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import Xbmu_AmdoAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
-from joiner import Joiner
-from lhotse.cut import Cut
-from lhotse.dataset.sampling.base import CutSampler
-from lhotse.utils import fix_random_seed
-from model import Transducer
-from optim import Eden, Eve
-from torch import Tensor
-from torch.cuda.amp import GradScaler
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
-
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -88,6 +78,16 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+from joiner import Joiner
+from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
+from lhotse.utils import fix_random_seed
+from model import Transducer
+from optim import Eden, Eve
+from torch import Tensor
+from torch.cuda.amp import GradScaler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.tensorboard import SummaryWriter
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 

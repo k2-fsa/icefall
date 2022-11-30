@@ -938,7 +938,7 @@ def main():
     args.return_cuts = True
     xbmu_amdo = Xbmu_AmdoAsrDataModule(args)
 
-    test_cuts = xbmu_amdo.test_cuts()
+    test_cuts = xbmu_amdo.valid_cuts()
 
 
     test_dl = xbmu_amdo.test_dataloaders(test_cuts)
