@@ -183,6 +183,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"
+  mv exp/pretrained.pt exp/epoch-88.pt
   popd
 
   mkdir -p lstm_transducer_stateless2/exp
@@ -226,6 +227,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
   lm_repo=$(basename $lm_repo_url)
   pushd $lm_repo
   git lfs pull --include "exp/pretrained.pt"
+  mv exp/pretrained.pt exp/epoch-88.pt
   popd
 
   mkdir -p lstm_transducer_stateless2/exp
