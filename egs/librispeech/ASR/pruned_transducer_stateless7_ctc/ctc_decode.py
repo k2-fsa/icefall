@@ -20,13 +20,51 @@
 # limitations under the License.
 """
 Usage:
-(1) take ctc-decoding as an example
+(1) ctc-decoding
 ./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7_ctc/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
+
+(2) 1best
+./pruned_transducer_stateless7_ctc/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --max-duration 600 \
+    --hlg-scale 0.8 \
+    --decoding-method 1best
+
+(3) nbest
+./pruned_transducer_stateless7_ctc/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --max-duration 600 \
+    --hlg-scale 0.8 \
+    --decoding-method 1best
+
+(4) nbest-rescoring
+./pruned_transducer_stateless7_ctc/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --max-duration 600 \
+    --hlg-scale 0.8 \
+    --lm-dir data/lm \
+    --decoding-method nbest-rescoring
+
+(5) whole-lattice-rescoring
+./pruned_transducer_stateless7_ctc/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --max-duration 600 \
+    --hlg-scale 0.8 \
+    --lm-dir data/lm \
+    --decoding-method whole-lattice-rescoring
 """
 
 
@@ -44,7 +82,6 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -238,8 +275,6 @@ def decode_one_batch(
     bpe_model: Optional[spm.SentencePieceProcessor],
     batch: dict,
     word_table: k2.SymbolTable,
-    sos_id: int,
-    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -277,10 +312,6 @@ def decode_one_batch(
         for the format of the `batch`.
       word_table:
         The word symbol table.
-      sos_id:
-        The token ID of the SOS.
-      eos_id:
-        The token ID of the EOS.
       G:
         An LM. It is not None when params.decoding_method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -433,8 +464,6 @@ def decode_dataset(
     H: Optional[k2.Fsa],
     bpe_model: Optional[spm.SentencePieceProcessor],
     word_table: k2.SymbolTable,
-    sos_id: int,
-    eos_id: int,
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
@@ -454,10 +483,6 @@ def decode_dataset(
         The BPE model. Used only when params.decoding_method is ctc-decoding.
       word_table:
         It is the word symbol table.
-      sos_id:
-        The token ID for SOS.
-      eos_id:
-        The token ID for EOS.
       G:
         An LM. It is not None when params.decoding_method is "nbest-rescoring"
         or "whole-lattice-rescoring". In general, the G in HLG
@@ -490,8 +515,6 @@ def decode_dataset(
             batch=batch,
             word_table=word_table,
             G=G,
-            sos_id=sos_id,
-            eos_id=eos_id,
         )
 
         for name, hyps in hyps_dict.items():
@@ -603,18 +626,7 @@ def main():
     max_token_id = max(lexicon.tokens)
     num_classes = max_token_id + 1  # +1 for the blank
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
-    sos_id = graph_compiler.sos_id
-    eos_id = graph_compiler.eos_id
-
     params.vocab_size = num_classes
-    params.sos_id = sos_id
-    params.eos_id = eos_id
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = 0
 
@@ -795,8 +807,6 @@ def main():
             bpe_model=bpe_model,
             word_table=lexicon.word_table,
             G=G,
-            sos_id=sos_id,
-            eos_id=eos_id,
         )
 
         save_results(

@@ -24,8 +24,8 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.script()
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
+./pruned_transducer_stateless7_ctc/export.py \
+  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9 \
@@ -43,8 +43,8 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
+./pruned_transducer_stateless7_ctc/export.py \
+  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
@@ -52,15 +52,15 @@ for how to use the exported models outside of icefall.
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless7/decode.py`,
+To use the generated file with `pruned_transducer_stateless7_ctc/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless7/decode.py \
-        --exp-dir ./pruned_transducer_stateless7/exp \
+    ./pruned_transducer_stateless7_ctc/decode.py \
+        --exp-dir ./pruned_transducer_stateless7_ctc/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
