@@ -112,8 +112,6 @@ class Model:
 
     def init_encoder(self, args):
         encoder_net = ncnn.Net()
-        encoder_net.opt.use_packing_layout = False
-        encoder_net.opt.use_fp16_storage = False
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
@@ -127,7 +125,6 @@ class Model:
         decoder_model = args.decoder_bin_filename
 
         decoder_net = ncnn.Net()
-        decoder_net.opt.use_packing_layout = False
 
         decoder_net.load_param(decoder_param)
         decoder_net.load_model(decoder_model)
@@ -138,7 +135,6 @@ class Model:
         joiner_param = args.joiner_param_filename
         joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
-        joiner_net.opt.use_packing_layout = False
         joiner_net.load_param(joiner_param)
         joiner_net.load_model(joiner_model)
 
@@ -161,7 +157,7 @@ class Model:
            - next_states, a list of tensors containing the next states
         """
         with self.encoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            ex.set_num_threads(4)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
 
             # layer0 in2-in5
@@ -214,7 +210,7 @@ class Model:
 
     def run_joiner(self, encoder_out, decoder_out):
         with self.joiner_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            ex.set_num_threads(4)
             ex.input("in0", ncnn.Mat(encoder_out.numpy()).clone())
             ex.input("in1", ncnn.Mat(decoder_out.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")

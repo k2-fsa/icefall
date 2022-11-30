@@ -1466,75 +1466,10 @@ class EmformerEncoder(nn.Module):
               right_context at the end.
             - updated states from current chunk's computation.
         """
-        if False:
-            attn_caches = states[0]
-            assert len(attn_caches) == self.num_encoder_layers, len(attn_caches)
-            for i in range(len(attn_caches)):
-                assert attn_caches[i][0].shape == (
-                    self.memory_size,
-                    x.size(1),
-                    self.d_model,
-                ), attn_caches[i][0].shape
-                assert attn_caches[i][1].shape == (
-                    self.left_context_length,
-                    x.size(1),
-                    self.d_model,
-                ), attn_caches[i][1].shape
-                assert attn_caches[i][2].shape == (
-                    self.left_context_length,
-                    x.size(1),
-                    self.d_model,
-                ), attn_caches[i][2].shape
-
-            conv_caches = states[1]
-            assert len(conv_caches) == self.num_encoder_layers, len(conv_caches)
-            for i in range(len(conv_caches)):
-                assert conv_caches[i].shape == (
-                    x.size(1),
-                    self.d_model,
-                    self.cnn_module_kernel - 1,
-                ), conv_caches[i].shape
-
-
-        if False:
-            right_context = x[-self.right_context_length :]
-            utterance = x[: -self.right_context_length]
-        else:
-            right_context = x[self.chunk_length:]
-            utterance = x[:self.chunk_length]
         # lengths = chunk_length + right_context_length
-
-
-        if False:
-            output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
-            # calculate padding mask to mask out initial zero caches
-            chunk_mask = make_pad_mask(output_lengths).to(x.device)
-            memory_mask = (
-                (
-                    (num_processed_frames >> self.shift).view(x.size(1), 1)
-                    <= torch.arange(self.memory_size, device=x.device).expand(
-                        x.size(1), self.memory_size
-                    )
-                ).flip(1)
-                if self.use_memory
-                else torch.empty(0).to(dtype=torch.bool, device=x.device)
-            )
-            left_context_mask = (
-                num_processed_frames.view(x.size(1), 1)
-                <= torch.arange(self.left_context_length, device=x.device).expand(
-                    x.size(1), self.left_context_length
-                )
-            ).flip(1)
-            right_context_mask = torch.zeros(
-                x.size(1),
-                self.right_context_length,
-                dtype=torch.bool,
-                device=x.device,
-            )
-            padding_mask = torch.cat(
-                [memory_mask, right_context_mask, left_context_mask, chunk_mask],
-                dim=1,
-            )
+        utterance = x[:self.chunk_length]
+        right_context = x[self.chunk_length:]
+        #  right_context_utterance = torch.cat([right_context, utterance])
 
         output = utterance
         output_states : List[torch.Tensor] = []
