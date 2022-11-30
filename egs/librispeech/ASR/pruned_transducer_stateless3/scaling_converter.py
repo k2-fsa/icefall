@@ -284,7 +284,7 @@ def convert_scaled_to_non_scaled(
     if not inplace:
         model = copy.deepcopy(model)
 
-    excluded_patterns = r"self_attn\.(in|out)_proj"
+    excluded_patterns = r"(self|src)_attn\.(in|out)_proj"
     p = re.compile(excluded_patterns)
 
     d = {}

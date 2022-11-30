@@ -47,6 +47,7 @@ from pathlib import Path
 
 import torch
 from conformer import Conformer
+from scaling_converter import convert_scaled_to_non_scaled
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -305,12 +306,11 @@ def main():
                 )
             )
 
-    model.eval()
-
     model.to("cpu")
     model.eval()
 
     if params.jit:
+        convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
