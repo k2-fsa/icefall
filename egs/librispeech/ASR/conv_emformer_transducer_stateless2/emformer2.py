@@ -875,7 +875,7 @@ class EmformerEncoderLayer(nn.Module):
         """Update cached attention state:
         1) output memory of current chunk in the lower layer;
         2) attention key and value in current chunk's computation, which would
-        be resued in next chunk's computation.
+        be reused in next chunk's computation.
         """
         # attn_cache[0].shape (self.memory_size, 1, 512)
         # memory.shape (1, 1, 512)
@@ -885,11 +885,11 @@ class EmformerEncoderLayer(nn.Module):
         # next_value.shape (self.left_context_length + self.right_context_utterance, 1, 512)
         new_memory = torch.cat([attn_cache[0], memory])
         # TODO(fangjun): Remove torch.cat
-        new_key = torch.cat([attn_cache[1], next_key])
-        new_val = torch.cat([attn_cache[2], next_val])
+        #  new_key = torch.cat([attn_cache[1], next_key])
+        #  new_val = torch.cat([attn_cache[2], next_val])
         attn_cache[0] = new_memory[1:]
-        attn_cache[1] = new_key[-self.left_context_length :]
-        attn_cache[2] = new_val[-self.left_context_length :]
+        attn_cache[1] = next_key[-self.left_context_length :]
+        attn_cache[2] = next_val[-self.left_context_length :]
         return attn_cache
 
     def _apply_conv_module_forward(
@@ -1433,11 +1433,8 @@ class EmformerEncoder(nn.Module):
     def infer(
         self,
         x: torch.Tensor,
-        lengths: torch.Tensor,
-        num_processed_frames: torch.Tensor,
         states: List[torch.Tensor],
     ) -> Tuple[
-        torch.Tensor,
         torch.Tensor,
         List[torch.Tensor],
     ]:
@@ -1469,8 +1466,6 @@ class EmformerEncoder(nn.Module):
               right_context at the end.
             - updated states from current chunk's computation.
         """
-        assert num_processed_frames.shape == (x.size(1),)
-
         if False:
             attn_caches = states[0]
             assert len(attn_caches) == self.num_encoder_layers, len(attn_caches)
@@ -1508,10 +1503,10 @@ class EmformerEncoder(nn.Module):
             right_context = x[self.chunk_length:]
             utterance = x[:self.chunk_length]
         # lengths = chunk_length + right_context_length
-        output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
 
 
         if False:
+            output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
             # calculate padding mask to mask out initial zero caches
             chunk_mask = make_pad_mask(output_lengths).to(x.device)
             memory_mask = (
@@ -1560,7 +1555,7 @@ class EmformerEncoder(nn.Module):
             )
             output_states.extend(output_cache)
 
-        return output, output_lengths, output_states
+        return output, output_states
 
     @torch.jit.export
     def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:
@@ -1707,10 +1702,8 @@ class Emformer(EncoderInterface):
     def forward(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
         states: List[torch.Tensor],
     ) -> Tuple[
-        torch.Tensor,
         torch.Tensor,
         List[torch.Tensor],
     ]:
@@ -1743,8 +1736,6 @@ class Emformer(EncoderInterface):
               right_context at the end.
             - updated states from current chunk's computation.
         """
-        num_processed_frames = torch.tensor([0])
-
         x = self.encoder_embed(x)
         # drop the first and last frames
         x = x[:, 1:-1, :]
@@ -1752,26 +1743,13 @@ class Emformer(EncoderInterface):
 
         # Caution: We assume the subsampling factor is 4!
 
-        if not self.is_pnnx:
-            x_lens = (((x_lens - 1) >> 1) - 1) >> 1
-        else:
-            lengths1 = torch.floor((x_lens - 1) / 2)
-            lengths = torch.floor((lengths1 - 1) / 2)
-            x_lens = lengths.to(x_lens)
-
-        x_lens -= 2
-
-        assert x.size(0) == x_lens.max().item()
-
-        num_processed_frames = num_processed_frames >> 2
-
-        output, output_lengths, output_states = self.encoder.infer(
-            x, x_lens, num_processed_frames, states
+        output, output_states = self.encoder.infer(
+            x, states
         )
 
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
-        return output, output_lengths, output_states
+        return output, output_states
 
     @torch.jit.export
     def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:

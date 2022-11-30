@@ -172,21 +172,20 @@ def export_encoder_model_jit_trace(
     chunk_length = encoder_model.chunk_length  # before subsampling
     right_context_length = encoder_model.right_context_length  # before subsampling
     pad_length = right_context_length + 2 * 4 + 3
-    s = f'chunk_length: {chunk_length}, '
-    s += f'right_context_length: {right_context_length}\n'
+    s = f"chunk_length: {chunk_length}, "
+    s += f"right_context_length: {right_context_length}\n"
     logging.info(s)
 
     T = chunk_length + pad_length
 
     x = torch.zeros(1, T, 80, dtype=torch.float32)
-    # TODO(fangjun): Remove x_lens
-    x_lens = torch.tensor([T], dtype=torch.int64)
     states = encoder_model.init_states()
     states = encoder_model.init_states()
 
-    traced_model = torch.jit.trace(encoder_model, (x, x_lens, states))
+    traced_model = torch.jit.trace(encoder_model, (x, states))
     traced_model.save(encoder_filename)
     logging.info(f"Saved to {encoder_filename}")
+
 
 def export_decoder_model_jit_trace(
     decoder_model: torch.nn.Module,
@@ -344,15 +343,15 @@ def main():
     convert_scaled_to_non_scaled(model, inplace=True)
     logging.info("Using torch.jit.trace()")
 
-    logging.info('Exporting encoder')
+    logging.info("Exporting encoder")
     encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
     export_encoder_model_jit_trace(model.encoder, encoder_filename)
 
-    logging.info('Exporting decoder')
+    logging.info("Exporting decoder")
     decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
     export_decoder_model_jit_trace(model.decoder, decoder_filename)
 
-    logging.info('Exporting joiner')
+    logging.info("Exporting joiner")
     joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
     export_joiner_model_jit_trace(model.joiner, joiner_filename)
 

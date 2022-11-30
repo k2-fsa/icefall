@@ -164,13 +164,10 @@ class Model:
             ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
 
-            x_lens = torch.tensor([x.size(0)], dtype=torch.float32)
-            ex.input("in1", ncnn.Mat(x_lens.numpy()).clone())
-
             # layer0 in2-in5
             # layer1 in6-in9
             for i in range(self.num_layers):
-                offset = 2 + i * 4
+                offset = 1 + i * 4
                 name = f"in{offset}"
                 # (32, 1, 512) -> (32, 512)
                 ex.input(name, ncnn.Mat(states[i * 4 + 0].numpy()).clone())
@@ -194,14 +191,9 @@ class Model:
             #  assert ret == 0, ret
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
 
-            # TODO(fangjun): remove out1
-            #  ret, ncnn_out1 = ex.extract("out1")
-            #  assert ret == 0, ret
-            #  encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
-
             out_states: List[torch.Tensor] = []
             for i in range(4 * self.num_layers):
-                name = f"out{i+2}"
+                name = f"out{i+1}"
                 ret, ncnn_out_state = ex.extract(name)
                 assert ret == 0, ret
                 ncnn_out_state = torch.from_numpy(ncnn_out_state.numpy())
