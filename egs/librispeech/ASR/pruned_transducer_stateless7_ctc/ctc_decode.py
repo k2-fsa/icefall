@@ -635,10 +635,9 @@ def main():
         )
         assert HLG.requires_grad is False
 
+        HLG.scores *= params.hlg_scale
         if not hasattr(HLG, "lm_scores"):
             HLG.lm_scores = HLG.scores.clone()
-
-        HLG.scores *= params.hlg_scale
 
     if params.decoding_method in (
         "nbest-rescoring",
