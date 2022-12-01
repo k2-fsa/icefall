@@ -449,6 +449,17 @@ $ ./tdnn/train.py
 <p>We use <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">CUDA_VISIBLE_DEVICES=&quot;&quot;</span></code> so that <code class="docutils literal notranslate"><span class="pre">icefall</span></code> uses CPU
 even if there are GPUs available.</p>
 </div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>In case you get a <code class="docutils literal notranslate"><span class="pre">Segmentation</span> <span class="pre">fault</span> <span class="pre">(core</span> <span class="pre">dump)</span></code> error, please use:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION</span><span class="o">=</span>python
+</pre></div>
+</div>
+</div></blockquote>
+<p>See more at <cite>&lt;https://github.com/k2-fsa/icefall/issues/674&gt;</cite> if you are
+interested.</p>
+</div>
 <p>The training log is given below:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2021-08-23 19:30:31,072 INFO [train.py:465] Training started
 2021-08-23 19:30:31,072 INFO [train.py:466] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lr&#39;: 0.01,
