@@ -33,6 +33,7 @@ popd
 log "Export to torchscript model"
 ./pruned_transducer_stateless7/export.py \
   --exp-dir $repo/exp \
+  --use-averaged-model false \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --epoch 99 \
   --avg 1 \

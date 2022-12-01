@@ -79,8 +79,7 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         total += 1
         if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Duration: {c.duration}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             removed += 1
             return False
@@ -100,6 +99,9 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
         T = ((num_frames - 1) // 2 - 1) // 2
         # Note: for ./lstm_transducer_stateless/lstm.py, the formula is
         #  T = ((num_frames - 3) // 2 - 1) // 2
+
+        # Note: for ./pruned_transducer_stateless7/zipformer.py, the formula is
+        # T = ((num_frames - 7) // 2 + 1) // 2
 
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
@@ -122,8 +124,7 @@ def filter_cuts(cut_set: CutSet, sp: spm.SentencePieceProcessor):
     ans = cut_set.filter(remove_short_and_long_utterances).to_eager()
     ratio = removed / total * 100
     logging.info(
-        f"Removed {removed} cuts from {total} cuts. "
-        f"{ratio:.3f}% data is removed."
+        f"Removed {removed} cuts from {total} cuts. {ratio:.3f}% data is removed."
     )
     return ans
 
@@ -152,9 +153,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

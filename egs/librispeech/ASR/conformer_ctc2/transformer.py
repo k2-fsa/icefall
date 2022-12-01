@@ -21,19 +21,17 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from label_smoothing import LabelSmoothingLoss
-from subsampling import Conv2dSubsampling
 from attention import MultiheadAttention
-from torch.nn.utils.rnn import pad_sequence
-
+from label_smoothing import LabelSmoothingLoss
 from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledLinear,
     ScaledEmbedding,
+    ScaledLinear,
 )
-
+from subsampling import Conv2dSubsampling
+from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]
@@ -210,9 +208,7 @@ class Transformer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
-        x = self.encoder(
-            x, src_key_padding_mask=mask, warmup=warmup
-        )  # (T, N, C)
+        x = self.encoder(x, src_key_padding_mask=mask, warmup=warmup)  # (T, N, C)
 
         return x, mask
 
@@ -261,23 +257,17 @@ class Transformer(nn.Module):
         """
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(
-            ys_in, batch_first=True, padding_value=float(eos_id)
-        )
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(
-            ys_out, batch_first=True, padding_value=float(-1)
-        )
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device)
         ys_out_pad = ys_out_pad.to(device)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            device
-        )
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -338,23 +328,17 @@ class Transformer(nn.Module):
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(
-            ys_in, batch_first=True, padding_value=float(eos_id)
-        )
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(
-            ys_out, batch_first=True, padding_value=float(-1)
-        )
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
         ys_out_pad = ys_out_pad.to(device, dtype=torch.int64)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            device
-        )
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -417,7 +401,6 @@ class TransformerEncoderLayer(nn.Module):
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        activation: str = "relu",
     ) -> None:
         super(TransformerEncoderLayer, self).__init__()
 
@@ -442,11 +425,6 @@ class TransformerEncoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-
-    # def __setstate__(self, state):
-    #     if "activation" not in state:
-    #         state["activation"] = nn.functional.relu
-    #     super(TransformerEncoderLayer, self).__setstate__(state)
 
     def forward(
         self,
@@ -539,7 +517,6 @@ class TransformerDecoderLayer(nn.Module):
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
-        # activation: str = "relu",
         normalize_before: bool = True,
     ) -> None:
         super(TransformerDecoderLayer, self).__init__()
@@ -563,11 +540,6 @@ class TransformerDecoderLayer(nn.Module):
         )
 
         self.dropout = nn.Dropout(dropout)
-
-    # def __setstate__(self, state):
-    #     if "activation" not in state:
-    #         state["activation"] = nn.functional.relu
-    #     super(TransformerDecoderLayer, self).__setstate__(state)
 
     def forward(
         self,
@@ -653,17 +625,6 @@ class TransformerDecoderLayer(nn.Module):
         return tgt
 
 
-def _get_activation_fn(activation: str):
-    if activation == "relu":
-        return nn.functional.relu
-    elif activation == "gelu":
-        return nn.functional.gelu
-
-    raise RuntimeError(
-        "activation should be relu/gelu, not {}".format(activation)
-    )
-
-
 class TransformerEncoder(nn.Module):
     r"""TransformerEncoder is a stack of N encoder layers
 
@@ -708,7 +669,7 @@ class TransformerEncoder(nn.Module):
         """
         output = src
 
-        for i, mod in enumerate(self.layers):
+        for mod in self.layers:
             output = mod(
                 output,
                 src_mask=mask,
@@ -769,7 +730,7 @@ class TransformerDecoder(nn.Module):
         """
         output = tgt
 
-        for i, mod in enumerate(self.layers):
+        for mod in self.layers:
             output = mod(
                 output,
                 memory,
@@ -982,9 +943,7 @@ def encoder_padding_mask(
         1,
     ).to(torch.int32)
 
-    lengths = [
-        0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)
-    ]
+    lengths = [0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)]
     for idx in range(supervision_segments.size(0)):
         # Note: TorchScript doesn't allow to unpack tensors as tuples
         sequence_idx = supervision_segments[idx, 0].item()
@@ -1005,9 +964,7 @@ def encoder_padding_mask(
     return mask
 
 
-def decoder_padding_mask(
-    ys_pad: torch.Tensor, ignore_id: int = -1
-) -> torch.Tensor:
+def decoder_padding_mask(ys_pad: torch.Tensor, ignore_id: int = -1) -> torch.Tensor:
     """Generate a length mask for input.
 
     The masked position are filled with True,
