@@ -63,8 +63,8 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall import diagnostics
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -78,15 +78,14 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
-    encode_supervisions,
     display_and_save_batch,
+    encode_supervisions,
     setup_logger,
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
 
 def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -95,7 +94,7 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         default=24,
         help="Number of conformer encoder layers..",
     )
-    
+
     parser.add_argument(
         "--num-decoder-layers",
         type=int,
@@ -104,7 +103,7 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
     )
-    
+
     parser.add_argument(
         "--att-rate",
         type=float,
@@ -212,8 +211,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--initial-lr",
         type=float,
         default=0.003,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        help="The initial learning rate.  This value should not need to be changed.",
     )
 
     parser.add_argument(
@@ -228,8 +226,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--lr-epochs",
         type=float,
         default=6,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
-        """,
+        help="Number of epochs that affects how rapidly the learning rate decreases.",
     )
 
     parser.add_argument(
@@ -508,11 +505,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -525,18 +518,18 @@ def compute_loss(
         nnet_output, encoder_memory, memory_mask = model(
             feature, supervisions, warmup=warmup
         )
-        
+
         supervision_segments, texts = encode_supervisions(
             supervisions, subsampling_factor=params.subsampling_factor
         )
-        
+
         if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
             # Works with a BPE model
             assert (
-                len(graph_compiler.texts_to_ids("@")) == 2 
+                len(graph_compiler.texts_to_ids("@")) == 2
                 and graph_compiler.texts_to_ids("@")[-1] == graph_compiler.sp.unk_id()
             )
-            # artificially incerting symbol that is 
+            # artificially incerting symbol that is
             # encoded as <unk> token by bpe model,
             # otherwise <unk> will be splited into multiple tokens
             # TODO fix this after finish experiment for differnt <unk> encoding.
@@ -550,7 +543,7 @@ def compute_loss(
             raise ValueError(
                 f"Unsupported type of graph compiler: {type(graph_compiler)}"
             )
-            
+
         dense_fsa_vec = k2.DenseFsaVec(
             nnet_output,
             supervision_segments,
@@ -564,7 +557,7 @@ def compute_loss(
             reduction=params.reduction,
             use_double_scores=params.use_double_scores,
         )
-        
+
         if params.att_rate > 0.0:
             with torch.set_grad_enabled(is_training):
                 mmodel = model.module if hasattr(model, "module") else model
@@ -576,9 +569,7 @@ def compute_loss(
                 #
                 # See https://github.com/k2-fsa/icefall/issues/97
                 # for more details
-                unsorted_token_ids = graph_compiler.texts_to_ids(
-                    supervisions["text"]
-                )
+                unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
                 att_loss = mmodel.decoder_forward(
                     encoder_memory,
                     memory_mask,
@@ -589,7 +580,7 @@ def compute_loss(
                 )
         else:
             att_loss = torch.tensor([0])
-        
+
         ctc_loss_is_finite = torch.isfinite(ctc_loss)
         att_loss_is_finite = torch.isfinite(att_loss)
         if torch.any(~ctc_loss_is_finite) or torch.any(~att_loss_is_finite):
@@ -605,18 +596,15 @@ def compute_loss(
             # If the batch contains more than 10 utterances AND
             # if either all ctc_loss or att_loss is inf or nan,
             # we stop the training process by raising an exception
-            if (
-                torch.all(~ctc_loss_is_finite) or 
-                torch.all(~att_loss_is_finite)
-            ):
+            if torch.all(~ctc_loss_is_finite) or torch.all(~att_loss_is_finite):
                 raise ValueError(
                     "There are too many utterances in this batch "
                     "leading to inf or nan losses."
                 )
-                
+
         ctc_loss = ctc_loss.sum()
         att_loss = att_loss.sum()
-        
+
         if params.att_rate > 0.0:
             loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
         else:
@@ -817,9 +805,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -958,7 +944,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 

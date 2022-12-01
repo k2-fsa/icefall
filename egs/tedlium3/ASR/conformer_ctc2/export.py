@@ -48,6 +48,7 @@ from pathlib import Path
 import torch
 from conformer import Conformer
 from scaling_converter import convert_scaled_to_non_scaled
+from train import add_model_arguments
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -57,45 +58,6 @@ from icefall.checkpoint import (
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, str2bool
-
-
-def add_model_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--num-encoder-layers",
-        type=int,
-        default=24,
-        help="Number of conformer encoder layers..",
-    )
-    
-    parser.add_argument(
-        "--num-decoder-layers",
-        type=int,
-        default=6,
-        help="""Number of decoder layer of transformer decoder.
-        Setting this to 0 will not create the decoder at all (pure CTC model)
-        """,
-    )
-
-    parser.add_argument(
-        "--dim-feedforward",
-        type=int,
-        default=1536,
-        help="Feedforward module dimension of the conformer model.",
-    )
-
-    parser.add_argument(
-        "--nhead",
-        type=int,
-        default=8,
-        help="Number of attention heads in the conformer multiheadattention modules.",
-    )
-
-    parser.add_argument(
-        "--dim-model",
-        type=int,
-        default=384,
-        help="Attention dimension in the conformer model.",
-    )
 
 
 def get_parser() -> argparse.ArgumentParser:

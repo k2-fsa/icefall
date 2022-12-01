@@ -31,6 +31,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import TedLiumAsrDataModule
 from conformer import Conformer
+from train import add_model_arguments
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import (
@@ -60,44 +61,6 @@ from icefall.utils import (
     write_error_stats,
 )
 
-
-def add_model_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--num-encoder-layers",
-        type=int,
-        default=24,
-        help="Number of conformer encoder layers..",
-    )
-    
-    parser.add_argument(
-        "--num-decoder-layers",
-        type=int,
-        default=6,
-        help="""Number of decoder layer of transformer decoder.
-        Setting this to 0 will not create the decoder at all (pure CTC model)
-        """,
-    )
-
-    parser.add_argument(
-        "--dim-feedforward",
-        type=int,
-        default=1536,
-        help="Feedforward module dimension of the conformer model.",
-    )
-
-    parser.add_argument(
-        "--nhead",
-        type=int,
-        default=8,
-        help="Number of attention heads in the conformer multiheadattention modules.",
-    )
-
-    parser.add_argument(
-        "--dim-model",
-        type=int,
-        default=384,
-        help="Attention dimension in the conformer model.",
-    )
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -223,7 +186,7 @@ def get_parser() -> argparse.ArgumentParser:
         default="conformer_ctc2/exp",
         help="Directory to store results.",
     )
-    
+
     add_model_arguments(parser)
 
     return parser
@@ -514,7 +477,9 @@ def decode_one_batch(
     if best_path_dict is not None:
         for lm_scale_str, best_path in best_path_dict.items():
             hyps = get_texts(best_path)
-            hyps = [[word_table[i] for i in ids if word_table[i] != "<unk>"] for ids in hyps]
+            hyps = [
+                [word_table[i] for i in ids if word_table[i] != "<unk>"] for ids in hyps
+            ]
             ans[lm_scale_str] = hyps
     else:
         ans = None
@@ -600,9 +565,7 @@ def decode_dataset(
 
                 results[lm_scale].extend(this_batch)
         else:
-            assert (
-                len(results) > 0
-            ), "It should not decode to empty in the first batch!"
+            assert len(results) > 0, "It should not decode to empty in the first batch!"
             this_batch = []
             hyp_words = []
             for ref_text in texts:
@@ -617,9 +580,7 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -651,9 +612,7 @@ def save_results(
             test_set_wers[key] = wer
 
         if enable_log:
-            logging.info(
-                "Wrote detailed error stats to {}".format(errs_filename)
-            )
+            logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.result_dir / f"wer-summary-{test_set_name}.txt"
@@ -679,7 +638,7 @@ def main() -> None:
     args.lang_dir = Path(args.lang_dir)
     args.lm_path = Path(args.lm_path)
     args.result_dir = Path(args.result_dir)
-    
+
     if args.result_dir.is_dir():
         shutil.rmtree(args.result_dir)
     args.result_dir.mkdir()
@@ -742,16 +701,18 @@ def main() -> None:
             d = torch.load(params.lm_path, map_location=device)
             G = k2.Fsa.from_dict(d)
         elif not params.lm_path.is_file() and params.lm_path.suffix == ".txt":
-            raise FileNotFindError(f"No such language model file: '{params.lm_path}'")
+            raise FileNotFoundError(f"No such language model file: '{params.lm_path}'")
         else:
             # here we pass only if LM filename ends with '.pt' and doesn't exist
             # or if LM filename ends '.txt' and exists.
             if (
                 not params.lm_path.is_file()
                 and params.lm_path.suffix == ".pt"
-                and not (params.lm_path.parent / f"{params.lm_path.stem}.fst.txt").is_file()
+                and not (
+                    params.lm_path.parent / f"{params.lm_path.stem}.fst.txt"
+                ).is_file()
             ):
-                raise FileNotFindError(
+                raise FileNotFoundError(
                     f"No such language model file: '{params.lm_path}'\n"
                     "'.fst.txt' representation of the language model was "
                     "not found either."
@@ -759,8 +720,8 @@ def main() -> None:
             else:
                 # whatever params.lm_path.name we got lm_name.pt or lm_name.fst.txt
                 # we are going to load lm_name.fst.txt here
-                params.lm_path = (
-                    params.lm_path.parent / params.lm_path.name.replace(".pt", ".fst.txt")
+                params.lm_path = params.lm_path.parent / params.lm_path.name.replace(
+                    ".pt", ".fst.txt"
                 )
                 logging.info(f"Loading {params.lm_path.name}")
                 logging.warning("It may take 8 minutes.")
@@ -787,7 +748,9 @@ def main() -> None:
 
                     torch.save(
                         G.as_dict(),
-                        params.lm_path.parent / params.lm_path.name.replace(".fst.txt", ".pt")
+                        params.lm_path.parent / params.lm_path.name.replace(
+                            ".fst.txt", ".pt"
+                        ),
                     )
 
         if params.method in [
@@ -821,7 +784,7 @@ def main() -> None:
         if params.iter > 0:
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            )[:params.avg]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -850,7 +813,7 @@ def main() -> None:
         if params.iter > 0:
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            )[:params.avg + 1]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -902,10 +865,10 @@ def main() -> None:
     # we need cut ids to display recognition results.
     args.return_cuts = True
     tedlium = TedLiumAsrDataModule(args)
-    
+
     valid_cuts = tedlium.dev_cuts()
     test_cuts = tedlium.test_cuts()
-    
+
     valid_dl = tedlium.valid_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
@@ -926,15 +889,23 @@ def main() -> None:
             eos_id=eos_id,
         )
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 
 
 torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
+# when we import add_model_arguments from train.py
+# we enforce torch.set_num_interop_threads(1) in it,
+# so we ending up with seting num_interop_threads to one
+# two times: in train.py and decode.py which cause an error,
+# that is why added additional if statement.
+if torch.get_num_interop_threads() != 1:
+    torch.set_num_interop_threads(1)
+
+# The flag below controls whether to allow TF32 on matmul. This flag defaults to False
+# in PyTorch 1.12 and later.
+torch.backends.cuda.matmul.allow_tf32 = True
 
 if __name__ == "__main__":
     main()
