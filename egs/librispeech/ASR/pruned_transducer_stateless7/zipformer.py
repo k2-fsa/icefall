@@ -1471,10 +1471,10 @@ class NonlinAttentionModule(nn.Module):
             hidden_channels // ratio, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            min_abs=1.5,
-            max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
+            min_abs=0.75,
+            max_abs=ScheduledFloat((0.0, 2.5), (8000.0, 5.0), default=1.0),
         )
-        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
 
         self.activation = Identity()  # for diagnostics.
         self.out_proj = ScaledLinear(hidden_channels, channels,
@@ -1509,7 +1509,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         x = x[..., :hidden_channels]
 
         s = self.balancer(s)
-        s = self.sigmoid(s)
+        s = self.tanh(s)
 
         s = s.unsqueeze(-1).expand(-1, -1, -1, self.ratio).reshape(seq_len, batch_size,
                                                                    hidden_channels)
