@@ -422,9 +422,9 @@ class ZipformerEncoderLayer(nn.Module):
                                                feedforward_dim,
                                                dropout)
 
-        #self.conv_module1 = ConvolutionModule(embed_dim,
-        #cnn_module_kernel)
-        self.nonlin_attention_module = NonlinAttentionModule(embed_dim)
+        self.nonlin_attention_module = NonlinAttentionModule(embed_dim,
+                                                             hidden_channels=embed_dim // 4,
+                                                             ratio=1)
 
 
         self.conv_module = ConvolutionModule(embed_dim,
@@ -1450,20 +1450,25 @@ class NonlinAttentionModule(nn.Module):
     """
 
     def __init__(
-            self, channels: int, ratio: int = 2,
+            self,
+            channels: int,
+            hidden_channels: int,
+            ratio: int = 1,
     ) -> None:
         super().__init__()
 
         self.ratio = ratio
+        self.hidden_channels = hidden_channels
+
         assert channels % (ratio * 2) == 0
-        self.in_proj = nn.Linear(channels, (channels + channels // ratio) // 2, bias=True)
+        self.in_proj = nn.Linear(channels, hidden_channels + hidden_channels // ratio, bias=True)
 
         # balancer that goes before the sigmoid.  Have quite a large min_abs value, at 2.0,
         # because we noticed that well-trained instances of this module have abs-value before the sigmoid
         # starting from about 3, and poorly-trained instances of the module have smaller abs values
         # before the sigmoid.
         self.balancer = ActivationBalancer(
-            channels // (2 * ratio), channel_dim=-1,
+            hidden_channels // ratio, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
             min_abs=1.5,
@@ -1472,7 +1477,7 @@ class NonlinAttentionModule(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         self.activation = Identity()  # for diagnostics.
-        self.out_proj = ScaledLinear(channels // 2, channels,
+        self.out_proj = ScaledLinear(hidden_channels, channels,
                                      bias=True,
                                      initial_scale=0.05)
 
@@ -1495,18 +1500,19 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
            a Tensor with the same shape as x
         """
         num_channels = x.shape[-1]
-        (seq_len, batch_size, num_channels) = x.shape
-
         x = self.in_proj(x)
 
-        s = x[..., num_channels // 2:]
-        x = x[..., :num_channels // 2]
+        (seq_len, batch_size, _) = x.shape
+        hidden_channels = self.hidden_channels
+
+        s = x[..., hidden_channels:]
+        x = x[..., :hidden_channels]
 
         s = self.balancer(s)
         s = self.sigmoid(s)
 
-        s = s.unsqueeze(-1).expand(-1, -1, -1, self.ratio).reshape(seq_len, batch_size, num_channels // 2)
-
+        s = s.unsqueeze(-1).expand(-1, -1, -1, self.ratio).reshape(seq_len, batch_size,
+                                                                   hidden_channels)
         x = self.activation(x)  # diagnostics only, it's the identity.
         x = x * s
 
