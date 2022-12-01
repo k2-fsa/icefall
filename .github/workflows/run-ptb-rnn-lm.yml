@@ -41,19 +41,21 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf
 
       - name: Prepare data
         shell: bash
         run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
           cd egs/ptb/LM
           ./prepare.sh
 
       - name: Run training
         shell: bash
         run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
           cd egs/ptb/LM
           ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2
 
