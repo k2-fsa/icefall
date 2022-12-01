@@ -1,6 +1,6 @@
 ## Results
 
-### pruned_transducer_stateless7_ctc (zipformer)
+### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
 
 See <https://github.com/k2-fsa/icefall/pull/683> for more details.
 
@@ -42,7 +42,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --master-port 12535
 ```
 
-The decoding commands for the rnnt branch are:
+The decoding commands for the transducer branch are:
 ```bash
 for m in greedy_search fast_beam_search modified_beam_search ; do
   for epoch in 30; do
