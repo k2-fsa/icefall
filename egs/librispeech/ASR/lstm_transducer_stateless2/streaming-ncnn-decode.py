@@ -90,8 +90,6 @@ class Model:
 
     def init_encoder(self, args):
         encoder_net = ncnn.Net()
-        encoder_net.opt.use_packing_layout = False
-        encoder_net.opt.use_fp16_storage = False
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
@@ -105,7 +103,6 @@ class Model:
         decoder_model = args.decoder_bin_filename
 
         decoder_net = ncnn.Net()
-        decoder_net.opt.use_packing_layout = False
 
         decoder_net.load_param(decoder_param)
         decoder_net.load_model(decoder_model)
@@ -116,7 +113,6 @@ class Model:
         joiner_param = args.joiner_param_filename
         joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
-        joiner_net.opt.use_packing_layout = False
         joiner_net.load_param(joiner_param)
         joiner_net.load_model(joiner_model)
 
