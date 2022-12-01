@@ -87,7 +87,7 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
         in_features=scaled_linear.in_features,
         out_features=scaled_linear.out_features,
         bias=True,  # otherwise, it throws errors when converting to PNNX format
-        # device=weight.device,  # Pytorch version before v1.9.0 does not has
+        # device=weight.device,  # Pytorch version before v1.9.0 does not have
         # this argument. Comment out for now, we will
         # see if it will raise error for versions
         # after v1.9.0
@@ -234,9 +234,7 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
 
     assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
     for idx in range(len(scaled_lstm._flat_weights_names)):
-        scaled_weight = (
-            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
-        )
+        scaled_weight = scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
         lstm._flat_weights[idx].data.copy_(scaled_weight)
 
     return lstm

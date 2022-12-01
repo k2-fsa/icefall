@@ -137,8 +137,7 @@ def main():
     for i in range(num_sentences):
         if step and i % step == 0:
             logging.info(
-                f"Processed number of lines: {i} "
-                f"({i/num_sentences*100: .3f}%)"
+                f"Processed number of lines: {i} ({i/num_sentences*100: .3f}%)"
             )
 
         word_ids = sentences[i]
@@ -154,18 +153,14 @@ def main():
 
         sentence_lengths[i] = token_ids.numel()
 
-    output["sentence_lengths"] = torch.tensor(
-        sentence_lengths, dtype=torch.int32
-    )
+    output["sentence_lengths"] = torch.tensor(sentence_lengths, dtype=torch.int32)
 
     torch.save(output, args.lm_archive)
     logging.info(f"Saved to {args.lm_archive}")
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

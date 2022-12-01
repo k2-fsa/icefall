@@ -51,16 +51,12 @@ def get_args():
         "lines. Each line consists of space separated words.",
     )
     parser.add_argument("--lexicon", type=str, help="The input lexicon file.")
-    parser.add_argument(
-        "--oov", type=str, default="<UNK>", help="The OOV word."
-    )
+    parser.add_argument("--oov", type=str, default="<UNK>", help="The OOV word.")
 
     return parser.parse_args()
 
 
-def process_line(
-    lexicon: Dict[str, List[str]], line: str, oov_token: str
-) -> None:
+def process_line(lexicon: Dict[str, List[str]], line: str, oov_token: str) -> None:
     """
     Args:
       lexicon:

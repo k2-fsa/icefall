@@ -36,23 +36,14 @@ from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.ali import (
-    convert_alignments_to_tensor,
-    load_alignments,
-    lookup_alignments,
-)
+from icefall.ali import convert_alignments_to_tensor, load_alignments, lookup_alignments
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.mmi import LFMMILoss
 from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, encode_supervisions, setup_logger, str2bool
 
 
 def get_parser():
@@ -377,10 +368,7 @@ def compute_loss(
             nnet_output = nnet_output.clone()
             nnet_output[:, :min_len, :] += ali_scale * mask[:, :min_len, :]
 
-        if (
-            params.batch_idx_train > params.use_ali_until
-            and params.beam_size < 8
-        ):
+        if params.batch_idx_train > params.use_ali_until and params.beam_size < 8:
             logging.info("Change beam size to 8")
             params.beam_size = 8
         else:
@@ -770,19 +758,14 @@ def run(rank, world_size, args):
     for epoch in range(params.start_epoch, params.num_epochs):
         fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
-        if (
-            params.batch_idx_train >= params.use_ali_until
-            and train_ali is not None
-        ):
+        if params.batch_idx_train >= params.use_ali_until and train_ali is not None:
             # Delete the alignments to save memory
             train_ali = None
             valid_ali = None
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:

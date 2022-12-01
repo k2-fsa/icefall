@@ -334,13 +334,9 @@ class Nbest(object):
         if hasattr(lattice, "aux_labels"):
             # delete token IDs as it is not needed
             del word_fsa.aux_labels
-            word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(
-                word_fsa
-            )
+            word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
         else:
-            word_fsa_with_epsilon_loops = k2.linear_fst_with_self_loops(
-                word_fsa
-            )
+            word_fsa_with_epsilon_loops = k2.linear_fst_with_self_loops(word_fsa)
 
         path_to_utt_map = self.shape.row_ids(1)
 
@@ -370,9 +366,7 @@ class Nbest(object):
         # path_lattice has word IDs as labels and token IDs as aux_labels
         path_lattice = k2.top_sort(k2.connect(path_lattice))
 
-        one_best = k2.shortest_path(
-            path_lattice, use_double_scores=use_double_scores
-        )
+        one_best = k2.shortest_path(path_lattice, use_double_scores=use_double_scores)
 
         one_best = k2.invert(one_best)
         # Now one_best has token IDs as labels and word IDs as aux_labels
@@ -442,9 +436,7 @@ class Nbest(object):
         scores_shape = self.fsa.arcs.shape().remove_axis(1)
         # scores_shape has axes [path][arc]
 
-        ragged_scores = k2.RaggedTensor(
-            scores_shape, self.fsa.scores.contiguous()
-        )
+        ragged_scores = k2.RaggedTensor(scores_shape, self.fsa.scores.contiguous())
 
         tot_scores = ragged_scores.sum()
 
@@ -459,7 +451,8 @@ class Nbest(object):
 def one_best_decoding(
     lattice: k2.Fsa,
     use_double_scores: bool = True,
-) -> k2.Fsa:
+    lm_scale_list: Optional[List[float]] = None,
+) -> Union[k2.Fsa, Dict[str, k2.Fsa]]:
     """Get the best path from a lattice.
 
     Args:
@@ -468,11 +461,26 @@ def one_best_decoding(
       use_double_scores:
         True to use double precision floating point in the computation.
         False to use single precision.
+      lm_scale_list:
+        A list of floats representing LM score scales.
     Return:
       An FsaVec containing linear paths.
     """
-    best_path = k2.shortest_path(lattice, use_double_scores=use_double_scores)
-    return best_path
+
+    if lm_scale_list is not None:
+
+        ans = dict()
+        saved_am_scores = lattice.scores - lattice.lm_scores
+        for lm_scale in lm_scale_list:
+            am_scores = saved_am_scores / lm_scale
+            lattice.scores = am_scores + lattice.lm_scores
+
+            best_path = k2.shortest_path(lattice, use_double_scores=use_double_scores)
+            key = f"lm_scale_{lm_scale}"
+            ans[key] = best_path
+        return ans
+
+    return k2.shortest_path(lattice, use_double_scores=use_double_scores)
 
 
 def nbest_decoding(
@@ -678,9 +686,7 @@ def rescore_with_n_best_list(
             logging.info(f"num_paths before decreasing: {num_paths}")
             num_paths = int(num_paths / 2)
             if loop_count >= max_loop_count or num_paths <= 0:
-                logging.info(
-                    "Return None as the resulting lattice is too large."
-                )
+                logging.info("Return None as the resulting lattice is too large.")
                 return None
             logging.info(
                 "This OOM is not an error. You can ignore it. "
@@ -787,13 +793,9 @@ def rescore_with_whole_lattice(
         except RuntimeError as e:
             logging.info(f"Caught exception:\n{e}\n")
             if loop_count >= max_loop_count:
-                logging.info(
-                    "Return None as the resulting lattice is too large."
-                )
+                logging.info("Return None as the resulting lattice is too large.")
                 return None
-            logging.info(
-                f"num_arcs before pruning: {inv_lattice.arcs.num_elements()}"
-            )
+            logging.info(f"num_arcs before pruning: {inv_lattice.arcs.num_elements()}")
             logging.info(
                 "This OOM is not an error. You can ignore it. "
                 "If your model does not converge well, or --max-duration "
@@ -805,9 +807,7 @@ def rescore_with_whole_lattice(
                 prune_th_list[loop_count],
                 True,
             )
-            logging.info(
-                f"num_arcs after pruning: {inv_lattice.arcs.num_elements()}"
-            )
+            logging.info(f"num_arcs after pruning: {inv_lattice.arcs.num_elements()}")
         loop_count += 1
 
     # lat has token IDs as labels
@@ -894,9 +894,7 @@ def rescore_with_attention_decoder(
             logging.info(f"num_paths before decreasing: {num_paths}")
             num_paths = int(num_paths / 2)
             if loop_count >= max_loop_count or num_paths <= 0:
-                logging.info(
-                    "Return None as the resulting lattice is too large."
-                )
+                logging.info("Return None as the resulting lattice is too large.")
                 return None
             logging.info(
                 "This OOM is not an error. You can ignore it. "
