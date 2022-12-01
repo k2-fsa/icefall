@@ -87,9 +87,7 @@ def compute_fbank_musan():
     # create chunks of Musan with duration 5 - 10 seconds
     musan_cuts = (
         CutSet.from_manifests(
-            recordings=combine(
-                part["recordings"] for part in manifests.values()
-            )
+            recordings=combine(part["recordings"] for part in manifests.values())
         )
         .cut_into_windows(10.0)
         .filter(lambda c: c.duration > 5)
@@ -108,8 +106,6 @@ def compute_fbank_musan():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan()

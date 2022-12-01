@@ -18,17 +18,13 @@
 
 
 """
-This script takes manifests dir as input "data/manifests"
-that includes tedlium_supervisions_train.jsonl.gz and does the following:
-
-1. Generate text.
+This script takes input text file and removes all words
+that iclude any character out of English alphabet.
 
 """
-import lhotse
 import argparse
 import logging
 import re
-
 from pathlib import Path
 
 
@@ -86,9 +82,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

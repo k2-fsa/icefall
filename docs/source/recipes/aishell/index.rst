@@ -19,4 +19,3 @@ It can be downloaded from `<https://www.openslr.org/33/>`_
    tdnn_lstm_ctc
    conformer_ctc
    stateless_transducer
-

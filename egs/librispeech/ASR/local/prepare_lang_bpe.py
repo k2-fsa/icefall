@@ -150,16 +150,14 @@ def generate_lexicon(
     words_pieces_ids: List[List[int]] = sp.encode(words, out_type=int)
 
     # Now convert word piece IDs back to word piece strings.
-    words_pieces: List[List[str]] = [
-        sp.id_to_piece(ids) for ids in words_pieces_ids
-    ]
+    words_pieces: List[List[str]] = [sp.id_to_piece(ids) for ids in words_pieces_ids]
 
     lexicon = []
     for word, pieces in zip(words, words_pieces):
         lexicon.append((word, pieces))
 
-#     # The OOV word is <UNK>
-#     lexicon.append(("<UNK>", [sp.id_to_piece(sp.unk_id())]))
+    #     # The OOV word is <UNK>
+    #     lexicon.append(("<UNK>", [sp.id_to_piece(sp.unk_id())]))
     # The OOV word is <unk>
     lexicon.append(("<unk>", ["▁", sp.id_to_piece(sp.unk_id())]))
 
@@ -205,7 +203,15 @@ def main():
     words = word_sym_table.symbols
 
     excluded = [
-        "<eps>", "!SIL", "!sil", "<SPOKEN_NOISE>", "<UNK>", "<unk>", "#0", "<s>", "</s>"
+        "<eps>",
+        "!SIL",
+        "!sil",
+        "<SPOKEN_NOISE>",
+        "<UNK>",
+        "<unk>",
+        "#0",
+        "<s>",
+        "</s>",
     ]
     for w in excluded:
         if w in words:

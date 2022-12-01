@@ -254,9 +254,7 @@ def test_layernorm_lstm_layer_with_projection_forward(device="cpu"):
         for name, self_param in self_layer.cell.named_parameters():
             getattr(torch_layer, f"{name}_l0").copy_(self_param)
 
-    torch_y, (torch_h, torch_c) = torch_layer(
-        x_clone, (h.unsqueeze(0), c.unsqueeze(0))
-    )
+    torch_y, (torch_h, torch_c) = torch_layer(x_clone, (h.unsqueeze(0), c.unsqueeze(0)))
     assert_allclose(self_y, torch_y)
     assert_allclose(self_h, torch_h)
     assert_allclose(self_c, torch_c)
@@ -303,9 +301,7 @@ def test_layernorm_lstm_layer_forward(device="cpu"):
         for name, self_param in self_layer.cell.named_parameters():
             getattr(torch_layer, f"{name}_l0").copy_(self_param)
 
-    torch_y, (torch_h, torch_c) = torch_layer(
-        x_clone, (h.unsqueeze(0), c.unsqueeze(0))
-    )
+    torch_y, (torch_h, torch_c) = torch_layer(x_clone, (h.unsqueeze(0), c.unsqueeze(0)))
     assert_allclose(self_y, torch_y)
     assert_allclose(self_h, torch_h)
     assert_allclose(self_c, torch_c)
@@ -594,9 +590,7 @@ def test_layernorm_gru_cell_forward(device="cpu"):
 
     assert_allclose(self_h, torch_h, atol=1e-5)
 
-    (
-        self_h.reshape(-1) * torch.arange(self_h.numel(), device=device)
-    ).sum().backward()
+    (self_h.reshape(-1) * torch.arange(self_h.numel(), device=device)).sum().backward()
     (
         torch_h.reshape(-1) * torch.arange(torch_h.numel(), device=device)
     ).sum().backward()
@@ -718,9 +712,7 @@ def test_layernorm_gru_forward(device="cpu"):
     T = torch.randint(low=2, high=100, size=(1,))
 
     x = torch.rand(N, T, input_size, device=device).requires_grad_()
-    states = [
-        torch.rand(N, hidden_size, device=device) for _ in range(num_layers)
-    ]
+    states = [torch.rand(N, hidden_size, device=device) for _ in range(num_layers)]
 
     x_clone = x.detach().clone().requires_grad_()
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-from subsampling import Conv2dSubsampling
-from subsampling import VggSubsampling
 import torch
+from subsampling import Conv2dSubsampling, VggSubsampling
 
 
 def test_conv2d_subsampling():
