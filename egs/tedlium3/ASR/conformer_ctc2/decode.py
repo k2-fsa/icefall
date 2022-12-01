@@ -263,45 +263,26 @@ def get_params() -> AttributeDict:
 
 
 def ctc_greedy_search(
-    nnet_output: torch.Tensor,
-    memory: torch.Tensor,
-    memory_key_padding_mask: torch.Tensor,
+    ctc_probs: torch.Tensor,
+    mask: torch.Tensor,
 ) -> List[List[int]]:
     """Apply CTC greedy search
-
-     Args:
-         speech (torch.Tensor): (batch, max_len, feat_dim)
-         speech_length (torch.Tensor): (batch, )
+    Args:
+      ctc_probs (torch.Tensor): (batch, max_len, num_bpe)
+      mask (torch.Tensor): (batch, max_len)
     Returns:
-         List[List[int]]: best path result
+      best path result
     """
-    batch_size = memory.shape[1]
-    # Let's assume B = batch_size
-    encoder_out = memory
-    encoder_mask = memory_key_padding_mask
-    maxlen = encoder_out.size(0)
 
-    ctc_probs = nnet_output  # (B, maxlen, vocab_size)
-    topk_prob, topk_index = ctc_probs.topk(1, dim=2)  # (B, maxlen, 1)
-    topk_index = topk_index.view(batch_size, maxlen)  # (B, maxlen)
-    topk_index = topk_index.masked_fill_(encoder_mask, 0)  # (B, maxlen)
-    hyps = [hyp.tolist() for hyp in topk_index]
-    scores = topk_prob.max(1)
-    hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
-    return hyps, scores
+    _, max_index = ctc_probs.max(2)  # (B, maxlen)
+    max_index = max_index.masked_fill_(mask, 0)  # (B, maxlen)
 
-
-def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
-    # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
-    new_hyp: List[int] = []
-    cur = 0
-    while cur < len(hyp):
-        if hyp[cur] != 0:
-            new_hyp.append(hyp[cur])
-        prev = cur
-        while cur < len(hyp) and hyp[cur] == hyp[prev]:
-            cur += 1
-    return new_hyp
+    ret_hyps = []
+    for hyp in max_index:
+        hyp = torch.unique_consecutive(hyp)
+        hyp = hyp[hyp > 0].tolist()
+        ret_hyps.append(hyp)
+    return ret_hyps
 
 
 def decode_one_batch(
@@ -432,13 +413,9 @@ def decode_one_batch(
         key = "ctc-decoding"
 
         return {key: hyps}
-    
+
     if params.method == "ctc-greedy-search":
-        hyps, _ = ctc_greedy_search(
-            nnet_output,
-            memory,
-            memory_key_padding_mask,
-        )
+        hyps = ctc_greedy_search(nnet_output, memory_key_padding_mask)
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(hyps)
