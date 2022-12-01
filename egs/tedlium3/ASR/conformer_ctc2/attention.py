@@ -27,7 +27,7 @@ class MultiheadAttention(torch.nn.Module):
     version of the original version of multihead attention 
     (see Attention Is All You Need <https://arxiv.org/abs/1706.03762>)
     with replacement of input / output projection layers 
-    with newly itroduced ScaleLinear layer 
+    with newly introduced ScaleLinear layer
     (see https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless2/scaling.py).
     
     Args:
@@ -75,7 +75,11 @@ class MultiheadAttention(torch.nn.Module):
         self.batch_first = batch_first
         
         if embed_dim % num_heads != 0:
-            raise ValueError("embed_dim must be divisible by num_heads")
+            raise ValueError(
+                f"embed_dim must be divisible by num_heads. "
+                "Got embedding dim vs number 0f heads: "
+                f"{embed_dim} vs {num_heads}"
+            )
         
         self.head_dim = embed_dim // num_heads
 

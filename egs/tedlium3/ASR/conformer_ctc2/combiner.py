@@ -70,7 +70,7 @@ class RandomCombine(torch.nn.Module):
         super().__init__()
         assert 0 <= pure_prob <= 1, pure_prob
         assert 0 < final_weight < 1, final_weight
-        assert num_inputs >= 1
+        assert num_inputs >= 1, num_inputs
 
         self.num_inputs = num_inputs
         self.final_weight = final_weight
@@ -96,7 +96,7 @@ class RandomCombine(torch.nn.Module):
           this is just the final input.
         """
         num_inputs = self.num_inputs
-        assert len(inputs) == num_inputs
+        assert len(inputs) == num_inputs, f"{len(inputs)}, {num_inputs}"
         if not self.training or torch.jit.is_scripting() or len(inputs) == 1:
             return inputs[-1]
 

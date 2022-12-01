@@ -44,8 +44,8 @@ class LabelSmoothingLoss(torch.nn.Module):
             mean of the output is taken. (3) "sum": the output will be summed.
         """
         super().__init__()
-        assert 0.0 <= label_smoothing < 1.0
-        assert reduction in ("none", "sum", "mean")
+        assert 0.0 <= label_smoothing < 1.0, f"{label_smoothing}"
+        assert reduction in ("none", "sum", "mean"), reduction
         self.ignore_index = ignore_index
         self.label_smoothing = label_smoothing
         self.reduction = reduction

@@ -205,7 +205,7 @@ def main():
     words = word_sym_table.symbols
 
     excluded = [
-        "<eps>", "!SIL", "!sil", "<SPOKEN_NOISE>", "<UNK>", "<unk>" "#0", "<s>", "</s>"
+        "<eps>", "!SIL", "!sil", "<SPOKEN_NOISE>", "<UNK>", "<unk>", "#0", "<s>", "</s>"
     ]
     for w in excluded:
         if w in words:
