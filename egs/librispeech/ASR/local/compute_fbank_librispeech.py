@@ -23,11 +23,15 @@ It looks for manifests in the directory data/manifests.
 The generated fbank features are saved in data/fbank.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
+import sentencepiece as spm
 import torch
+from filter_cuts import filter_cuts
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
@@ -41,11 +45,28 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_librispeech():
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        help="""Path to the bpe.model. If not None, we will remove short and
+        long utterances before extracting features""",
+    )
+    return parser.parse_args()
+
+
+def compute_fbank_librispeech(bpe_model: Optional[str] = None):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
     num_mel_bins = 80
+
+    if bpe_model:
+        logging.info(f"Loading {bpe_model}")
+        sp = spm.SentencePieceProcessor()
+        sp.load(bpe_model)
 
     dataset_parts = (
         "dev-clean",
@@ -86,11 +107,12 @@ def compute_fbank_librispeech():
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
+            if bpe_model:
+                cut_set = filter_cuts(cut_set, sp)
+
             if "train" in partition:
                 cut_set = (
-                    cut_set
-                    + cut_set.perturb_speed(0.9)
-                    + cut_set.perturb_speed(1.1)
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
@@ -104,10 +126,9 @@ def compute_fbank_librispeech():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
-
-    compute_fbank_librispeech()
+    args = get_args()
+    logging.info(vars(args))
+    compute_fbank_librispeech(bpe_model=args.bpe_model)

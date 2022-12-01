@@ -25,19 +25,18 @@ from random import Random
 from typing import List, Tuple
 
 import torch
-from lhotse import (
+
+# fmt: off
+from lhotse import (  # See the following for why LilcomChunkyWriter is preferred; https://github.com/k2-fsa/icefall/pull/404; https://github.com/lhotse-speech/lhotse/pull/527
     CutSet,
     Fbank,
     FbankConfig,
-    # fmt: off
-    # See the following for why LilcomChunkyWriter is preferred
-    # https://github.com/k2-fsa/icefall/pull/404
-    # https://github.com/lhotse-speech/lhotse/pull/527
-    # fmt: on
     LilcomChunkyWriter,
     RecordingSet,
     SupervisionSet,
 )
+
+# fmt: on
 
 ARGPARSE_DESCRIPTION = """
 This script follows the espnet method of splitting the remaining core+noncore
@@ -81,17 +80,13 @@ def make_cutset_blueprints(
         cut_sets.append((f"eval{i}", cut_set))
 
     # Create train and valid cuts
-    logging.info(
-        "Loading, trimming, and shuffling the remaining core+noncore cuts."
-    )
+    logging.info("Loading, trimming, and shuffling the remaining core+noncore cuts.")
     recording_set = RecordingSet.from_file(
         manifest_dir / "csj_recordings_core.jsonl.gz"
     ) + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
     supervision_set = SupervisionSet.from_file(
         manifest_dir / "csj_supervisions_core.jsonl.gz"
-    ) + SupervisionSet.from_file(
-        manifest_dir / "csj_supervisions_noncore.jsonl.gz"
-    )
+    ) + SupervisionSet.from_file(manifest_dir / "csj_supervisions_noncore.jsonl.gz")
 
     cut_set = CutSet.from_manifests(
         recordings=recording_set,
@@ -101,15 +96,12 @@ def make_cutset_blueprints(
     cut_set = cut_set.shuffle(Random(RNG_SEED))
 
     logging.info(
-        "Creating valid and train cuts from core and noncore,"
-        f"split at {split}."
+        "Creating valid and train cuts from core and noncore, split at {split}."
     )
     valid_set = CutSet.from_cuts(islice(cut_set, 0, split))
 
     train_set = CutSet.from_cuts(islice(cut_set, split, None))
-    train_set = (
-        train_set + train_set.perturb_speed(0.9) + train_set.perturb_speed(1.1)
-    )
+    train_set = train_set + train_set.perturb_speed(0.9) + train_set.perturb_speed(1.1)
 
     cut_sets.extend([("valid", valid_set), ("train", train_set)])
 
@@ -122,15 +114,9 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument(
-        "--manifest-dir", type=Path, help="Path to save manifests"
-    )
-    parser.add_argument(
-        "--fbank-dir", type=Path, help="Path to save fbank features"
-    )
-    parser.add_argument(
-        "--split", type=int, default=4000, help="Split at this index"
-    )
+    parser.add_argument("--manifest-dir", type=Path, help="Path to save manifests")
+    parser.add_argument("--fbank-dir", type=Path, help="Path to save fbank features")
+    parser.add_argument("--split", type=int, default=4000, help="Split at this index")
 
     return parser.parse_args()
 
@@ -141,9 +127,7 @@ def main():
     extractor = Fbank(FbankConfig(num_mel_bins=80))
     num_jobs = min(16, os.cpu_count())
 
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 nj=15
@@ -119,6 +122,11 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     ./local/compute_fbank_librispeech.py
     touch data/fbank/.librispeech.done
   fi
+
+  cat <(gunzip -c data/fbank/librispeech_cuts_train-clean-100.jsonl.gz) \
+    <(gunzip -c data/fbank/librispeech_cuts_train-clean-360.jsonl.gz) \
+    <(gunzip -c data/fbank/librispeech_cuts_train-other-500.jsonl.gz) | \
+    shuf | gzip -c > data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz
 
   if [ ! -e data/fbank/.librispeech-validated.done ]; then
     log "Validating data/fbank for LibriSpeech"

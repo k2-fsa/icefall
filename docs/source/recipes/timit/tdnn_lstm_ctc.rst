@@ -148,8 +148,8 @@ Some commonly used options are:
 
         $ ./tdnn_lstm_ctc/decode.py --epoch 25 --avg 10
 
-    uses the average of ``epoch-16.pt``, ``epoch-17.pt``, ``epoch-18.pt``, 
-    ``epoch-19.pt``, ``epoch-20.pt``, ``epoch-21.pt``, ``epoch-22.pt``, 
+    uses the average of ``epoch-16.pt``, ``epoch-17.pt``, ``epoch-18.pt``,
+    ``epoch-19.pt``, ``epoch-20.pt``, ``epoch-21.pt``, ``epoch-22.pt``,
     ``epoch-23.pt``, ``epoch-24.pt`` and ``epoch-25.pt``
     for decoding.
 
@@ -315,13 +315,13 @@ To decode with ``1best`` method, we can use:
 
 .. code-block:: bash
 
-  ./tdnn_lstm_ctc/pretrained.py 
+  ./tdnn_lstm_ctc/pretrained.py
     --method 1best
-    --checkpoint ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretrained_average_16_25.pt 
-    --words-file ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/words.txt 
-    --HLG ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt 
-    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV 
-    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV 
+    --checkpoint ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/exp/pretrained_average_16_25.pt
+    --words-file ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/words.txt
+    --HLG ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV
     ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
 
 The output is:
@@ -335,7 +335,7 @@ The output is:
   2021-11-08 21:02:53,827 INFO [pretrained.py:210] Reading sound files: ['./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV']
   2021-11-08 21:02:53,831 INFO [pretrained.py:216] Decoding started
   2021-11-08 21:02:54,380 INFO [pretrained.py:246] Use HLG decoding
-  2021-11-08 21:02:54,387 INFO [pretrained.py:267] 
+  2021-11-08 21:02:54,387 INFO [pretrained.py:267]
   ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV:
   sil dh ih sh uw ah l iy v iy z ih sil p r aa sil k s ih m ey dx ih sil d w uh dx iy w ih s f iy l iy w ih th ih n ih m s eh l f sil jh
 
@@ -360,8 +360,8 @@ To decode with ``whole-lattice-rescoring`` methond, you can use
     --HLG ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lang_phone/HLG.pt \
     --G ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/data/lm/G_4_gram.pt \
     --ngram-lm-scale 0.08 \
-    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV 
-    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV 
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV
+    ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV
     ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV
 
 The decoding output is:
@@ -376,7 +376,7 @@ The decoding output is:
   2021-11-08 20:05:26,978 INFO [pretrained.py:210] Reading sound files: ['./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FELC0_SI756.WAV', './tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FMGD0_SI1564.WAV']
   2021-11-08 20:05:26,981 INFO [pretrained.py:216] Decoding started
   2021-11-08 20:05:27,519 INFO [pretrained.py:251] Use HLG decoding + LM rescoring
-  2021-11-08 20:05:27,878 INFO [pretrained.py:267] 
+  2021-11-08 20:05:27,878 INFO [pretrained.py:267]
   ./tmp-lstm/icefall_asr_timit_tdnn_lstm_ctc/test_waves/FDHC0_SI1559.WAV:
   sil dh ih sh uw l iy v iy z ih sil p r aa sil k s ah m ey dx ih sil w uh dx iy w ih s f iy l ih ng w ih th ih n ih m s eh l f sil jh
 
