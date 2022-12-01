@@ -103,7 +103,14 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 
   if [ ! -e data/fbank/.tedlium3.done ]; then
     mkdir -p data/fbank
+
     python3 ./local/compute_fbank_tedlium.py
+
+    gunzip -c data/fbank/tedlium_cuts_train.jsonl.gz | shuf | \
+    gzip -c > data/fbank/tedlium_cuts_train-shuf.jsonl.gz
+    mv data/fbank/tedlium_cuts_train-shuf.jsonl.gz \
+       data/fbank/tedlium_cuts_train.jsonl.gz
+
     touch data/fbank/.tedlium3.done
   fi
 fi
