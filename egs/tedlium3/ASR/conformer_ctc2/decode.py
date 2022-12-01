@@ -897,9 +897,9 @@ def main() -> None:
 torch.set_num_threads(1)
 # when we import add_model_arguments from train.py
 # we enforce torch.set_num_interop_threads(1) in it,
-# so we ending up with seting num_interop_threads to one
+# so we ended up with setting num_interop_threads to one
 # two times: in train.py and decode.py which cause an error,
-# that is why added additional if statement.
+# that is why added an additional if statement.
 if torch.get_num_interop_threads() != 1:
     torch.set_num_interop_threads(1)
 
