@@ -1,0 +1,1 @@
+../pruned_transducer_stateless7_ctc/ctc_decode.py
