@@ -1118,7 +1118,8 @@ class DoubleSwishFunction(torch.autograd.Function):
                 assert d_scaled.max() < 256.0
             d_int = d_scaled.to(torch.uint8)
             ctx.save_for_backward(d_int)
-        y = y + alpha * x + beta * x.clamp(min=-x_limit, max=x_limit) + 0.075
+#  on wolframalpha, do: (x * sigmoid(x-1) - 0.05 * x  + 0.05 * min(0.15, max(-0.15, x)) + 0.025)  from x=-3 to 2
+        y = y + alpha * x + beta * x.clamp(min=-x_limit, max=x_limit) + 0.025
         if x.dtype == torch.float16 or torch.is_autocast_enabled():
             y = y.to(torch.float16)
         return y
