@@ -65,7 +65,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf
 
