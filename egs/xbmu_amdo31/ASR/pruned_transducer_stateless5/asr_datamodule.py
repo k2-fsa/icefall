@@ -25,10 +25,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from icefall.utils import str2bool
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+from lhotse.dataset import CutConcatenate  # noqa F401 for PrecomputedFeatures
 from lhotse.dataset import (
-    CutConcatenate,  # noqa F401 for PrecomputedFeatures
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
@@ -36,12 +35,12 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (
-    AudioSamples,  # noqa F401 For AudioSamples
-    OnTheFlyFeatures,
-)
+from lhotse.dataset.input_strategies import AudioSamples  # noqa F401 For AudioSamples
+from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
+
+from icefall.utils import str2bool
 
 
 class _SeedWorkers:

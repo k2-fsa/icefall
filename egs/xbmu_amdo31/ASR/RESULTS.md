@@ -8,6 +8,12 @@
 
 It uses pruned RNN-T.
 
+A pre-trained model and decoding logs can be found at <https://huggingface.co/syzym/icefall-asr-xbmu-amdo31-pruned-transducer-stateless5-2022-11-29>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 87801200, i.e., 77.8 M
+
 |                        | test | dev  | comment                               |
 |------------------------|------|------|---------------------------------------|
 | greedy search          | 11.06| 11.73| --epoch 28 --avg 23 --max-duration 600|
@@ -23,7 +29,7 @@ cd egs/xbmu_amdo31/ASR
 
 export CUDA_VISIBLE_DEVICES="0"
 
-./pruned_transducer_stateless5/train.py 
+./pruned_transducer_stateless5/train.py
 ```
 
 **Caution**: It uses `--context-size=1`.
@@ -31,7 +37,7 @@ export CUDA_VISIBLE_DEVICES="0"
 
 The decoding command is:
 ```bash
-for method in greedy_search beam_search modified_beam_search; 
+for method in greedy_search beam_search modified_beam_search;
 do
 ./pruned_transducer_stateless5/decode.py \
     --epoch 28 \
@@ -42,4 +48,45 @@ do
 done
 ```
 
-A pre-trained model and decoding logs can be found at <https://huggingface.co/syzym/icefall-asr-xbmu-amdo31-pruned-transducer-stateless5-2022-11-29>
+### pruned_transducer_stateless7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/672> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/syzym/icefall-asr-xbmu-amdo31-pruned-transducer-stateless7-2022-12-02>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+|                      | test | comment                                |
+|----------------------|------|----------------------------------------|
+| greedy search        | 10.06| --epoch 23 --avg 11 --max-duration 600 |
+| fast beam search     | 9.77 | --epoch 23 --avg 11 --max-duration 600 |
+| modified beam search | 9.7  | --epoch 23 --avg 11 --max-duration 600 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+
+./pruned_transducer_stateless7/train.py
+```
+
+The decoding commands are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search ; do
+  for epoch in 23; do
+    for avg in 11; do
+      ./pruned_transducer_stateless7/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --exp-dir ./pruned_transducer_stateless7/exp \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
