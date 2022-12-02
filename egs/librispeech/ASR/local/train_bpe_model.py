@@ -93,7 +93,6 @@ def main():
         print(f"{model_file} exists - skipping")
         return
 
-
     shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
 
 
