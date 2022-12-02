@@ -12,7 +12,7 @@ A pre-trained model and decoding logs can be found at <https://huggingface.co/sy
 
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
-Number of model parameters: 87801200, i.e., 77.8 M
+Number of model parameters: 87801200, i.e., 87.8 M
 
 |                        | test | dev  | comment                               |
 |------------------------|------|------|---------------------------------------|
@@ -77,7 +77,7 @@ export CUDA_VISIBLE_DEVICES="0"
 
 The decoding commands are:
 ```bash
-for m in greedy_search fast_beam_search modified_beam_search ; do
+for m in greedy_search beam_search modified_beam_search; do
   for epoch in 23; do
     for avg in 11; do
       ./pruned_transducer_stateless7/decode.py \
