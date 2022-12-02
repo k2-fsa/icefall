@@ -1216,7 +1216,7 @@ class TanSwish(torch.nn.Module):
 
 class SwooshFunction(torch.autograd.Function):
     """
-      swoosh(x) =  log(1 + exp(x-4)) - 0.08*x - 0.15
+      swoosh(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
 
      derivatives are between -0.08 and 0.92.
     """
@@ -1235,7 +1235,7 @@ class SwooshFunction(torch.autograd.Function):
             with torch.enable_grad():
                 x = x.detach()
                 x.requires_grad = True
-                y = torch.logaddexp(zero, x - 1.125)  - 0.08 * x - 0.3
+                y = torch.logaddexp(zero, x - 1.)  - 0.08 * x - 0.313261687
 
                 if not requires_grad:
                     return y
@@ -1273,7 +1273,7 @@ class Swoosh(torch.nn.Module):
         """
         if torch.jit.is_scripting():
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-            return torch.logaddexp(zero, x - 1.125)  - 0.08 * x - 0.3
+            return torch.logaddexp(zero, x - 1.)  - 0.08 * x - 0.313261687
         return SwooshFunction.apply(x)
 
 

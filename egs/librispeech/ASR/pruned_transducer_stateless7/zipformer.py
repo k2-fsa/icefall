@@ -1551,7 +1551,7 @@ class ConvolutionModule(nn.Module):
     def __init__(
         self, channels: int, kernel_size: int,
     ) -> None:
-        """Construct an ConvolutionModule object."""
+        """Construct a ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0
@@ -1601,7 +1601,7 @@ class ConvolutionModule(nn.Module):
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
             min_abs=0.4,
-            max_abs=ScheduledFloat((0.0, 10.0), (8000.0, 20.0), default=10),
+            max_abs=10.0,
         )
 
         self.activation = Swoosh()
