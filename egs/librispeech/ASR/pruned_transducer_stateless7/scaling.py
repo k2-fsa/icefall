@@ -951,7 +951,8 @@ class MaxEig(torch.nn.Module):
 
 class DoubleSwishFunction(torch.autograd.Function):
     """
-      double_swish(x) = x * torch.sigmoid(x-1)
+      double_swish(x) = x * (torch.sigmoid(x-1) + alpha)
+    for e.g., alpha=-0.05 (user supplied).
     This is a definition, originally motivated by its close numerical
     similarity to swish(swish(x)), where swish(x) =  x * sigmoid(x).
 
@@ -966,9 +967,9 @@ class DoubleSwishFunction(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(ctx, x: Tensor) -> Tensor:
+    def forward(ctx, x: Tensor, alpha: float) -> Tensor:
         requires_grad = x.requires_grad
-        x_dtype = x.dtype
+        ctx.alpha = alpha
         if x.dtype == torch.float16:
             x = x.to(torch.float32)
 
@@ -994,6 +995,8 @@ class DoubleSwishFunction(torch.autograd.Function):
                 assert d_scaled.max() < 256.0
             d_int = d_scaled.to(torch.uint8)
             ctx.save_for_backward(d_int)
+        if alpha != 0:
+            y = y + alpha * x
         if x.dtype == torch.float16 or torch.is_autocast_enabled():
             y = y.to(torch.float16)
         return y
@@ -1001,21 +1004,51 @@ class DoubleSwishFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, y_grad: Tensor) -> Tensor:
         (d,) = ctx.saved_tensors
+        alpha = ctx.alpha
         # the same constants as used in forward pass.
         floor = -0.043637
         ceil = 1.2
         d = d * ((ceil - floor) / 255.0) + floor
-        return y_grad * d
+        ans = y_grad * (d + alpha) if alpha != 0 else y_grad * d
+        return ans, None
 
 
 class DoubleSwish(torch.nn.Module):
+    def __init__(self, alpha: float = 0.0):
+        super().__init__()
+        self.alpha = alpha
+
+        def _state_dict_hook(_module, _state_dict, _prefix, _local_metadata):
+            _local_metadata["alpha"] = _module.alpha
+
+        def _load_state_dict_pre_hook(
+            _module,
+            _state_dict,
+            _prefix,
+            _local_metadata,
+            _strict,
+            _missing_keys,
+            _unexpected_keys,
+            _error_msgs,
+        ):
+            if "alpha" in _local_metadata:
+                _module.alpha = _local_metadata["alpha"]
+
+        self._register_state_dict_hook(_state_dict_hook)
+        self._register_load_state_dict_pre_hook(
+            _load_state_dict_pre_hook, with_module=True
+        )
+
+    def extra_repr(self) -> str:
+        return "alpha={}".format(self.alpha)
+
     def forward(self, x: Tensor) -> Tensor:
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
         if torch.jit.is_scripting():
-            return x * torch.sigmoid(x - 1.0)
-        return DoubleSwishFunction.apply(x)
+            return x * (torch.sigmoid(x - 1.0) + self.alpha)
+        return DoubleSwishFunction.apply(x, self.alpha)
 
 
 def _test_max_eig():
@@ -1165,6 +1198,15 @@ def _test_softmax():
     assert torch.allclose(a.grad, b.grad)
 
 
+def _test_save_load_double_swish():
+    f1 = DoubleSwish(alpha=-0.05)
+    state_dict = f1.state_dict()
+    f2 = DoubleSwish()
+    assert f2.alpha == 0.0
+    f2.load_state_dict(state_dict)
+    assert f2.alpha == -0.05
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
@@ -1176,3 +1218,4 @@ if __name__ == "__main__":
     _test_activation_balancer_magnitude()
     _test_basic_norm()
     _test_double_swish_deriv()
+    _test_save_load_double_swish()
