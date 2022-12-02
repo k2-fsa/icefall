@@ -1272,8 +1272,8 @@ class Swoosh(torch.nn.Module):
         """Return tan-swish activation function which is tanh(x) sigmoid(x-1)n
         """
         if torch.jit.is_scripting():
-            one = torch.tensor(1.0, dtype=x.dtype, device=x.device)
-            return torch.logaddexp(one, x - 1.125)  - 0.08 * x - 0.3
+            zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+            return torch.logaddexp(zero, x - 1.125)  - 0.08 * x - 0.3
         return SwooshFunction.apply(x)
 
 
