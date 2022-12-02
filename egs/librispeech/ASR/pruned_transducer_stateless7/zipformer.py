@@ -29,6 +29,7 @@ from scaling import (
     BasicNorm,
     MaxEig,
     DoubleSwish,
+    Swoosh,
     TanSwish,
     ScaledConv1d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
@@ -1421,10 +1422,10 @@ class FeedforwardModule(nn.Module):
         self.hidden_balancer = ActivationBalancer(feedforward_dim,
                                                   channel_dim=-1,
                                                   min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
-                                                  min_abs=1.5,
-                                                  max_abs=15.0,
+                                                  min_abs=2.0,
+                                                  max_abs=10.0,
                                                   min_prob=0.25)
-        self.activation = DoubleSwish()
+        self.activation = Swoosh()
         self.dropout = nn.Dropout(dropout)
         self.out_proj = LinearWithAuxLoss(feedforward_dim, embed_dim,
                                           initial_scale=0.01,
@@ -1599,10 +1600,11 @@ class ConvolutionModule(nn.Module):
             channels, channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=10),
+            min_abs=1.0,
+            max_abs=ScheduledFloat((0.0, 10.0), (8000.0, 20.0), default=10),
         )
 
-        self.activation = DoubleSwish()
+        self.activation = Swoosh()
 
         self.whiten = Whiten(num_groups=1,
                              whitening_limit=_whitening_schedule(7.5),

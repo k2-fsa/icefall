@@ -547,7 +547,7 @@ def attach_diagnostics(
         module.register_forward_hook(forward_hook)
         module.register_backward_hook(backward_hook)
 
-        if type(module).__name__ in  ["Sigmoid", "Tanh", "ReLU", "TanSwish", "Swish", "DoubleSwish"]:
+        if type(module).__name__ in  ["Sigmoid", "Tanh", "ReLU", "TanSwish", "Swish", "DoubleSwish", "Swoosh"]:
             # For these specific module types, accumulate some additional diagnostics
             # that can help us improve the activation function.  These require a lot of memory,
             # to save the forward activations, so limit this to some select classes.
