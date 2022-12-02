@@ -16,6 +16,10 @@ on:
     # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
+concurrency:
+  group: run_ptb_rnn_lm_training-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run_ptb_rnn_lm_training:
     if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
