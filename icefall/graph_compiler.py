@@ -81,7 +81,7 @@ class CtcTrainingGraphCompiler(object):
 
         self.ctc_topo._is_repeat_token_ = (
             self.ctc_topo.labels != self.ctc_topo.aux_labels
-        )
+        ).int()
 
         decoding_graph = k2.compose(
             self.ctc_topo, fsa_with_self_loops, treat_epsilons_specially=False
