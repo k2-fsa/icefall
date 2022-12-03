@@ -1488,7 +1488,7 @@ class NonlinAttentionModule(nn.Module):
                                      initial_scale=0.05)
 
         self.whiten = Whiten(num_groups=1,
-                             whitening_limit=_whitening_schedule(7.5),
+                             whitening_limit=_whitening_schedule(5.0),
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
