@@ -1014,7 +1014,7 @@ class DoubleSwishFunction(torch.autograd.Function):
 
 
 class DoubleSwish(torch.nn.Module):
-    def __init__(self, alpha: float = 0.0):
+    def __init__(self, alpha: float = -0.05):
         super().__init__()
         self.alpha = alpha
 
@@ -1033,6 +1033,9 @@ class DoubleSwish(torch.nn.Module):
         ):
             if "alpha" in _local_metadata:
                 _module.alpha = _local_metadata["alpha"]
+            else:
+                # Make it compatible with existing recipes.
+                _module.alpha = 0.0
 
         self._register_state_dict_hook(_state_dict_hook)
         self._register_load_state_dict_pre_hook(
@@ -1199,12 +1202,12 @@ def _test_softmax():
 
 
 def _test_save_load_double_swish():
-    f1 = DoubleSwish(alpha=-0.05)
+    f1 = DoubleSwish(alpha=0.0)
     state_dict = f1.state_dict()
     f2 = DoubleSwish()
-    assert f2.alpha == 0.0
-    f2.load_state_dict(state_dict)
     assert f2.alpha == -0.05
+    f2.load_state_dict(state_dict)
+    assert f2.alpha == 0.0
 
 
 if __name__ == "__main__":
