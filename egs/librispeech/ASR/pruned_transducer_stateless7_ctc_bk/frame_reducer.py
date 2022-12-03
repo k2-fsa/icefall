@@ -64,3 +64,5 @@ if __name__ == "__main__":
     ctc_posterior = torch.Tensor([[[0, 2, 3], [0, 2, 3]], [[0, 2, 3], [0, 2, 3]], [[0, 2, 3], [0, 2, 3]]])
 
     x_fr, x_lens_fr = a(x, x_lens, ctc_posterior, 0)
+    print(x==x_fr)  # True
+    print(x_lens==x_lens_fr)  # True

@@ -88,6 +88,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        warmup: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -108,6 +109,8 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          warmup: a floating point value which increases throughout training;
+            values >= 1.0 are fully warmed up and have all modules present.
         Returns:
           Return a tuple containing simple loss, pruned loss, and ctc-output.
         Note:
@@ -127,19 +130,24 @@ class Transducer(nn.Module):
 
         # compute ctc log-probs
         ctc_output = self.ctc_output(encoder_out)
+        
+        # blank skip
+        if warmup >= 2.0:
+            # lconv
+            encoder_out = self.lconv(encoder_out)
 
-        # lconv
-        encoder_out = self.lconv(encoder_out)
+            # frame reduce
+            blank_id = self.decoder.blank_id
 
-        # frame reduce
-        blank_id = self.decoder.blank_id
-
-        encoder_out_fr, x_lens_fr = self.frame_reducer(
-            encoder_out,
-            x_lens,
-            ctc_output,
-            blank_id,
-        )
+            encoder_out_fr, x_lens_fr = self.frame_reducer(
+                encoder_out,
+                x_lens,
+                ctc_output,
+                blank_id,
+            )
+        else:
+            encoder_out_fr = encoder_out
+            x_lens_fr = x_lens
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)

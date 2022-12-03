@@ -652,8 +652,6 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
-     warmup: a floating point value which increases throughout training;
-        values >= 1.0 are fully warmed up and have all modules present.
     """
     device = (
         model.device
@@ -670,6 +668,7 @@ def compute_loss(
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
+    warmup = (batch_idx_train / warm_step)
 
     texts = batch["supervisions"]["text"]
     token_ids = sp.encode(texts, out_type=int)
@@ -683,6 +682,7 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            warmup=warmup,
         )
 
         s = params.simple_loss_scale
