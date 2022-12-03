@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                    Mingshuang Luo,)
+# Copyright      2022  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                    Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -16,14 +15,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 """
-Usage (for non-streaming mode):
+This script loads torchscript models, exported by `torch.jit.script()`
+and uses them to decode waves.
+You can use the following command to get the exported models:
+
+./pruned_transducer_stateless7_ctc/export.py \
+  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+  --jit 1
+
+Usage of this script:
 
 (1) ctc-decoding
-./conformer_ctc3/pretrained.py \
-  --nn-model-filename ./conformer_ctc3/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
+  --nn-model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
   --bpe-model data/lang_bpe_500/bpe.model \
   --method ctc-decoding \
   --sample-rate 16000 \
@@ -31,8 +39,8 @@ Usage (for non-streaming mode):
   /path/to/bar.wav
 
 (2) 1best
-./conformer_ctc3/pretrained.py \
-  --nn-model-filename ./conformer_ctc3/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
+  --nn-model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --method 1best \
@@ -40,9 +48,10 @@ Usage (for non-streaming mode):
   /path/to/foo.wav \
   /path/to/bar.wav
 
+
 (3) nbest-rescoring
-./conformer_ctc3/pretrained.py \
-  --nn-model-filename ./conformer_ctc3/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
+  --nn-model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
@@ -51,9 +60,10 @@ Usage (for non-streaming mode):
   /path/to/foo.wav \
   /path/to/bar.wav
 
+
 (4) whole-lattice-rescoring
-./conformer_ctc3/pretrained.py \
-  --nn-model-filename ./conformer_ctc3/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
+  --nn-model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
@@ -62,7 +72,6 @@ Usage (for non-streaming mode):
   /path/to/foo.wav \
   /path/to/bar.wav
 """
-
 
 import argparse
 import logging
@@ -74,9 +83,9 @@ import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
-from decode import get_decoding_params
+from ctc_decode import get_decoding_params
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params
+from train import get_params
 
 from icefall.decode import (
     get_lattice,
@@ -216,13 +225,11 @@ def get_parser():
         "The sample rate has to be 16kHz.",
     )
 
-    add_model_arguments(parser)
-
     return parser
 
 
 def read_sound_files(
-    filenames: List[str], expected_sample_rate: float
+    filenames: List[str], expected_sample_rate: float = 16000
 ) -> List[torch.Tensor]:
     """Read a list of sound files into a list 1-D float32 torch tensors.
     Args:
@@ -236,14 +243,15 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. " f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"Expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
 
 
+@torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -252,11 +260,12 @@ def main():
     # add decoding params
     params.update(get_decoding_params())
     params.update(vars(args))
-    params.vocab_size = params.num_classes
 
     logging.info(f"{params}")
 
     device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
@@ -287,7 +296,11 @@ def main():
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
-    nnet_output, _ = model(features, feature_lengths)
+    encoder_out, encoder_out_lens = model.encoder(
+        x=features,
+        x_lens=feature_lengths,
+    )
+    nnet_output = model.ctc_output(encoder_out)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(
