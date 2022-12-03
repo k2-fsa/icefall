@@ -1600,7 +1600,7 @@ class ConvolutionModule(nn.Module):
             channels, channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
-            min_abs=0.4,
+            min_abs=1.0,
             max_abs=10.0,
         )
 
