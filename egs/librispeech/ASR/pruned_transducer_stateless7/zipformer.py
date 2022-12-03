@@ -1421,7 +1421,8 @@ class FeedforwardModule(nn.Module):
 
         self.hidden_balancer = ActivationBalancer(feedforward_dim,
                                                   channel_dim=-1,
-                                                  min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
+                                                  min_positive=0.3,
+                                                  max_positive=1.0,
                                                   min_abs=2.0,
                                                   max_abs=10.0,
                                                   min_prob=0.25)
