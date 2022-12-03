@@ -187,21 +187,25 @@ See <https://github.com/k2-fsa/icefall/pull/675> for more details.
 [pruned_transducer_stateless8](./pruned_transducer_stateless8)
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/y6kAPnN3S3OwvQxQqKQzsQ>
+<https://tensorboard.dev/experiment/3e9AfOcgRwOXpLQlZvHZrQ>
 
 You can find a pretrained model, training logs, decoding logs, and decoding
 results at:
-<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless8-2022-11-14>
+<https://huggingface.co/WeijiZhuang/icefall-asr-librispeech-pruned-transducer-stateless8-2022-12-02>
 
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 Number of model parameters: 70369391, i.e., 70.37 M
 
-|                      | test-clean | test-other  | comment                                |
-|----------------------|------------|-------------|----------------------------------------|
-| greedy search        | 1.87       | 4.38        | --epoch 16 --avg 2 --max-duration 600  |
-| modified beam search | 1.81       | 4.34        | --epoch 16 --avg 2 --max-duration 600  |
-| fast beam search     | 1.91       | 4.33        | --epoch 16 --avg 2 --max-duration 600  |
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 1.81       | 4.18       | --epoch 20 --avg 4 |
+| fast_beam_search     | 1.82       | 4.15       | --epoch 20 --avg 4 |
+| modified_beam_search | 1.78       | **4.08**   | --epoch 20 --avg 4 |
+| greedy_search        | 1.84       | 4.3        | --epoch 19 --avg 8 |
+| fast_beam_search     |**1.77**    | 4.25       | --epoch 19 --avg 8 |
+| modified_beam_search | 1.81       | 4.16       | --epoch 19 --avg 8 |
+
 
 The training commands are:
 ```bash
@@ -221,15 +225,15 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 The decoding commands are:
 ```bash
-for m in greedy_search fast_beam_search modified_beam_search ; do
-  for epoch in 16; do
-    for avg in 2; do
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for epoch in $(seq 20 -1 10); do
+    for avg in $(seq 9 -1 1); do
       ./pruned_transducer_stateless8/decode.py \
           --epoch $epoch \
           --avg $avg \
           --use-averaged-model 1 \
           --exp-dir ./pruned_transducer_stateless8/exp \
-          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --feedforward-dims "1024,1024,2048,2048,1024" \
           --max-duration 600 \
           --decoding-method $m
     done
