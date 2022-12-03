@@ -62,11 +62,11 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 Number of model parameters: 70369391, i.e., 70.37 M
 
-|                      | test | comment                                |
-|----------------------|------|----------------------------------------|
-| greedy search        | 10.06| --epoch 23 --avg 11 --max-duration 600 |
-| fast beam search     | 9.77 | --epoch 23 --avg 11 --max-duration 600 |
-| modified beam search | 9.7  | --epoch 23 --avg 11 --max-duration 600 |
+|                      | test | dev  | comment                                |
+|----------------------|------|------|----------------------------------------|
+| greedy search        | 10.06| 10.59| --epoch 23 --avg 11 --max-duration 600 |
+| beam search          | 9.77 | 10.11| --epoch 23 --avg 11 --max-duration 600 |
+| modified beam search | 9.7  | 10.12| --epoch 23 --avg 11 --max-duration 600 |
 
 The training commands are:
 ```bash
