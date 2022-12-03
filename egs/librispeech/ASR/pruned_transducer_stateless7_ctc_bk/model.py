@@ -132,13 +132,13 @@ class Transducer(nn.Module):
         ctc_output = self.ctc_output(encoder_out)
         
         # blank skip
+        blank_id = self.decoder.blank_id
+
         if warmup >= 2.0:
             # lconv
             encoder_out = self.lconv(encoder_out)
 
             # frame reduce
-            blank_id = self.decoder.blank_id
-
             encoder_out_fr, x_lens_fr = self.frame_reducer(
                 encoder_out,
                 x_lens,
