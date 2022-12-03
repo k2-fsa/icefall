@@ -316,7 +316,7 @@ def get_parser():
     parser.add_argument(
         "--ctc-loss-scale",
         type=float,
-        default=0.5,
+        default=0.2,
         help="Scale for CTC loss.",
     )
 
