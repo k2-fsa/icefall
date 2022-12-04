@@ -1,7 +1,9 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
+from icefall.utils import make_pad_mask
 
 
 class FrameReducer(nn.Module):
@@ -20,39 +22,26 @@ class FrameReducer(nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        ctc_posterior: torch.Tensor,
+        ctc_output: torch.Tensor,
         blank_id: int,
     ) -> torch.Tensor:
-        mask = ctc_posterior[:,:,blank_id] >= 0.9
-        x_lens_fr = x_lens - mask.sum(axis=1)
-        x_maxlen = x_lens_fr.max()
-        mask = mask.unsqueeze(2).expand_as(x)
-        x_fr_list = x[~mask].tolist()
 
-        x_fr = []
-        x_lens_cum = torch.cumsum(x_lens_fr, dim=0)
-        frame_idx = 0
-        one_frame_list = []
-        for i in range(x_lens_cum[-1]):
-            one_frame_list.append(
-                x_fr_list[
-                    i * x.size(2) : \
-                    (i + 1) * x.size(2)
-                ]
+        padding_mask = make_pad_mask(x_lens)
+        non_blank_mask = (ctc_output[:, :, blank_id] < \
+            math.log(0.9)) * (~padding_mask)
+        T_range = torch.arange(x.shape[1], device=x.device)
+
+        frames_list, lens_list = [], []
+        for i in range(x.shape[0]):
+            indexes = torch.masked_select(
+                T_range,
+                non_blank_mask[i],
             )
-
-            if i + 1 == x_lens_cum[frame_idx].item():
-                x_fr.append(
-                    one_frame_list + \
-                    [[0.] * x.size(2)] * \
-                    (x_maxlen - x_lens_fr[frame_idx].item())
-                )
-
-                frame_idx += 1
-                one_frame_list = []
-
-        x_fr = torch.tensor(x_fr, dtype=x.dtype).to(x.device)
-        x_lens_fr = x_lens_fr.to(x_lens.device)
+            frames = x[i][indexes]
+            frames_list.append(frames)
+            lens_list.append(frames.shape[0])
+        x_fr = pad_sequence(frames_list).transpose(0, 1)
+        x_lens_fr = torch.tensor(lens_list).to(device=x.device)
 
         return x_fr, x_lens_fr
 
