@@ -63,7 +63,7 @@ log "Test exporting to pnnx format"
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace-pnnx.pt
 
-./lstm_transducer_stateless2/ncnn-decode.py \
+time ./lstm_transducer_stateless2/ncnn-decode.py \
  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
  --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
  --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
@@ -73,7 +73,7 @@ log "Test exporting to pnnx format"
  --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
  $repo/test_wavs/1089-134686-0001.wav
 
-./lstm_transducer_stateless2/streaming-ncnn-decode.py \
+time ./lstm_transducer_stateless2/streaming-ncnn-decode.py \
  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
  --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
  --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
@@ -82,7 +82,6 @@ log "Test exporting to pnnx format"
  --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
  --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
  $repo/test_wavs/1089-134686-0001.wav
-
 
 
 log "Test exporting with torch.jit.trace()"
