@@ -89,6 +89,9 @@ def main():
             bos_id=-1,
             eos_id=-1,
         )
+    else:
+        print(f"{model_file} exists - skipping")
+        return
 
     shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
 

@@ -263,7 +263,7 @@ class TensorDiagnostic(object):
                     ans += f", norm={norm:.2g}"
                 mean = stats.mean().item()
                 rms = (stats**2).mean().sqrt().item()
-                ans += f", mean={mean:.3g}, rms={rms:.3g}"
+                ans += f", mean={mean:.2g}, rms={rms:.2g}"
 
                 # OK, "ans" contains the actual stats, e.g.
                 # ans = "percentiles: [0.43 0.46 0.48 0.49 0.49 0.5 0.51 0.52 0.53 0.54 0.59], mean=0.5, rms=0.5"
