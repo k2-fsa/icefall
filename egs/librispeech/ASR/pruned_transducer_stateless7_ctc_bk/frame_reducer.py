@@ -50,8 +50,9 @@ if __name__ == "__main__":
     a = FrameReducer()
     x = torch.Tensor([[[1, 2, 3], [1, 2, 3]], [[1, 2, 3], [1, 2, 3]], [[1, 2, 3], [1, 2, 3]]])
     x_lens = torch.tensor([2, 2, 2], dtype=int)
-    ctc_posterior = torch.Tensor([[[0, 2, 3], [0, 2, 3]], [[0, 2, 3], [0, 2, 3]], [[0, 2, 3], [0, 2, 3]]])
+    ctc_output = torch.Tensor([[[1e10, 0, 0], [1, 0, 0]], [[0, 2, 3], [1e10, 2, 3]], [[0, 2, 3], [0, 2, 3]]])
+    ctc_output = ctc_output.log_softmax(dim=2)
 
-    x_fr, x_lens_fr = a(x, x_lens, ctc_posterior, 0)
+    x_fr, x_lens_fr = a(x, x_lens, ctc_output, 0)
     print(x==x_fr)  # True
     print(x_lens==x_lens_fr)  # True
