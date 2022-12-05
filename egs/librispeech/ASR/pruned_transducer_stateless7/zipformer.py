@@ -33,6 +33,7 @@ from scaling import (
     SwooshR,
     TanSwish,
     ScaledConv1d,
+    ScaledConv2d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     LinearWithAuxLoss,
     Whiten,
@@ -1719,22 +1720,24 @@ class Conv2dSubsampling(nn.Module):
 
         self.conv = nn.Sequential(
             ScalarMultiply(0.1),
-            nn.Conv2d(
+            ScaledConv2d(
                 in_channels=1,
                 out_channels=layer1_channels,
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
+                initial_scale=5.0,
             ),
             ScalarMultiply(0.25),
             ActivationBalancer(layer1_channels,
                                channel_dim=1),
             DoubleSwish(),
-            nn.Conv2d(
+            ScaledConv2d(
                 in_channels=layer1_channels,
                 out_channels=layer2_channels,
                 kernel_size=3,
                 stride=2,
                 padding=0,
+                initial_scale=5.0,
             ),
             ActivationBalancer(layer2_channels,
                                channel_dim=1),

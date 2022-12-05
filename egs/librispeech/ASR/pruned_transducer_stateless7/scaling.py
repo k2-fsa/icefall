@@ -558,6 +558,32 @@ def ScaledConv1d(*args,
     return ans
 
 
+def ScaledConv2d(*args,
+                 initial_scale: float = 1.0,
+                 **kwargs ) -> nn.Conv2d:
+    """
+    Behaves like a constructor of a modified version of nn.Conv1d
+    that gives an easy way to set the default initial parameter scale.
+
+    Args:
+        Accepts the standard args and kwargs that nn.Linear accepts
+        e.g. in_features, out_features, bias=False.
+
+        initial_scale: you can override this if you want to increase
+           or decrease the initial magnitude of the module's output
+           (affects the initialization of weight_scale and bias_scale).
+           Another option, if you want to do something like this, is
+           to re-initialize the parameters.
+    """
+    ans = nn.Conv2d(*args, **kwargs)
+    with torch.no_grad():
+        ans.weight[:] *= initial_scale
+        if ans.bias is not None:
+            torch.nn.init.uniform_(ans.bias,
+                                   -0.1 * initial_scale,
+                                   0.1 * initial_scale)
+    return ans
+
 
 class ActivationBalancer(torch.nn.Module):
     """
