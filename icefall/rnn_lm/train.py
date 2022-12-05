@@ -24,7 +24,7 @@ Usage:
         --use-fp16 0 \
         --embedding-dim 800 \
         --hidden-dim 200 \
-        --num-layers 2\
+        --num-layers 2 \
         --batch-size 400
 
 """
@@ -83,7 +83,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=10,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -110,14 +110,14 @@ def get_parser():
     parser.add_argument(
         "--use-fp16",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to use half precision training.",
     )
 
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=50,
+        default=400,
     )
 
     parser.add_argument(
@@ -165,7 +165,7 @@ def get_parser():
     parser.add_argument(
         "--tie-weights",
         type=str2bool,
-        default=False,
+        default=True,
         help="""True to share the weights between the input embedding layer and the
         last output linear layer
         """,
