@@ -948,7 +948,7 @@ def train_one_epoch(
 
 
 
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics and False:
+        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
