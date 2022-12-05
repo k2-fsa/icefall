@@ -41,7 +41,7 @@ pip install dist/*.whl
 cd tools/pnnx
 mkdir build
 cd build
-cmake ..
+cmake -D Python3_EXECUTABLE=/opt/hostedtoolcache/Python/3.8.14/x64/bin/python3 ..
 make -j4 pnnx
 
 ./src/pnnx || echo "pass"
