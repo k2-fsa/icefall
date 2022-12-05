@@ -37,6 +37,7 @@ from icefall.utils import make_pad_mask
 
 LOG_EPSILON = math.log(1e-10)
 
+
 def unstack_states(
     states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
 ) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]:
@@ -440,9 +441,9 @@ class EmformerAttention(nn.Module):
         self,
         embed_dim: int,
         nhead: int,
-        left_context_length : int,
-        chunk_length : int,
-        right_context_length : int,
+        left_context_length: int,
+        chunk_length: int,
+        right_context_length: int,
         memory_size: int,
         dropout: float = 0.0,
         tanh_on_mem: bool = False,
@@ -565,13 +566,17 @@ class EmformerAttention(nn.Module):
             value = torch.cat([value[: M + R], left_context_val, value[M + R :]])
 
         #  Q = query.size(0)
-        Q = U+R
+        Q = U + R
 
         # KV = key.size(0)
 
         reshaped_query = query.view(Q, self.nhead, self.head_dim).permute(1, 0, 2)
-        reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(1,0,2)
-        reshaped_value = value.view(M + R + U + L, self.nhead, self.head_dim).permute(1,0,2)
+        reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(
+            1, 0, 2
+        )
+        reshaped_value = value.view(M + R + U + L, self.nhead, self.head_dim).permute(
+            1, 0, 2
+        )
 
         #  reshaped_query, reshaped_key, reshaped_value = [
         #      tensor.contiguous().view(-1, B * self.nhead, self.head_dim).transpose(0, 1)
@@ -1124,11 +1129,7 @@ class EmformerEncoderLayer(nn.Module):
 
         output_utterance = src[R:]
         output_right_context = src[:R]
-        return (
-            output_utterance,
-            output_right_context,
-            attn_cache + [conv_cache]
-        )
+        return (output_utterance, output_right_context, attn_cache + [conv_cache])
 
 
 def _gen_attention_mask_block(
@@ -1434,10 +1435,7 @@ class EmformerEncoder(nn.Module):
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
-    ) -> Tuple[
-        torch.Tensor,
-        List[torch.Tensor],
-    ]:
+    ) -> Tuple[torch.Tensor, List[torch.Tensor],]:
         """Forward pass for streaming inference.
 
         B: batch size;
@@ -1467,22 +1465,18 @@ class EmformerEncoder(nn.Module):
             - updated states from current chunk's computation.
         """
         # lengths = chunk_length + right_context_length
-        utterance = x[:self.chunk_length]
-        right_context = x[self.chunk_length:]
+        utterance = x[: self.chunk_length]
+        right_context = x[self.chunk_length :]
         #  right_context_utterance = torch.cat([right_context, utterance])
 
         output = utterance
-        output_states : List[torch.Tensor] = []
+        output_states: List[torch.Tensor] = []
         for layer_idx, layer in enumerate(self.emformer_layers):
-            start = layer_idx*4
+            start = layer_idx * 4
             end = start + 4
             cache = states[start:end]
 
-            (
-                output,
-                right_context,
-                output_cache,
-            ) = layer.infer(
+            (output, right_context, output_cache,) = layer.infer(
                 output,
                 right_context,
                 padding_mask=None,
@@ -1493,7 +1487,9 @@ class EmformerEncoder(nn.Module):
         return output, output_states
 
     @torch.jit.export
-    def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:
+    def init_states(
+        self, device: torch.device = torch.device("cpu")
+    ) -> List[torch.Tensor]:
         """Create initial states."""
         #
         states = []
@@ -1503,11 +1499,17 @@ class EmformerEncoder(nn.Module):
         # ...
         # last layer: attn cache, conv cache, 3 tensors + 1 tensor
         for i in range(self.num_encoder_layers):
-                states.append(torch.zeros(self.memory_size, 1, self.d_model, device=device))
-                states.append(torch.zeros(self.left_context_length, 1, self.d_model, device=device))
-                states.append(torch.zeros(self.left_context_length, 1, self.d_model, device=device))
+            states.append(torch.zeros(self.memory_size, 1, self.d_model, device=device))
+            states.append(
+                torch.zeros(self.left_context_length, 1, self.d_model, device=device)
+            )
+            states.append(
+                torch.zeros(self.left_context_length, 1, self.d_model, device=device)
+            )
 
-                states.append(torch.zeros(1, self.d_model, self.cnn_module_kernel - 1, device=device))
+            states.append(
+                torch.zeros(1, self.d_model, self.cnn_module_kernel - 1, device=device)
+            )
         return states
 
         attn_caches = [
@@ -1638,10 +1640,7 @@ class Emformer(EncoderInterface):
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
-    ) -> Tuple[
-        torch.Tensor,
-        List[torch.Tensor],
-    ]:
+    ) -> Tuple[torch.Tensor, List[torch.Tensor],]:
         """Forward pass for streaming inference.
 
         B: batch size;
@@ -1678,16 +1677,16 @@ class Emformer(EncoderInterface):
 
         # Caution: We assume the subsampling factor is 4!
 
-        output, output_states = self.encoder.infer(
-            x, states
-        )
+        output, output_states = self.encoder.infer(x, states)
 
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 
         return output, output_states
 
     @torch.jit.export
-    def init_states(self, device: torch.device = torch.device("cpu"))->List[torch.Tensor]:
+    def init_states(
+        self, device: torch.device = torch.device("cpu")
+    ) -> List[torch.Tensor]:
         """Create initial states."""
         return self.encoder.init_states(device)
 

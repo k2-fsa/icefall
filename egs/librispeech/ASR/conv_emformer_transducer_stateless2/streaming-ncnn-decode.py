@@ -97,6 +97,7 @@ class Model:
         right_context_length = 8  # before subsampling
         pad_length = right_context_length + 2 * 4 + 3
         self.T = self.chunk_length + pad_length
+        print("T", self.T, self.chunk_length)
 
     def get_init_states(self) -> List[torch.Tensor]:
         states = []
@@ -112,6 +113,8 @@ class Model:
 
     def init_encoder(self, args):
         encoder_net = ncnn.Net()
+        encoder_net.opt.use_packing_layout = False
+        encoder_net.opt.use_fp16_storage = False
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
@@ -201,7 +204,7 @@ class Model:
         assert decoder_input.dtype == torch.int32
 
         with self.decoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
+            ex.set_num_threads(4)
             ex.input("in0", ncnn.Mat(decoder_input.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
