@@ -17,8 +17,8 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 pushd $repo
 git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 cd exp
-ln -s pretrained-epoch-30-avg-10-averaged.pt pretrained.pt
 ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
 popd
 
@@ -63,8 +63,6 @@ log "Test exporting to pnnx format"
   --left-context-length 32 \
   --right-context-length 8 \
   --memory-size 32 \
-  \
-  --pnnx 1
 
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace-pnnx.pt
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
@@ -79,29 +77,3 @@ log "Test exporting to pnnx format"
  --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
  --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
  $repo/test_wavs/1089-134686-0001.wav
-
-for sym in 1 2 3; do
-  log "Greedy search with --max-sym-per-frame $sym"
-
-  ./conv_emformer_transducer_stateless2/pretrained.py \
-    --method greedy_search \
-    --max-sym-per-frame $sym \
-    --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
-    $repo/test_wavs/1089-134686-0001.wav \
-    $repo/test_wavs/1221-135766-0001.wav \
-    $repo/test_wavs/1221-135766-0002.wav
-done
-
-for method in modified_beam_search beam_search fast_beam_search; do
-  log "$method"
-
-  ./conv_emformer_transducer_stateless2/pretrained.py \
-    --method $method \
-    --beam-size 4 \
-    --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
-    $repo/test_wavs/1089-134686-0001.wav \
-    $repo/test_wavs/1221-135766-0001.wav \
-    $repo/test_wavs/1221-135766-0002.wav
-done
