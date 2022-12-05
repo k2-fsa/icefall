@@ -900,6 +900,26 @@ def with_loss(x, y):
     return WithLoss.apply(x, y)
 
 
+class ScaleGradFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x: Tensor, alpha: float) -> Tensor:
+        ctx.alpha = alpha
+        return x
+    @staticmethod
+    def backward(ctx, grad: Tensor):
+        return grad * ctx.alpha, None
+
+def scale_grad(x: Tensor, alpha: float):
+    return ScaleGradFunction.apply(x, alpha)
+
+class ScaleGrad(nn.Module):
+    def __init__(self, alpha: float):
+        super().__init__()
+        self.alpha = alpha
+
+    def forward(self, x: Tensor) -> Tensor:
+        return scale_grad(x, self.alpha)
+
 class LimitParamValue(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor, min: float, max: float):

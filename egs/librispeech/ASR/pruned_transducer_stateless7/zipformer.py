@@ -43,6 +43,7 @@ from scaling import (
     ScheduledFloat,
     FloatLike,
     limit_param_value,
+    ScaleGrad,
 )
 from torch import Tensor, nn
 
@@ -1719,25 +1720,22 @@ class Conv2dSubsampling(nn.Module):
         # a too-large gradient).
 
         self.conv = nn.Sequential(
-            ScalarMultiply(0.1),
-            ScaledConv2d(
+            nn.Conv2d(
                 in_channels=1,
                 out_channels=layer1_channels,
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
-                initial_scale=5.0,
             ),
-            ScalarMultiply(0.25),
+            ScaleGrad(0.1),
             ActivationBalancer(layer1_channels,
                                channel_dim=1),
             DoubleSwish(),
-            ScaledConv2d(
+            nn.Conv2d(
                 in_channels=layer1_channels,
                 out_channels=layer2_channels,
                 kernel_size=3,
                 stride=2,
                 padding=0,
-                initial_scale=5.0,
             ),
             ActivationBalancer(layer2_channels,
                                channel_dim=1),
