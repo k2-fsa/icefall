@@ -111,7 +111,7 @@ jobs:
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
 
-          .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.yml
+          .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.sh
 
       - name: Display decoding results for lstm_transducer_stateless2
         if: github.event_name == 'schedule'
