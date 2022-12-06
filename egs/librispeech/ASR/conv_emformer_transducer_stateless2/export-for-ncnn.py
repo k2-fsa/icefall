@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
-#
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
-# This script converts several saved checkpoints
-# to a single one using model averaging.
 """
 Usage:
 ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
@@ -33,28 +15,18 @@ Usage:
   --right-context-length 8 \
   --memory-size 32 \
 
-It will generate a file exp_dir/pretrained.pt
+cd ./conv_emformer_transducer_stateless2/exp
+pnnx encoder_jit_trace-pnnx.pt
+pnnx decoder_jit_trace-pnnx.pt
+pnnx joiner_jit_trace-pnnx.pt
 
-To use the generated file with `conv_emformer_transducer_stateless2/decode.py`,
-you can do:
+You can find converted models at
+https://huggingface.co/csukuangfj/sherpa-ncnn-conv-emformer-transducer-2022-12-04
 
-    cd /path/to/exp_dir
-    ln -s pretrained.pt epoch-9999.pt
-
-    cd /path/to/egs/librispeech/ASR
-    ./conv_emformer_transducer_stateless2/decode.py \
-        --exp-dir ./conv_emformer_transducer_stateless2/exp \
-        --epoch 9999 \
-        --avg 1 \
-        --max-duration 100 \
-        --bpe-model data/lang_bpe_500/bpe.model \
-        --use-averaged-model=False \
-        --num-encoder-layers 12 \
-        --chunk-length 32 \
-        --cnn-module-kernel 31 \
-        --left-context-length 32 \
-        --right-context-length 8 \
-        --memory-size 32
+See ./streaming-ncnn-decode.py
+and
+https://github.com/k2-fsa/sherpa-ncnn
+for usage.
 """
 
 import argparse

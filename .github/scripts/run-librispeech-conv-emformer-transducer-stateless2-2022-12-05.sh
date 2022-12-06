@@ -62,14 +62,14 @@ log "Test exporting to pnnx format"
   --cnn-module-kernel 31 \
   --left-context-length 32 \
   --right-context-length 8 \
-  --memory-size 32 \
+  --memory-size 32
 
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace-pnnx.pt
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace-pnnx.pt
 
 ./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py \
- --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
+ --tokens $repo/data/lang_bpe_500/tokens.txt \
  --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
  --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
  --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \

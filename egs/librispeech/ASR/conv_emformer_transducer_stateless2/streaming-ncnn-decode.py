@@ -15,13 +15,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+
+./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py \
+  --tokens ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/tokens.txt \
+  --encoder-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/encoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
+  --encoder-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/encoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
+  --decoder-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/decoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
+  --decoder-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/decoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
+  --joiner-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/joiner_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
+  --joiner-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/joiner_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
+  ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/test_wavs/1089-134686-0001.wav
+
+You can find pretrained models at
+https://huggingface.co/csukuangfj/sherpa-ncnn-conv-emformer-transducer-2022-12-04
+"""
 
 import argparse
 import logging
 from typing import List, Optional, Tuple
 
+import k2
 import ncnn
-import sentencepiece as spm
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
@@ -31,9 +47,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--bpe-model-filename",
+        "--tokens",
         type=str,
-        help="Path to bpe.model",
+        help="Path to tokens.txt",
     )
 
     parser.add_argument(
@@ -303,9 +319,6 @@ def main():
 
     model = Model(args)
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model_filename)
-
     sound_file = args.sound_filename
 
     sample_rate = 16000
@@ -354,10 +367,16 @@ def main():
             encoder_out, states = model.run_encoder(frames, states)
             hyp, decoder_out = greedy_search(model, encoder_out, decoder_out, hyp)
 
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
+
     context_size = 2
+    text = ""
+    for i in hyp[context_size:]:
+        text += symbol_table[i]
+    text = text.replace("▁", " ").strip()
 
     logging.info(sound_file)
-    logging.info(sp.decode(hyp[context_size:]))
+    logging.info(text)
 
 
 if __name__ == "__main__":
