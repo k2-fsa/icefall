@@ -1501,7 +1501,6 @@ class NonlinAttentionModule(nn.Module):
         self.balancer2 = ActivationBalancer(
             hidden_channels // ratio, channel_dim=-1,
             min_positive=0.4, max_positive=0.6,
-            min_abs=0.5,
         )
 
         self.whiten = Whiten(num_groups=1,
