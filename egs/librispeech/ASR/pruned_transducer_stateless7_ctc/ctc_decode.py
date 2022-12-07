@@ -21,46 +21,42 @@
 """
 Usage:
 (1) ctc-decoding
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
-
 (2) 1best
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
-
 (3) nbest
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
-
 (4) nbest-rescoring
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
-
 (5) whole-lattice-rescoring
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --lm-dir data/lm \
@@ -156,7 +152,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_ctc/exp",
+        default="pruned_transducer_stateless7_ctc_bk/exp",
         help="The experiment dir",
     )
 
@@ -287,17 +283,14 @@ def decode_one_batch(
     - value: It contains the decoding result. `len(value)` equals to
              batch size. `value[i]` is the decoding result for the i-th
              utterance in the given batch.
-
     Args:
       params:
         It's the return value of :func:`get_params`.
-
         - params.decoding_method is "1best", it uses 1best decoding without LM rescoring.
         - params.decoding_method is "nbest", it uses nbest decoding without LM rescoring.
         - params.decoding_method is "nbest-rescoring", it uses nbest LM rescoring.
         - params.decoding_method is "whole-lattice-rescoring", it uses whole lattice LM
           rescoring.
-
       model:
         The neural model.
       HLG:
@@ -467,7 +460,6 @@ def decode_dataset(
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
-
     Args:
       dl:
         PyTorch's dataloader containing the dataset to decode.
