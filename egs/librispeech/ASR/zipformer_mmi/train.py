@@ -70,6 +70,7 @@ from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
 
 from icefall import diagnostics
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -392,8 +393,11 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             # parameters for mmi loss
-            "beam_size": 6,
+            "mmi_beam_size": 6,
             "den_scale": 1.0,
+            # parameters for mmi loss
+            "ctc_beam_size": 10,
+            "reduction": "sum",
             "use_double_scores": True,
             "warm_step": 2000,
             "env_info": get_env_info(),
@@ -558,7 +562,8 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: MmiTrainingGraphCompiler,
+    ctc_graph_compiler: BpeCtcTrainingGraphCompiler,
+    mmi_graph_compiler: MmiTrainingGraphCompiler,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -591,10 +596,11 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    batch_idx_train = params.batch_idx_train
+    warm_step = params.warm_step
+
     with torch.set_grad_enabled(is_training):
         nnet_output, encoder_out_lens = model(x=feature, x_lens=feature_lens)
-
-    # Compute mmi loss
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -605,22 +611,41 @@ def compute_loss(
             supervisions, subsampling_factor=params.subsampling_factor
         )
 
-    loss_fn = LFMMILoss(
-        graph_compiler=graph_compiler,
-        use_pruned_intersect=params.use_pruned_intersect,
-        den_scale=params.den_scale,
-        beam_size=params.beam_size,
-    )
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
         supervision_segments,
         allow_truncate=params.subsampling_factor - 1,
     )
-    loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
+
+    info = MetricsTracker()
+    if batch_idx_train < warm_step:
+        # Training with ctc loss
+        # Works with a BPE model
+        token_ids = ctc_graph_compiler.texts_to_ids(texts)
+        decoding_graph = ctc_graph_compiler.compile(token_ids)
+        loss = k2.ctc_loss(
+            decoding_graph=decoding_graph,
+            dense_fsa_vec=dense_fsa_vec,
+            output_beam=params.ctc_beam_size,
+            reduction=params.reduction,
+            use_double_scores=params.use_double_scores,
+        )
+        info["ctc_loss"] = loss.detach().cpu().item()
+        info["mmi_loss"] = 0
+    else:
+        # Training with mmi loss
+        loss_fn = LFMMILoss(
+            graph_compiler=mmi_graph_compiler,
+            use_pruned_intersect=params.use_pruned_intersect,
+            den_scale=params.den_scale,
+            beam_size=params.mmi_beam_size,
+        )
+        loss = loss_fn(dense_fsa_vec=dense_fsa_vec, texts=texts)
+        info["ctc_loss"] = 0
+        info["mmi_loss"] = loss.detach().cpu().item()
 
     assert loss.requires_grad == is_training
 
-    info = MetricsTracker()
     info["frames"] = encoder_out_lens.sum().cpu().item()
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -631,7 +656,8 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: MmiTrainingGraphCompiler,
+    ctc_graph_compiler: BpeCtcTrainingGraphCompiler,
+    mmi_graph_compiler: MmiTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -644,7 +670,8 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            graph_compiler=graph_compiler,
+            ctc_graph_compiler=ctc_graph_compiler,
+            mmi_graph_compiler=mmi_graph_compiler,
             batch=batch,
             is_training=False,
         )
@@ -667,7 +694,8 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: MmiTrainingGraphCompiler,
+    ctc_graph_compiler: BpeCtcTrainingGraphCompiler,
+    mmi_graph_compiler: MmiTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -728,7 +756,8 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    ctc_graph_compiler=ctc_graph_compiler,
+                    mmi_graph_compiler=mmi_graph_compiler,
                     batch=batch,
                     is_training=True,
                 )
@@ -745,7 +774,9 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except:  # noqa
-            display_and_save_batch(batch, params=params, lexicon=graph_compiler.lexicon)
+            display_and_save_batch(
+                batch, params=params, graph_compiler=mmi_graph_compiler
+            )
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -833,7 +864,8 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                ctc_graph_compiler=ctc_graph_compiler,
+                mmi_graph_compiler=mmi_graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -893,7 +925,14 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    graph_compiler = MmiTrainingGraphCompiler(
+    assert "lang_bpe" in str(params.lang_dir)
+    ctc_graph_compiler = BpeCtcTrainingGraphCompiler(
+        params.lang_dir,
+        device=device,
+        sos_token="<sos/eos>",
+        eos_token="<sos/eos>",
+    )
+    mmi_graph_compiler = MmiTrainingGraphCompiler(
         params.lang_dir,
         uniq_filename="lexicon.txt",
         device=device,
@@ -926,7 +965,16 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = ScaledAdam(model.parameters(), lr=params.base_lr, clipping_scale=2.0)
+    parameters_names = []
+    parameters_names.append(
+        [name_param_pair[0] for name_param_pair in model.named_parameters()]
+    )
+    optimizer = ScaledAdam(
+        model.parameters(),
+        lr=params.base_lr,
+        clipping_scale=2.0,
+        parameters_names=parameters_names,
+    )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
@@ -953,10 +1001,13 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
+    # train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        # train_cuts += librispeech.train_clean_360_cuts()
+        # train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -991,7 +1042,8 @@ def run(rank, world_size, args):
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
+            ctc_graph_compiler=ctc_graph_compiler,
+            mmi_graph_compiler=mmi_graph_compiler,
             params=params,
         )
 
@@ -1016,7 +1068,8 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            graph_compiler=graph_compiler,
+            ctc_graph_compiler=ctc_graph_compiler,
+            mmi_graph_compiler=mmi_graph_compiler,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1050,7 +1103,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    lexicon: UniqLexicon,
+    graph_compiler: MmiTrainingGraphCompiler,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1073,8 +1126,7 @@ def display_and_save_batch(
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
-
-    y = lexicon.texts_to_token_ids(supervisions["text"]).tolist()
+    y = graph_compiler.texts_to_ids(supervisions["text"])
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1083,7 +1135,8 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: MmiTrainingGraphCompiler,
+    ctc_graph_compiler: BpeCtcTrainingGraphCompiler,
+    mmi_graph_compiler: MmiTrainingGraphCompiler,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -1099,7 +1152,8 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    ctc_graph_compiler=ctc_graph_compiler,
+                    mmi_graph_compiler=mmi_graph_compiler,
                     batch=batch,
                     is_training=True,
                 )
@@ -1114,7 +1168,9 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, lexicon=graph_compiler.lexicon)
+            display_and_save_batch(
+                batch, params=params, graph_compiler=mmi_graph_compiler
+            )
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
