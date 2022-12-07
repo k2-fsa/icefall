@@ -1496,10 +1496,15 @@ class NonlinAttentionModule(nn.Module):
             min_abs=0.01,
         )
 
-        self.whiten = Whiten(num_groups=1,
-                             whitening_limit=_whitening_schedule(5.0),
-                             prob=(0.025, 0.25),
-                             grad_scale=0.01)
+        self.whiten1 = Whiten(num_groups=1,
+                              whitening_limit=_whitening_schedule(5.0),
+                              prob=(0.025, 0.25),
+                              grad_scale=0.01)
+
+        self.whiten2 = Whiten(num_groups=1,
+                              whitening_limit=_whitening_schedule(5.0),
+                              prob=(0.025, 0.25),
+                              grad_scale=0.01)
 
 
 
@@ -1539,10 +1544,11 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         x = torch.matmul(attn_weights, x)
         # now x: (num_heads, batch_size, seq_len, head_dim)
         x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
+        x = self.whiten1(x)
 
         x = self.out_proj(x)
         x = self.balancer2(x)
-        x = self.whiten(x)
+        x = self.whiten2(x)
 
         return x
 
