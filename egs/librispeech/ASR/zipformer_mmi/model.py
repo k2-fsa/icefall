@@ -23,10 +23,6 @@ from encoder_interface import EncoderInterface
 
 
 class CTCModel(nn.Module):
-    """It implements https://arxiv.org/pdf/1211.3711.pdf
-    "Sequence Transduction with Recurrent Neural Networks"
-    """
-
     def __init__(
         self,
         encoder: EncoderInterface,

@@ -19,13 +19,45 @@
 # limitations under the License.
 """
 Usage:
-(1) take ctc-decoding as an example
-./pruned_transducder_stateless7_ctc/ctc_decode.py \
+(1) 1best
+./zipformer_mmi/mmi_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducder_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method ctc-decoding
+    --exp-dir ./zipformer_mmi/exp \
+    --max-duration 100 \
+    --decoding-method 1best
+(2) nbest
+./zipformer_mmi/mmi_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer_mmi/exp \
+    --max-duration 100 \
+    --nbest-scale 1.0 \
+    --decoding-method nbest
+(3) nbest-rescoring-LG
+./zipformer_mmi/mmi_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer_mmi/exp \
+    --max-duration 100 \
+    --nbest-scale 1.0 \
+    --decoding-method nbest-rescoring-LG
+(4) nbest-rescoring-3-gram
+./zipformer_mmi/mmi_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer_mmi/exp \
+    --max-duration 100 \
+    --nbest-scale 1.0 \
+    --decoding-method nbest-rescoring-3-gram
+(5) nbest-rescoring-4-gram
+./zipformer_mmi/mmi_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer_mmi/exp \
+    --max-duration 100 \
+    --nbest-scale 1.0 \
+    --decoding-method nbest-rescoring-4-gram
 """
 
 
@@ -54,13 +86,12 @@ from icefall.decode import (
     get_lattice,
     nbest_decoding,
     one_best_decoding,
-    rescore_with_n_best_list_LG,
+    nbest_rescore_with_LM,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     get_texts,
-    make_pad_mask,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -138,26 +169,23 @@ def get_parser():
     parser.add_argument(
         "--decoding-method",
         type=str,
-        default="ctc-decoding",
-        help="""Decoding method.
+        default="1best",
+        help="""Decoding method. Use HP as decoding graph, where H is
+        ctc_topo and P is token-level bi-gram lm.
         Supported values are:
-        - (1) ctc-decoding. Use CTC decoding. It uses a sentence piece
-          model, i.e., lang_dir/bpe.model, to convert word pieces to words.
-          It needs neither a lexicon nor an n-gram LM.
-        - (2) 1best. Extract the best path from the decoding lattice as the
+        - (1) 1best. Extract the best path from the decoding lattice as the
           decoding result.
-        - (3) nbest. Extract n paths from the decoding lattice; the path
+        - (2) nbest. Extract n paths from the decoding lattice; the path
           with the highest score is the decoding result.
-        - (4) nbest-rescoring. Extract n paths from the decoding lattice,
-          rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
+        - (4) nbest-rescoring-LG. Extract n paths from the decoding lattice,
+          rescore them with an word-level 3-gram LM, the path with the
+          highest score is the decoding result.
+        - (5) nbest-rescoring-3-gram. Extract n paths from the decoding
+          lattice, rescore them with an token-level 3-gram LM, the path with
           the highest score is the decoding result.
-        - (5) whole-lattice-rescoring. Rescore the decoding lattice with an
-          n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
-          is the decoding result.
-          you have trained an RNN LM using ./rnn_lm/train.py
-        - (6) nbest-oracle. Its WER is the lower bound of any n-best
-          rescoring method can achieve. Useful for debugging n-best
-          rescoring method.
+        - (6) nbest-rescoring-4-gram. Extract n paths from the decoding
+          lattice, rescore them with an token-level 4-gram LM, the path with
+          the highest score is the decoding result.
         """,
     )
 
@@ -174,7 +202,7 @@ def get_parser():
     parser.add_argument(
         "--nbest-scale",
         type=float,
-        default=0.5,
+        default=1.0,
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
@@ -188,15 +216,6 @@ def get_parser():
         type=float,
         default=1.0,
         help="""The scale to be applied to `ctc_topo_P.scores`.
-        """,
-    )
-
-    parser.add_argument(
-        "--lm-dir",
-        type=str,
-        default="data/lm",
-        help="""The n-gram LM dir.
-        It should contain either G_4_gram.pt or G_4_gram.fst.txt
         """,
     )
 
@@ -246,32 +265,27 @@ def decode_one_batch(
 
         - params.decoding_method is "1best", it uses 1best decoding without LM rescoring.
         - params.decoding_method is "nbest", it uses nbest decoding without LM rescoring.
-        - params.decoding_method is "nbest-rescoring", it uses nbest LM rescoring.
-        - params.decoding_method is "whole-lattice-rescoring", it uses whole lattice LM
-          rescoring.
+        - params.decoding_method is "nbest-rescoring-LG", it uses nbest rescoring with word-level 3-gram LM.
+        - params.decoding_method is "nbest-rescoring-3-gram", it uses nbest rescoring with token-level 3-gram LM.
+        - params.decoding_method is "nbest-rescoring-4-gram", it uses nbest rescoring with token-level 4-gram LM.
 
       model:
         The neural model.
-      HLG:
-        The decoding graph. Used only when params.decoding_method is NOT ctc-decoding.
-      H:
-        The ctc topo. Used only when params.decoding_method is ctc-decoding.
+      HP:
+        The decoding graph. H is ctc_topo, P is token-level bi-gram LM.
       bpe_model:
         The BPE model. Used only when params.decoding_method is ctc-decoding.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      word_table:
-        The word symbol table.
-      sos_id:
-        The token ID of the SOS.
-      eos_id:
-        The token ID of the EOS.
+      LG:
+        An LM. L is the lexicon, G is a word-level 3-gram LM.
+        It is used when params.decoding_method is "nbest-rescoring-LG".
       G:
-        An LM. It is not None when params.decoding_method is "nbest-rescoring"
-        or "whole-lattice-rescoring". In general, the G in HLG
-        is a 3-gram LM, while this G is a 4-gram LM.
+        An LM. L is the lexicon, G is a token-level 3-gram or 4-gram LM.
+        It is used when params.decoding_method is "nbest-rescoring-3-gram"
+        or "nbest-rescoring-4-gram".
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict. Note: If it decodes to nothing, then return None.
@@ -298,9 +312,6 @@ def decode_one_batch(
         1,
     ).to(torch.int32)
 
-    # HP_vec = k2.create_fsa_vec([HP])
-    # indexes = torch.zeros(feature.shape[0], dtype=torch.int32, device=device)
-    # decoding_graph = k2.index_fsa(HP_vec, indexes)
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=HP,
@@ -330,14 +341,12 @@ def decode_one_batch(
             key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         # Note: `best_path.aux_labels` contains token IDs, not word IDs
-        # since we are using H, not HLG here.
+        # since we are using HP, not HLG here.
         #
         # token_ids is a lit-of-list of IDs
         token_ids = get_texts(best_path)
-
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(token_ids)
-
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
         return {key: hyps}
@@ -352,29 +361,29 @@ def decode_one_batch(
     lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
-    # lm_scale_list = [0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
-
-    ans = None
     if method == "nbest-rescoring-LG":
         assert LG is not None
-        best_path_dict = rescore_with_n_best_list_LG(
-            lattice=lattice,
-            LG=LG,
-            num_paths=params.num_paths,
-            lm_scale_list=lm_scale_list,
-            nbest_scale=params.nbest_scale,
-        )
-        if best_path_dict is not None:
-            ans = dict()
-            suffix = f"-nbest-scale-{params.nbest_scale}-{params.num_paths}"
-            for lm_scale_str, best_path in best_path_dict.items():
-                token_ids = get_texts(best_path)
-                # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
-                hyps = bpe_model.decode(token_ids)
+        LM = LG
+    else:
+        assert G is not None
+        LM = G
+    best_path_dict = nbest_rescore_with_LM(
+        lattice=lattice,
+        LM=LM,
+        num_paths=params.num_paths,
+        lm_scale_list=lm_scale_list,
+        nbest_scale=params.nbest_scale,
+    )
 
-                # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
-                hyps = [s.split() for s in hyps]
-                ans[lm_scale_str + suffix] = hyps
+    ans = dict()
+    suffix = f"-nbest-scale-{params.nbest_scale}-{params.num_paths}"
+    for lm_scale_str, best_path in best_path_dict.items():
+        token_ids = get_texts(best_path)
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        ans[lm_scale_str + suffix] = hyps
     return ans
 
 
@@ -382,8 +391,8 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    HP: Optional[k2.Fsa],
-    bpe_model: Optional[spm.SentencePieceProcessor],
+    HP: k2.Fsa,
+    bpe_model: spm.SentencePieceProcessor,
     G: Optional[k2.Fsa] = None,
     LG: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
@@ -396,22 +405,18 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      HLG:
-        The decoding graph. Used only when params.decoding_method is NOT ctc-decoding.
-      H:
-        The ctc topo. Used only when params.decoding_method is ctc-decoding.
+      HP:
+        The decoding graph. H is ctc_topo, P is token-level bi-gram LM.
       bpe_model:
         The BPE model. Used only when params.decoding_method is ctc-decoding.
-      word_table:
-        It is the word symbol table.
-      sos_id:
-        The token ID for SOS.
-      eos_id:
-        The token ID for EOS.
+      LG:
+        An LM. L is the lexicon, G is a word-level 3-gram LM.
+        It is used when params.decoding_method is "nbest-rescoring-LG".
       G:
-        An LM. It is not None when params.decoding_method is "nbest-rescoring"
-        or "whole-lattice-rescoring". In general, the G in HLG
-        is a 3-gram LM, while this G is a 4-gram LM.
+        An LM. L is the lexicon, G is a token-level 3-gram or 4-gram LM.
+        It is used when params.decoding_method is "nbest-rescoring-3-gram"
+        or "nbest-rescoring-4-gram".
+
     Returns:
       Return a dict, whose key may be "no-rescore" if no LM rescoring
       is used, or it may be "lm_scale_0.7" if LM rescoring is used.
@@ -508,7 +513,6 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
-    args.lm_dir = Path(args.lm_dir)
 
     params = get_params()
     # add decoding params
@@ -533,13 +537,13 @@ def main():
         params.suffix += "-use-averaged-model"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
-    logging.info("Decoding started")
+    logging.info("decoding started")
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
 
-    logging.info(f"Device: {device}")
+    logging.info(f"device: {device}")
     logging.info(params)
 
     lexicon = Lexicon(params.lang_dir)
@@ -567,14 +571,47 @@ def main():
 
     LG = None
     G = None
+
     if params.decoding_method == "nbest-rescoring-LG":
         lg_filename = params.lang_dir / "LG.pt"
         logging.info(f"Loading {lg_filename}")
         LG = k2.Fsa.from_dict(torch.load(lg_filename, map_location=device))
         LG = k2.Fsa.from_fsas([LG]).to(device)
-        # G.lm_scores is used to replace HLG.lm_scores during
-        # LM rescoring.
         LG.lm_scores = LG.scores.clone()
+
+    elif params.decoding_method in ["nbest-rescoring-3-gram", "nbest-rescoring-4-gram"]:
+        order = params.decoding_method[-6]
+        assert order in ("3", "4")
+        order = int(order)
+        if not (params.lang_dir / f"{order}gram.pt").is_file():
+            logging.info(f"Loading {order}gram.fst.txt")
+            logging.warning("It may take few minutes.")
+            with open(params.lang_dir / f"{order}gram.fst.txt") as f:
+                first_token_disambig_id = lexicon.token_table["#0"]
+
+                G = k2.Fsa.from_openfst(f.read(), acceptor=False)
+                # G.aux_labels is not needed in later computations, so
+                # remove it here.
+                del G.aux_labels
+                # CAUTION: The following line is crucial.
+                # Arcs entering the back-off state have label equal to #0.
+                # We have to change it to 0 here.
+                G.labels[G.labels >= first_token_disambig_id] = 0
+                G = k2.Fsa.from_fsas([G]).to(device)
+                # G = k2.remove_epsilon(G)
+                G = k2.arc_sort(G)
+                # Save a dummy value so that it can be loaded in C++.
+                # See https://github.com/pytorch/pytorch/issues/67902
+                # for why we need to do this.
+                G.dummy = 1
+
+                torch.save(G.as_dict(), params.lang_dir / f"{order}gram.pt")
+        else:
+            logging.info(f"Loading pre-compiled {order}gram.pt")
+            d = torch.load(params.lang_dir / f"{order}gram.pt", map_location=device)
+            G = k2.Fsa.from_dict(d)
+
+        G.lm_scores = G.scores.clone()
 
     logging.info("About to create model")
     model = get_ctc_model(params)
