@@ -1486,8 +1486,8 @@ class NonlinAttentionModule(nn.Module):
         # before the sigmoid.
         self.balancer1 = ActivationBalancer(
             hidden_channels // ratio, channel_dim=-1,
-            min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
-            max_positive=1.0,
+            min_positive=ScheduledFloat((0.0, 0.25), (20000.0, 0.05)),
+            max_positive=ScheduledFloat((0.0, 0.75), (20000.0, 0.95)),
             min_abs=0.75,
             max_abs=ScheduledFloat((0.0, 2.5), (8000.0, 5.0), default=1.0),
         )
