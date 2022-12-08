@@ -1,7 +1,7 @@
 [flake8]
 show-source=true
 statistics=true
-max-line-length = 80
+max-line-length = 88
 per-file-ignores =
     # line too long
     icefall/diagnostics.py: E501,

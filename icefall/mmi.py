@@ -148,9 +148,7 @@ def _compute_mmi_loss_pruned(
     """
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=False)
 
-    num_lats = k2.intersect_dense(
-        num_graphs, dense_fsa_vec, output_beam=8.0
-    )
+    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=8.0)
 
     # the values for search_beam/output_beam/min_active_states/max_active_states
     # are not tuned. You may want to tune them.
