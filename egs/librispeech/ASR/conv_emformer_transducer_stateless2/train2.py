@@ -22,58 +22,62 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./conformer_ctc3/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir conformer_ctc3/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
-  --max-duration 300
+  --max-duration 280 \
+  --master-port 12321 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
 
 # For mix precision training:
-
-./conformer_ctc3/train.py \
+./conv_emformer_transducer_stateless2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir conformer_ctc3/exp \
+  --exp-dir conv_emformer_transducer_stateless2/exp \
   --full-libri 1 \
-  --max-duration 550
-
-# train a streaming model
-./conformer_ctc3/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir conformer_ctc3/exp \
-  --full-libri 1 \
-  --dynamic-chunk-training 1 \
-  --causal-convolution 1 \
-  --short-chunk-size 25 \
-  --num-left-chunks 4 \
   --max-duration 300 \
-  --delay-penalty 0.0
+  --master-port 12321 \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
 """
+
 
 import argparse
 import copy
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
+import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from conformer import Conformer
+from decoder import Decoder
+from emformer2 import Emformer
+from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import CTCModel
+from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
@@ -81,7 +85,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -90,52 +93,76 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.graph_compiler import CtcTrainingGraphCompiler
-from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--dynamic-chunk-training",
-        type=str2bool,
-        default=False,
-        help="""Whether to use dynamic_chunk_training, if you want a streaming
-        model, this requires to be True.
-        """,
-    )
-
-    parser.add_argument(
-        "--causal-convolution",
-        type=str2bool,
-        default=False,
-        help="""Whether to use causal convolution, this requires to be True when
-        using dynamic_chunk_training.
-        """,
-    )
-
-    parser.add_argument(
-        "--short-chunk-size",
+        "--encoder-dim",
         type=int,
-        default=25,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
+        default=512,
+        help="Attention dim for the Emformer",
     )
 
     parser.add_argument(
-        "--num-left-chunks",
+        "--nhead",
         type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
+        default=8,
+        help="Number of attention heads for the Emformer",
+    )
+
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Feed-forward dimension for the Emformer",
+    )
+
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=int,
+        default=12,
+        help="Number of encoder layers for the Emformer",
+    )
+
+    parser.add_argument(
+        "--cnn-module-kernel",
+        type=int,
+        default=31,
+        help="Kernel size for the convolution module.",
+    )
+
+    parser.add_argument(
+        "--left-context-length",
+        type=int,
+        default=32,
+        help="""Number of frames before subsampling for left context
+        in the Emformer.""",
+    )
+
+    parser.add_argument(
+        "--chunk-length",
+        type=int,
+        default=32,
+        help="""Number of frames before subsampling for each chunk
+        in the Emformer.""",
+    )
+
+    parser.add_argument(
+        "--right-context-length",
+        type=int,
+        default=8,
+        help="""Number of frames before subsampling for right context
+        in the Emformer.""",
+    )
+
+    parser.add_argument(
+        "--memory-size",
+        type=int,
+        default=0,
+        help="Number of entries in the memory for the Emformer",
     )
 
 
@@ -194,7 +221,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc3/exp",
+        default="pruned_transducer_stateless2/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -202,13 +229,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--bpe-model",
         type=str,
-        default="data/lang_bpe_500",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -233,6 +257,46 @@ def get_parser():
         default=6,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--prune-range",
+        type=int,
+        default=5,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.25,
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network) part.",
+    )
+
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
     )
 
     parser.add_argument(
@@ -291,27 +355,6 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
-    )
-
-    parser.add_argument(
-        "--delay-penalty",
-        type=float,
-        default=0.0,
-        help="""A constant used to scale the symbol delay penalty,
-        to encourage symbol emit earlier for streaming models.
-        It is almost the same as the `delay_penalty` in our `rnnt_loss`, See
-        https://github.com/k2-fsa/k2/issues/955 and
-        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
-    )
-
-    parser.add_argument(
-        "--nnet-delay-penalty",
-        type=float,
-        default=0.0,
-        help="""A constant to penalize symbol delay, which is applied on
-        the nnet_output after log-softmax.
-        We recommend using --delay-penalty instead.
-        See https://github.com/k2-fsa/icefall/pull/669 for details.""",
     )
 
     add_model_arguments(parser)
@@ -373,17 +416,13 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            # parameters for conformer
+            # parameters for Emformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            # parameters for loss
-            "beam_size": 10,
-            "reduction": "sum",
-            "use_double_scores": True,
+            # parameters for decoder
+            "decoder_dim": 512,
+            # parameters for joiner
+            "joiner_dim": 512,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
@@ -395,26 +434,54 @@ def get_params() -> AttributeDict:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
+    encoder = Emformer(
         num_features=params.feature_dim,
+        chunk_length=params.chunk_length,
         subsampling_factor=params.subsampling_factor,
         d_model=params.encoder_dim,
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
-        dynamic_chunk_training=params.dynamic_chunk_training,
-        short_chunk_size=params.short_chunk_size,
-        num_left_chunks=params.num_left_chunks,
-        causal=params.causal_convolution,
+        cnn_module_kernel=params.cnn_module_kernel,
+        left_context_length=params.left_context_length,
+        right_context_length=params.right_context_length,
+        memory_size=params.memory_size,
     )
     return encoder
 
 
-def get_ctc_model(params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
-    model = CTCModel(
-        encoder=encoder,
+def get_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        decoder_dim=params.decoder_dim,
+        blank_id=params.blank_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict) -> nn.Module:
+    joiner = Joiner(
         encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+        encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -483,6 +550,9 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
+        if "cur_batch_idx" in saved_params:
+            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
+
     return saved_params
 
 
@@ -539,7 +609,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -552,10 +622,6 @@ def compute_loss(
         Parameters for training. See :func:`get_params`.
       model:
         The model for training. It is an instance of Conformer in our case.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -575,68 +641,36 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    texts = batch["supervisions"]["text"]
+    y = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(y).to(device)
+
     with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_out_lens = model(
-            feature,
-            feature_lens,
+        simple_loss, pruned_loss = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
             warmup=warmup,
-            delay_penalty=params.nnet_delay_penalty if warmup >= 1.0 else 0,
         )
-        assert torch.all(encoder_out_lens > 0)
-
-    # NOTE: We need `encode_supervisions` to sort sequences with
-    # different duration in decreasing order, required by
-    # `k2.intersect_dense` called in `k2.ctc_loss`
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=params.subsampling_factor
-    )
-
-    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
-        # Works with a BPE model
-        token_ids = graph_compiler.texts_to_ids(texts)
-        decoding_graph = graph_compiler.compile(token_ids)
-    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
-        # Works with a phone lexicon
-        decoding_graph = graph_compiler.compile(texts)
-    else:
-        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
-
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
-
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        delay_penalty=params.delay_penalty if warmup >= 1.0 else 0.0,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
-    )
-    ctc_loss_is_finite = torch.isfinite(ctc_loss)
-    if not torch.all(ctc_loss_is_finite):
-        logging.info("Not all losses are finite!\n" f"ctc_loss: {ctc_loss}")
-        ctc_loss = ctc_loss[ctc_loss_is_finite]
-
-        # If either all simple_loss or pruned_loss is inf or nan,
-        # we stop the training process by raising an exception
-        if torch.all(~ctc_loss_is_finite):
-            raise ValueError(
-                "There are too many utterances in this batch "
-                "leading to inf or nan losses."
-            )
-    loss = ctc_loss.sum()
+        # after the main warmup step, we keep pruned_loss_scale small
+        # for the same amount of time (model_warm_step), to avoid
+        # overwhelming the simple_loss and causing it to diverge,
+        # in case it had not fully learned the alignment yet.
+        pruned_loss_scale = (
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    # info["frames"] is an approximate number for two reasons:
-    # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
-    # (2) If some utterances in the batch lead to inf/nan loss, they
-    #     are filtered out.
-    info["frames"] = supervision_segments[:, 2].sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     info["utterances"] = feature.size(0)
     # averaged input duration in frames over utterances
@@ -648,6 +682,8 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
@@ -655,7 +691,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -668,7 +704,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            graph_compiler=graph_compiler,
+            sp=sp,
             batch=batch,
             is_training=False,
         )
@@ -691,7 +727,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -715,10 +751,6 @@ def train_one_epoch(
         The optimizer we are using.
       scheduler:
         The learning rate scheduler, we call step() every step.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -739,7 +771,13 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
+    cur_batch_idx = params.get("cur_batch_idx", 0)
+
     for batch_idx, batch in enumerate(train_dl):
+        if batch_idx < cur_batch_idx:
+            continue
+        cur_batch_idx = batch_idx
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -747,7 +785,7 @@ def train_one_epoch(
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 batch=batch,
                 is_training=True,
                 warmup=(params.batch_idx_train / params.model_warm_step),
@@ -763,7 +801,7 @@ def train_one_epoch(
         scaler.update()
         optimizer.zero_grad()
 
-        if params.print_diagnostics and batch_idx == 30:
+        if params.print_diagnostics and batch_idx == 5:
             return
 
         if (
@@ -781,6 +819,7 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
+            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -793,6 +832,7 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
+            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -823,7 +863,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -870,47 +910,22 @@ def run(rank, world_size, args):
     else:
         tb_writer = None
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    params.vocab_size = max_token_id + 1  # +1 for the blank
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    if "lang_bpe" in str(params.lang_dir):
-        graph_compiler = BpeCtcTrainingGraphCompiler(
-            params.lang_dir,
-            device=device,
-            sos_token="<sos/eos>",
-            eos_token="<sos/eos>",
-        )
-    elif "lang_phone" in str(params.lang_dir):
-        graph_compiler = CtcTrainingGraphCompiler(
-            lexicon,
-            device=device,
-            need_repeat_flag=params.delay_penalty > 0,
-        )
-        # Manually add the sos/eos ID with their default values
-        # from the BPE recipe which we're adapting here.
-        graph_compiler.sos_id = 1
-        graph_compiler.eos_id = 1
-    else:
-        raise ValueError(
-            f"Unsupported type of lang dir (we expected it to have "
-            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
-        )
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    if params.dynamic_chunk_training:
-        assert (
-            params.causal_convolution
-        ), "dynamic_chunk_training requires causal convolution"
+    # <blk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_ctc_model(params)
+    model = get_transducer_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -948,14 +963,17 @@ def run(rank, world_size, args):
         scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
-        diagnostic = diagnostics.attach_diagnostics(model)
+        opts = diagnostics.TensorDiagnosticOptions(
+            2**22
+        )  # allow 4 megabytes per sub-module
+        diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -985,14 +1003,13 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if params.start_batch <= 0 and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
+            sp=sp,
             params=params,
-            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1016,7 +1033,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            graph_compiler=graph_compiler,
+            sp=sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1051,9 +1068,8 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     params: AttributeDict,
-    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1064,14 +1080,17 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
+            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
+            # (i.e. are not remembered by the decaying-average in adam), because
+            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=warmup,
+                    warmup=0.0,
                 )
             loss.backward()
             optimizer.step()
