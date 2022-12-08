@@ -13,7 +13,6 @@ cd egs/librispeech/ASR
 repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-conformer-ctc3-2022-11-27
 
 log "Downloading pre-trained model from $repo_url"
-git lfs install
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 

@@ -13,7 +13,6 @@ cd egs/librispeech/ASR
 repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08
 
 log "Downloading pre-trained model from $repo_url"
-git lfs install
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
@@ -23,7 +22,14 @@ soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
-git lfs pull --include "data/*"
+git lfs pull --include "data/lang_bpe_500/3gram.pt"
+git lfs pull --include "data/lang_bpe_500/4gram.pt"
+git lfs pull --include "data/lang_bpe_500/LG.pt"
+git lfs pull --include "data/lang_bpe_500/P.fst.txt"
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/lexicon.txt"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
+git lfs pull --include "data/lang_bpe_500/words.txt"
 git lfs pull --include "exp/cpu_jit.pt"
 git lfs pull --include "exp/pretrained.pt"
 ln -s pretrained.pt epoch-99.pt
@@ -46,6 +52,7 @@ log "Decode with models exported by torch.jit.script()"
 ./zipformer_mmi/jit_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --nn-model-filename $repo/exp/cpu_jit.pt \
+  --lang-dir $repo/data/lang_bpe_500 \
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
@@ -56,6 +63,7 @@ for method in 1best nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescor
   ./zipformer_mmi/pretrained.py \
     --method $method \
     --checkpoint $repo/exp/pretrained.pt \
+    --lang-dir $repo/data/lang_bpe_500 \
     --bpe-model $repo/data/lang_bpe_500/bpe.model \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
@@ -89,6 +97,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --nbest-scale 1.2 \
       --hp-scale 1.0 \
       --max-duration $max_duration \
+      --lang-dir $repo/data/lang_bpe_500 \
       --exp-dir zipformer_mmi/exp
   done
 
