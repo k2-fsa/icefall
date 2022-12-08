@@ -261,8 +261,13 @@ class Transducer(nn.Module):
         """Sample paths from transducer joiner and calculate related variables
         needed by delta_wer_loss and predictor_loss.
 
-        TODO:(Wei Kang) Add more docs describing what this function actually
-                        does.
+        The sampling process is just like a frame synchronized decoding. For
+        each sequence, `2 * num_pairs` of paths will be sampled, and we won't
+        sample the paths from frame 0 to frame T, `num_pairs` of start points
+        will be chosen (evenly distributed between 0 and T), from each start
+        point, two paths will be sampled and the longest path length is
+        `path_length` (some will be shorter because of reaching final frame).
+
 
         Args:
           encoder_out:
@@ -292,7 +297,7 @@ class Transducer(nn.Module):
           - The prediction wer difference, its shape is (batch_size, num_pairs)
           - The sampled joiner output, its shape is
             (batch_size, num_pairs, path_length, vocab_size)
-          - The sampled quasi joiner output(to predict delta_wer), its shape is
+          - The sampled quasi joiner output(the expected wer), its shape is
             (batch_size, num_pairs, path_length, vocab_size)
         """
         batch_size, T, encoder_dim = encoder_out.shape
@@ -470,6 +475,9 @@ class Transducer(nn.Module):
                 reach_final | final_mask[:, :, 0] | final_mask[:, :, 1]
             )
 
+            # When reaching final, reset the sampling frame to 0.
+            # just to make it run normally, we won't use the sampled symbols
+            # anymore.
             t_index.masked_fill_(final_mask, 0)
 
             left_symbols = left_symbols.view(
