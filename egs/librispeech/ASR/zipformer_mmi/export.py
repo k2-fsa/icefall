@@ -24,8 +24,8 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.script()
 
-./pruned_transducer_stateless7_ctc/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+./zipformer_mmi/export.py \
+  --exp-dir ./zipformer_mmi/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9 \
@@ -43,8 +43,8 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
-./pruned_transducer_stateless7_ctc/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+./zipformer_mmi/export.py \
+  --exp-dir ./zipformer_mmi/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
@@ -52,15 +52,15 @@ for how to use the exported models outside of icefall.
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless7_ctc/decode.py`,
+To use the generated file with `zipformer_mmi/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless7_ctc/decode.py \
-        --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    ./zipformer_mmi/decode.py \
+        --exp-dir ./zipformer_mmi/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -72,14 +72,14 @@ Check ./pretrained.py for its usage.
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
-https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01
+https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01
-    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01/exp
+    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08
+    # You will find the pre-trained model in icefall-asr-librispeech-zipformer-mmi-2022-12-08/exp
 """
 
 import argparse
@@ -89,7 +89,7 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_ctc_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -147,7 +147,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="zipformer_mmi/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -169,13 +169,6 @@ def get_parser():
 
         Check ./jit_pretrained.py for how to use it.
         """,
-    )
-
-    parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     add_model_arguments(parser)
@@ -207,7 +200,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_ctc_model(params)
 
     model.to(device)
 
@@ -294,12 +287,6 @@ def main():
     if params.jit is True:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.script()")
-        # We won't use the forward() method of the model in C++, so just ignore
-        # it here.
-        # Otherwise, one of its arguments is a ragged tensor and is not
-        # torch scriptabe.
-        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
-        logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
         model.save(str(filename))

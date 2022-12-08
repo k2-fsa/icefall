@@ -39,7 +39,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir zipformer_mmi/exp \
   --full-libri 1 \
-  --max-duration 550
+  --max-duration 500
 
 """
 

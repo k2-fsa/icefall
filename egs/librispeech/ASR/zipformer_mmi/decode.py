@@ -73,9 +73,8 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from train import add_model_arguments, get_params, get_ctc_model
+from train import add_model_arguments, get_ctc_model, get_params
 
-from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -85,10 +84,11 @@ from icefall.checkpoint import (
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
-    one_best_decoding,
     nbest_rescore_with_LM,
+    one_best_decoding,
 )
 from icefall.lexicon import Lexicon
+from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -229,8 +229,8 @@ def get_decoding_params() -> AttributeDict:
     params = AttributeDict(
         {
             "frame_shift_ms": 10,
-            "search_beam": 20,  # 20,
-            "output_beam": 8,  # 8,
+            "search_beam": 20,
+            "output_beam": 8,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
