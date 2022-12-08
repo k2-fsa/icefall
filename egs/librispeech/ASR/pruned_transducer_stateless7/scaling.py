@@ -1258,7 +1258,15 @@ class TanSwish(torch.nn.Module):
         return TanSwishFunction.apply(x)
 
 
-
+# Dropout2 is just like normal dropout, except it supports schedules on the dropout rates.
+class Dropout2(nn.Module):
+    def __init__(self, p: FloatLike):
+        super().__init__()
+        self.p = p
+    def forward(self, x: Tensor) -> Tensor:
+        return torch.nn.functional.dropout(x,
+                                           p=float(self.p),
+                                           training=self.training)
 
 class SwooshLFunction(torch.autograd.Function):
     """
