@@ -1035,7 +1035,7 @@ def run(rank, world_size, args):
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
-        
+    
     parameters_names = []
     parameters_names.append(
         [name_param_pair[0] for name_param_pair in model.named_parameters()]
