@@ -20,7 +20,7 @@ Usage:
   ./rnn_lm/compute_perplexity.py \
     --epoch 4 \
     --avg 2 \
-    --lm-data ./data/bpe_500/sorted_lm_data-test.pt
+    --lm-data ./data/lm_training_bpe_500/sorted_lm_data-test.pt
 
 """
 

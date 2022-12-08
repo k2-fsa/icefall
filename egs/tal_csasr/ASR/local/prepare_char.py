@@ -87,9 +87,7 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
-        pieces = [
-            token2id[i] if i in token2id else token2id["<unk>"] for i in pieces
-        ]
+        pieces = [token2id[i] if i in token2id else token2id["<unk>"] for i in pieces]
 
         for i in range(len(pieces) - 1):
             w = word if i == 0 else eps

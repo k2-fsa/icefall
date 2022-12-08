@@ -234,9 +234,7 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
 
     assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
     for idx in range(len(scaled_lstm._flat_weights_names)):
-        scaled_weight = (
-            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
-        )
+        scaled_weight = scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
         lstm._flat_weights[idx].data.copy_(scaled_weight)
 
     return lstm

@@ -16,11 +16,11 @@
 # limitations under the License.
 
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-
 from torch import Tensor
-from typing import Optional
 
 
 class TdnnLiGRU(nn.Module):
@@ -261,9 +261,7 @@ class LiGRU(torch.nn.Module):
         h = []
         if hx is not None:
             if self.bidirectional:
-                hx = hx.reshape(
-                    self.num_layers, self.batch_size * 2, self.hidden_size
-                )
+                hx = hx.reshape(self.num_layers, self.batch_size * 2, self.hidden_size)
         # Processing the different layers
         for i, ligru_lay in enumerate(self.rnn):
             if hx is not None:
@@ -445,9 +443,7 @@ class LiGRU_Layer(torch.nn.Module):
             if self.drop_mask_cnt + self.batch_size > self.N_drop_masks:
                 self.drop_mask_cnt = 0
                 self.drop_masks = self.drop(
-                    torch.ones(
-                        self.N_drop_masks, self.hidden_size, device=w.device
-                    )
+                    torch.ones(self.N_drop_masks, self.hidden_size, device=w.device)
                 ).data
 
             # Sampling the mask
