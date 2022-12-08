@@ -15,22 +15,13 @@
 # limitations under the License.
 
 
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
-import logging
 import k2
 import torch
 import torch.nn as nn
-
 from encoder_interface import EncoderInterface
-from scaling import (
-    ActivationBalancer,
-    BasicNorm,
-    DoubleSwish,
-    ScaledConv1d,
-    ScaledEmbedding,
-    ScaledLinear,
-)
+from scaling import ScaledEmbedding, ScaledLinear
 from torch.distributions.categorical import Categorical
 from transformer import (
     PositionalEncoding,
@@ -41,7 +32,8 @@ from transformer import (
     decoder_padding_mask,
     generate_square_subsequent_mask,
 )
-from icefall.utils import add_sos, add_eos, make_pad_mask
+
+from icefall.utils import add_eos, add_sos, make_pad_mask
 
 
 def _roll_by_shifts(
@@ -308,8 +300,8 @@ class Transducer(nn.Module):
         device = encoder_out.device
 
         blank_id = self.decoder.blank_id
-        context_size = self.decoder.context_size
         decoder_dim = self.decoder_dim
+        context_size = self.decoder.context_size
         vocab_size = self.decoder.vocab_size
 
         # t_index contains the frame ids we are sampling for each pair of paths.
@@ -624,8 +616,6 @@ class Transducer(nn.Module):
         y_lens = row_splits[1:] - row_splits[:-1]
 
         blank_id = self.decoder.blank_id
-        context_size = self.decoder.context_size
-        vocab_size = self.decoder.vocab_size
         sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.
@@ -708,9 +698,14 @@ class Transducer(nn.Module):
             warmup=warmup,
         )
 
-        l2_loss = torch.sum(
-            torch.pow(enhanced_embedding - encoder_out.detach(), 2)
-        ) / encoder_out.size(2)
+        enhanced_embedding = enhanced_embedding.masked_fill(
+            embedding_key_padding_mask.unsqueeze(2), 0
+        )
+        encoder_out2 = encoder_out.masked_fill(
+            embedding_key_padding_mask.unsqueeze(2), 0
+        ).detach()
+
+        l2_loss = torch.sum(torch.pow(enhanced_embedding - encoder_out2, 2))
 
         init_context = self.get_init_contexts(
             px_grad=px_grad, py_grad=py_grad, y_padded=y_padded
@@ -736,16 +731,17 @@ class Transducer(nn.Module):
 
         delta_wer_loss = torch.sum(torch.pow(wer_diff - pred_wer_diff, 2))
 
-        predictor_wer_loss = torch.sum(
-            sampled_joiner * sampled_quasi_joiner.detach()
-        ) / (num_pairs * path_length * sampled_joiner.size(-1))
+        sampled_joiner = sampled_joiner.softmax(dim=3)
+        predictor_loss = torch.sum(
+            (sampled_joiner * sampled_quasi_joiner.detach()).sum(dim=3)
+        )
 
         return (
             simple_loss,
             pruned_loss,
             delta_wer_loss,
             l2_loss,
-            predictor_wer_loss,
+            predictor_loss,
         )
 
 

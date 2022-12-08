@@ -22,38 +22,13 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless_mbr/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless_mbr/exp \
   --full-libri 1 \
   --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless4/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
-  --full-libri 1 \
-  --max-duration 550
-
-# train a streaming model
-./pruned_transducer_stateless4/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless4/exp \
-  --full-libri 1 \
-  --dynamic-chunk-training 1 \
-  --causal-convolution 1 \
-  --short-chunk-size 25 \
-  --num-left-chunks 4 \
-  --max-duration 300
-
 """
 
 import argparse
@@ -77,7 +52,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer, TransformerLM, EmbeddingEnhancer
+from model import EmbeddingEnhancer, Transducer, TransformerLM
 from optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
@@ -145,7 +120,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-lm-layers",
         type=int,
         default=3,
-        help="The number of layers for transformer language model",
+        help="""The number of layers for transformer language model (to get the
+        enhanced_embedding).""",
     )
 
     parser.add_argument(
@@ -357,6 +333,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-path-pairs",
+        type=int,
+        default=10,
+        help="The number of pairs of paths use to calculate the delta_wer_loss.",
+    )
+
+    parser.add_argument(
         "--delta-wer-scale",
         type=float,
         default=0.1,
@@ -375,7 +358,7 @@ def get_parser():
         "--predictor-loss-scale",
         type=float,
         default=0.1,
-        help="The scale applying to predictor_wer_loss",
+        help="The scale applying to predictor_loss",
     )
 
     add_model_arguments(parser)
@@ -703,7 +686,7 @@ def compute_loss(
             pruned_loss,
             delta_wer_loss,
             l2_loss,
-            predictor_wer_loss,
+            predictor_loss,
         ) = model(
             x=feature,
             x_lens=feature_lens,
@@ -713,6 +696,7 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            num_pairs=params.num_path_pairs,
             path_length=params.path_length,
             warmup=warmup,
             reduction="none",
@@ -743,10 +727,6 @@ def compute_loss(
         simple_loss = simple_loss.sum()
         pruned_loss = pruned_loss.sum()
 
-        logging.info(
-            f"simple_loss : {simple_loss}, pruned_loss : {pruned_loss}, delta_wer_loss : {delta_wer_loss}, l2_loss : {l2_loss}, predictor_wer_loss : {predictor_wer_loss}"
-        )
-
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
         # overwhelming the simple_loss and causing it to diverge,
@@ -756,10 +736,18 @@ def compute_loss(
             if warmup < 1.0
             else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
+
         l2_loss_scale = 0.0 if warmup < 1.0 else params.l2_loss_scale
         delta_wer_scale = 0.0 if warmup < 1.0 else params.delta_wer_scale
+
         predictor_loss_scale = (
-            0.0 if warmup < 2.0 else params.predictor_loss_scale
+            0.0
+            if warmup < 1.0
+            else (
+                params.predictor_loss_scale * 0.1
+                if warmup > 1.0 and warmup < 2.0
+                else params.predictor_loss_scale
+            )
         )
 
         loss = (
@@ -767,7 +755,7 @@ def compute_loss(
             + pruned_loss_scale * pruned_loss
             + l2_loss_scale * l2_loss
             + delta_wer_scale * delta_wer_loss
-            + predictor_loss_scale * predictor_wer_loss
+            + predictor_loss_scale * predictor_loss
         )
 
     assert loss.requires_grad == is_training
@@ -798,7 +786,7 @@ def compute_loss(
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
     info["l2_loss"] = l2_loss.detach().cpu().item()
     info["delta_wer_loss"] = delta_wer_loss.detach().cpu().item()
-    info["predictor_wer_loss"] = predictor_wer_loss.detach().cpu().item()
+    info["predictor_loss"] = predictor_loss.detach().cpu().item()
 
     return loss, info
 
