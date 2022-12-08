@@ -530,6 +530,9 @@ def run(rank, world_size, args):
         num_layers=params.num_layers,
         tie_weights=params.tie_weights,
     )
+    
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
