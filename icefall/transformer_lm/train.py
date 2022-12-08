@@ -182,7 +182,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 200,
             "reset_interval": 2000,
-            "valid_interval": 5000,
+            "valid_interval": 1000,
             "nhead": 8,
             "embedding_dim": 512,
             "encoder_dim": 512,
