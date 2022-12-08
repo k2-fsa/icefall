@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   run_librispeech_2022_12_08_zipformer:
-    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event.label.name == 'test-mmi' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
