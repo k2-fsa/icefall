@@ -1,5 +1,7 @@
 ## Results
 
+Add results for smaller models here.
+
 ### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
 
 See <https://github.com/k2-fsa/icefall/pull/683> for more details.
