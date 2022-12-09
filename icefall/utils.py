@@ -876,9 +876,13 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.items():
             if k == "frames" or k == "utterances":
                 continue
+            #norm_value = (
+            #    float(v) / num_frames if "utt_" not in k else float(v) / num_utterances
+            #)
             norm_value = (
-                float(v) / num_frames if "utt_" not in k else float(v) / num_utterances
+                float(v) / num_utterances
             )
+
             ans.append((k, norm_value))
         return ans
 
