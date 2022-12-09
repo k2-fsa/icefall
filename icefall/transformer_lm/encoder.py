@@ -36,10 +36,15 @@ from scaling import (
 )   
 
 class Transformer(torch.nn.Module):
-    """A transformer encoder, this code is modified from ESPnet
+    """_summary_
 
     Args:
-        torch (_type_): _description_
+        input_dim (int): Input feature dimension
+        d_mode (int): The dimension of the transformer
+        dim_feedforward (int ): The dimension of the ffw module
+        nhead (int): The number of attention heads
+        dropout_rate (float): dropout rate 
+        att_dropout (float): dropout rate in attention module
     """
     def __init__(
         self,
@@ -71,13 +76,26 @@ class Transformer(torch.nn.Module):
         self.encoder = TransformerEncoder(encoder_layer, num_layers)
     
     def _create_attention_mask(self, x_lens:torch.Tensor):
+        # create a 2D attention mask to mask out
+        # the upper right half of the attention matrix
         max_len = max(x_lens)
         ones = torch.ones(max_len, max_len, device=x_lens.device, dtype=torch.bool)
-        tri_mask = torch.triu(ones, diagonal=1)
-        
-        return tri_mask
+        return torch.triu(ones, diagonal=1)
     
-    def forward(self, x: torch.Tensor, x_lens: torch.Tensor):
+    def forward(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+        ) -> Tuple(torch.Tensor, torch.Tensor):
+        """Transformer forward
+
+        Args:
+            x (torch.Tensor): Input tensor (B,T,input_dim)
+            x_lens (torch.Tensor): The length of input tensors before padding (B,)
+
+        Returns:
+            Return a tuple of 2 tensors:
+            - x: output feature of the transformer (B,T,d_model)
+            - x_lens: output feature lens of the transformer
+        """
         
         attention_mask = self._create_attention_mask(x_lens)
         src_key_padding_mask = make_pad_mask(x_lens)
@@ -90,7 +108,7 @@ class Transformer(torch.nn.Module):
         x = self.encoder(
             x,
             pos_emb,
-            mask=attention_mask,
+            mask=attention_mask, # pass the attention mast 
             src_key_padding_mask=src_key_padding_mask,
         )  # (T, N, C)
         
@@ -99,6 +117,12 @@ class Transformer(torch.nn.Module):
     
 class TransformerEncoder(torch.nn.Module):
     def __init__(self, encoder_layer: torch.nn.Module, num_layers: int) -> None:
+        """TransformerEncoder is a stack of N encoder layers
+
+        Args:
+            encoder_layer (torch.nn.Module): an instance of the TransformerEncoderLayer()
+            num_layers (int): Number of layers to be stacked
+        """
         super().__init__()
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
@@ -111,7 +135,18 @@ class TransformerEncoder(torch.nn.Module):
         pos_emb: torch.Tensor,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
-    ):
+    ) -> torch.Tensor:
+        """_summary_
+
+        Args:
+            src: the sequence to the encoder (required).
+            pos_emb: Positional embedding tensor (required).
+            mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+
+        Returns:
+            output: transformer encoded features
+        """
         output = src
 
         for layer_index, mod in enumerate(self.layers):
@@ -132,6 +167,14 @@ class TransformerEncoderLayer(torch.nn.Module):
         nhead: int,
         dropout_rate: float,
     ):
+        """TransformerEncoderLayer is made up of self-attn and feedforward module
+
+        Args:
+            d_model (int): The model size
+            dim_feedforward (int): Dimension of ffw module
+            nhead (int): Number of heads
+            dropout_rate (float): Dropout rate
+        """
         super().__init__()
         
         self.d_model = d_model
@@ -161,6 +204,15 @@ class TransformerEncoderLayer(torch.nn.Module):
         src_mask: Optional[torch.Tensor] = None,
         cache=None,
     ):
+        """
+        Pass the input through the encoder layer.
+
+        Args:
+            src: the sequence to the encoder layer (required).
+            pos_emb: Positional embedding tensor (required).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+            src_mask: the mask for the src sequence (optional).
+        """
         src_orig = src
         
         src_att = self.self_attn(

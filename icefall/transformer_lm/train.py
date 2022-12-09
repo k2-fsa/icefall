@@ -143,7 +143,7 @@ def get_parser():
         "--num-layers",
         type=int,
         default=12,
-        help="Number of RNN layers the model",
+        help="Number of Transformer layers in the model",
     )
 
     parser.add_argument(
