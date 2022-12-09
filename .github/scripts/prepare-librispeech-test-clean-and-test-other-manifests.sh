@@ -4,6 +4,8 @@
 # to egs/librispeech/ASR/download/LibriSpeech and generates manifest
 # files in egs/librispeech/ASR/data/manifests
 
+set -e
+
 cd egs/librispeech/ASR
 [ ! -e download ] && ln -s ~/tmp/download .
 mkdir -p data/manifests

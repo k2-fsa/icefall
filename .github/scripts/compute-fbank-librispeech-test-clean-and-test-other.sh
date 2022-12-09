@@ -4,6 +4,8 @@
 # The computed features are saved to ~/tmp/fbank-libri and are
 # cached for later runs
 
+set -e
+
 export PYTHONPATH=$PWD:$PYTHONPATH
 echo $PYTHONPATH
 

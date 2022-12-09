@@ -393,6 +393,17 @@ Now let us run the training part:
   We use ``export CUDA_VISIBLE_DEVICES=""`` so that ``icefall`` uses CPU
   even if there are GPUs available.
 
+.. hint::
+
+   In case you get a ``Segmentation fault (core dump)`` error, please use:
+
+      .. code-block:: bash
+
+        export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
+   See more at `<https://github.com/k2-fsa/icefall/issues/674>` if you are
+   interested.
+
 The training log is given below:
 
 .. code-block::

@@ -21,26 +21,23 @@ on:
     branches:
       - master
   pull_request:
-    types: [labeled]
+    branches:
+      - master
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    if: github.event.label.name == 'ready' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-18.04, macos-10.15]
-        # disable macOS test for now.
-        os: [ubuntu-18.04]
-        python-version: [3.7, 3.8]
-        torch: ["1.8.0", "1.11.0"]
-        torchaudio: ["0.8.0", "0.11.0"]
-        k2-version: ["1.15.1.dev20220427"]
-        exclude:
-          - torch: "1.8.0"
-            torchaudio: "0.11.0"
-          - torch: "1.11.0"
-            torchaudio: "0.8.0"
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+        torch: ["1.10.0"]
+        torchaudio: ["0.10.0"]
+        k2-version: ["1.23.2.dev20221201"]
 
       fail-fast: false
 
@@ -67,11 +64,7 @@ jobs:
           # numpy 1.20.x does not support python 3.6
           pip install numpy==1.19
           pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          if [[ ${{ matrix.torchaudio }} == "0.11.0" ]]; then
-            pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          else
-            pip install torchaudio==${{ matrix.torchaudio }}
-          fi
+          pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
 
           pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.org/nightly/
           pip install git+https://github.com/lhotse-speech/lhotse
@@ -79,6 +72,8 @@ jobs:
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf
 
+          pip install kaldifst
+          pip install onnxruntime
           pip install -r requirements.txt
 
       - name: Install graphviz
@@ -121,16 +116,14 @@ jobs:
           cd ../transducer_stateless
           pytest -v -s
 
-          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
-            cd ../transducer
-            pytest -v -s
+          cd ../transducer
+          pytest -v -s
 
-            cd ../transducer_stateless2
-            pytest -v -s
+          cd ../transducer_stateless2
+          pytest -v -s
 
-            cd ../transducer_lstm
-            pytest -v -s
-          fi
+          cd ../transducer_lstm
+          pytest -v -s
 
       - name: Run tests
         if: startsWith(matrix.os, 'macos')
@@ -161,13 +154,11 @@ jobs:
           cd ../transducer_stateless
           pytest -v -s
 
-          if [[ ${{ matrix.torchaudio }} == "0.10.0" ]]; then
-            cd ../transducer
-            pytest -v -s
+          cd ../transducer
+          pytest -v -s
 
-            cd ../transducer_stateless2
-            pytest -v -s
+          cd ../transducer_stateless2
+          pytest -v -s
 
-            cd ../transducer_lstm
-            pytest -v -s
-          fi
+          cd ../transducer_lstm
+          pytest -v -s

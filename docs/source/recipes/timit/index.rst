@@ -6,4 +6,3 @@ TIMIT
 
    tdnn_ligru_ctc
    tdnn_lstm_ctc
-

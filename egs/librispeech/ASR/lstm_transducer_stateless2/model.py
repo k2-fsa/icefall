@@ -84,9 +84,7 @@ class Transducer(nn.Module):
         self.decoder_giga = decoder_giga
         self.joiner_giga = joiner_giga
 
-        self.simple_am_proj = ScaledLinear(
-            encoder_dim, vocab_size, initial_speed=0.5
-        )
+        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
         if decoder_giga is not None:
@@ -106,6 +104,7 @@ class Transducer(nn.Module):
         lm_scale: float = 0.0,
         warmup: float = 1.0,
         reduction: str = "sum",
+        delay_penalty: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -136,6 +135,11 @@ class Transducer(nn.Module):
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
+          delay_penalty:
+            A constant value used to penalize symbol delay, to encourage
+            streaming models to emit symbols earlier.
+            See https://github.com/k2-fsa/k2/issues/955 and
+            https://arxiv.org/pdf/2211.00490.pdf for more details.
         Returns:
           Return the transducer loss.
 
@@ -184,9 +188,7 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
@@ -203,6 +205,7 @@ class Transducer(nn.Module):
                 am_only_scale=am_scale,
                 boundary=boundary,
                 reduction=reduction,
+                delay_penalty=delay_penalty,
                 return_grad=True,
             )
 
@@ -235,6 +238,7 @@ class Transducer(nn.Module):
                 ranges=ranges,
                 termination_symbol=blank_id,
                 boundary=boundary,
+                delay_penalty=delay_penalty,
                 reduction=reduction,
             )
 

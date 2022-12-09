@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 num_phones=39
@@ -20,9 +23,9 @@ stop_stage=100
 #  - $dl_dir/lm
 #      This directory contains the language model(LM) downloaded from
 #      https://huggingface.co/luomingshuang/timit_lm, and the LM is based
-#	     on 39 phones. About how to get these LM files, you can know it 
+#	     on 39 phones. About how to get these LM files, you can know it
 #      from https://github.com/luomingshuang/Train_LM_with_kaldilm.
-#	
+#
 #	    - lm_3_gram.arpa
 #     - lm_4_gram.arpa
 #

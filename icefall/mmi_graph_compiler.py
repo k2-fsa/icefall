@@ -137,9 +137,7 @@ class MmiTrainingGraphCompiler(object):
             transcript_fsa
         )
 
-        transcript_fsa_with_self_loops = k2.arc_sort(
-            transcript_fsa_with_self_loops
-        )
+        transcript_fsa_with_self_loops = k2.arc_sort(transcript_fsa_with_self_loops)
 
         num = k2.compose(
             self.ctc_topo_P,
@@ -155,9 +153,7 @@ class MmiTrainingGraphCompiler(object):
 
         ctc_topo_P_vec = k2.create_fsa_vec([self.ctc_topo_P])
         if replicate_den:
-            indexes = torch.zeros(
-                len(texts), dtype=torch.int32, device=self.device
-            )
+            indexes = torch.zeros(len(texts), dtype=torch.int32, device=self.device)
             den = k2.index_fsa(ctc_topo_P_vec, indexes)
         else:
             den = ctc_topo_P_vec

@@ -16,6 +16,7 @@
 
 
 import collections
+import random
 from itertools import repeat
 from typing import Optional, Tuple
 
@@ -88,9 +89,7 @@ class ActivationBalancerFunction(torch.autograd.Function):
             below_threshold = mean_abs < min_abs
             above_threshold = mean_abs > max_abs
 
-            ctx.save_for_backward(
-                factor, xgt0, below_threshold, above_threshold
-            )
+            ctx.save_for_backward(factor, xgt0, below_threshold, above_threshold)
             ctx.max_factor = max_factor
             ctx.sum_dims = sum_dims
         return x
@@ -136,7 +135,7 @@ class GradientFilterFunction(torch.autograd.Function):
         eps = 1.0e-20
         dim = ctx.batch_dim
         norm_dims = [d for d in range(x_grad.ndim) if d != dim]
-        norm_of_batch = (x_grad ** 2).mean(dim=norm_dims, keepdim=True).sqrt()
+        norm_of_batch = (x_grad**2).mean(dim=norm_dims, keepdim=True).sqrt()
         median_norm = norm_of_batch.median()
 
         cutoff = median_norm * ctx.threshold
@@ -228,8 +227,7 @@ class BasicNorm(torch.nn.Module):
         if not is_jit_tracing():
             assert x.shape[self.channel_dim] == self.num_channels
         scales = (
-            torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
-            + self.eps.exp()
+            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + self.eps.exp()
         ) ** -0.5
         return x * scales
 
@@ -281,12 +279,12 @@ class ScaledLinear(nn.Linear):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -300,9 +298,7 @@ class ScaledLinear(nn.Linear):
             return self.bias * self.bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.nn.functional.linear(
-            input, self.get_weight(), self.get_bias()
-        )
+        return torch.nn.functional.linear(input, self.get_weight(), self.get_bias())
 
 
 class ScaledConv1d(nn.Conv1d):
@@ -330,12 +326,12 @@ class ScaledConv1d(nn.Conv1d):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -399,12 +395,12 @@ class ScaledConv2d(nn.Conv2d):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -475,9 +471,7 @@ class ScaledLSTM(nn.LSTM):
             setattr(self, scale_name, param)
             self._scales.append(param)
 
-        self.grad_filter = GradientFilter(
-            batch_dim=1, threshold=grad_norm_threshold
-        )
+        self.grad_filter = GradientFilter(batch_dim=1, threshold=grad_norm_threshold)
 
         self._reset_parameters(
             initial_speed
@@ -485,8 +479,8 @@ class ScaledLSTM(nn.LSTM):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
-        scale = self.hidden_size ** -0.5
+        a = (3**0.5) * std
+        scale = self.hidden_size**-0.5
         v = scale / std
         for idx, name in enumerate(self._flat_weights_names):
             if "weight" in name:
@@ -558,15 +552,11 @@ class ScaledLSTM(nn.LSTM):
         """Get scaled weights, and resets their data pointer."""
         flat_weights = []
         for idx in range(len(self._flat_weights_names)):
-            flat_weights.append(
-                self._flat_weights[idx] * self._scales[idx].exp()
-            )
+            flat_weights.append(self._flat_weights[idx] * self._scales[idx].exp())
         self._flatten_parameters(flat_weights)
         return flat_weights
 
-    def forward(
-        self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
-    ):
+    def forward(self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None):
         # This function is modified from https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/rnn.py  # noqa
         # The change for calling `_VF.lstm()` is:
         # self._flat_weights -> self._get_flat_weights()
@@ -636,6 +626,7 @@ class ActivationBalancer(torch.nn.Module):
            max_abs:  the maximum average-absolute-value per channel, which
                we allow, before we start to modify the derivatives to prevent
                this.
+           balance_prob: the probability to apply the ActivationBalancer.
     """
 
     def __init__(
@@ -646,6 +637,7 @@ class ActivationBalancer(torch.nn.Module):
         max_factor: float = 0.01,
         min_abs: float = 0.2,
         max_abs: float = 100.0,
+        balance_prob: float = 0.25,
     ):
         super(ActivationBalancer, self).__init__()
         self.channel_dim = channel_dim
@@ -654,9 +646,11 @@ class ActivationBalancer(torch.nn.Module):
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
+        assert 0 < balance_prob <= 1, balance_prob
+        self.balance_prob = balance_prob
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or is_jit_tracing():
+        if random.random() >= self.balance_prob:
             return x
         else:
             return ActivationBalancerFunction.apply(
@@ -664,7 +658,7 @@ class ActivationBalancer(torch.nn.Module):
                 self.channel_dim,
                 self.min_positive,
                 self.max_positive,
-                self.max_factor,
+                self.max_factor / self.balance_prob,
                 self.min_abs,
                 self.max_abs,
             )
@@ -910,9 +904,7 @@ def _test_activation_balancer_sign():
 def _test_activation_balancer_magnitude():
     magnitudes = torch.arange(0, 1, 0.01)
     N = 1000
-    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(
-        -1
-    )
+    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(-1)
     x = x.detach()
     x.requires_grad = True
     m = ActivationBalancer(
@@ -942,8 +934,8 @@ def _test_basic_norm():
     y = m(x)
 
     assert y.shape == x.shape
-    x_rms = (x ** 2).mean().sqrt()
-    y_rms = (y ** 2).mean().sqrt()
+    x_rms = (x**2).mean().sqrt()
+    y_rms = (y**2).mean().sqrt()
     print("x rms = ", x_rms)
     print("y rms = ", y_rms)
     assert y_rms < x_rms
@@ -1002,11 +994,11 @@ def _test_grad_filter():
 
         print(
             "_test_grad_filter: x_out_grad norm = ",
-            (x_out_grad ** 2).mean(dim=(0, 2)).sqrt(),
+            (x_out_grad**2).mean(dim=(0, 2)).sqrt(),
         )
         print(
             "_test_grad_filter: x.grad norm = ",
-            (x.grad ** 2).mean(dim=(0, 2)).sqrt(),
+            (x.grad**2).mean(dim=(0, 2)).sqrt(),
         )
         print("_test_grad_filter: w_out_grad = ", w_out_grad)
         print("_test_grad_filter: w.grad = ", w.grad)

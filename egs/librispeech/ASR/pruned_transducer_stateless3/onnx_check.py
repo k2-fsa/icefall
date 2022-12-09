@@ -24,6 +24,11 @@ with the given torchscript model for the same input.
 import argparse
 import logging
 
+from icefall import is_module_available
+
+if not is_module_available("onnxruntime"):
+    raise ValueError("Please 'pip install onnxruntime' first.")
+
 import onnxruntime as ort
 import torch
 
@@ -63,6 +68,20 @@ def get_parser():
         help="Path to the onnx joiner model",
     )
 
+    parser.add_argument(
+        "--onnx-joiner-encoder-proj-filename",
+        required=True,
+        type=str,
+        help="Path to the onnx joiner encoder projection model",
+    )
+
+    parser.add_argument(
+        "--onnx-joiner-decoder-proj-filename",
+        required=True,
+        type=str,
+        help="Path to the onnx joiner decoder projection model",
+    )
+
     return parser
 
 
@@ -70,11 +89,13 @@ def test_encoder(
     model: torch.jit.ScriptModule,
     encoder_session: ort.InferenceSession,
 ):
-    encoder_inputs = encoder_session.get_inputs()
-    assert encoder_inputs[0].name == "x"
-    assert encoder_inputs[1].name == "x_lens"
-    assert encoder_inputs[0].shape == ["N", "T", 80]
-    assert encoder_inputs[1].shape == ["N"]
+    inputs = encoder_session.get_inputs()
+    outputs = encoder_session.get_outputs()
+    input_names = [n.name for n in inputs]
+    output_names = [n.name for n in outputs]
+
+    assert inputs[0].shape == ["N", "T", 80]
+    assert inputs[1].shape == ["N"]
 
     for N in [1, 5]:
         for T in [12, 25]:
@@ -84,11 +105,11 @@ def test_encoder(
             x_lens[0] = T
 
             encoder_inputs = {
-                "x": x.numpy(),
-                "x_lens": x_lens.numpy(),
+                input_names[0]: x.numpy(),
+                input_names[1]: x_lens.numpy(),
             }
             encoder_out, encoder_out_lens = encoder_session.run(
-                ["encoder_out", "encoder_out_lens"],
+                output_names,
                 encoder_inputs,
             )
 
@@ -96,7 +117,9 @@ def test_encoder(
 
             encoder_out = torch.from_numpy(encoder_out)
             assert torch.allclose(encoder_out, torch_encoder_out, atol=1e-05), (
-                (encoder_out - torch_encoder_out).abs().max()
+                (encoder_out - torch_encoder_out).abs().max(),
+                encoder_out.shape,
+                torch_encoder_out.shape,
             )
 
 
@@ -104,15 +127,18 @@ def test_decoder(
     model: torch.jit.ScriptModule,
     decoder_session: ort.InferenceSession,
 ):
-    decoder_inputs = decoder_session.get_inputs()
-    assert decoder_inputs[0].name == "y"
-    assert decoder_inputs[0].shape == ["N", 2]
+    inputs = decoder_session.get_inputs()
+    outputs = decoder_session.get_outputs()
+    input_names = [n.name for n in inputs]
+    output_names = [n.name for n in outputs]
+
+    assert inputs[0].shape == ["N", 2]
     for N in [1, 5, 10]:
         y = torch.randint(low=1, high=500, size=(10, 2))
 
-        decoder_inputs = {"y": y.numpy()}
+        decoder_inputs = {input_names[0]: y.numpy()}
         decoder_out = decoder_session.run(
-            ["decoder_out"],
+            output_names,
             decoder_inputs,
         )[0]
         decoder_out = torch.from_numpy(decoder_out)
@@ -126,33 +152,79 @@ def test_decoder(
 def test_joiner(
     model: torch.jit.ScriptModule,
     joiner_session: ort.InferenceSession,
+    joiner_encoder_proj_session: ort.InferenceSession,
+    joiner_decoder_proj_session: ort.InferenceSession,
 ):
     joiner_inputs = joiner_session.get_inputs()
-    assert joiner_inputs[0].name == "encoder_out"
-    assert joiner_inputs[0].shape == ["N", 512]
+    joiner_outputs = joiner_session.get_outputs()
+    joiner_input_names = [n.name for n in joiner_inputs]
+    joiner_output_names = [n.name for n in joiner_outputs]
 
-    assert joiner_inputs[1].name == "decoder_out"
+    assert joiner_inputs[0].shape == ["N", 512]
     assert joiner_inputs[1].shape == ["N", 512]
+
+    joiner_encoder_proj_inputs = joiner_encoder_proj_session.get_inputs()
+    encoder_proj_input_name = joiner_encoder_proj_inputs[0].name
+
+    assert joiner_encoder_proj_inputs[0].shape == ["N", 512]
+
+    joiner_encoder_proj_outputs = joiner_encoder_proj_session.get_outputs()
+    encoder_proj_output_name = joiner_encoder_proj_outputs[0].name
+
+    joiner_decoder_proj_inputs = joiner_decoder_proj_session.get_inputs()
+    decoder_proj_input_name = joiner_decoder_proj_inputs[0].name
+
+    assert joiner_decoder_proj_inputs[0].shape == ["N", 512]
+
+    joiner_decoder_proj_outputs = joiner_decoder_proj_session.get_outputs()
+    decoder_proj_output_name = joiner_decoder_proj_outputs[0].name
 
     for N in [1, 5, 10]:
         encoder_out = torch.rand(N, 512)
         decoder_out = torch.rand(N, 512)
 
+        projected_encoder_out = torch.rand(N, 512)
+        projected_decoder_out = torch.rand(N, 512)
+
         joiner_inputs = {
-            "encoder_out": encoder_out.numpy(),
-            "decoder_out": decoder_out.numpy(),
+            joiner_input_names[0]: projected_encoder_out.numpy(),
+            joiner_input_names[1]: projected_decoder_out.numpy(),
         }
-        joiner_out = joiner_session.run(["logit"], joiner_inputs)[0]
+        joiner_out = joiner_session.run(joiner_output_names, joiner_inputs)[0]
         joiner_out = torch.from_numpy(joiner_out)
 
         torch_joiner_out = model.joiner(
-            encoder_out,
-            decoder_out,
-            project_input=True,
+            projected_encoder_out,
+            projected_decoder_out,
+            project_input=False,
         )
         assert torch.allclose(joiner_out, torch_joiner_out, atol=1e-5), (
             (joiner_out - torch_joiner_out).abs().max()
         )
+
+        # Now test encoder_proj
+        joiner_encoder_proj_inputs = {encoder_proj_input_name: encoder_out.numpy()}
+        joiner_encoder_proj_out = joiner_encoder_proj_session.run(
+            [encoder_proj_output_name], joiner_encoder_proj_inputs
+        )[0]
+        joiner_encoder_proj_out = torch.from_numpy(joiner_encoder_proj_out)
+
+        torch_joiner_encoder_proj_out = model.joiner.encoder_proj(encoder_out)
+        assert torch.allclose(
+            joiner_encoder_proj_out, torch_joiner_encoder_proj_out, atol=1e-5
+        ), ((joiner_encoder_proj_out - torch_joiner_encoder_proj_out).abs().max())
+
+        # Now test decoder_proj
+        joiner_decoder_proj_inputs = {decoder_proj_input_name: decoder_out.numpy()}
+        joiner_decoder_proj_out = joiner_decoder_proj_session.run(
+            [decoder_proj_output_name], joiner_decoder_proj_inputs
+        )[0]
+        joiner_decoder_proj_out = torch.from_numpy(joiner_decoder_proj_out)
+
+        torch_joiner_decoder_proj_out = model.joiner.decoder_proj(decoder_out)
+        assert torch.allclose(
+            joiner_decoder_proj_out, torch_joiner_decoder_proj_out, atol=1e-5
+        ), ((joiner_decoder_proj_out - torch_joiner_decoder_proj_out).abs().max())
 
 
 @torch.no_grad()
@@ -185,15 +257,26 @@ def main():
         args.onnx_joiner_filename,
         sess_options=options,
     )
-    test_joiner(model, joiner_session)
+    joiner_encoder_proj_session = ort.InferenceSession(
+        args.onnx_joiner_encoder_proj_filename,
+        sess_options=options,
+    )
+    joiner_decoder_proj_session = ort.InferenceSession(
+        args.onnx_joiner_decoder_proj_filename,
+        sess_options=options,
+    )
+    test_joiner(
+        model,
+        joiner_session,
+        joiner_encoder_proj_session,
+        joiner_decoder_proj_session,
+    )
     logging.info("Finished checking ONNX models")
 
 
 if __name__ == "__main__":
     torch.manual_seed(20220727)
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

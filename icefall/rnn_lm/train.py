@@ -24,7 +24,7 @@ Usage:
         --use-fp16 0 \
         --embedding-dim 800 \
         --hidden-dim 200 \
-        --num-layers 2\
+        --num-layers 2 \
         --batch-size 400
 
 """
@@ -83,7 +83,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=10,
+        default=30,
         help="Number of epochs to train.",
     )
 
@@ -110,14 +110,14 @@ def get_parser():
     parser.add_argument(
         "--use-fp16",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to use half precision training.",
     )
 
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=50,
+        default=400,
     )
 
     parser.add_argument(
@@ -165,7 +165,7 @@ def get_parser():
     parser.add_argument(
         "--tie-weights",
         type=str2bool,
-        default=False,
+        default=True,
         help="""True to share the weights between the input embedding layer and the
         last output linear layer
         """,
@@ -446,17 +446,13 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
                 tb_writer.add_scalar(
                     "train/current_ppl", this_batch_ppl, params.batch_idx_train
                 )
 
-                tb_writer.add_scalar(
-                    "train/tot_ppl", tot_ppl, params.batch_idx_train
-                )
+                tb_writer.add_scalar("train/tot_ppl", tot_ppl, params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
