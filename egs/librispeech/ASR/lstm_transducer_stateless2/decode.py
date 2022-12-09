@@ -107,8 +107,25 @@ Usage:
     --rnn-lm-avg 1 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1
-"""
 
+(9) modified beam search with RNNLM shallow fusion + LODR
+./lstm_transducer_stateless2/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --max-duration 600 \
+    --exp-dir ./lstm_transducer_stateless2/exp \
+    --decoding-method modified_beam_search_rnnlm_LODR \
+    --beam 4 \
+    --max-contexts 4 \
+    --rnn-lm-scale 0.4 \
+    --rnn-lm-exp-dir /path/to/RNNLM/exp \
+    --rnn-lm-epoch 99 \
+    --rnn-lm-avg 1 \
+    --rnn-lm-num-layers 3 \
+    --rnn-lm-tie-weights 1 \
+    --tokens-ngram 2 \
+    --ngram-lm-scale -0.16 \
+"""
 
 import argparse
 import logging
@@ -132,6 +149,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
     modified_beam_search_ngram_rescoring,
+    modified_beam_search_rnnlm_LODR,
     modified_beam_search_rnnlm_shallow_fusion,
 )
 from librispeech import LibriSpeech
@@ -235,7 +253,8 @@ def get_parser():
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
           - modified_beam_search_ngram_rescoring
-          - modified_beam_search_rnnlm_shallow_fusion # for rnn lm shallow fusion
+          - modified_beam_search_rnnlm_shallow_fusion
+          - modified_beam_search_rnnlm_LODR
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -394,7 +413,8 @@ def get_parser():
         type=int,
         default=3,
         help="""Token Ngram used for rescoring.
-            Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+            Used only when the decoding method is
+            modified_beam_search_ngram_rescoring""",
     )
 
     parser.add_argument(
@@ -402,7 +422,8 @@ def get_parser():
         type=int,
         default=500,
         help="""ID of the backoff symbol.
-                Used only when the decoding method is modified_beam_search_ngram_rescoring""",
+                Used only when the decoding method is
+                modified_beam_search_ngram_rescoring""",
     )
 
     add_model_arguments(parser)
@@ -567,6 +588,20 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             sp=sp,
+            rnnlm=rnnlm,
+            rnnlm_scale=rnnlm_scale,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_rnnlm_LODR":
+        hyp_tokens = modified_beam_search_rnnlm_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            sp=sp,
+            LODR_lm=ngram_lm,
+            LODR_lm_scale=ngram_lm_scale,
             rnnlm=rnnlm,
             rnnlm_scale=rnnlm_scale,
         )
@@ -760,6 +795,7 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "modified_beam_search_rnnlm_LODR",
         "modified_beam_search_ngram_rescoring",
         "modified_beam_search_rnnlm_shallow_fusion",
     )
@@ -787,6 +823,9 @@ def main():
     params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     if "rnnlm" in params.decoding_method:
         params.suffix += f"-rnnlm-lm-scale-{params.rnn_lm_scale}"
+
+    if "LODR" in params.decoding_method:
+        params.suffix += "-LODR"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -901,7 +940,7 @@ def main():
     model.eval()
 
     # only load N-gram LM when needed
-    if "ngram" in params.decoding_method:
+    if "ngram" in params.decoding_method or "LODR" in params.decoding_method:
         lm_filename = f"{params.tokens_ngram}gram.fst.txt"
         logging.info(f"lm filename: {lm_filename}")
         ngram_lm = NgramLm(
@@ -910,6 +949,7 @@ def main():
             is_binary=False,
         )
         logging.info(f"num states: {ngram_lm.lm.num_states}")
+        ngram_lm_scale = params.ngram_lm_scale
     else:
         ngram_lm = None
         ngram_lm_scale = None
@@ -933,7 +973,6 @@ def main():
         )
         rnn_lm_model.to(device)
         rnn_lm_model.eval()
-
     else:
         rnn_lm_model = None
         rnn_lm_scale = 0.0

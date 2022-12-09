@@ -1,0 +1,155 @@
+# Copyright      2022  Fangjun Kuang (csukuangfj@gmail.com)
+
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: run-librispeech-conformer-ctc3-2022-11-28
+# zipformer
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+  schedule:
+    # minute (0-59)
+    # hour (0-23)
+    # day of the month (1-31)
+    # month (1-12)
+    # day of the week (0-6)
+    # nightly build at 15:50 UTC time every day
+    - cron: "50 15 * * *"
+
+concurrency:
+  group: run_librispeech_2022_11_28_conformer_ctc3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_librispeech_2022_11_28_conformer_ctc3:
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [3.8]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
+
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}-2022-09-25
+
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/install-kaldifeat.sh
+
+      - name: Cache LibriSpeech test-clean and test-other datasets
+        id: libri-test-clean-and-test-other-data
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/download
+          key: cache-libri-test-clean-and-test-other
+
+      - name: Download LibriSpeech test-clean and test-other
+        if: steps.libri-test-clean-and-test-other-data.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/download-librispeech-test-clean-and-test-other-dataset.sh
+
+      - name: Prepare manifests for LibriSpeech test-clean and test-other
+        shell: bash
+        run: |
+          .github/scripts/prepare-librispeech-test-clean-and-test-other-manifests.sh
+
+      - name: Cache LibriSpeech test-clean and test-other fbank features
+        id: libri-test-clean-and-test-other-fbank
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/fbank-libri
+          key: cache-libri-fbank-test-clean-and-test-other-v2
+
+      - name: Compute fbank for LibriSpeech test-clean and test-other
+        if: steps.libri-test-clean-and-test-other-fbank.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/compute-fbank-librispeech-test-clean-and-test-other.sh
+
+      - name: Inference with pre-trained model
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          mkdir -p egs/librispeech/ASR/data
+          ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
+          ls -lh egs/librispeech/ASR/data/*
+
+          sudo apt-get -qq install git-lfs tree sox
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+
+          .github/scripts/run-librispeech-conformer-ctc3-2022-11-28.sh
+
+      - name: Display decoding results for librispeech conformer_ctc3
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        shell: bash
+        run: |
+          cd egs/librispeech/ASR/
+          tree ./conformer_ctc3/exp
+
+          cd conformer_ctc3
+          echo "results for conformer_ctc3"
+          echo "===ctc-decoding==="
+          find exp/ctc-decoding -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/ctc-decoding -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+          echo "===1best==="
+          find exp/1best -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find exp/1best -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+      - name: Upload decoding results for librispeech conformer_ctc3
+        uses: actions/upload-artifact@v2
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        with:
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-conformer_ctc3-2022-11-28
+          path: egs/librispeech/ASR/conformer_ctc3/exp/
