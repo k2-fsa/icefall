@@ -890,6 +890,7 @@ def run(rank, world_size, args):
         graph_compiler = CtcTrainingGraphCompiler(
             lexicon,
             device=device,
+            need_repeat_flag=params.delay_penalty > 0,
         )
         # Manually add the sos/eos ID with their default values
         # from the BPE recipe which we're adapting here.

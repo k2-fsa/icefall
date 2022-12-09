@@ -74,6 +74,7 @@ import logging
 from pathlib import Path
 
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
@@ -184,6 +185,7 @@ def main():
         # it here.
         # Otherwise, one of its arguments is a ragged tensor and is not
         # torch scriptabe.
+        convert_scaled_to_non_scaled(model, inplace=True)
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)

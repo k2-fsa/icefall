@@ -175,8 +175,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -207,10 +211,16 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
+<<<<<<< HEAD
         assert sample_rate == expected_sample_rate, (
             f"expected sample rate: {expected_sample_rate}. "
             f"Given: {sample_rate}"
         )
+=======
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"Expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -273,6 +283,7 @@ def main():
     features = fbank(waves)
     feature_lengths = [f.size(0) for f in features]
 
+<<<<<<< HEAD
     features = pad_sequence(
         features, batch_first=True, padding_value=math.log(1e-10)
     )
@@ -282,6 +293,13 @@ def main():
     encoder_out, encoder_out_lens = model.encoder(
         x=features, x_lens=feature_lengths
     )
+=======
+    features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
+
+    feature_lengths = torch.tensor(feature_lengths, device=device)
+
+    encoder_out, encoder_out_lens = model.encoder(x=features, x_lens=feature_lengths)
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
     num_waves = encoder_out.size(0)
     hyps = []
@@ -353,9 +371,13 @@ def main():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     formatter = (
         "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     )
+=======
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

@@ -1,4 +1,4 @@
-# Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
+# Copyright (c)  2021  Xiaomi Corporation (authors: Daniel Povey, Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -194,7 +194,7 @@ def get_dataloader(
         batch_size=params.batch_size,
     )
     if is_distributed:
-        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False)
+        sampler = DistributedSampler(dataset, shuffle=True, drop_last=True)
     else:
         sampler = None
 

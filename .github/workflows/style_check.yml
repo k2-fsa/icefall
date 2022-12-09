@@ -24,6 +24,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: style_check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   style_check:
     runs-on: ${{ matrix.os }}

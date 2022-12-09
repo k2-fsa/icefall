@@ -27,6 +27,10 @@ Usage:
     --exp-dir ./pruned_transducer_stateless7_ctc/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 (2) 1best
 ./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
@@ -35,6 +39,10 @@ Usage:
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 (3) nbest
 ./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
@@ -43,6 +51,10 @@ Usage:
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 (4) nbest-rescoring
 ./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
@@ -52,6 +64,10 @@ Usage:
     --hlg-scale 0.8 \
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 (5) whole-lattice-rescoring
 ./pruned_transducer_stateless7_ctc/ctc_decode.py \
     --epoch 30 \
@@ -174,8 +190,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
 
     parser.add_argument(
@@ -283,14 +303,26 @@ def decode_one_batch(
     - value: It contains the decoding result. `len(value)` equals to
              batch size. `value[i]` is the decoding result for the i-th
              utterance in the given batch.
+<<<<<<< HEAD
     Args:
       params:
         It's the return value of :func:`get_params`.
+=======
+
+    Args:
+      params:
+        It's the return value of :func:`get_params`.
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         - params.decoding_method is "1best", it uses 1best decoding without LM rescoring.
         - params.decoding_method is "nbest", it uses nbest decoding without LM rescoring.
         - params.decoding_method is "nbest-rescoring", it uses nbest LM rescoring.
         - params.decoding_method is "whole-lattice-rescoring", it uses whole lattice LM
           rescoring.
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
       model:
         The neural model.
       HLG:
@@ -460,6 +492,10 @@ def decode_dataset(
     G: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
+<<<<<<< HEAD
+=======
+
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     Args:
       dl:
         PyTorch's dataloader containing the dataset to decode.
@@ -523,9 +559,13 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
+<<<<<<< HEAD
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
+=======
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     return results
 
 
@@ -556,8 +596,12 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
+<<<<<<< HEAD
         params.res_dir
         / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+=======
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -695,9 +739,15 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -724,9 +774,15 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg + 1]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"

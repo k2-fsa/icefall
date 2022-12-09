@@ -23,7 +23,11 @@ soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
+<<<<<<< HEAD
 git lfs pull --include "data/lang_bpe_500/bpe.model"
+=======
+git lfs pull --include "data/*"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 git lfs pull --include "exp/cpu_jit.pt"
 git lfs pull --include "exp/pretrained.pt"
 ln -s pretrained.pt epoch-99.pt

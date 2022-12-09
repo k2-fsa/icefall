@@ -175,8 +175,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
 
     add_model_arguments(parser)
@@ -214,9 +218,15 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -243,9 +253,15 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg + 1]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -315,9 +331,13 @@ def main():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     formatter = (
         "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     )
+=======
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

@@ -272,8 +272,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -393,9 +397,13 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
+<<<<<<< HEAD
         encoder_out, encoder_out_lens = model.encoder(
             x=feature, x_lens=feature_lens
         )
+=======
+        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
     hyps = []
 
@@ -454,10 +462,14 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+<<<<<<< HEAD
     elif (
         params.decoding_method == "greedy_search"
         and params.max_sym_per_frame == 1
     ):
+=======
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -588,9 +600,13 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
+<<<<<<< HEAD
             logging.info(
                 f"batch {batch_str}, cuts processed until now is {num_cuts}"
             )
+=======
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     return results
 
 
@@ -623,8 +639,12 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
+<<<<<<< HEAD
         params.res_dir
         / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+=======
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -679,9 +699,13 @@ def main():
             if "LG" in params.decoding_method:
                 params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
+<<<<<<< HEAD
         params.suffix += (
             f"-{params.decoding_method}-beam-size-{params.beam_size}"
         )
+=======
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -718,9 +742,15 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -747,9 +777,15 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(
                 params.exp_dir, iteration=-params.iter
             )[: params.avg + 1]
+=======
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -808,9 +844,13 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
+<<<<<<< HEAD
             decoding_graph = k2.trivial_graph(
                 params.vocab_size - 1, device=device
             )
+=======
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     else:
         decoding_graph = None
         word_table = None

@@ -143,9 +143,13 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
+<<<<<<< HEAD
         boundary = torch.zeros(
             (x.size(0), 4), dtype=torch.int64, device=x.device
         )
+=======
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 

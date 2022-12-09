@@ -90,9 +90,13 @@ from icefall.utils import (
     str2bool,
 )
 
+<<<<<<< HEAD
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
 ]
+=======
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -275,8 +279,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; "
         "2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
 
     parser.add_argument(
@@ -299,8 +307,12 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
+<<<<<<< HEAD
         help="The scale to smooth the loss with am (output of encoder network)"
         "part.",
+=======
+        help="The scale to smooth the loss with am (output of encoder network) part.",
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     )
 
     parser.add_argument(
@@ -316,7 +328,11 @@ def get_parser():
     parser.add_argument(
         "--ctc-loss-scale",
         type=float,
+<<<<<<< HEAD
         default=0.5,
+=======
+        default=0.2,
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         help="Scale for CTC loss.",
     )
 
@@ -662,11 +678,15 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
+<<<<<<< HEAD
     device = (
         model.device
         if isinstance(model, DDP)
         else next(model.parameters()).device
     )
+=======
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -744,9 +764,13 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+<<<<<<< HEAD
         info["frames"] = (
             (feature_lens // params.subsampling_factor).sum().item()
         )
+=======
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -918,9 +942,13 @@ def train_one_epoch(
             # of the grad scaler is configurable, but we can't configure it to have different
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
+<<<<<<< HEAD
             if cur_grad_scale < 1.0 or (
                 cur_grad_scale < 8.0 and batch_idx % 400 == 0
             ):
+=======
+            if cur_grad_scale < 1.0 or (cur_grad_scale < 8.0 and batch_idx % 400 == 0):
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
                 scaler.update(cur_grad_scale * 2.0)
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
@@ -938,11 +966,15 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
+<<<<<<< HEAD
                 + (
                     f"grad_scale: {scaler._scale.item()}"
                     if params.use_fp16
                     else ""
                 )
+=======
+                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             )
 
             if tb_writer is not None:
@@ -953,9 +985,13 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
+<<<<<<< HEAD
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
                 )
+=======
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale",
@@ -963,10 +999,14 @@ def train_one_epoch(
                         params.batch_idx_train,
                     )
 
+<<<<<<< HEAD
         if (
             batch_idx % params.valid_interval == 0
             and not params.print_diagnostics
         ):
+=======
+        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -1061,7 +1101,10 @@ def run(rank, world_size, args):
     parameters_names.append(
         [name_param_pair[0] for name_param_pair in model.named_parameters()]
     )
+<<<<<<< HEAD
 
+=======
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
     optimizer = ScaledAdam(
         model.parameters(),
         lr=params.base_lr,
@@ -1085,7 +1128,11 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
+<<<<<<< HEAD
             2 ** 22
+=======
+            2**22
+>>>>>>> d65fe17d2766e34adbb4080f9691ea829ac0ae05
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
