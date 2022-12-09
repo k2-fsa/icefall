@@ -16,24 +16,23 @@
 
 import copy
 import math
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
-
-
 from attention import RelPositionMultiheadAttention
-from icefall.utils import is_jit_tracing, make_pad_mask
 from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledLinear,
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-)   
+)
+from torch import Tensor, nn
+
+from icefall.utils import is_jit_tracing, make_pad_mask
+
 
 class Transformer(torch.nn.Module):
     """_summary_
@@ -43,48 +42,49 @@ class Transformer(torch.nn.Module):
         d_mode (int): The dimension of the transformer
         dim_feedforward (int ): The dimension of the ffw module
         nhead (int): The number of attention heads
-        dropout_rate (float): dropout rate 
+        dropout_rate (float): dropout rate
         att_dropout (float): dropout rate in attention module
     """
+
     def __init__(
         self,
         input_dim: int,
         d_model: int,
         dim_feedforward: int,
-        nhead: int=4,
-        num_layers: int=6,
-        dropout_rate: float=0.1,
-        att_dropout: float=0.0,
+        nhead: int = 4,
+        num_layers: int = 6,
+        dropout_rate: float = 0.1,
+        att_dropout: float = 0.0,
     ):
         super().__init__()
-        
+
         self.encoder_layers = num_layers
         self.d_model = d_model
-        
+
         self.embed = ScaledLinear(input_dim, d_model)
         self.norm_before = BasicNorm(d_model, learn_eps=False)
-        
+
         self.encoder_pos = RelPositionalEncoding(d_model, dropout_rate)
-        
+
         encoder_layer = TransformerEncoderLayer(
             d_model=d_model,
             dim_feedforward=dim_feedforward,
             nhead=nhead,
             dropout_rate=dropout_rate,
         )
-        
+
         self.encoder = TransformerEncoder(encoder_layer, num_layers)
-    
-    def _create_attention_mask(self, x_lens:torch.Tensor):
+
+    def _create_attention_mask(self, x_lens: torch.Tensor):
         # create a 2D attention mask to mask out
         # the upper right half of the attention matrix
         max_len = max(x_lens)
         ones = torch.ones(max_len, max_len, device=x_lens.device, dtype=torch.bool)
         return torch.triu(ones, diagonal=1)
-    
+
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
-        ) -> Tuple(torch.Tensor, torch.Tensor):
+    ) -> Tuple(torch.Tensor, torch.Tensor):
         """Transformer forward
 
         Args:
@@ -96,25 +96,26 @@ class Transformer(torch.nn.Module):
             - x: output feature of the transformer (B,T,d_model)
             - x_lens: output feature lens of the transformer
         """
-        
+
         attention_mask = self._create_attention_mask(x_lens)
         src_key_padding_mask = make_pad_mask(x_lens)
-        
+
         x = self.norm_before(self.embed(x))
-        
+
         x, pos_emb = self.encoder_pos(x)
-        x = x.permute(1,0,2)
-        
+        x = x.permute(1, 0, 2)
+
         x = self.encoder(
             x,
             pos_emb,
-            mask=attention_mask, # pass the attention mast 
+            mask=attention_mask,  # pass the attention mast
             src_key_padding_mask=src_key_padding_mask,
         )  # (T, N, C)
-        
+
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         return x, x_lens
-    
+
+
 class TransformerEncoder(torch.nn.Module):
     def __init__(self, encoder_layer: torch.nn.Module, num_layers: int) -> None:
         """TransformerEncoder is a stack of N encoder layers
@@ -128,7 +129,7 @@ class TransformerEncoder(torch.nn.Module):
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
-        
+
     def forward(
         self,
         src: torch.Tensor,
@@ -158,7 +159,8 @@ class TransformerEncoder(torch.nn.Module):
             )
 
         return output
-    
+
+
 class TransformerEncoderLayer(torch.nn.Module):
     def __init__(
         self,
@@ -176,9 +178,9 @@ class TransformerEncoderLayer(torch.nn.Module):
             dropout_rate (float): Dropout rate
         """
         super().__init__()
-        
+
         self.d_model = d_model
-        
+
         self.self_attn = RelPositionMultiheadAttention(d_model, nhead, dropout=0.0)
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -187,15 +189,15 @@ class TransformerEncoderLayer(torch.nn.Module):
             nn.Dropout(dropout_rate),
             ScaledLinear(dim_feedforward, d_model, initial_scale=0.25),
         )
-        
+
         self.norm_final = BasicNorm(d_model)
-        
+
         self.balancer = ActivationBalancer(
             channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0
         )
-        
+
         self.dropout = nn.Dropout(dropout_rate)
-    
+
     def forward(
         self,
         src: torch.Tensor,
@@ -214,7 +216,7 @@ class TransformerEncoderLayer(torch.nn.Module):
             src_mask: the mask for the src sequence (optional).
         """
         src_orig = src
-        
+
         src_att = self.self_attn(
             src,
             src,
@@ -223,95 +225,17 @@ class TransformerEncoderLayer(torch.nn.Module):
             attn_mask=src_mask,
             key_padding_mask=src_key_padding_mask,
         )[0]
-        
+
         src = src + self.dropout(src_att)
-        
+
         # feed forward module
         src = src + self.dropout(self.feed_forward(src))
-        
+
         src = self.norm_final(self.balancer(src))
 
-        if cache is not None:
-            x = torch.cat([cache, x], dim=1)
-
         return src
-        
 
-class RelPositionalEncoding(torch.nn.Module):
-    """Relative positional encoding module.
 
-    See : Appendix B in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/embedding.py
-
-    Args:
-        d_model: Embedding dimension.
-        dropout_rate: Dropout rate.
-        max_len: Maximum input length.
-
-    """
-
-    def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
-        """Construct a PositionalEncoding object."""
-        super(RelPositionalEncoding, self).__init__()
-        self.d_model = d_model
-        self.dropout = torch.nn.Dropout(dropout_rate)
-        self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
-
-    def extend_pe(self, x: torch.Tensor) -> None:
-        """Reset the positional encodings."""
-        if self.pe is not None:
-            # self.pe contains both positive and negative parts
-            # the length of self.pe is 2 * input_len - 1
-            if self.pe.size(1) >= x.size(0) * 2 - 1:
-                # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
-        # Suppose `i` means to the position of query vecotr and `j` means the
-        # position of key vector. We use position relative positions when keys
-        # are to the left (i>j) and negative relative positions otherwise (i<j).
-        pe_positive = torch.zeros(x.size(0), self.d_model)
-        pe_negative = torch.zeros(x.size(0), self.d_model)
-        position = torch.arange(0, x.size(0), dtype=torch.float32).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32)
-            * -(math.log(10000.0) / self.d_model)
-        )
-        pe_positive[:, 0::2] = torch.sin(position * div_term)
-        pe_positive[:, 1::2] = torch.cos(position * div_term)
-        pe_negative[:, 0::2] = torch.sin(-1 * position * div_term)
-        pe_negative[:, 1::2] = torch.cos(-1 * position * div_term)
-
-        # Reserve the order of positive indices and concat both positive and
-        # negative indices. This is used to support the shifting trick
-        # as in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
-        pe_positive = torch.flip(pe_positive, [0]).unsqueeze(0)
-        pe_negative = pe_negative[1:].unsqueeze(0)
-        pe = torch.cat([pe_positive, pe_negative], dim=1)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Add positional encoding.
-
-        Args:
-            x (torch.Tensor): Input tensor (time, batch, `*`).
-
-        Returns:
-            torch.Tensor: Encoded tensor (batch, time, `*`).
-            torch.Tensor: Encoded tensor (batch, 2*time-1, `*`).
-
-        """
-        self.extend_pe(x)
-        pos_emb = self.pe[
-            :,
-            self.pe.size(1) // 2
-            - x.size(0)
-            + 1 : self.pe.size(1) // 2  # noqa E203
-            + x.size(0),
-        ]
-        return self.dropout(pos_emb)
-        
 class RelPositionalEncoding(torch.nn.Module):
     """Relative positional encoding module.
 
@@ -403,4 +327,3 @@ class RelPositionalEncoding(torch.nn.Module):
             + x.size(1),
         ]
         return self.dropout(x), self.dropout(pos_emb)
-    

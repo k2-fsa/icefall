@@ -14,22 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
 import warnings
+from typing import List, Optional, Tuple
 
 import torch
-from torch import Tensor, nn
-
-from icefall.utils import is_jit_tracing
 from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledLinear,
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,
-)   
+)
+from torch import Tensor, nn
+
+from icefall.utils import is_jit_tracing
 
 
 class RelPositionMultiheadAttention(nn.Module):

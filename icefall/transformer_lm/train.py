@@ -52,6 +52,7 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -138,7 +139,7 @@ def get_parser():
         default=500,
         help="Vocabulary size of the model",
     )
-    
+
     parser.add_argument(
         "--num-layers",
         type=int,
@@ -163,6 +164,7 @@ def get_parser():
     )
 
     return parser
+
 
 def get_params() -> AttributeDict:
     """Return a dict containing training parameters."""
@@ -192,6 +194,7 @@ def get_params() -> AttributeDict:
         }
     )
     return params
+
 
 def load_checkpoint_if_available(
     params: AttributeDict,
@@ -244,6 +247,7 @@ def load_checkpoint_if_available(
 
     return saved_params
 
+
 def save_checkpoint(
     params: AttributeDict,
     model: nn.Module,
@@ -278,7 +282,8 @@ def save_checkpoint(
     if params.best_valid_epoch == params.cur_epoch:
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
-        
+
+
 def compute_loss(
     model: nn.Module,
     x: torch.Tensor,
@@ -320,6 +325,7 @@ def compute_loss(
         loss_info["loss"] = loss.detach().item()
     return loss, loss_info
 
+
 def compute_validation_loss(
     params: AttributeDict,
     model: nn.Module,
@@ -356,6 +362,7 @@ def compute_validation_loss(
         params.best_valid_loss = loss_value
 
     return tot_loss
+
 
 def train_one_epoch(
     params: AttributeDict,
@@ -469,6 +476,7 @@ def train_one_epoch(
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
 
+
 def run(rank, world_size, args):
     """
     Args:
@@ -515,7 +523,7 @@ def run(rank, world_size, args):
         tie_weights=params.tie_weights,
         params=params,
     )
-    
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
