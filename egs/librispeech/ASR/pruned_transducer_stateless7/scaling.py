@@ -562,7 +562,7 @@ class ActivationBalancer(torch.nn.Module):
                 sign_factor = None
 
             scale_factor = _compute_scale_factor(
-                x,
+                x.detach(),
                 self.channel_dim,
                 min_abs=self.min_abs,
                 max_abs=self.max_abs,
