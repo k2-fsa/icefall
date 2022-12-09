@@ -17,6 +17,7 @@ from typeguard import check_argument_types
 
 from nets_utils import make_pad_mask
 from encoder_interface import EncoderInterface
+'''
 from scaling import (
     ActivationBalancer,
     BasicNorm,
@@ -25,6 +26,7 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
+'''
 from torch import Tensor, nn
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
