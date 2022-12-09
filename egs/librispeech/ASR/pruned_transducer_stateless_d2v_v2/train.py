@@ -459,7 +459,8 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Zipformer and Transformer
     def to_int_tuple(s: str):
         return tuple(map(int, s.split(",")))
-
+    
+    '''
     encoder = Zipformer(
         num_features=params.feature_dim,
         output_downsampling_factor=2,
@@ -474,6 +475,15 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         cnn_module_kernels=to_int_tuple(params.cnn_module_kernels),
         num_encoder_layers=to_int_tuple(params.num_encoder_layers),
     )
+    '''
+    encoder = FairSeqData2VecEncoder(
+                input_size=768, #params.encoder_dim,
+                w2v_url='None',
+                output_size=768, #params.encoder_dim,
+                freeze_finetune_updates=0, #params.freeze_finetune_updates*params.accum_grads,
+                additional_block=True, #params.additional_block,
+            ) 
+
     return encoder
 
 
