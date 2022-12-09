@@ -1437,7 +1437,7 @@ class FeedforwardModule(nn.Module):
                                                   channel_dim=-1,
                                                   min_positive=0.3,
                                                   max_positive=1.0,
-                                                  min_abs=1.0,
+                                                  min_abs=0.75,
                                                   max_abs=5.0,
                                                   min_prob=0.25)
         self.activation = SwooshL()
