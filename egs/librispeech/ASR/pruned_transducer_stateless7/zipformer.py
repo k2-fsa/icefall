@@ -797,6 +797,8 @@ class AttentionDownsample(torch.nn.Module):
         super(AttentionDownsample, self).__init__()
         self.query = nn.Parameter(torch.randn(in_channels) * (in_channels ** -0.5))
 
+        self.name = None # will be set from training code
+
         # fill in the extra dimensions with a projection of the input
         if out_channels > in_channels:
             self.extra_proj = nn.Linear(in_channels * downsample,
@@ -830,7 +832,8 @@ class AttentionDownsample(torch.nn.Module):
 
         scores =  penalize_abs_values_gt(scores,
                                          limit=20.0,
-                                         penalty=1.0e-04)
+                                         penalty=1.0e-04,
+                                         name=self.name)
 
         weights = scores.softmax(dim=1)
 
@@ -1203,7 +1206,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             # under normal circumstances.
             attn_scores = penalize_abs_values_gt(attn_scores,
                                                  limit=25.0,
-                                                 penalty=1.0e-04)
+                                                 penalty=1.0e-04,
+                                                 name=self.name)
 
         assert attn_scores.shape == (num_heads, batch_size, seq_len, seq_len)
 
@@ -1866,6 +1870,7 @@ class AttentionCombine(nn.Module):
                                                      num_inputs))
         self.bias = torch.nn.Parameter(torch.zeros(num_inputs))
 
+        self.name = None # will be set from training code
         assert 0 <= random_prob <= 1, random_prob
         assert 0 <= single_prob <= 1, single_prob
 
@@ -1922,7 +1927,8 @@ class AttentionCombine(nn.Module):
         if self.training and random.random() < 0.1:
             scores =  penalize_abs_values_gt(scores,
                                              limit=10.0,
-                                             penalty=1.0e-04)
+                                             penalty=1.0e-04,
+                                             name=self.name)
 
         weights = scores.softmax(dim=1)
 
