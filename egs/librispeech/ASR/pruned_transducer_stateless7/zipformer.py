@@ -397,7 +397,7 @@ class ZipformerEncoderLayer(nn.Module):
             # to work correctly.
             layer_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
             dynamic_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.0), default=0),
-            nonlin_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (40000, 0.0), default=0),
+            nonlin_skip_rate: FloatLike = 0.0,
             const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
             bypass_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.2), default=0),
             bypass_max: FloatLike = 1.0,
@@ -1517,8 +1517,8 @@ class NonlinAttentionModule(nn.Module):
 
         self.balancer2 = ActivationBalancer(
             channels, channel_dim=-1,
-            min_positive=0.45, max_positive=0.55,
-            min_abs=ScheduledFloat((0.0, 0.001), (8000.0, 0.01))
+            min_positive=0.4, max_positive=0.5,
+            min_abs=ScheduledFloat((0.0, 0.001), (8000.0, 0.01), (20000.0, 0.005)),
         )
 
 
