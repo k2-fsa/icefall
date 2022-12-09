@@ -22,14 +22,12 @@ soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
-#git lfs pull --include "data/lang_bpe_500/3gram.pt"
-#git lfs pull --include "data/lang_bpe_500/4gram.pt"
-#git lfs pull --include "data/lang_bpe_500/LG.pt"
-#git lfs pull --include "data/lang_bpe_500/P.fst.txt"
-#git lfs pull --include "data/lang_bpe_500/bpe.model"
-#git lfs pull --include "data/lang_bpe_500/lexicon.txt"
-#git lfs pull --include "data/lang_bpe_500/tokens.txt"
-git lfs pull --include "data/lang_bpe_500/*"
+git lfs pull --include "data/lang_bpe_500/3gram.pt"
+git lfs pull --include "data/lang_bpe_500/4gram.pt"
+git lfs pull --include "data/lang_bpe_500/L.pt"
+git lfs pull --include "data/lang_bpe_500/LG.pt"
+git lfs pull --include "data/lang_bpe_500/Linv.pt"
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/cpu_jit.pt"
 git lfs pull --include "exp/pretrained.pt"
 ln -s pretrained.pt epoch-99.pt
