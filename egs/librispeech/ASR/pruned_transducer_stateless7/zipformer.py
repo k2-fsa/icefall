@@ -829,7 +829,7 @@ class AttentionDownsample(torch.nn.Module):
         scores = (src * self.query).sum(dim=-1, keepdim=True)
 
         scores =  penalize_abs_values_gt(scores,
-                                         limit=10.0,
+                                         limit=20.0,
                                          penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
