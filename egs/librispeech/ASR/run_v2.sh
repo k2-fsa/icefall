@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless7_ctc/train.py \
+./pruned_transducer_stateless_d2v_v2/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --full-libri 1 \
