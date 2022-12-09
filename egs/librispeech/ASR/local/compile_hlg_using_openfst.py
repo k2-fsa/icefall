@@ -131,16 +131,13 @@ def compile_HLG(lang_dir: str) -> kaldifst.StdVectorFst:
     logging.info("Removing epsilons from LG")
     LG = k2.remove_epsilon(LG)
     logging.info(
-        f"LG after k2.remove_epsilon: #states: {LG.shape[0]}, "
-        f"#arcs: {LG.num_arcs}"
+        f"LG after k2.remove_epsilon: #states: {LG.shape[0]}, #arcs: {LG.num_arcs}"
     )
 
     logging.info("Connecting LG after removing epsilons")
     LG = k2.connect(LG)
     LG.aux_labels = LG.aux_labels.remove_values_eq(0)
-    logging.info(
-        f"LG after k2.connect: #states: {LG.shape[0]}, #arcs: {LG.num_arcs}"
-    )
+    logging.info(f"LG after k2.connect: #states: {LG.shape[0]}, #arcs: {LG.num_arcs}")
 
     logging.info("Arc sorting LG")
     LG = k2.arc_sort(LG)
@@ -180,9 +177,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
