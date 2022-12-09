@@ -1489,8 +1489,8 @@ class NonlinAttentionModule(nn.Module):
             hidden_channels, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.25), (20000.0, 0.05)),
             max_positive=ScheduledFloat((0.0, 0.75), (20000.0, 0.95)),
-            min_abs=0.75,
-            max_abs=ScheduledFloat((0.0, 2.5), (8000.0, 5.0), default=1.0),
+            min_abs=0.5,
+            max_abs=5.0,
         )
         self.tanh = nn.Tanh()
 
