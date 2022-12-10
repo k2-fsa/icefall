@@ -192,7 +192,7 @@ def encode_supervisions(
     each other.
     """
     try: start_frame = supervisions["start_frame"]
-    except: start_frame = [0 for i in range(len(supervisions["cut"]))]
+    except: start_frame = torch.IntTensor([0 for i in range(len(supervisions["cut"]))])
 
     try: num_frames = supervisions["num_frames"]
     except:
@@ -200,6 +200,7 @@ def encode_supervisions(
         for supervision in supervisions['cut']:
             try: num_frames.append(supervision.tracks[0].cut.recording.num_samples)
             except: num_frames.append(supervision.recording.num_samples)
+        num_frames = torch.IntTensor(num_frames)
 
     supervision_segments = torch.stack(
         (
