@@ -1089,7 +1089,7 @@ def train_one_epoch(
         wb.log({"valid/pruned_loss": valid_info["pruned_loss"]*numel})
         wb.log({"valid/loss": valid_info["loss"]*numel})
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    loss_value = tot_loss["loss"] / tot_loss["utterances"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
