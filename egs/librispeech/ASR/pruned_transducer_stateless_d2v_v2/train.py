@@ -1037,16 +1037,30 @@ def train_one_epoch(
                 )
 
         if batch_idx % params.log_interval == 0:
-            cur_lr = scheduler.get_last_lr()[0]
-            cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
+            if params.multi_optim:
+                cur_enc_lr = scheduler.get_last_lr()[0]
+                cur_dec_lr = scheduler.get_last_lr()[0]
+                cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
-            logging.info(
-                f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-            )
+                logging.info(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}, "
+                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                )
+
+            else:
+                cur_lr = scheduler.get_last_lr()[0]
+                cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
+
+                logging.info(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}, "
+                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                )
 
             if tb_writer is not None:
                 tb_writer.add_scalar(
