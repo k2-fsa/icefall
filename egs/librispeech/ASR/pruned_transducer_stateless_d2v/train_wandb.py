@@ -103,7 +103,6 @@ scheduler_classes = dict(
     tri=TriStageLRScheduler
 )
 
-
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--accum-grads",
