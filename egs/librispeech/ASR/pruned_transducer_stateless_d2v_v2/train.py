@@ -1130,13 +1130,17 @@ def run(rank, world_size, args, wb=None):
     
     if params.multi_optim:
         logging.info("Using seperate optimizers over encoder, decoder ...")
+
         enc_param = []
+        enc_names = []
 
         dec_names = []
         dec_param = []
+        
         for n, p in model.named_parameters():
             name = n.split('.')[1]
             if name == 'encoder' and 'feature_extractor' not in n:
+                enc_names.append(n)
                 enc_param.append(p)
             elif 'feature_extractor' not in n:
                 dec_names.append(n)
