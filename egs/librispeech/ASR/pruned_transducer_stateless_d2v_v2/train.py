@@ -138,6 +138,28 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="use sperate optimizer (enc / dec)",
     )
+    parser.add_argument(
+        "--accum-grads",
+        type=int,
+        default=1,
+        help="accum-grad num.",
+    )
+    parser.add_argument(
+        "--encoder-type",
+        type=str,
+        default='d2v',
+        help="Type of encoder (e.g. conformer, w2v, d2v...",
+    )
+    parser.add_argument(
+        "--additional-block",
+        type=bool,
+        default=False,
+    )
+    parser.add_argument(
+        "--freeze-finetune-updates",
+        type=int,
+        default=0
+    )
 
 
 
