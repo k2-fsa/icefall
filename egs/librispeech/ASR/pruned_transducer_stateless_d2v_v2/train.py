@@ -1208,7 +1208,7 @@ def run(rank, world_size, args, wb=None):
         )
 
         logging.info(f"len name = {len(parameters_names)}")
-        logging.info(f"len name = {len(list(model.parameters()))}")
+        logging.info(f"len param = {len(list(model.parameters()))}")
         
         optimizer = ScaledAdam(
             model.parameters(),
