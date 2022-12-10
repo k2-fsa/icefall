@@ -81,7 +81,6 @@ class Zipformer(EncoderInterface):
         super(Zipformer, self).__init__()
 
         self.num_features = num_features
-        self.encoder_unmasked_dims = encoder_unmasked_dims
         assert 0 < encoder_dims[0] <= encoder_dims[1]
         self.encoder_dims = encoder_dims
         self.encoder_unmasked_dims = encoder_unmasked_dims
