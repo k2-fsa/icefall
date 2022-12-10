@@ -718,7 +718,8 @@ def compute_loss(
         )
 
         loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
-
+    
+    '''
     # Compute ctc loss
 
     # NOTE: We need `encode_supervisions` to sort sequences with
@@ -749,7 +750,7 @@ def compute_loss(
     )
     assert ctc_loss.requires_grad == is_training
     loss += params.ctc_loss_scale * ctc_loss
-
+    '''
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
