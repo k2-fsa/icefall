@@ -178,7 +178,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--enable-spec-aug",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, use SpecAugment for training dataset.",
         )
 
