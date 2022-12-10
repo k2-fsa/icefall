@@ -1187,13 +1187,13 @@ def run(rank, world_size, args, wb=None):
             enc_param,
             lr=params.peak_enc_lr,
             clipping_scale=None,
-            parameters_names=enc_names,
+            parameters_names=[enc_names],
         )
         optimizer_dec = ScaledAdam(
             dec_param,
             lr=params.peak_dec_lr,
             clipping_scale=None,
-            parameters_names=dec_names,
+            parameters_names=[dec_names],
         )
 
         scheduler_enc = Eden(optimizer_enc, params.lr_batches*params.accum_grads, params.lr_epochs)
