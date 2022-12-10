@@ -1146,26 +1146,18 @@ def run(rank, world_size, args, wb=None):
                 dec_names.append(n)
                 dec_param.append(p)
 
-        if wb is None:
-            optimizer_enc = ScaledAdam(
-                enc_param,
-                lr=param.peak_enc_lr,
-                clipping_scale=None,
-                parameters_names=enc_names,
-            )
-            optimizer_dec = ScaledAdam(
-                dec_param,
-                lr=param.peak_dec_lr,
-                clipping_scale=None,
-                parameters_names=dec_names,
-            )
-
-        else:
-            logging.info('start wandb sweep optimization...')
-            logging.info(wb.config.peak_enc_lr)
-            logging.info(wb.config.peak_dec_lr)
-            optimizer_enc = Eve(enc_param, lr=wb.config.peak_enc_lr)
-            optimizer_dec = Eve(dec_param, lr=wb.config.peak_dec_lr)
+        optimizer_enc = ScaledAdam(
+            enc_param,
+            lr=param.peak_enc_lr,
+            clipping_scale=None,
+            parameters_names=enc_names,
+        )
+        optimizer_dec = ScaledAdam(
+            dec_param,
+            lr=param.peak_dec_lr,
+            clipping_scale=None,
+            parameters_names=dec_names,
+        )
 
         scheduler_enc = Eden(optimizer_enc, params.lr_batches*params.accum_grads, params.lr_epochs)
         scheduler_dec = Eden(optimizer_dec, params.lr_batches*params.acuum_grads, params.lr_epochs)
