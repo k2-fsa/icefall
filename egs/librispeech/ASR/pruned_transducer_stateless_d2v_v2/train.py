@@ -106,7 +106,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     for module in model.modules():
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
-    model.module.encoder.num_updates = int(batch_count)
+    model.encoder.num_updates = int(batch_count)
 
 
 def add_rep_arguments(parser: argparse.ArgumentParser):
