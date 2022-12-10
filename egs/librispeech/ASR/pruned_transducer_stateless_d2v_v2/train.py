@@ -74,11 +74,12 @@ from zipformer import Zipformer
 from data2vec_encoder import FairSeqData2VecEncoder
 
 from icefall import diagnostics
-from icefall.checkpoint import load_checkpoint, remove_checkpoints
-from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import (
+from icefall.checkpoint import remove_checkpoints
+from icefall.checkpoint import update_averaged_model
+from checkpoint import (
+    save_checkpoint as save_checkpoint_impl,
     save_checkpoint_with_global_batch_idx,
-    update_averaged_model,
+    load_checkpoint
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
@@ -92,6 +93,7 @@ from icefall.utils import (
     save_args,
 )
 
+#from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
