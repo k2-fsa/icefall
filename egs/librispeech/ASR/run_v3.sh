@@ -9,8 +9,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	--multi-optim True \
 	--world-size 8 \
 	--num-epochs 30 \
-	--start-epoch 0 \
-	--full-libri 1 \
+	--start-epoch 1 \
+	--full-libri 0 \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 	--max-duration 300 \
 	--freeze-finetune-updates 2000 \
