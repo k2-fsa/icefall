@@ -592,7 +592,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=768, #int(params.encoder_dims.split(",")[-1]),
+        encoder_dim=params.encoder_dim if params.encoder_type == 'd2v' else int(params.encoder_dims.split(",")[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
