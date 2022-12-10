@@ -26,6 +26,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	--joiner-dim 768 \
 	--prune-range 20 \
 	--context-size 2 \
+	--ctc-loss-scale 0.2 
 
 #./pruned_transducer_stateless_d2v/train.py \
 #--initial-lr 0.0003 \
