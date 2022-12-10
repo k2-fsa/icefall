@@ -206,7 +206,6 @@ class Transducer(nn.Module):
     ):
         from beam_search import greedy_search_batch, greedy_search_batch_target_input
 
-        assert x.size(0) == x_lens.size(0) == y.dim0
         encoder_out, x_lens = self.encoder(x, x_lens)
 
         hyps = []
