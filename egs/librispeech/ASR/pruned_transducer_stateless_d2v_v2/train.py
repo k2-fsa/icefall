@@ -1080,9 +1080,6 @@ def run(rank, world_size, args, wb=None):
     params.update(vars(args))
     params.model_warm_step *= params.accum_grads
 
-    #if params.full_libri is False:
-    #    params.valid_interval = 1600
-
     fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
