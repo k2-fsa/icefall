@@ -13,5 +13,5 @@ git pull
 	--exp-dir pruned_transducer_stateless_d2v_v2/exp \
 	--encoder-dims "768,768,768,768,768" \
 	--feedforward-dims  "1024,1024,2048,2048,1024" \
-	--ctc-loss-scale 0.2 \
+	--ctc-loss-scale 0.0 \
 	--master-port 12535
