@@ -1115,7 +1115,7 @@ def run(rank, world_size, args, wb=None):
     """
     params = get_params()
     params.update(vars(args))
-    params.warm_step *= params.accum_grads
+    #params.warm_step *= params.accum_grads
 
     fix_random_seed(params.seed)
     if world_size > 1:
