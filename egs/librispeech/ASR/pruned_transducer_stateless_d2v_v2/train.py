@@ -105,17 +105,23 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--decode-interval",
+        "--wandb",
+        type=bool,
+        default=False,
+        help="Use wandb for MLOps",
+    )
+    parser.add_argument(
+        "--accum-grads",
         type=int,
-        default=200,
-        help="decode interval",
+        default=1,
+        help="accum-grad num.",
     )
 
     parser.add_argument(
-        "--encoder-dim",
-        type=int,
-        default=768,
-        help="encoder embedding dimension",
+        "--multi-optim",
+        type=bool,
+        default=False,
+        help="use sperate optimizer (enc / dec)",
     )
     
     parser.add_argument(
@@ -133,40 +139,40 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
     )
     
     parser.add_argument(
-        "--multi-optim",
-        type=bool,
-        default=False,
-        help="use sperate optimizer (enc / dec)",
-    )
-    parser.add_argument(
-        "--accum-grads",
-        type=int,
-        default=1,
-        help="accum-grad num.",
-    )
-    parser.add_argument(
         "--encoder-type",
         type=str,
         default='d2v',
         help="Type of encoder (e.g. conformer, w2v, d2v...",
     )
+    
     parser.add_argument(
-        "--additional-block",
-        type=bool,
-        default=False,
+        "--encoder-dim",
+        type=int,
+        default=768,
+        help="encoder embedding dimension",
     )
+    
     parser.add_argument(
         "--freeze-finetune-updates",
         type=int,
         default=0
     )
+
     parser.add_argument(
-        "--wandb",
+        "--additional-block",
         type=bool,
         default=False,
-        help="Use wandb for MLOps",
     )
 
+    parser.add_argument(
+        "--decode-interval",
+        type=int,
+        default=200,
+        help="decode interval",
+    )
+
+        
+    
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
