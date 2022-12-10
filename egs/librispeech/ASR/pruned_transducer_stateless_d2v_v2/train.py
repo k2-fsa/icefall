@@ -89,6 +89,7 @@ from icefall.utils import (
     encode_supervisions,
     setup_logger,
     str2bool,
+    save_args,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
