@@ -1064,9 +1064,18 @@ def train_one_epoch(
                 )
 
             if tb_writer is not None:
-                tb_writer.add_scalar(
-                    "train/learning_rate", cur_lr, params.batch_idx_train
-                )
+                if params.multi_optim:
+                    tb_writer.add_scalar(
+                        "train/enc_learning_rate", cur_enc_lr, params.batch_idx_train
+                    )
+                    tb_writer.add_scalar(
+                        "train/dec_learning_rate", cur_dec_lr, params.batch_idx_train
+                    )
+
+                else:
+                    tb_writer.add_scalar(
+                        "train/learning_rate", cur_lr, params.batch_idx_train
+                    )
 
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
