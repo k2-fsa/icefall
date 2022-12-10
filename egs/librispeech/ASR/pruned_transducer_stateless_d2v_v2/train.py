@@ -1046,8 +1046,8 @@ def train_one_epoch(
                     f"Epoch {params.cur_epoch}, "
                     f"batch {batch_idx}, loss[{loss_info}], "
                     f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                    f"enc lr: {cur_lr:.2e}, "
-                    f"dec lr: {cur_lr:.2e}, "
+                    f"enc_lr: {cur_enc_lr:.2e}, "
+                    f"dec_lr: {cur_dec_lr:.2e}, "
                     + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
                 )
 
