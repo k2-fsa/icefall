@@ -866,7 +866,7 @@ def compute_validation_loss(
     if world_size > 1:
         tot_loss.reduce(loss.device)
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    loss_value = tot_loss["loss"] / tot_loss["utterances"]
     if loss_value < params.best_valid_loss:
         params.best_valid_epoch = params.cur_epoch
         params.best_valid_loss = loss_value
