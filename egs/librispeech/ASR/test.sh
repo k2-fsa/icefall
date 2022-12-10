@@ -5,9 +5,9 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--epoch 14 \
+	--epoch 8 \
     --avg 1 \
-	--exp-dir ./pruned_transducer_stateless_d2v/test \
+	--exp-dir ./pruned_transducer_stateless_d2v/exp \
     --max-duration 800 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
