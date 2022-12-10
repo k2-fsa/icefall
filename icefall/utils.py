@@ -205,12 +205,12 @@ def encode_supervisions(
         (
             supervisions["sequence_idx"],
             torch.div(
-                num_frames
+                start_frame,
                 subsampling_factor,
                 rounding_mode="floor",
             ),
             torch.div(
-                supervisions["num_frames"],
+                num_frames,
                 subsampling_factor,
                 rounding_mode="floor",
             ),
