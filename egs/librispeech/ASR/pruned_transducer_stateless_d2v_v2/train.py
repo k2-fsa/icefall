@@ -124,6 +124,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default="8,8,8,8,8",
         help="Number of attention heads in the zipformer encoder layers.",
     )
+    
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=768,
+        help="Encoder embedding dimension",
+    )
 
     parser.add_argument(
         "--encoder-dims",
