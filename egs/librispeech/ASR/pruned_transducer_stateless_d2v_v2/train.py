@@ -1144,10 +1144,10 @@ def run(rank, world_size, args, wb=None):
 
         if wb is None:
             optimizer_enc = ScaledAdam(
-                enc_param,
+                dec_param,
                 lr=params.base_lr,
                 clipping_scale=5.0,
-                parameters_names=parameters_names,
+                parameters_names=dec_names,
             )
 
             optimizer_dec = Eve(dec_param, lr=params.peak_dec_lr)
