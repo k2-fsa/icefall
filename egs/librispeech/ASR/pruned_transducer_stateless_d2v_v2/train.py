@@ -1229,8 +1229,8 @@ def run(rank, world_size, args, wb=None):
                 dec_names.append(n)
                 dec_param.append(p)
 
-        logging.info(enc_names)
-
+        if rank == 0:
+            print(enc_names)
         optimizer_enc = ScaledAdam(
             enc_param,
             lr=params.peak_enc_lr,
