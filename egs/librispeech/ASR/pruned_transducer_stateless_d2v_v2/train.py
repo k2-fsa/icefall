@@ -1154,8 +1154,6 @@ def run(rank, world_size, args, wb=None):
         optimizer = [optimizer_enc, optimizer_dec]
         scheduler = [scheduler_enc, scheduler_dec]
 
-
-
     else:
         parameters_names = []
         parameters_names.append(
