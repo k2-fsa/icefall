@@ -1078,6 +1078,8 @@ def run(rank, world_size, args, wb=None):
     """
     params = get_params()
     params.update(vars(args))
+    params.model_warm_step *= params.accum_grads
+
     if params.full_libri is False:
         params.valid_interval = 1600
 
