@@ -926,6 +926,10 @@ def train_one_epoch(
 
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
+    if params.multi_optim:
+        optimizer_enc, optimizer_dec = optimizer[0], optimizer[1]
+        scheduler_enc, scheduler_dec = scheduler[0], scheduler[1]
+
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx < cur_batch_idx:
             continue
