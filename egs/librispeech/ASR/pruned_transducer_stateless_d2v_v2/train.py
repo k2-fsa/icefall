@@ -1146,7 +1146,7 @@ def run(rank, world_size, args, wb=None):
             optimizer_enc = ScaledAdam(
                 enc_param,
                 lr=param.peak_enc_lr,
-                clipping_scale=2.0,
+                clipping_scale=None,
                 parameters_names=parameters_names,
             )
 
