@@ -106,7 +106,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--wandb",
-        type=bool,
+        type=str2bool,
         default=False,
         help="Use wandb for MLOps",
     )
@@ -119,7 +119,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
 
     parser.add_argument(
         "--multi-optim",
-        type=bool,
+        type=str2bool,
         default=False,
         help="use sperate optimizer (enc / dec)",
     )
