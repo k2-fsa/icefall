@@ -550,13 +550,14 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_encoder_layers=to_int_tuple(params.num_encoder_layers),
     )
     '''
-    encoder = FairSeqData2VecEncoder(
-                input_size=768, #params.encoder_dim,
-                w2v_url='None',
-                output_size=768, #params.encoder_dim,
-                freeze_finetune_updates=0, #params.freeze_finetune_updates*params.accum_grads,
-                additional_block=True, #params.additional_block,
-            ) 
+    if params.encoder_type == 'd2v':
+        encoder = FairSeqData2VecEncoder(
+                    input_size=params.encoder_dim,
+                    w2v_url='None',
+                    output_size=params.encoder_dim,
+                    freeze_finetune_updates=params.freeze_finetune_updates*params.accum_grads,
+                    additional_block=True, #params.additional_block,
+                ) 
 
     return encoder
 
