@@ -444,7 +444,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
-            "subsampling_factor": 320,  # not passed in, this is fixed.
+            "subsampling_factor": 1,  # not passed in, this is fixed.
             # parameters for ctc loss
             "beam_size": 10,
             "use_double_scores": True,
