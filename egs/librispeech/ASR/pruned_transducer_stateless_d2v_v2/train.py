@@ -1178,7 +1178,7 @@ def run(rank, world_size, args, wb=None):
 
         scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
-    if checkpoints and ("optimizer" in checkpoints) or ("optimizer_enc" in checkpoints):
+    if checkpoints and ("optimizer" in checkpoints or "optimizer_enc" in checkpoints):
         if params.multi_optim:
             logging.info("Loading optimizer state dict")
             optimizer_enc.load_state_dict(checkpoints["optimizer_enc"])
@@ -1190,11 +1190,15 @@ def run(rank, world_size, args, wb=None):
 
     if (
         checkpoints
-        and "scheduler" in checkpoints
+        and ("scheduler" in checkpoints or "scheduler_enc" in checkpoints)
         and checkpoints["scheduler"] is not None
     ):
-        logging.info("Loading scheduler state dict")
-        scheduler.load_state_dict(checkpoints["scheduler"])
+        if params.multi_optim:
+            scheduler_enc.load_state_dict(checkpoints["scheduler_enc"])
+            scheduler_dec.load_state_dict(checkpoints["scheduler_dec"])        
+        else:
+            logging.info("Loading scheduler state dict")
+            scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
