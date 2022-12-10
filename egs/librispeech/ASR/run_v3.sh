@@ -7,7 +7,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	--wandb true \
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
-	--multi-optim True \
+	--multi-optim False \
 	--world-size 8 \
 	--num-epochs 30 \
 	--start-epoch 1 \
