@@ -1127,19 +1127,48 @@ def run(rank, world_size, args, wb=None):
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+    
+    if params.multi_optim:
+        logging.info("Using seperate optimizers over encoder, decoder ...")
+        enc_param = []
+        dec_param = []
+        for n, p in model.named_parameters():
+            name = n.split('.')[1]
+            if name == 'encoder' and 'feature_extractor' not in n:
+                enc_param.append(p)
+            elif 'feature_extractor' not in n:
+                dec_param.append(p)
 
-    parameters_names = []
-    parameters_names.append(
-        [name_param_pair[0] for name_param_pair in model.named_parameters()]
-    )
-    optimizer = ScaledAdam(
-        model.parameters(),
-        lr=params.base_lr,
-        clipping_scale=2.0,
-        parameters_names=parameters_names,
-    )
+        if wb is None:
+            optimizer_enc = Eve(enc_param, lr=params.peak_enc_lr)
+            optimizer_dec = Eve(dec_param, lr=params.peak_dec_lr)
+        else:
+            logging.info('start wandb sweep optimization...')
+            logging.info(wb.config.peak_enc_lr)
+            logging.info(wb.config.peak_dec_lr)
+            optimizer_enc = Eve(enc_param, lr=wb.config.peak_enc_lr)
+            optimizer_dec = Eve(dec_param, lr=wb.config.peak_dec_lr)
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+        scheduler_enc = Eden(optimizer_enc, params.lr_batches*params.accum_grads, params.lr_epochs)
+        scheduler_dec = Eden(optimizer_dec, params.lr_batches*params.acuum_grads, params.lr_epochs)
+        optimizer = [optimizer_enc, optimizer_dec]
+        scheduler = [scheduler_enc, scheduler_dec]
+
+
+
+    else:
+        parameters_names = []
+        parameters_names.append(
+            [name_param_pair[0] for name_param_pair in model.named_parameters()]
+        )
+        optimizer = ScaledAdam(
+            model.parameters(),
+            lr=params.base_lr,
+            clipping_scale=2.0,
+            parameters_names=parameters_names,
+        )
+
+        scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
