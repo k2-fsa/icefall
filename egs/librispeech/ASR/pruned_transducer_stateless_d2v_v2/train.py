@@ -170,10 +170,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
         default=200,
         help="decode interval",
     )
-
         
-    
-
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
