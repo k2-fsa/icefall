@@ -131,7 +131,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=768,
         help="Encoder embedding dimension",
     )
-
+    '''
     parser.add_argument(
         "--encoder-dims",
         type=str,
@@ -169,7 +169,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default="31,31,31,31,31",
         help="Sizes of kernels in convolution modules",
     )
-
+    '''
     parser.add_argument(
         "--decoder-dim",
         type=int,
