@@ -542,7 +542,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
                     input_size=params.encoder_dim,
                     w2v_url='None',
                     output_size=params.encoder_dim,
-                    freeze_finetune_updates=params.freeze_finetune_updates*params.accum_grads,
+                    freeze_finetune_updates=params.freeze_finetune_updates,
                     additional_block=params.additional_block,
                 ) 
     else:
