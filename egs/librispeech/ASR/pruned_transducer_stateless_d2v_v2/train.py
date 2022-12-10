@@ -1283,6 +1283,7 @@ def run(rank, world_size, args, wb=None):
             tb_writer=tb_writer,
             world_size=world_size,
             rank=rank,
+            wb=wb,
         )
 
         if params.print_diagnostics:
