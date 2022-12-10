@@ -525,7 +525,7 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "use_double_scores": True,
             #"warm_step": 4000,
-            "warm_step": 1000,
+            "warm_step": 3000,
             "env_info": get_env_info(),
         }
     )
