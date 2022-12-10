@@ -1222,6 +1222,9 @@ def run(rank, world_size, args, wb=None):
             if name == 'encoder' and 'feature_extractor' not in n:
                 enc_names.append(n)
                 enc_param.append(p)
+            elif 'ctc_output' in n:
+                enc_names.append(n)
+                enc_param.append(p)
             elif 'feature_extractor' not in n:
                 dec_names.append(n)
                 dec_param.append(p)
