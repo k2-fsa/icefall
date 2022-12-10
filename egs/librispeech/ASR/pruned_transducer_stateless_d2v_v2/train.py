@@ -131,6 +131,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
         default=0.001,
         help="The initial learning rate.  This value should not need to be changed.",
     )
+    
     parser.add_argument(
         "--multi-optim",
         type=bool,
