@@ -1144,13 +1144,12 @@ def run(rank, world_size, args, wb=None):
 
         if wb is None:
             optimizer_enc = ScaledAdam(
-                dec_param,
-                lr=params.peak_enc_lr,
-                clipping_scale=5.0,
-                parameters_names=dec_names,
+                enc_param,
+                lr=param.peak_enc_lr,
+                clipping_scale=2.0,
+                parameters_names=parameters_names,
             )
 
-            optimizer_dec = Eve(dec_param, lr=params.peak_dec_lr)
         else:
             logging.info('start wandb sweep optimization...')
             logging.info(wb.config.peak_enc_lr)
