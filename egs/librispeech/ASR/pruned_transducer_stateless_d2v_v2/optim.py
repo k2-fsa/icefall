@@ -201,7 +201,6 @@ class ScaledAdam(BatchedOptimizer):
         )
 
         super(ScaledAdam, self).__init__(params, defaults)
-        print('fuck!@!!!', len(self.param_groups))
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
         self.show_dominant_parameters = show_dominant_parameters
