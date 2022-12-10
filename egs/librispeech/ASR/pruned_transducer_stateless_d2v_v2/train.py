@@ -877,7 +877,7 @@ def compute_validation_loss(
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    optimizer: torch.optim.Optimizer,
+    optimizer: torch.optim.Optimizer or [torch.optim.Optimizer, torch.optim.Optimizer],
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
