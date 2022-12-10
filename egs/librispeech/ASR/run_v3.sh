@@ -15,8 +15,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	--max-duration 250 \
 	--freeze-finetune-updates 2000 \
 	--use-fp16 1 \
-	--peak-enc-lr 0.0001 \
-	--peak-dec-lr 0.003 \
+	--peak-enc-lr 0.001 \
+	--peak-dec-lr 0.03 \
 	--accum-grads 1 \
 	--encoder-type d2v \
 	--additional-block True \
