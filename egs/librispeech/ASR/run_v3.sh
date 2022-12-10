@@ -12,7 +12,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	--num-epochs 30 \
 	--start-epoch 1 \
 	--full-libri 1 \
-	--exp-dir ./pruned_transducer_stateless_d2v/$1 \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 	--max-duration 200 \
 	--freeze-finetune-updates 2000 \
 	--use-fp16 1 \
