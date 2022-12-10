@@ -677,9 +677,6 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
 
-    logging.info(supervisions["start_frame"])
-    logging.info(supervisions["num_frames"])
-
     if feature.ndim == 2:
         feature_lens = []
         for supervision in supervisions['cut']:
