@@ -200,6 +200,7 @@ def encode_supervisions(
         for supervision in supervisions['cut']:
             try: num_frames.append(supervision.tracks[0].cut.recording.num_samples)
             except: num_frames.append(supervision.recording.num_samples)
+
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
