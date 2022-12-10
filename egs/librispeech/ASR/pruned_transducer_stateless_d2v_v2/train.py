@@ -1344,6 +1344,9 @@ def main():
     logging.info("save arguments to config.yaml...")
     save_args(args)
 
+    if args.wandb: wb = wandb.init(project="d2v-T", entity="dohe0342", config=vars(args))
+    else: wb = None
+
     world_size = args.world_size
     assert world_size >= 1
     if world_size > 1:
