@@ -1183,10 +1183,6 @@ def run(rank, world_size, args, wb=None):
                 dec_names.append(n)
                 dec_param.append(p)
 
-        logging.info(f"enc name len = {len(enc_names)}")
-        logging.info(f"enc param len = {len(enc_param)}")
-        #logging.info(model.parameters())
-
         optimizer_enc = ScaledAdam(
             *enc_param,
             lr=params.peak_enc_lr,
