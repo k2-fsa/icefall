@@ -1185,7 +1185,7 @@ def run(rank, world_size, args, wb=None):
 
         logging.info(f"enc name len = {len(enc_names)}")
         logging.info(f"enc param len = {len(enc_param)}")
-        logging.info(type(model.parameters()))
+        logging.info(model.parameters())
 
         optimizer_enc = ScaledAdam(
             enc_param,
