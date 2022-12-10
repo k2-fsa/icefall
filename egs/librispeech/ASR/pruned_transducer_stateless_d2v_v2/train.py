@@ -206,6 +206,13 @@ def get_parser():
         default=12354,
         help="Master port to use for DDP training.",
     )
+    
+    parser.add_argument(
+        "--wandb",
+        type=str2bool,
+        default=False,
+        help="Should various information be logged in wandb.",
+    )
 
     parser.add_argument(
         "--tensorboard",
