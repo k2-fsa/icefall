@@ -167,7 +167,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--additional-block",
         type=str2bool,
-        default=False,
+        default=True,
     )
 
     parser.add_argument(
