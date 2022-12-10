@@ -1410,3 +1410,16 @@ def is_module_available(*modules: str) -> bool:
     import importlib
 
     return all(importlib.util.find_spec(m) is not None for m in modules)
+
+
+def save_args(args):
+    if not os.path.exists(args.exp_dir):
+        os.makedirs(args.exp_dir)
+    if args.world_size == 4:
+        shutil.copy("./run_bear.sh", f"{args.exp_dir}/run.sh")
+    else:
+        shutil.copy("./run.sh", f"{args.exp_dir}/run.sh")
+    args_dict = vars(args)
+    f = open(f"{args.exp_dir}/config.yaml", 'w')
+    for k, v in args_dict.items():
+        f.write(f"{k}:\t{v}\n")
