@@ -105,18 +105,40 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--num-encoder-layers",
-        type=str,
-        default="2,4,3,2,4",
-        help="Number of zipformer encoder layers, comma separated.",
+        "--decode-interval",
+        type=int,
+        default=200,
+        help="decode interval",
     )
 
     parser.add_argument(
-        "--feedforward-dims",
-        type=str,
-        default="1024,1024,2048,2048,1024",
-        help="Feedforward dimension of the zipformer encoder layers, comma separated.",
+        "--encoder-dim",
+        type=int,
+        default=768,
+        help="encoder embedding dimension",
     )
+    
+    parser.add_argument(
+        "--peak-enc-lr",
+        type=float,
+        default=0.0001,
+        help="The initial learning rate.  This value should not need to be changed.",
+    )
+
+    parser.add_argument(
+        "--peak-dec-lr",
+        type=float,
+        default=0.001,
+        help="The initial learning rate.  This value should not need to be changed.",
+    )
+    parser.add_argument(
+        "--multi-optim",
+        type=bool,
+        default=False,
+        help="use sperate optimizer (enc / dec)",
+    )
+
+
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
