@@ -191,6 +191,7 @@ def encode_supervisions(
     returned tensor and list of strings are guaranteed to be consistent with
     each other.
     """
+
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
