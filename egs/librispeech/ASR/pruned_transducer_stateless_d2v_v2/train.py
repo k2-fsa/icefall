@@ -1057,6 +1057,12 @@ def train_one_epoch(
                         cur_grad_scale,
                         params.batch_idx_train,
                     )
+            
+            if wb is not None and rank == 0:
+                wb.log({"train/simple_loss": loss_info["simple_loss"]*numel})
+                wb.log({"train/pruned_loss": loss_info["pruned_loss"]*numel})
+                wb.log({"train/loss": loss_info["loss"]*numel})
+
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
