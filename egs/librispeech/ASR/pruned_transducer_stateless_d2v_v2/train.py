@@ -113,7 +113,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--wandb",
         type=str2bool,
-        default=False,
+        default=True,
         help="Use wandb for MLOps",
     )
     parser.add_argument(
@@ -126,7 +126,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--multi-optim",
         type=str2bool,
-        default=False,
+        default=True,
         help="use sperate optimizer (enc / dec)",
     )
     
