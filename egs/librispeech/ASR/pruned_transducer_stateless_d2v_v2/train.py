@@ -1206,6 +1206,10 @@ def run(rank, world_size, args, wb=None):
         parameters_names.append(
             [name_param_pair[0] for name_param_pair in model.named_parameters()]
         )
+
+        logging.info(f"len name = {len(parameters_names)}")
+        logging.info(f"len name = {len(list(model.parameters()))}")
+        
         optimizer = ScaledAdam(
             model.parameters(),
             lr=params.base_lr,
