@@ -1,0 +1,1 @@
+../../ASR/local/prepare_words.py

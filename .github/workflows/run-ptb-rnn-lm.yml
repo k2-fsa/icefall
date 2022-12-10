@@ -1,0 +1,71 @@
+name: run-ptb-rnn-lm-training
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+  schedule:
+    # minute (0-59)
+    # hour (0-23)
+    # day of the month (1-31)
+    # month (1-12)
+    # day of the week (0-6)
+    # nightly build at 15:50 UTC time every day
+    - cron: "50 15 * * *"
+
+concurrency:
+  group: run_ptb_rnn_lm_training-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_ptb_rnn_lm_training:
+    if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf
+
+      - name: Prepare data
+        shell: bash
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          cd egs/ptb/LM
+          ./prepare.sh
+
+      - name: Run training
+        shell: bash
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          cd egs/ptb/LM
+          ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2
+
+      - name: Upload pretrained models
+        uses: actions/upload-artifact@v2
+        if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
+        with:
+          name: python-${{ matrix.python-version }}-ubuntu-rnn-lm-ptb
+          path: egs/ptb/LM/my-rnnlm-exp/

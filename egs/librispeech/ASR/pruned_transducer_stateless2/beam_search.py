@@ -2230,9 +2230,7 @@ def modified_beam_search_rnnlm_LODR(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
         """
         for all hyps with a non-blank new token, score this token.
         It is a little confusing here because this for-loop
@@ -2267,10 +2265,7 @@ def modified_beam_search_rnnlm_LODR(
         # forward RNNLM to get new states and scores
         if len(token_list) != 0:
             tokens_to_score = (
-                torch.tensor(token_list)
-                .to(torch.int64)
-                .to(device)
-                .reshape(-1, 1)
+                torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
             )
 
             hs = torch.cat(hs, dim=1).to(device)
@@ -2304,9 +2299,7 @@ def modified_beam_search_rnnlm_LODR(
                     state_cost = hyp.state_cost.forward_one_step(new_token)
 
                     # calculate the score of the latest token
-                    current_ngram_score = (
-                        state_cost.lm_score - hyp.state_cost.lm_score
-                    )
+                    current_ngram_score = state_cost.lm_score - hyp.state_cost.lm_score
 
                     assert current_ngram_score <= 0.0, (
                         state_cost.lm_score,
