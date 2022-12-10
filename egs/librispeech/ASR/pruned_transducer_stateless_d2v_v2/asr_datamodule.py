@@ -203,7 +203,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--input-strategy",
             type=str,
-            default="PrecomputedFeatures",
+            default="AudioSamples",
             help="AudioSamples or PrecomputedFeatures",
         )
 
