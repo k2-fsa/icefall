@@ -216,7 +216,7 @@ def get_params() -> AttributeDict:
             # parameters for decoding
             "search_beam": 15,
             "output_beam": 8,
-            "min_active_states": 100,
+            "min_active_states": 10,
             "max_active_states": 7000,
             "use_double_scores": True,
             "env_info": get_env_info(),
@@ -387,6 +387,7 @@ def decode_one_batch(
         unk = bpe_model.decode(bpe_model.unk_id()).strip()
         hyps = [[w for w in s.split() if w != unk] for s in hyps]
         key = "ctc-greedy-search"
+
         return {key: hyps}
 
     if params.method == "nbest-oracle":
@@ -403,7 +404,9 @@ def decode_one_batch(
             oov="<unk>",
         )
         hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        hyps = [
+            [word_table[i] for i in ids if word_table[i] != "<unk>"] for ids in hyps
+        ]
         key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
         return {key: hyps}
 
@@ -417,7 +420,9 @@ def decode_one_batch(
         key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
-        hyps = [[word_table[i] for i in ids] for ids in hyps]
+        hyps = [
+            [word_table[i] for i in ids if word_table[i] != "<unk>"] for ids in hyps
+        ]
         return {key: hyps}
 
     assert params.method in [
@@ -451,17 +456,8 @@ def decode_one_batch(
             lm_scale_list=lm_scale_list,
         )
     elif params.method == "attention-decoder":
-        # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
-        rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice,
-            G_with_epsilon_loops=G,
-            lm_scale_list=None,
-        )
-        # TODO: pass `lattice` instead of `rescored_lattice` to
-        # `rescore_with_attention_decoder`
-
         best_path_dict = rescore_with_attention_decoder(
-            lattice=rescored_lattice,
+            lattice=lattice,
             num_paths=params.num_paths,
             model=model,
             memory=memory,
@@ -471,7 +467,7 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
     else:
-        assert False, f"Unsupported decoding method: {params.method}"
+        raise ValueError(f"Unsupported decoding method: {params.method}")
 
     ans = dict()
     if best_path_dict is not None:
@@ -689,11 +685,7 @@ def main() -> None:
         if not hasattr(HLG, "lm_scores"):
             HLG.lm_scores = HLG.scores.clone()
 
-    if params.method in (
-        "nbest-rescoring",
-        "whole-lattice-rescoring",
-        "attention-decoder",
-    ):
+    if params.method in ("nbest-rescoring", "whole-lattice-rescoring"):
         assert params.lm_path.suffix in (".pt", ".txt")
 
         if params.lm_path.is_file() and params.lm_path.suffix == ".pt":
@@ -748,15 +740,11 @@ def main() -> None:
 
                     torch.save(
                         G.as_dict(),
-                        params.lm_path.parent / params.lm_path.name.replace(
-                            ".fst.txt", ".pt"
-                        ),
+                        params.lm_path.parent
+                        / params.lm_path.name.replace(".fst.txt", ".pt"),
                     )
 
-        if params.method in [
-            "whole-lattice-rescoring",
-            "attention-decoder",
-        ]:
+        if params.method == "whole-lattice-rescoring":
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)

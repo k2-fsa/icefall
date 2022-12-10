@@ -165,7 +165,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --transcript data/lang/train.txt
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+      ./local/prepare_lang_bpe.py --lang-dir $lang_dir --oov "<unk>"
     fi
   done
 fi

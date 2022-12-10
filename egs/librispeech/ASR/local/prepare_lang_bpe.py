@@ -127,7 +127,7 @@ def lexicon_to_fst_no_sil(
 
 
 def generate_lexicon(
-    model_file: str, words: List[str]
+    model_file: str, words: List[str], oov: str
 ) -> Tuple[Lexicon, Dict[str, int]]:
     """Generate a lexicon from a BPE model.
 
@@ -136,6 +136,8 @@ def generate_lexicon(
         Path to a sentencepiece model.
       words:
         A list of strings representing words.
+      oov:
+        The out of vocabulary word in lexicon.
     Returns:
       Return a tuple with two elements:
         - A dict whose keys are words and values are the corresponding
@@ -156,10 +158,7 @@ def generate_lexicon(
     for word, pieces in zip(words, words_pieces):
         lexicon.append((word, pieces))
 
-    #     # The OOV word is <UNK>
-    #     lexicon.append(("<UNK>", [sp.id_to_piece(sp.unk_id())]))
-    # The OOV word is <unk>
-    lexicon.append(("<unk>", ["▁", sp.id_to_piece(sp.unk_id())]))
+    lexicon.append((oov, ["▁", sp.id_to_piece(sp.unk_id())]))
 
     token2id: Dict[str, int] = {sp.id_to_piece(i): i for i in range(sp.vocab_size())}
 
@@ -174,6 +173,13 @@ def get_args():
         help="""Input and output directory.
         It should contain the bpe.model and words.txt
         """,
+    )
+
+    parser.add_argument(
+        "--oov",
+        type=str,
+        default="<UNK>",
+        help="The out of vocabulary word in lexicon.",
     )
 
     parser.add_argument(
@@ -202,22 +208,13 @@ def main():
 
     words = word_sym_table.symbols
 
-    excluded = [
-        "<eps>",
-        "!SIL",
-        "!sil",
-        "<SPOKEN_NOISE>",
-        "<UNK>",
-        "<unk>",
-        "#0",
-        "<s>",
-        "</s>",
-    ]
+    excluded = ["<eps>", "!SIL", "<SPOKEN_NOISE>", args.oov, "#0", "<s>", "</s>"]
+
     for w in excluded:
         if w in words:
             words.remove(w)
 
-    lexicon, token_sym_table = generate_lexicon(model_file, words)
+    lexicon, token_sym_table = generate_lexicon(model_file, words, args.oov)
 
     lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
 

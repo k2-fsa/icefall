@@ -51,13 +51,11 @@ import optim
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
-import torch.nn as nn
 from asr_datamodule import TedLiumAsrDataModule
 from conformer import Conformer
-from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from optim import Eden, Eve
+from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -73,7 +71,6 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -246,7 +243,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=10000,
+        default=4000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -259,7 +256,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=40,
+        default=30,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -360,8 +357,8 @@ def get_params() -> AttributeDict:
 
 def load_checkpoint_if_available(
     params: AttributeDict,
-    model: nn.Module,
-    model_avg: nn.Module = None,
+    model: torch.nn.Module,
+    model_avg: torch.nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -426,8 +423,8 @@ def load_checkpoint_if_available(
 
 def save_checkpoint(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
-    model_avg: Optional[nn.Module] = None,
+    model: Union[torch.nn.Module, DDP],
+    model_avg: Optional[torch.nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
@@ -478,7 +475,7 @@ def save_checkpoint(
 
 def compute_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: Union[torch.nn.Module, DDP],
     graph_compiler: BpeCtcTrainingGraphCompiler,
     batch: dict,
     is_training: bool,
@@ -523,26 +520,8 @@ def compute_loss(
             supervisions, subsampling_factor=params.subsampling_factor
         )
 
-        if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
-            # Works with a BPE model
-            assert (
-                len(graph_compiler.texts_to_ids("@")) == 2
-                and graph_compiler.texts_to_ids("@")[-1] == graph_compiler.sp.unk_id()
-            )
-            # artificially incerting symbol that is
-            # encoded as <unk> token by bpe model,
-            # otherwise <unk> will be splited into multiple tokens
-            # TODO fix this after finish experiment for differnt <unk> encoding.
-            texts = [t.replace("<unk>", "@") for t in texts]
-            token_ids = graph_compiler.texts_to_ids(texts)
-            decoding_graph = graph_compiler.compile(token_ids)
-        elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
-            # Works with a phone lexicon
-            decoding_graph = graph_compiler.compile(texts)
-        else:
-            raise ValueError(
-                f"Unsupported type of graph compiler: {type(graph_compiler)}"
-            )
+        token_ids = convert_texts_into_ids(texts, graph_compiler.sp)
+        decoding_graph = graph_compiler.compile(token_ids)
 
         dense_fsa_vec = k2.DenseFsaVec(
             nnet_output,
@@ -617,9 +596,11 @@ def compute_loss(
     # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
     # (2) If some utterances in the batch lead to inf/nan loss, they
     #     are filtered out.
-    info["frames"] = torch.div(
-        feature_lens, params.subsampling_factor, rounding_mode="floor"
-    ).sum().item()
+    info["frames"] = (
+        torch.div(feature_lens, params.subsampling_factor, rounding_mode="floor")
+        .sum()
+        .item()
+    )
 
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     info["utterances"] = feature.size(0)
@@ -641,7 +622,7 @@ def compute_loss(
 
 def compute_validation_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: Union[torch.nn.Module, DDP],
     graph_compiler: BpeCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -675,14 +656,14 @@ def compute_validation_loss(
 
 def train_one_epoch(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: Union[torch.nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     graph_compiler: BpeCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
-    model_avg: Optional[nn.Module] = None,
+    model_avg: Optional[torch.nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -867,38 +848,18 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    if "lang_bpe" in str(params.lang_dir):
-        graph_compiler = BpeCtcTrainingGraphCompiler(
-            params.lang_dir,
-            device=device,
-            sos_token="<sos/eos>",
-            eos_token="<sos/eos>",
-        )
-    elif "lang_phone" in str(params.lang_dir):
-        assert params.att_rate == 0, (
-            "Attention decoder training does not support phone lang dirs "
-            "at this time due to a missing <sos/eos> symbol. Set --att-rate=0 "
-            "for pure CTC training when using a phone-based lang dir."
-        )
-        assert params.num_decoder_layers == 0, (
-            "Attention decoder training does not support phone lang dirs "
-            "at this time due to a missing <sos/eos> symbol. "
-            "Set --num-decoder-layers=0 for pure CTC training when using "
-            "a phone-based lang dir."
-        )
-        graph_compiler = CtcTrainingGraphCompiler(
-            lexicon,
-            device=device,
-        )
-        # Manually add the sos/eos ID with their default values
-        # from the BPE recipe which we're adapting here.
-        graph_compiler.sos_id = 1
-        graph_compiler.eos_id = 1
-    else:
+    if "lang_bpe" not in str(params.lang_dir):
         raise ValueError(
             f"Unsupported type of lang dir (we expected it to have "
-            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
+            f"'lang_bpe' in its name): {params.lang_dir}"
         )
+
+    graph_compiler = BpeCtcTrainingGraphCompiler(
+        params.lang_dir,
+        device=device,
+        sos_token="<sos/eos>",
+        eos_token="<sos/eos>",
+    )
 
     logging.info("About to create model")
     model = Conformer(
@@ -916,7 +877,7 @@ def run(rank, world_size, args):
     logging.info(f"Number of model parameters: {num_param}")
 
     assert params.save_every_n >= params.average_period
-    model_avg: Optional[nn.Module] = None
+    model_avg: Optional[torch.nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model)
@@ -931,8 +892,8 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank])
 
-    optimizer = Eve(model.parameters(), lr=params.initial_lr)
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    optimizer = optim.Eve(model.parameters(), lr=params.initial_lr)
+    scheduler = optim.Eden(optimizer, params.lr_batches, params.lr_epochs)
 
     if checkpoints and checkpoints.get("optimizer") is not None:
         logging.info("Loading optimizer state dict")
@@ -966,7 +927,11 @@ def run(rank, world_size, args):
     valid_cuts = tedlium.dev_cuts()
     valid_dl = tedlium.valid_dataloaders(valid_cuts)
 
-    if params.start_batch <= 0 and not params.print_diagnostics:
+    if (
+        params.start_epoch <= 1
+        and params.start_batch <= 0
+        and not params.print_diagnostics
+    ):
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1030,7 +995,7 @@ def run(rank, world_size, args):
 
 
 def scan_pessimistic_batches_for_oom(
-    model: Union[nn.Module, DDP],
+    model: Union[torch.nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     graph_compiler: BpeCtcTrainingGraphCompiler,

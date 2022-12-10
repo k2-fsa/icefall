@@ -26,7 +26,6 @@ consisting of tedlium_supervisions_train.json and does the following:
 import argparse
 import logging
 import re
-
 from pathlib import Path
 
 
@@ -58,14 +57,10 @@ def prepare_words(lang_dir: str) -> None:
 
     logging.info(f"Loading {words_orig_path.name}")
     with open(words_orig_path, "r", encoding="utf8") as f:
-        words = {
-            w for w_compl in f for w in w_compl.strip("-\n").split('_')
-        }
-    words = {
-        w for w in words if foreign_chr_check.search(w) is None and w != ''
-    }
+        words = {w for w_compl in f for w in w_compl.strip("-\n").split("_")}
+    words = {w for w in words if foreign_chr_check.search(w) is None and w != ""}
     words.add("<unk>")
-    words = ["<eps>", "!sil"] + sorted(words) + ["#0", "<s>", "</s>"]
+    words = ["<eps>", "!SIL"] + sorted(words) + ["#0", "<s>", "</s>"]
 
     with open(words_path, "w+", encoding="utf8") as f:
         for idx, word in enumerate(words):
@@ -81,9 +76,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
