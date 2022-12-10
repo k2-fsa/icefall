@@ -76,7 +76,7 @@ def main():
 
     y = convert_texts_into_ids(texts=args.texts, sp=sp)
 
-    logging.info(f"The input texts: {texts}")
+    logging.info(f"The input texts: {args.texts}")
     logging.info(f"The encoding ids: {y}")
 
 
