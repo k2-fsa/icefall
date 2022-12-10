@@ -85,7 +85,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--full-libri",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
         )
         group.add_argument(
