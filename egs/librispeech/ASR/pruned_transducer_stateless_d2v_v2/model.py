@@ -205,7 +205,7 @@ class Transducer(nn.Module):
         y: k2.RaggedTensor,
         sp,
     ):
-        from beam_search import greedy_search_batch, greedy_search_batch_target_input
+        from beam_search import greedy_search_batch
 
         encoder_out, x_lens = self.encoder(x, x_lens)
 
