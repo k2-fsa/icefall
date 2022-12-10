@@ -1105,10 +1105,10 @@ def train_one_epoch(
                     )
             
             if wb is not None and rank == 0:
-                wb.log({"train/loss": loss_info["loss"]*numel})
-                wb.log({"train/simple_loss": loss_info["simple_loss"]*numel})
-                wb.log({"train/pruned_loss": loss_info["pruned_loss"]*numel})
-                wb.log({"train/ctc_loss": loss_info["ctc_loss"]*numel})
+                wb.log({"train/loss": loss_info["loss"]*numel/params.world_size})
+                wb.log({"train/simple_loss": loss_info["simple_loss"]*numel/params.world_size})
+                wb.log({"train/pruned_loss": loss_info["pruned_loss"]*numel/params.world_size})
+                wb.log({"train/ctc_loss": loss_info["ctc_loss"]*numel/params.world_size})
 
 #if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
     logging.info("Computing validation loss")
@@ -1130,7 +1130,7 @@ def train_one_epoch(
         )
     
     if wb is not None and rank == 0:
-        numel = params.world_size / (params.accum_grads * valid_info["utterances"])
+        numel = 1 / (params.accum_grads * valid_info["utterances"])
         wb.log({"valid/loss": valid_info["loss"]*numel})
         wb.log({"valid/simple_loss": valid_info["simple_loss"]*numel})
         wb.log({"valid/pruned_loss": valid_info["pruned_loss"]*numel})
