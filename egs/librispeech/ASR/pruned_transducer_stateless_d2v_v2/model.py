@@ -209,7 +209,6 @@ class Transducer(nn.Module):
         encoder_out, x_lens = self.encoder(x, x_lens)
 
         hyps = []
-        #hyp_tokens = greedy_search_batch_target_input(self, encoder_out, x_lens, decoder_out)
         hyp_tokens = greedy_search_batch(self, encoder_out, x_lens)#, decoder_out)
 
         for hyp in sp.decode(hyp_tokens):
