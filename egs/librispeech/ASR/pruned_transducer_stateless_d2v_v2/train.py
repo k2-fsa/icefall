@@ -736,16 +736,13 @@ def compute_loss(
                 token_ids=token_ids,
             )
         
-        logging.info('1')
         # Works with a BPE model
         decoding_graph = k2.ctc_graph(token_ids, modified=False, device=device)
-        logging.info('2')
         dense_fsa_vec = k2.DenseFsaVec(
             ctc_output,
             supervision_segments,
             allow_truncate=params.subsampling_factor - 1,
         )
-        logging.info('3')
 
         ctc_loss = k2.ctc_loss(
             decoding_graph=decoding_graph,
@@ -754,7 +751,6 @@ def compute_loss(
             reduction="sum",
             use_double_scores=params.use_double_scores,
         )
-        logging.info('4')
         assert ctc_loss.requires_grad == is_training
         loss += params.ctc_loss_scale * ctc_loss
     
