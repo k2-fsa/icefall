@@ -1185,13 +1185,13 @@ def run(rank, world_size, args, wb=None):
 
         optimizer_enc = ScaledAdam(
             enc_param,
-            lr=param.peak_enc_lr,
+            lr=params.peak_enc_lr,
             clipping_scale=None,
             parameters_names=enc_names,
         )
         optimizer_dec = ScaledAdam(
             dec_param,
-            lr=param.peak_dec_lr,
+            lr=params.peak_dec_lr,
             clipping_scale=None,
             parameters_names=dec_names,
         )
