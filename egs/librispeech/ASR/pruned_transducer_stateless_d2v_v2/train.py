@@ -1151,7 +1151,7 @@ def run(rank, world_size, args, wb=None):
                 enc_param,
                 lr=param.peak_enc_lr,
                 clipping_scale=None,
-                parameters_names=parameters_names,
+                parameters_names=enc_names,
             )
 
         else:
