@@ -1239,8 +1239,8 @@ def run(rank, world_size, args, wb=None):
             parameters_names=[dec_names],
         )
 
-        scheduler_enc = Eden(optimizer_enc, params.lr_batches*params.accum_grads, params.lr_epochs)
-        scheduler_dec = Eden(optimizer_dec, params.lr_batches*params.accum_grads, params.lr_epochs)
+        scheduler_enc = Eden(optimizer_enc, params.lr_batches, params.lr_epochs)
+        scheduler_dec = Eden(optimizer_dec, params.lr_batches, params.lr_epochs)
         optimizer = [optimizer_enc, optimizer_dec]
         scheduler = [scheduler_enc, scheduler_dec]
 
