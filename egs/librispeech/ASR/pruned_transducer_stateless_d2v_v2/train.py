@@ -934,8 +934,8 @@ def train_one_epoch(
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
-
-        params.batch_idx_train += 1
+    
+        if batch_idx % params.accum_grads == 0: params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
         try:
