@@ -954,6 +954,8 @@ def train_one_epoch(
                 )
             loss_info.reduce(loss.device)
 
+            logging.info(loss_info)
+
             numel = params.world_size / (params.accum_grads * loss_info["utterances"])
             loss *= numel ## normalize loss over utts(batch size)
 
