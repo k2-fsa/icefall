@@ -131,7 +131,7 @@ def get_parser() -> argparse.ArgumentParser:
         help="""True to save a model after applying torch.jit.script.
         """,
     )
-    
+
     add_model_arguments(parser)
 
     return parser

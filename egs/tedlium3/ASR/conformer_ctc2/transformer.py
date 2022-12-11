@@ -17,13 +17,10 @@
 
 import copy
 import math
-
 from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
-
 from attention import MultiheadAttention
 from combiner import RandomCombine
 from label_smoothing import LabelSmoothingLoss
@@ -31,11 +28,11 @@ from scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
-    ScaledLinear,
     ScaledEmbedding,
+    ScaledLinear,
 )
 from subsampling import Conv2dSubsampling
-
+from torch.nn.utils.rnn import pad_sequence
 
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]
@@ -216,7 +213,7 @@ class Transformer(nn.Module):
             a floating point value that gradually increases from 0 throughout
             training; when it is >= 1.0 we are "fully warmed up". It is used
             to turn modules on sequentially.
-            
+
         Returns:
           Return a tuple with two tensors:
             - The encoder output, with shape (S, N, C)
@@ -229,9 +226,7 @@ class Transformer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, S, C) -> (S, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
-        x = self.encoder(
-            x, src_key_padding_mask=mask, warmup=warmup
-        )  # (S, N, C)
+        x = self.encoder(x, src_key_padding_mask=mask, warmup=warmup)  # (S, N, C)
 
         return x, mask
 
@@ -285,23 +280,17 @@ class Transformer(nn.Module):
         """
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(
-            ys_in, batch_first=True, padding_value=float(eos_id)
-        )
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(
-            ys_out, batch_first=True, padding_value=float(-1)
-        )
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device)
         ys_out_pad = ys_out_pad.to(device)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            device
-        )
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -354,7 +343,7 @@ class Transformer(nn.Module):
             a floating point value that gradually increases from 0 throughout
             training; when it is >= 1.0 we are "fully warmed up". It is used
             to turn modules on sequentially.
-            
+
         Returns:
           A 2-D tensor of shape (len(token_ids), max_token_length)
           representing the cross entropy loss (i.e., negative log-likelihood).
@@ -369,23 +358,17 @@ class Transformer(nn.Module):
 
         ys_in = add_sos(token_ids, sos_id=sos_id)
         ys_in = [torch.tensor(y) for y in ys_in]
-        ys_in_pad = pad_sequence(
-            ys_in, batch_first=True, padding_value=float(eos_id)
-        )
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
 
         ys_out = add_eos(token_ids, eos_id=eos_id)
         ys_out = [torch.tensor(y) for y in ys_out]
-        ys_out_pad = pad_sequence(
-            ys_out, batch_first=True, padding_value=float(-1)
-        )
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
 
         device = memory.device
         ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
         ys_out_pad = ys_out_pad.to(device, dtype=torch.int64)
 
-        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(
-            device
-        )
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
 
         tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
         # TODO: Use length information to create the decoder padding mask
@@ -450,21 +433,21 @@ class TransformerEncoderLayer(nn.Module):
             the dropout value (default=0.1).
           bypass_scale:
             a scale on the layer's output, used in bypass (resnet-type) skip-connection;
-            when the layer is bypassed the final output will be a 
-            weighted sum of the layer's input and layer's output with weights 
+            when the layer is bypassed the final output will be a
+            weighted sum of the layer's input and layer's output with weights
             (1.0-bypass_scale) and bypass_scale correspondingly (default=0.1).
           layer_dropout:
             the probability to bypass the layer (default=0.075).
         """
-        
+
         super().__init__()
-        
+
         if bypass_scale < 0.0 or bypass_scale > 1.0:
             raise ValueError("bypass_scale should be between 0.0 and 1.0")
-            
+
         if layer_dropout < 0.0 or layer_dropout > 1.0:
             raise ValueError("layer_dropout should be between 0.0 and 1.0")
-        
+
         self.bypass_scale = bypass_scale
         self.layer_dropout = layer_dropout
 
@@ -499,13 +482,13 @@ class TransformerEncoderLayer(nn.Module):
         Pass the input through the encoder layer.
 
         Args:
-          src: 
+          src:
             the sequence to the encoder layer of shape (S, N, C) (required).
-          src_mask: 
+          src_mask:
             the mask for the src sequence of shape (S, S) (optional).
-          src_key_padding_mask: 
+          src_key_padding_mask:
             the mask for the src keys per batch of shape (N, S) (optional)
-          warmup: 
+          warmup:
             controls selective bypass of layers; if < 1.0, we will
             bypass the layer more frequently (default=1.0).
 
@@ -565,10 +548,10 @@ class TransformerDecoderLayer(nn.Module):
         nhead: int,
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
-        bypass_scale = 0.1,
+        bypass_scale: float = 0.1,
         layer_dropout: float = 0.075,
     ) -> None:
-        
+
         """
         Args:
           d_model:
@@ -581,27 +564,27 @@ class TransformerDecoderLayer(nn.Module):
             the dropout value (default=0.1).
           bypass_scale:
             a scale on the layer's output, used in bypass (resnet-type) skip-connection;
-            when the layer is bypassed, the final output will be a 
-            weighted sum of the layer's input and layer's output with weights 
+            when the layer is bypassed, the final output will be a
+            weighted sum of the layer's input and layer's output with weights
             (1.0-bypass_scale) and bypass_scale correspondingly (default=0.1).
           layer_dropout:
             the probability to bypass the layer (default=0.075).
         """
-        
+
         super().__init__()
-        
+
         if bypass_scale < 0.0 or bypass_scale > 1.0:
             raise ValueError("bypass_scale should be between 0.0 and 1.0")
-            
+
         if layer_dropout < 0.0 or layer_dropout > 1.0:
             raise ValueError("layer_dropout should be between 0.0 and 1.0")
-        
+
         self.bypass_scale = bypass_scale
         self.layer_dropout = layer_dropout
 
         self.self_attn = MultiheadAttention(d_model, nhead)
         self.src_attn = MultiheadAttention(d_model, nhead)
-        
+
         # Implementation of Feedforward model
         self.feed_forward = nn.Sequential(
             ScaledLinear(d_model, dim_feedforward),
@@ -647,12 +630,12 @@ class TransformerDecoderLayer(nn.Module):
             the mask for the memory keys per batch of shape (N, S) (optional).
           warmup: controls selective bypass of layers; if < 1.0, we will
             bypass the layer more frequently (default=1.0).
-            
+
         Returns:
           Output tensor of the shape (T, N, C), where
-          S is the source sequence length, 
-          T is the target sequence length, 
-          N is the batch size, 
+          S is the source sequence length,
+          T is the target sequence length,
+          N is the batch size,
           C is the feature number.
 
         """
@@ -709,27 +692,27 @@ class TransformerEncoder(nn.Module):
     """
 
     def __init__(
-        self, 
-        encoder_layer: nn.Module, 
-        num_layers: int, 
+        self,
+        encoder_layer: nn.Module,
+        num_layers: int,
         aux_layers: List[int],
     ) -> None:
         """
         Args:
-          encoder_layer: 
+          encoder_layer:
             an instance of the TransformerEncoderLayer() class (required).
-          num_layers: 
+          num_layers:
             the number of sub-encoder-layers in the encoder (required).
-          aux_layers: 
+          aux_layers:
             list of indexes of sub-encoder-layers outputs to be combined (required).
         """
-        
+
         super().__init__()
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
-        
+
         assert len(set(aux_layers)) == len(aux_layers)
 
         assert num_layers - 1 not in aux_layers
@@ -752,13 +735,13 @@ class TransformerEncoder(nn.Module):
         """Pass the input through the encoder layers in turn.
 
         Args:
-          src: 
+          src:
             the input to the encoder of shape (S, N, C) (required).
-          mask: 
+          mask:
             the mask for the src sequence of shape (S, S) (optional).
-          src_key_padding_mask: 
+          src_key_padding_mask:
             the mask for the src keys per batch of shape (N, S) (optional).
-          warmup: 
+          warmup:
             controls selective bypass of layer; if < 1.0, we will
             bypass the layer more frequently (default=1.0).
 
@@ -770,7 +753,7 @@ class TransformerEncoder(nn.Module):
 
         """
         output = src
-        
+
         outputs = []
         for i, mod in enumerate(self.layers):
             output = mod(
@@ -779,7 +762,7 @@ class TransformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
-            
+
             if i in self.aux_layers:
                 outputs.append(output)
 
@@ -807,20 +790,20 @@ class TransformerDecoder(nn.Module):
     ) -> None:
         """
         Args:
-          decoder_layer: 
+          decoder_layer:
             an instance of the TransformerDecoderLayer() class (required).
-          num_layers: 
+          num_layers:
             the number of decoder layers in the decoder (required).
-          aux_layers: 
+          aux_layers:
             list of indexes of decoder layer outputs to be combined (required).
         """
-        
+
         super().__init__()
         self.layers = nn.ModuleList(
             [copy.deepcopy(decoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
-        
+
         assert len(set(aux_layers)) == len(aux_layers)
 
         assert num_layers - 1 not in aux_layers
@@ -846,32 +829,32 @@ class TransformerDecoder(nn.Module):
         """Pass the input (and mask) through the decoder layers in turn.
 
         Args:
-          tgt: 
+          tgt:
             the sequence to the decoder of shape (T, N, C) (required).
-          memory: 
+          memory:
             the sequence from the last layer of the encoder of shape (S, N, C) (required).
-          tgt_mask: 
+          tgt_mask:
             the mask for the tgt sequence of shape (T, T) (optional).
-          memory_mask: 
+          memory_mask:
             the mask for the memory sequence of shape (T, S) (optional).
-          tgt_key_padding_mask: 
+          tgt_key_padding_mask:
             the mask for the tgt keys per batch of shape (N, T)  (optional).
-          memory_key_padding_mask: 
+          memory_key_padding_mask:
             the mask for the memory keys per batch of shape (N, S) (optional).
-          warmup: 
+          warmup:
             controls selective bypass of layer; if < 1.0, we will
             bypass the layer more frequently (default=1.0).
 
         Returns:
           Output tensor of the shape (T, N, C), where
-          S is the source sequence length, 
-          T is the target sequence length, 
-          N is the batch size, 
+          S is the source sequence length,
+          T is the target sequence length,
+          N is the batch size,
           C is the feature number.
 
         """
         output = tgt
-        
+
         outputs = []
         for i, mod in enumerate(self.layers):
             output = mod(
@@ -883,7 +866,7 @@ class TransformerDecoder(nn.Module):
                 memory_key_padding_mask=memory_key_padding_mask,
                 warmup=warmup,
             )
-            
+
             if i in self.aux_layers:
                 outputs.append(output)
 
@@ -926,12 +909,12 @@ class PositionalEncoding(nn.Module):
         The shape of `self.pe` is (1, T1, d_model). The shape of the input x
         is (N, T, d_model). If T > T1, then we change the shape of self.pe
         to (N, T, d_model). Otherwise, nothing is done.
-        
+
         Args:
           x:
             It is a tensor of shape (N, T, C).
-            T is the target sequence length, 
-            N is the batch size, 
+            T is the target sequence length,
+            N is the batch size,
             C is the feature number.
         """
         if self.pe is not None:
@@ -950,7 +933,6 @@ class PositionalEncoding(nn.Module):
         # Now pe is of shape (1, T, d_model), where T is x.size(1)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Add positional encoding.
@@ -960,10 +942,10 @@ class PositionalEncoding(nn.Module):
 
         Returns:
           A tensor of the same shape (N, T, C),
-          T is the target sequence length, 
-          N is the batch size, 
+          T is the target sequence length,
+          N is the batch size,
           C is the feature number.
-          
+
         """
         self.extend_pe(x)
         x = x + self.pe[:, :x.size(1), :]
@@ -1006,9 +988,7 @@ def encoder_padding_mask(
         1,
     ).to(torch.int32)
 
-    lengths = [
-        0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)
-    ]
+    lengths = [0 for _ in range(int(supervision_segments[:, 0].max().item()) + 1)]
     for idx in range(supervision_segments.size(0)):
         # Note: TorchScript doesn't allow to unpack tensors as tuples
         sequence_idx = supervision_segments[idx, 0].item()
@@ -1029,9 +1009,7 @@ def encoder_padding_mask(
     return mask
 
 
-def decoder_padding_mask(
-    ys_pad: torch.Tensor, ignore_id: int = -1
-) -> torch.Tensor:
+def decoder_padding_mask(ys_pad: torch.Tensor, ignore_id: int = -1) -> torch.Tensor:
     """Generate a length mask for input.
 
     The masked position are filled with True,

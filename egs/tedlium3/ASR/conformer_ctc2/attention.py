@@ -17,35 +17,34 @@
 from typing import Optional, Tuple, Union
 
 import torch
-
 from scaling import ScaledLinear
 
 
 class MultiheadAttention(torch.nn.Module):
     """Allows the model to jointly attend to information
     from different representation subspaces. This is a modified
-    version of the original version of multihead attention 
+    version of the original version of multihead attention
     (see Attention Is All You Need <https://arxiv.org/abs/1706.03762>)
-    with replacement of input / output projection layers 
+    with replacement of input / output projection layers
     with newly introduced ScaleLinear layer
     (see https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless2/scaling.py).
-    
+
     Args:
-        embed_dim: 
+        embed_dim:
           total dimension of the model.
-        num_heads: 
+        num_heads:
           number of parallel attention heads. Note that embed_dim will be split
           across num_heads, i.e. each head will have dimension (embed_dim // num_heads).
-        dropout: 
+        dropout:
           dropout probability on attn_output_weights. (default=0.0).
-        bias: 
+        bias:
           if specified, adds bias to input / output projection layers (default=True).
-        add_bias_kv: 
+        add_bias_kv:
           if specified, adds bias to the key and value sequences at dim=0 (default=False).
-        add_zero_attn: 
+        add_zero_attn:
           if specified, adds a new batch of zeros to the key and value sequences
           at dim=1 (default=False).
-        batch_first: 
+        batch_first:
           if True, then the input and output tensors are provided as
           (batch, seq, feature), otherwise (seq, batch, feature) (default=False).
 
@@ -66,36 +65,36 @@ class MultiheadAttention(torch.nn.Module):
         device: Union[torch.device, str, None] = None,
         dtype: Union[torch.dtype, str, None] = None,
     ) -> None:
-        
+
         super().__init__()
-        
+
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.dropout = dropout
         self.batch_first = batch_first
-        
+
         if embed_dim % num_heads != 0:
             raise ValueError(
                 f"embed_dim must be divisible by num_heads. "
                 "Got embedding dim vs number 0f heads: "
                 f"{embed_dim} vs {num_heads}"
             )
-        
+
         self.head_dim = embed_dim // num_heads
 
         self.in_proj = ScaledLinear(
             embed_dim,
             3 * embed_dim,
-            bias=bias, 
+            bias=bias,
             device=device,
             dtype=dtype,
         )
         self.out_proj = ScaledLinear(
-            embed_dim, 
-            embed_dim, 
+            embed_dim,
+            embed_dim,
             bias=bias,
-            initial_scale=0.25, 
-            device=device, 
+            initial_scale=0.25,
+            device=device,
             dtype=dtype,
         )
 
@@ -107,8 +106,8 @@ class MultiheadAttention(torch.nn.Module):
                 torch.empty((1, 1, embed_dim), device=device, dtype=dtype)
             )
         else:
-            self.register_parameter('bias_k', None)
-            self.register_parameter('bias_v', None)
+            self.register_parameter("bias_k", None)
+            self.register_parameter("bias_v", None)
 
         self.add_zero_attn = add_zero_attn
 
@@ -131,12 +130,12 @@ class MultiheadAttention(torch.nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Args:
-            query: 
+            query:
               Query embeddings of shape (L, N, E_q) when batch_first=False or (N, L, E_q)
               when batch_first=True, where L is the target sequence length, N is the batch size,
               and E_q is the query embedding dimension embed_dim. Queries are compared against
               key-value pairs to produce the output. See "Attention Is All You Need" for more details.
-            key: 
+            key:
               Key embeddings of shape (S, N, E_k) when batch_first=False or (N, S, E_k) when
               batch_first=True, where S is the source sequence length, N is the batch size, and
               E_k is the key embedding dimension kdim. See "Attention Is All You Need" for more details.
@@ -144,21 +143,21 @@ class MultiheadAttention(torch.nn.Module):
               Value embeddings of shape (S, N, E_v) when batch_first=False or (N, S, E_v) when
               batch_first=True, where S is the source sequence length, N is the batch size, and
               E_v is the value embedding dimension vdim. See "Attention Is All You Need" for more details.
-            key_padding_mask: 
+            key_padding_mask:
               If specified, a mask of shape (N, S) indicating which elements within key
-              to ignore for the purpose of attention (i.e. treat as "padding"). 
+              to ignore for the purpose of attention (i.e. treat as "padding").
               Binary and byte masks are supported. For a binary mask, a True value indicates
               that the corresponding key value will be ignored for the purpose of attention.
               For a byte mask, a non-zero value indicates that the corresponding key value will be ignored.
-            need_weights: 
+            need_weights:
               If specifid, returns attn_output_weights in addition to attn_outputs (default=True).
-            attn_mask: 
+            attn_mask:
               If specified, a 2D or 3D mask preventing attention to certain positions. Must be of shape
               (L, S) or (N * num_heads, L, S), where N is the batch size, L is the target sequence length,
               and S is the source sequence length. A 2D mask will be broadcasted across the batch while
               a 3D mask allows for a different mask for each entry in the batch.
-              Binary, byte, and float masks are supported. For a binary mask, a True value indicates 
-              that the corresponding position is not allowed to attend. For a byte mask, a non-zero 
+              Binary, byte, and float masks are supported. For a binary mask, a True value indicates
+              that the corresponding position is not allowed to attend. For a byte mask, a non-zero
               value indicates that the corresponding position is not allowed to attend. For a float mask,
               the mask values will be added to the attention weight.
 
@@ -196,7 +195,7 @@ class MultiheadAttention(torch.nn.Module):
             need_weights=need_weights,
             attn_mask=attn_mask,
         )
-        
+
         if self.batch_first:
             return attn_output.transpose(1, 0), attn_output_weights
         return attn_output, attn_output_weights
