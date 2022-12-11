@@ -148,7 +148,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducder_stateless7_ctc/exp",
+        default="zipformer_mmi/exp",
         help="The experiment dir",
     )
 
@@ -274,7 +274,7 @@ def decode_one_batch(
       HP:
         The decoding graph. H is ctc_topo, P is token-level bi-gram LM.
       bpe_model:
-        The BPE model. Used only when params.decoding_method is ctc-decoding.
+        The BPE model.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -292,7 +292,7 @@ def decode_one_batch(
     """
     device = HP.device
     feature = batch["inputs"]
-    assert feature.ndim == 3
+    assert feature.ndim == 3, feature.shape
     feature = feature.to(device)
 
     # at entry, feature is (N, T, C)
@@ -408,7 +408,7 @@ def decode_dataset(
       HP:
         The decoding graph. H is ctc_topo, P is token-level bi-gram LM.
       bpe_model:
-        The BPE model. Used only when params.decoding_method is ctc-decoding.
+        The BPE model.
       LG:
         An LM. L is the lexicon, G is a word-level 3-gram LM.
         It is used when params.decoding_method is "nbest-rescoring-LG".
@@ -525,7 +525,7 @@ def main():
         "nbest-rescoring-LG",  # word-level 3-gram lm
         "nbest-rescoring-3-gram",  # token-level 3-gram lm
         "nbest-rescoring-4-gram",  # token-level 4-gram lm
-    )
+    ), params.decoding_method
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
@@ -581,11 +581,11 @@ def main():
 
     elif params.decoding_method in ["nbest-rescoring-3-gram", "nbest-rescoring-4-gram"]:
         order = params.decoding_method[-6]
-        assert order in ("3", "4")
+        assert order in ("3", "4"), (params.decoding_method, order)
         order = int(order)
         if not (params.lang_dir / f"{order}gram.pt").is_file():
             logging.info(f"Loading {order}gram.fst.txt")
-            logging.warning("It may take few minutes.")
+            logging.warning("It may take a few minutes.")
             with open(params.lang_dir / f"{order}gram.fst.txt") as f:
                 first_token_disambig_id = lexicon.token_table["#0"]
 

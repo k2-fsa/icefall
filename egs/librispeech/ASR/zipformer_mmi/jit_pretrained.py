@@ -264,7 +264,7 @@ def main():
 
     logging.info(f"Reading sound files: {args.sound_files}")
     waves = read_sound_files(
-        filenames=args.sound_files,
+        filenames=params.sound_files, expected_sample_rate=params.sample_rate
     )
     waves = [w.to(device) for w in waves]
 
