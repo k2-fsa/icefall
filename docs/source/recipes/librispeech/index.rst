@@ -7,3 +7,4 @@ LibriSpeech
    tdnn_lstm_ctc
    conformer_ctc
    lstm_pruned_stateless_transducer
+   zipformer_mmi

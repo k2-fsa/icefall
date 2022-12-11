@@ -112,8 +112,12 @@ def _compute_mmi_loss_exact_non_optimized(
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=True)
 
     # TODO: pass output_beam as function argument
-    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=beam_size)
-    den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, output_beam=beam_size)
+    num_lats = k2.intersect_dense(
+        num_graphs, dense_fsa_vec, output_beam=beam_size, max_arcs=2147483600
+    )
+    den_lats = k2.intersect_dense(
+        den_graphs, dense_fsa_vec, output_beam=beam_size, max_arcs=2147483600
+    )
 
     num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
@@ -144,7 +148,7 @@ def _compute_mmi_loss_pruned(
     """
     num_graphs, den_graphs = graph_compiler.compile(texts, replicate_den=False)
 
-    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=10.0)
+    num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, output_beam=8.0)
 
     # the values for search_beam/output_beam/min_active_states/max_active_states
     # are not tuned. You may want to tune them.
