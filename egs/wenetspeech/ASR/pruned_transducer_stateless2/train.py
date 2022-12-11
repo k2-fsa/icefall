@@ -882,7 +882,7 @@ def run(rank, world_size, args):
         # In ./conformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 1) // 2 - 1) // 2
-        tokens = c.supervisions[0].text.replace(“ ”,””)
+        tokens = c.supervisions[0].text.replace(" ", "")
 
         if T < len(tokens):
             logging.warning(
