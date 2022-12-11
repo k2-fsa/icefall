@@ -1,5 +1,7 @@
 This recipe implements Zipformer-MMI model.
 
+See https://k2-fsa.github.io/icefall/recipes/librispeech/zipformer_mmi.html for detailed tutorials.
+
 It uses **CTC loss for warm-up** and then switches to MMI loss during training.
 
 For decoding, it uses HP (H is ctc_topo, P is token-level bi-gram) as decoding graph. Supported decoding methods are:
