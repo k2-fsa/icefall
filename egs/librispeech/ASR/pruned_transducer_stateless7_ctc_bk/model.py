@@ -109,15 +109,15 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
-          warmup: a floating point value which increases throughout training;
-            values >= 1.0 are fully warmed up and have all modules present.
+          warmup:
+            A floating point value which decides whether to do blank skip.
         Returns:
           Return a tuple containing simple loss, pruned loss, and ctc-output.
         Note:
-           Regarding am_scale & lm_scale, it will make the loss-function one of
-           the form:
-              lm_scale * lm_probs + am_scale * am_probs +
-              (1-lm_scale-am_scale) * combined_probs
+          Regarding am_scale & lm_scale, it will make the loss-function one of
+          the form:
+            lm_scale * lm_probs + am_scale * am_probs +
+            (1-lm_scale-am_scale) * combined_probs
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape

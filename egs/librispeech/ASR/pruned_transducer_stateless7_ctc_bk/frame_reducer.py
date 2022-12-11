@@ -23,7 +23,7 @@ class FrameReducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
-        blank_id: int,
+        blank_id: int = 0,
     ) -> torch.Tensor:
 
         padding_mask = make_pad_mask(x_lens)

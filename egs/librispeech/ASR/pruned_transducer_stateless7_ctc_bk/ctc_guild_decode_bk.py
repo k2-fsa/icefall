@@ -106,6 +106,8 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from lconv import LConv
+from frame_reducer import FrameReducer
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -401,18 +403,13 @@ def decode_one_batch(
 
     # filter out blank frames using ctc outputs
     ctc_output = model.ctc_output(encoder_out)
-    padding_mask = make_pad_mask(encoder_out_lens)
-    non_blank_mask = (ctc_output[:, :, 0] < math.log(0.9)) * (~padding_mask)
-    T_range = torch.arange(encoder_out.shape[1], device=device)
-
-    frames_list, lens_list = [], []
-    for i in range(encoder_out.shape[0]):
-        indexes = torch.masked_select(T_range, non_blank_mask[i])
-        frames = encoder_out[i][indexes]
-        frames_list.append(frames)
-        lens_list.append(frames.shape[0])
-    encoder_out = pad_sequence(frames_list).transpose(0, 1)
-    encoder_out_lens = torch.tensor(lens_list).to(device=device)
+    encoder_out = model.lconv(encoder_out)
+    encoder_out, encoder_out_lens = model.frame_reducer(
+        x=encoder_out,
+        x_lens=encoder_out_lens,
+        ctc_output=ctc_output,
+        blank_id=0,
+    )
 
     hyps = []
 
