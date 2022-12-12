@@ -14,7 +14,7 @@ if [ $workstation = "whale" ]; then
 		--start-epoch 1 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
-		--max-duration 200 \
+		--max-duration 250 \
 		--freeze-finetune-updates 2000 \
 		--use-fp16 1 \
 		--peak-enc-lr 0.03 \
