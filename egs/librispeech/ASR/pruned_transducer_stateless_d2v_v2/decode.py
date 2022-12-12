@@ -375,7 +375,16 @@ def decode_one_batch(
     # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)
+    #feature_lens = supervisions["num_frames"].to(device)
+    if feature.ndim == 2:
+        feature_lens = [] 
+        for supervision in supervisions['cut']:
+            try: feature_lens.append(supervision.tracks[0].cut.recording.num_samples)
+            except: feature_lens.append(supervision.recording.num_samples)
+        feature_lens = torch.tensor(feature_lens)
+
+    elif feature.ndim == 3:
+        feature_lens = supervisions["num_frames"].to(device)
 
     if params.simulate_streaming:
         feature_lens += params.left_context
