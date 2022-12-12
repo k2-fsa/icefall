@@ -1775,11 +1775,11 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
             ),
-            ScaleGrad(0.1),
+            ScaleGrad(0.2),
             ActivationBalancer(layer1_channels,
                                channel_dim=1,
-                               max_abs=0.5),
-            DoubleSwish(),
+                               max_abs=1.0),
+            SwooshR(),
             nn.Conv2d(
                 in_channels=layer1_channels,
                 out_channels=layer2_channels,
@@ -1789,8 +1789,8 @@ class Conv2dSubsampling(nn.Module):
             ),
             ActivationBalancer(layer2_channels,
                                channel_dim=1,
-                               max_abs=2.0),
-            DoubleSwish(),
+                               max_abs=4.0),
+            SwooshR(),
             nn.Conv2d(
                 in_channels=layer2_channels,
                 out_channels=layer3_channels,
@@ -1799,8 +1799,8 @@ class Conv2dSubsampling(nn.Module):
             ),
             ActivationBalancer(layer3_channels,
                                channel_dim=1,
-                               max_abs=2.0),
-            DoubleSwish(),
+                               max_abs=4.0),
+            SwooshR(),
         )
         out_height = (((in_channels - 1) // 2) - 1) // 2
 
