@@ -1445,6 +1445,7 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         x = x * scales
         x = self.activation(x)  # Identity only.  For diagnostics.
         x = self.out_proj(x)
+        x = self.out_balancer(x)
         return x
 
 
