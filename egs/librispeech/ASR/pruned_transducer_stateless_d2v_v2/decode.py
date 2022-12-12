@@ -369,7 +369,7 @@ def decode_one_batch(
     """
     device = next(model.parameters()).device
     feature = batch["inputs"]
-    assert feature.ndim == 3
+    assert feature.ndim == 2 or feature.ndim == 3
 
     feature = feature.to(device)
     # at entry, feature is (N, T, C)
