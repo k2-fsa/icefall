@@ -70,8 +70,8 @@ class FairSeqData2VecEncoder(EncoderInterface):
 
         if os.path.exists('/home/work/workspace/models/data2vec_model/audio_base_ls.pt'):
             self.w2v_model_path = '/home/work/workspace/models/data2vec_model/audio_base_ls.pt'
-        if os.path.exists('./models/audio_base_ls.pt'):
-            self.w2v_model_path = './models/audio_base_ls.pt'
+        if os.path.exists('/workspace/models/audio_base_ls.pt'):
+            self.w2v_model_path = '/workspace/models/audio_base_ls.pt'
 
         self._output_size = output_size
 
