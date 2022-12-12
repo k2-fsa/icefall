@@ -24,7 +24,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	--encoder-dim 768 \
 	--decoder-dim 768 \
 	--joiner-dim 768 \
-	--prune-range 20 \
+	--prune-range 10 \
 	--context-size 2 \
 	--ctc-loss-scale 0.2 
 
