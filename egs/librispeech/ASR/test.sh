@@ -7,7 +7,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--additional-block True \
 	--epoch 2 \
     --avg 1 \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/100h_sweep361 \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/d2v_960h286 \
     --max-duration 800 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
