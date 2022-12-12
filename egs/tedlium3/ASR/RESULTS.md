@@ -18,10 +18,10 @@ The WERs are
 
 |                          | dev        | test        | comment             |
 |--------------------------|------------|-------------|---------------------|
-| ctc decoding             | 2.48       | 5.82        | --epoch 38 --avg 26 |
-| 1best                    | 2.43       | 5.22        | --epoch 38 --avg 26 |
-| whole lattice rescoring  | 2.34       | 5.04        | --epoch 38 --avg 26 |
-| attention decoder        | 2.23       | 5.19        | --epoch 38 --avg 26 |
+| ctc decoding             | 6.45       | 5.96        | --epoch 38 --avg 26 |
+| 1best                    | 5.92       | 5.51        | --epoch 38 --avg 26 |
+| whole lattice rescoring  | 5.96       | 5.47        | --epoch 38 --avg 26 |
+| attention decoder        | 5.60       | 5.33        | --epoch 38 --avg 26 |
 
 The training command for reproducing is given below:
 
