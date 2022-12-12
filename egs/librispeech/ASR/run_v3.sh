@@ -22,8 +22,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	--encoder-type d2v \
 	--additional-block True \
 	--encoder-dim 768 \
-	--decoder-dim 512 \
-	--joiner-dim 512 \
+	--decoder-dim 768 \
+	--joiner-dim 768 \
 	--prune-range 20 \
 	--context-size 2 \
 	--ctc-loss-scale 0.2 
