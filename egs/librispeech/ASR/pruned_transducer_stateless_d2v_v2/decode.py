@@ -324,6 +324,7 @@ def get_parser():
     )
 
     add_model_arguments(parser)
+    add_rep_arguments(parser)
 
     return parser
 
