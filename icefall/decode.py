@@ -717,6 +717,107 @@ def rescore_with_n_best_list(
     return ans
 
 
+def nbest_rescore_with_LM(
+    lattice: k2.Fsa,
+    LM: k2.Fsa,
+    num_paths: int,
+    lm_scale_list: List[float],
+    nbest_scale: float = 1.0,
+    use_double_scores: bool = True,
+) -> Dict[str, k2.Fsa]:
+    """Rescore an n-best list with an n-gram LM.
+    The path with the maximum score is used as the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc]. It must have the following
+        attributes: ``aux_labels`` and ``lm_scores``. They are both token
+        IDs.
+      LM:
+        An FsaVec containing only a single FSA. It is one of follows:
+        - LG, L is lexicon and G is word-level n-gram LM.
+        - G, token-level n-gram LM.
+      num_paths:
+        Size of nbest list.
+      lm_scale_list:
+        A list of floats representing LM score scales.
+      nbest_scale:
+        Scale to be applied to ``lattice.score`` when sampling paths
+        using ``k2.random_paths``.
+      use_double_scores:
+        True to use double precision during computation. False to use
+        single precision.
+    Returns:
+      A dict of FsaVec, whose key is an lm_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
+    device = lattice.device
+
+    assert len(lattice.shape) == 3
+    assert hasattr(lattice, "aux_labels")
+    assert hasattr(lattice, "lm_scores")
+
+    assert LM.shape == (1, None, None)
+    assert LM.device == device
+
+    nbest = Nbest.from_lattice(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        nbest_scale=nbest_scale,
+    )
+    # nbest.fsa.scores contains 0s
+
+    nbest = nbest.intersect(lattice)
+
+    # Now nbest.fsa has its scores set
+    assert hasattr(nbest.fsa, "lm_scores")
+
+    # am scores + bi-gram scores
+    hp_scores = nbest.tot_scores()
+
+    # Now start to intersect nbest with LG or G
+    inv_fsa = k2.invert(nbest.fsa)
+    if hasattr(LM, "aux_labels"):
+        # LM is LG here
+        # delete token IDs as it is not needed
+        del inv_fsa.aux_labels
+    inv_fsa.scores.zero_()
+    inv_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(inv_fsa)
+    path_to_utt_map = nbest.shape.row_ids(1)
+
+    LM = k2.arc_sort(LM)
+    path_lattice = k2.intersect_device(
+        LM,
+        inv_fsa_with_epsilon_loops,
+        b_to_a_map=torch.zeros_like(path_to_utt_map),
+        sorted_match_a=True,
+    )
+
+    # Its labels are token IDs.
+    # If LM is G, its aux_labels are tokens IDs;
+    # If LM is LG, its aux_labels are words IDs.
+    path_lattice = k2.top_sort(k2.connect(path_lattice))
+    one_best = k2.shortest_path(path_lattice, use_double_scores=use_double_scores)
+
+    lm_scores = one_best.get_tot_scores(
+        use_double_scores=use_double_scores,
+        log_semiring=True,  # Note: we always use True
+    )
+    # If LM is LG, we might get empty paths
+    lm_scores[lm_scores == float("-inf")] = -1e9
+
+    ans = dict()
+    for lm_scale in lm_scale_list:
+        tot_scores = hp_scores.values / lm_scale + lm_scores
+        tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+        max_indexes = tot_scores.argmax()
+        best_path = k2.index_fsa(nbest.fsa, max_indexes)
+        key = f"lm_scale_{lm_scale}"
+        ans[key] = best_path
+    return ans
+
+
 def rescore_with_whole_lattice(
     lattice: k2.Fsa,
     G_with_epsilon_loops: k2.Fsa,

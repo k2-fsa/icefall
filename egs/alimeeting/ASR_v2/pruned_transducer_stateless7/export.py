@@ -24,8 +24,8 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.script()
 
-./pruned_transducer_stateless7_ctc/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+./pruned_transducer_stateless7/export.py \
+  --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9 \
@@ -43,8 +43,8 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
-./pruned_transducer_stateless7_ctc/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+./pruned_transducer_stateless7/export.py \
+  --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
@@ -52,15 +52,15 @@ for how to use the exported models outside of icefall.
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless7_ctc/decode.py`,
+To use the generated file with `pruned_transducer_stateless7/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless7_ctc/decode.py \
-        --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    ./pruned_transducer_stateless7/decode.py \
+        --exp-dir ./pruned_transducer_stateless7/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -72,14 +72,14 @@ Check ./pretrained.py for its usage.
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
-https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01
-    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01/exp
+    git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp
 """
 
 import argparse
@@ -88,6 +88,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -97,6 +98,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
 
@@ -108,7 +110,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
+        default=15,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
@@ -127,7 +129,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=9,
+        default=8,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -154,10 +156,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -197,12 +199,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    lexicon = Lexicon(params.lang_dir)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
