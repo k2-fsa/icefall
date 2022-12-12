@@ -101,9 +101,9 @@ class LabelSmoothingLoss(torch.nn.Module):
         )
 
         loss = -1 * (torch.log_softmax(x, dim=1) * true_dist)
-        if self.reduction == "none":
-            return loss
         if self.reduction == "sum":
             return loss.sum()
-        else:
+        elif self.reduction == "mean":
             return loss.sum() / (~ignored).sum()
+        else:
+            return loss.sum(dim=-1)
