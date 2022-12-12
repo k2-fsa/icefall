@@ -18,7 +18,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	--use-fp16 1 \
 	--peak-enc-lr 0.001 \
 	--peak-dec-lr 0.05 \
-	--accum-grads 1 \
+	--accum-grads 3 \
 	--encoder-type d2v \
 	--additional-block True \
 	--encoder-dim 768 \
