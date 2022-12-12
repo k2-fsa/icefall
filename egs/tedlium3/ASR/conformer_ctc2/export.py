@@ -68,7 +68,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
+        default=30,
         help="""It specifies the checkpoint to use for averaging.
         Note: Epoch counts from 0.
         You can specify --avg to use more checkpoints for model averaging.""",
@@ -195,9 +195,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[:params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
@@ -223,9 +223,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[:params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"

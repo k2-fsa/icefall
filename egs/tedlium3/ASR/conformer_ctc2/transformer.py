@@ -948,7 +948,7 @@ class PositionalEncoding(nn.Module):
 
         """
         self.extend_pe(x)
-        x = x + self.pe[:, :x.size(1), :]
+        x = x + self.pe[:, : x.size(1), :]
         return self.dropout(x)
 
 
