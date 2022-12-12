@@ -1082,7 +1082,7 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
 
-        if batch_idx % params.log_interval == 0:
+        if batch_idx % (params.log_interval*params.accum_grads) == 0:
             if params.multi_optim:
                 cur_enc_lr = scheduler_enc.get_last_lr()[0]
                 cur_dec_lr = scheduler_dec.get_last_lr()[0]
