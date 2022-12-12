@@ -12,7 +12,7 @@ The tensorboard log can be found at
 You can find a pretrained model and decoding results at:
 <https://huggingface.co/videodanchik/icefall-asr-tedlium3-conformer-ctc2>
 
-Number of model parameters: 70561891, i.e., 70.56 M
+Number of model parameters: 101141699, i.e., 101.14 M
 
 The WERs are
 
