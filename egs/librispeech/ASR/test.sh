@@ -5,8 +5,8 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--epoch 8 \
-    --avg 1 \
+	--epoch 18 \
+    --avg 3 \
 	--exp-dir ./pruned_transducer_stateless_d2v/exp \
     --max-duration 800 \
     --decoding-method $method \
@@ -15,5 +15,5 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --encoder-dim 768 \
     --decoder-dim 768 \
     --joiner-dim 768 \
-    --use-averaged-model False
+    --use-averaged-model True
 done
