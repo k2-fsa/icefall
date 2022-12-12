@@ -112,7 +112,7 @@ def uniq_lexicon_test():
     # But there is no word "ca" in the lexicon, so our
     # implementation returns the id of "<UNK>"
     print(token_ids, expected_token_ids)
-    assert token_ids.tolist() == [[sp.piece_to_id("▁"), sp.sp.unk_id()]]
+    assert token_ids.tolist() == [[sp.piece_to_id("▁"), sp.unk_id()]]
 
     # case 3: With OOV
     texts = ["foo"]
