@@ -1311,7 +1311,11 @@ def run(rank, world_size, args, wb=None):
         and ("scheduler" in checkpoints or "scheduler_enc" in checkpoints)
         and checkpoints["scheduler"] is not None
     ):
-        if params.multi_optim and "scheduler_enc" in checkpoints:
+        if (
+            params.multi_optim 
+            and "scheduler_enc" in checkpoints
+            and checkpoin["scheduler_enc"] is not None
+        ):
             scheduler_enc.load_state_dict(checkpoints["scheduler_enc"])
             scheduler_dec.load_state_dict(checkpoints["scheduler_dec"])        
         else:
