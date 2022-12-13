@@ -20,7 +20,7 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./pruned_transducer_stateless4/test_model.py
+    python ./pruned_transducer_stateless7/test_model.py
 """
 
 import torch
