@@ -20,8 +20,10 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from attention import RelPositionMultiheadAttention
-from scaling import (
+from torch import Tensor, nn
+
+from icefall.transformer_lm.attention import RelPositionMultiheadAttention
+from icefall.transformer_lm.scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
@@ -29,8 +31,6 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import Tensor, nn
-
 from icefall.utils import is_jit_tracing, make_pad_mask
 
 
@@ -84,7 +84,7 @@ class Transformer(torch.nn.Module):
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
-    ) -> Tuple(torch.Tensor, torch.Tensor):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Transformer forward
 
         Args:

@@ -19,9 +19,8 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from encoder import Transformer
-from mask import subsequent_mask
 
+from icefall.transformer_lm.encoder import Transformer
 from icefall.utils import AttributeDict, add_eos, add_sos, make_pad_mask
 
 
@@ -32,8 +31,8 @@ class TransformerLM(torch.nn.Module):
         embedding_dim: int,
         d_model: int,
         dim_feedforward: int,
-        nhead: int,
-        num_layers: int,
+        nhead: int = 8,
+        num_layers: int = 16,
         tie_weights: bool = True,
         dropout: float = 0.1,
         emb_dropout_rate: float = 0.0,
@@ -68,13 +67,22 @@ class TransformerLM(torch.nn.Module):
         else:
             logging.info("Not tying weights")
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, x_lens: torch.Tensor):
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        x_lens: torch.Tensor,
+        return_logits: bool = False,
+    ):
 
         x = self.input_embedding(x)
 
         x, x_lens = self.encoder(x, x_lens)
 
         logits = self.output_linear(x)
+
+        if return_logits:
+            return logits
 
         nll_loss = F.cross_entropy(
             logits.reshape(-1, self.vocab_size), y.reshape(-1), reduction="none"
@@ -84,3 +92,15 @@ class TransformerLM(torch.nn.Module):
         nll_loss.masked_fill_(mask, 0)
 
         return nll_loss
+
+    def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
+
+        bs = x.size(0)
+
+        state = None
+        logits = self.forward(x, x, x_lens, return_logits=True)
+        index = torch.arange(bs)
+
+        last_logits = logits[index, x_lens - 1, :]
+
+        return last_logits, state
