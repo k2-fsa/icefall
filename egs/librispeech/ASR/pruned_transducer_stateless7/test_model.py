@@ -23,16 +23,18 @@ To run this file, do:
     python ./pruned_transducer_stateless4/test_model.py
 """
 
+import torch
+
+from scaling_converter import convert_scaled_to_non_scaled
 from train import get_params, get_transducer_model
 
 
-def test_model_1():
+def test_model():
     params = get_params()
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
     params.num_encoder_layers = "2,4,3,2,4"
-    #  params.feedforward_dims = "1024,1024,1536,1536,1024"
     params.feedforward_dims = "1024,1024,2048,2048,1024"
     params.nhead = "8,8,8,8,8"
     params.encoder_dims = "384,384,384,384,384"
@@ -47,9 +49,19 @@ def test_model_1():
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
 
+    # Test jit script
+    convert_scaled_to_non_scaled(model, inplace=True)
+    # We won't use the forward() method of the model in C++, so just ignore
+    # it here.
+    # Otherwise, one of its arguments is a ragged tensor and is not
+    # torch scriptabe.
+    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+    print("Using torch.jit.script")
+    model = torch.jit.script(model)
+
 
 def main():
-    test_model_1()
+    test_model()
 
 
 if __name__ == "__main__":
