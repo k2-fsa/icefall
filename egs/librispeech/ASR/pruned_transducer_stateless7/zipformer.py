@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c)  2021  University of Chinese Academy of Sciences (author: Han Zhu)
+# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -81,7 +81,6 @@ class Zipformer(EncoderInterface):
         super(Zipformer, self).__init__()
 
         self.num_features = num_features
-        self.encoder_unmasked_dims = encoder_unmasked_dims
         assert 0 < encoder_dims[0] <= encoder_dims[1]
         self.encoder_dims = encoder_dims
         self.encoder_unmasked_dims = encoder_unmasked_dims
@@ -455,7 +454,7 @@ class ZipformerEncoderLayer(nn.Module):
         # pooling module
         if torch.jit.is_scripting():
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
-        elif random.random() > dynamic_dropout:
+        elif random.random() >= dynamic_dropout:
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
 
         if torch.jit.is_scripting():
@@ -479,7 +478,7 @@ class ZipformerEncoderLayer(nn.Module):
                 src, src_key_padding_mask=src_key_padding_mask
             )
         else:
-            use_self_attn = random.random() > dynamic_dropout
+            use_self_attn = random.random() >= dynamic_dropout
             if use_self_attn:
                 src_att, attn_weights = self.self_attn(
                     src,
@@ -489,7 +488,7 @@ class ZipformerEncoderLayer(nn.Module):
                 )
                 src = src + src_att
 
-            if random.random() > dynamic_dropout:
+            if random.random() >= dynamic_dropout:
                 src = src + self.conv_module1(
                     src, src_key_padding_mask=src_key_padding_mask
                 )
@@ -498,7 +497,7 @@ class ZipformerEncoderLayer(nn.Module):
             if use_self_attn:
                 src = src + self.self_attn.forward2(src, attn_weights)
 
-            if random.random() > dynamic_dropout:
+            if random.random() >= dynamic_dropout:
                 src = src + self.conv_module2(
                     src, src_key_padding_mask=src_key_padding_mask
                 )
@@ -1289,12 +1288,6 @@ class RelPositionMultiheadAttention(nn.Module):
         attn_output_weights = attn_output_weights.view(
             bsz * num_heads, seq_len, seq_len
         )
-
-        assert list(attn_output_weights.size()) == [
-            bsz * num_heads,
-            seq_len,
-            seq_len,
-        ]
 
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
