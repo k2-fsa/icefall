@@ -446,7 +446,7 @@ class ZipformerEncoderLayer(nn.Module):
                                              cnn_module_kernel)
 
 
-        self.attention_squeeze = AttentionSqueeze(embed_dim, 256)
+        self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
         self.norm_final = BasicNorm(embed_dim)
 
