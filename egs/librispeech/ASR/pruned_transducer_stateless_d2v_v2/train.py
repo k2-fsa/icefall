@@ -1310,7 +1310,7 @@ def run(rank, world_size, args, wb=None):
         if (
             params.multi_optim 
             and "scheduler_enc" in checkpoints
-            and checkpoint["scheduler_enc"] is not None
+            and checkpoints["scheduler_enc"] is not None
         ):
             logging.info("Loading enc/dec scheduler state dict")
             scheduler_enc.load_state_dict(checkpoints["scheduler_enc"])
