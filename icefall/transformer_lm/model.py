@@ -112,4 +112,4 @@ class TransformerLM(torch.nn.Module):
 
         last_logits = logits[index, x_lens - 1, :]
 
-        return last_logits, state
+        return last_logits.log_softmax(-1), state
