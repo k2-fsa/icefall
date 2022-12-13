@@ -1312,6 +1312,7 @@ def run(rank, world_size, args, wb=None):
             and "scheduler_enc" in checkpoints
             and checkpoin["scheduler_enc"] is not None
         ):
+            logging.info("Loading enc/dec scheduler state dict")
             scheduler_enc.load_state_dict(checkpoints["scheduler_enc"])
             scheduler_dec.load_state_dict(checkpoints["scheduler_dec"])        
         else:
