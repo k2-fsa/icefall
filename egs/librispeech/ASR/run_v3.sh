@@ -46,7 +46,7 @@ else
 		--joiner-dim 768 \
 		--use-fp16 1 \
 		--peak-enc-lr 0.001 \
-		--peak-dec-lr 0.5 \
+		--peak-dec-lr 0.03 \
 		--accum-grads 3 \
 		--encoder-type d2v \
 		--additional-block True \
