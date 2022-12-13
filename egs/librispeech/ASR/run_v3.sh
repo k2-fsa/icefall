@@ -41,7 +41,8 @@ else
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
-		--freeze-finetune-updates 2000 #		--use-fp16 1 \
+		--freeze-finetune-updates 2000 \
+		--use-fp16 1 \
 		--peak-enc-lr 0.001 \
 		--peak-dec-lr 0.5 \
 		--accum-grads 3 \
