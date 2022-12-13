@@ -17,8 +17,8 @@ if [ $workstation = "whale" ]; then
 		--max-duration 250 \
 		--freeze-finetune-updates 2000 \
 		--use-fp16 1 \
-		--peak-enc-lr 0.003 \
-		--peak-dec-lr 0.03 \
+		--peak-enc-lr 0.03 \
+		--peak-dec-lr 0.1 \
 		--accum-grads 1 \
 		--encoder-type d2v \
 		--additional-block True \
