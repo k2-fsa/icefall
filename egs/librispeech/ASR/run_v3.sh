@@ -45,7 +45,7 @@ else
 		--use-fp16 1 \
 		--peak-enc-lr 0.03 \
 		--peak-dec-lr 0.1 \
-		--accum-grads 5 \
+		--accum-grads 3 \
 		--encoder-type d2v \
 		--additional-block True \
 		--encoder-dim 768 \
