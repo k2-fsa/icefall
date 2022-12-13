@@ -74,6 +74,15 @@ class TransformerLM(torch.nn.Module):
         x_lens: torch.Tensor,
         return_logits: bool = False,
     ):
+        """Forward transformer language model
+
+        Args:
+            x (torch.Tensor): Input tokens (B,L)
+            y (torch.Tensor): Output tokens (with EOS appended) (B,L)
+            x_lens (torch.Tensor): Length of input tokens before padding (B,)
+            return_logits (bool, optional): Return logits instead of NLL
+
+        """
 
         x = self.input_embedding(x)
 
