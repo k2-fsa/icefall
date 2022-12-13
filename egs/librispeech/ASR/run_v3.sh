@@ -37,7 +37,7 @@ else
 		--multi-optim True \
 		--world-size 4 \
 		--num-epochs 30 \
-		--start-epoch 1 \
+		--start-epoch 6 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
