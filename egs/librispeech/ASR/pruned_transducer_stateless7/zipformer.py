@@ -1634,7 +1634,7 @@ class ConvolutionModule(nn.Module):
         # the correct range.
         self.balancer1 = ActivationBalancer(
             bottleneck_dim, channel_dim=-1,
-            min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
+            min_positive=ScheduledFloat((0.0, 0.05), (8000.0, 0.025)),
             max_positive=1.0,
             min_abs=1.5,
             max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
