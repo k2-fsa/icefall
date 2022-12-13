@@ -36,7 +36,6 @@ else
 		--enable-spec-aug False \
 		--multi-optim True \
 		--world-size 4 \
-		--start-batch 34000 \
 		--num-epochs 30 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
@@ -55,5 +54,3 @@ else
 		--context-size 2 \
 		--ctc-loss-scale 0.2 
 fi
-
-#--start-epoch 6 \
