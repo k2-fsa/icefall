@@ -1306,11 +1306,7 @@ def run(rank, world_size, args, wb=None):
             logging.info("Loading optimizer state dict")
             optimizer.load_state_dict(checkpoints["optimizer"])
 
-    if (
-        checkpoints
-        and ("scheduler" in checkpoints or "scheduler_enc" in checkpoints)
-        and checkpoints["scheduler"] is not None
-    ):
+    if checkpoints:
         if (
             params.multi_optim 
             and "scheduler_enc" in checkpoints
