@@ -1009,9 +1009,10 @@ def train_one_epoch(
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
-            if scaler._scale.item() < 1.0e-05:
-                continue
-            scaler.scale(loss).backward()
+            if scaler._scale.item() >= 1.0e-05:
+                scaler.scale(loss).backward()
+            else:
+                logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if params.multi_optim and batch_idx % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
                 scheduler_enc.step_batch(params.batch_idx_train)
