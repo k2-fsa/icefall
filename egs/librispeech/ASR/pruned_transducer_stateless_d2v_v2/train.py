@@ -1013,6 +1013,7 @@ def train_one_epoch(
                 scaler.scale(loss).backward()
             else:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
+
             if params.multi_optim and batch_idx % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
                 scheduler_enc.step_batch(params.batch_idx_train)
