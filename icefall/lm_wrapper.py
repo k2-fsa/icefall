@@ -1,4 +1,4 @@
-# Copyright (c)  2021  Xiaomi Corporation (authors: Xiaoyu Yang)
+# Copyright (c)  2022  Xiaomi Corporation (authors: Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -34,12 +34,12 @@ class LmScorer(torch.nn.Module):
 
     def __init__(
         self,
+        lm_type: str,
         params: AttributeDict,
         device,
         lm_scale: float = 0.3,
     ):
         super(LmScorer, self).__init__()
-        lm_type = params.lm_type
         assert lm_type in ["rnn", "transformer"], f"{lm_type} is not supported"
         self.lm = self.get_lm(lm_type, device, params)
         self.lm_scale = lm_scale
@@ -52,14 +52,6 @@ class LmScorer(torch.nn.Module):
             "--vocab-size",
             type=int,
             default=500,
-        )
-
-        parser.add_argument(
-            "--lm-type",
-            type=str,
-            default="rnn",
-            help="Type of NN lm",
-            choices=["rnn", "transformer"],
         )
 
         parser.add_argument(
@@ -219,9 +211,9 @@ class LmScorer(torch.nn.Module):
 
         return model
 
-    def score(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
+    def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
         """Score the input and return the prediction
-
+        This requires the lm to have the method `score_token`
         Args:
             x (torch.Tensor): Input tokens
             x_lens (torch.Tensor): Length of the input tokens
