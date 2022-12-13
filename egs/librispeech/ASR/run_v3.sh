@@ -43,8 +43,8 @@ else
 		--max-duration 150 \
 		--freeze-finetune-updates 2000 \
 		--use-fp16 1 \
-		--peak-enc-lr 0.03 \
-		--peak-dec-lr 0.1 \
+		--peak-enc-lr 0.001 \
+		--peak-dec-lr 0.5 \
 		--accum-grads 3 \
 		--encoder-type d2v \
 		--additional-block True \
