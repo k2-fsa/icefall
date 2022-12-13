@@ -18,7 +18,9 @@ import warnings
 from typing import List, Optional, Tuple
 
 import torch
-from scaling import (
+from torch import Tensor, nn
+
+from icefall.transformer_lm.scaling import (
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
@@ -26,8 +28,6 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import Tensor, nn
-
 from icefall.utils import is_jit_tracing
 
 
