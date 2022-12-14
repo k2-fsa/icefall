@@ -1081,6 +1081,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
+                wb.log({"valid/loss": 10000})
                 raise RuntimeError(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
