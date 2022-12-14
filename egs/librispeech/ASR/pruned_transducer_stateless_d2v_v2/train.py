@@ -1510,7 +1510,7 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    #args.exp_dir = args.exp_dir + str(random.randint(0,400))
+    args.exp_dir = args.exp_dir + str(random.randint(0,400))
     args.exp_dir = Path(args.exp_dir)
 
     logging.info("save arguments to config.yaml...")
