@@ -37,7 +37,7 @@ We use pruned RNN-T to compute the loss.
 
 The transducer model consists of 3 parts:
 
-  - Encoder, a.k.a, the transcription network. We use an Conformer model (the reworked version by Daniel Povey)
+  - Encoder, a.k.a, the transcription network. We use a Conformer model (the reworked version by Daniel Povey)
   - Decoder, a.k.a, the prediction network. We use a stateless model consisting of
     ``nn.Embedding`` and ``nn.Conv1d``
   - Joiner, a.k.a, the joint network.
@@ -416,7 +416,7 @@ The following shows two examples (for two types of checkpoints):
 
     - ``beam_search`` :  It implements Algorithm 1 in https://arxiv.org/pdf/1211.3711.pdf and
       `espnet/nets/beam_search_transducer.py <https://github.com/espnet/espnet/blob/master/espnet/nets/beam_search_transducer.py#L247>`_
-      is used as a reference. Basicly, it keeps topk states for each frame, and expands the kept states with the their own contexts to
+      is used as a reference. Basicly, it keeps topk states for each frame, and expands the kept states with their own contexts to
       next frame.
 
     - ``modified_beam_search`` : It implements the same algorithm as ``beam_search`` above, but it
