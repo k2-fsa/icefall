@@ -1029,7 +1029,7 @@ def main():
     if "ngram" in params.decoding_method:
         params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     if params.use_shallow_fusion:
-        if params.lm_type == "rnnlm":
+        if params.lm_type == "rnn":
             params.suffix += f"-rnnlm-lm-scale-{params.lm_scale}"
         elif params.lm_type == "transformer":
             params.suffix += f"-transformer-lm-scale-{params.lm_scale}"
