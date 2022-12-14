@@ -1,4 +1,6 @@
 import math
+from typing import List, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
@@ -23,14 +25,15 @@ class FrameReducer(nn.Module):
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
         blank_id: int = 0,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < \
             math.log(0.9)) * (~padding_mask)
         T_range = torch.arange(x.shape[1], device=x.device)
 
-        frames_list, lens_list = [], []
+        frames_list: List[torch.Tensor] = []
+        lens_list: List[int] = []
         for i in range(x.shape[0]):
             indexes = torch.masked_select(
                 T_range,
