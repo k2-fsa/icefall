@@ -157,10 +157,9 @@ from beam_search import (
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import NgramLm
+from icefall import LmScorer, NgramLm
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
-from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
@@ -1196,9 +1195,7 @@ def main():
     librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
 
     test_clean_cuts = librispeech.test_clean_cuts()
-    test_clean_cuts = test_clean_cuts.subset(first=500)
     test_other_cuts = librispeech.test_other_cuts()
-    test_other_cuts = test_other_cuts.subset(first=500)
 
     test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
     test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
