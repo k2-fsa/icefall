@@ -68,3 +68,5 @@ from .utils import (
 )
 
 from .ngram_lm import NgramLm, NgramLmStateCost
+
+from .lm_wrapper import LmScorer

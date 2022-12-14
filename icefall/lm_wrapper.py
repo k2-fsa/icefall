@@ -41,6 +41,7 @@ class LmScorer(torch.nn.Module):
     ):
         super(LmScorer, self).__init__()
         assert lm_type in ["rnn", "transformer"], f"{lm_type} is not supported"
+        self.lm_type = lm_type
         self.lm = self.get_lm(lm_type, device, params)
         self.lm_scale = lm_scale
         self.params = params
