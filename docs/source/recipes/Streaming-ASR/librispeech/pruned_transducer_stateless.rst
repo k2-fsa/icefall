@@ -424,7 +424,34 @@ Simulate streaming decoding
   $ ./pruned_transducer_stateless4/decode.py --help
 
 shows the options for decoding.
+The following options are important for streaming models:
 
+  ``--simulate-streaming``
+
+    If you want to decode a streaming model with ``decode.py``, you **MUST** set
+    ``--simulate-streaming`` to ``True``. ``simulate`` here means the acoustic frames
+    are not processed frame by frame (or chunk by chunk), instead, the whole sequence
+    is processed at one time with masking (the same as training).
+
+  ``--causal-convolution``
+
+    If True, the convolution module in encoder layers will be causal convolution.
+    This is **MUST** be True when decoding with a streaming model.
+
+  ``--decode-chunk-size``
+
+    For streaming models, we will calculate the chunk-wise attention, ``--decode-chunk-size``
+    indicates the chunk length (in frames after subsampling) for chunk-wise attention.
+    For ``simulate streaming decoding`` the ``decode-chunk-size`` is used to generate
+    the attention mask.
+
+  ``--left-context``
+
+    ``--left-context`` indicates how many left context frames (after subsampling) can be seen
+    for current chunk when calculating chunk-wise attention. Normally, ``left-context`` should equal
+    to ``decode-chunk-size * num-left-chunks``, where ``num-left-chunks`` is the option used
+    to train this model. For ``simulate streaming decoding`` the ``left-context`` is used to generate
+    the attention mask.
 
 
 The following shows two examples (for the two types of checkpoints):
@@ -478,6 +505,35 @@ Real streaming decoding
   $ ./pruned_transducer_stateless4/streaming_decode.py --help
 
 shows the options for decoding.
+The following options are important for streaming models:
+
+  ``--decode-chunk-size``
+
+    For streaming models, we will calculate the chunk-wise attention, ``--decode-chunk-size``
+    indicates the chunk length (in frames after subsampling) for chunk-wise attention.
+    For ``real streaming decoding``, we will process ``decode-chunk-size`` acoustic frames at each time.
+
+  ``--left-context``
+
+    ``--left-context`` indicates how many left context frames (after subsampling) can be seen
+    for current chunk when calculating chunk-wise attention. Normally, ``left-context`` should equal
+    to ``decode-chunk-size * num-left-chunks``, where ``num-left-chunks`` is the option used
+    to train this model.
+
+  ``--num-decode-streams``
+
+    The number of decoding streams that can be run in parallel (very similar to the ``bath size``).
+    For ``real streaming decoding``, the batches will be packed dynamically, for example, if the
+    ``num-decode-streams`` equals to 10, then, sequence 1 to 10 will be decoded at first, after a while,
+    suppose sequence 1 and 2 are done, so, sequence 3 to 12 will be processed parallelly in a batch.
+
+
+.. NOTE::
+
+   We also try adding ``--right-context`` in the real streaming decoding, but it seems not to benefit
+   the performance for all the models, the reasons might be the training and decoding mismatch. You
+   can try decoding with ``--right-context`` to see if it helps. The default value is 0.
+
 
 The following shows two examples (for the two types of checkpoints):
 
