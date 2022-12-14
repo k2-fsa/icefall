@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Yifan   Yang,)
+#
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -403,7 +405,10 @@ def decode_one_batch(
 
     # filter out blank frames using ctc outputs
     ctc_output = model.ctc_output(encoder_out)
-    encoder_out = model.lconv(encoder_out)
+    encoder_out = model.lconv(
+        x=encoder_out,
+        src_key_padding_mask=make_pad_mask(encoder_out_lens),
+    )
     encoder_out, encoder_out_lens = model.frame_reducer(
         x=encoder_out,
         x_lens=encoder_out_lens,

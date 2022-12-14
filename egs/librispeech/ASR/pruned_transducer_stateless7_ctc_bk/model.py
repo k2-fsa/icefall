@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 
-from icefall.utils import add_sos
+from icefall.utils import add_sos, make_pad_mask
 
 
 class Transducer(nn.Module):
@@ -136,7 +136,10 @@ class Transducer(nn.Module):
 
         if warmup >= 2.0:
             # lconv
-            encoder_out = self.lconv(encoder_out)
+            encoder_out = self.lconv(
+                x=encoder_out,
+                src_key_padding_mask=make_pad_mask(x_lens),
+            )
 
             # frame reduce
             encoder_out_fr, x_lens_fr = self.frame_reducer(
