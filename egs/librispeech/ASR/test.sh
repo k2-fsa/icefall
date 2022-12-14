@@ -8,7 +8,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--iter 34000 \
     --avg 1 \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/d2v_960h_run2 \
-    --max-duration 800 \
+    --max-duration 400 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
 	--encoder-type d2v \
