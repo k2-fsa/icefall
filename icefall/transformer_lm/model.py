@@ -1,4 +1,4 @@
-# Copyright (c)  2021  Xiaomi Corporation (authors: Xiaoyu Yang)
+# Copyright (c)  2022  Xiaomi Corporation (authors: Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
