@@ -304,7 +304,10 @@ def main():
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(
-        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
+        [
+            [i, 0, feature_lengths[i] // params.subsampling_factor]
+            for i in range(batch_size)
+        ],
         dtype=torch.int32,
     )
 

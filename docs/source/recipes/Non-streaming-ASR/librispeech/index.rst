@@ -8,3 +8,4 @@ LibriSpeech
    conformer_ctc
    pruned_transducer_stateless
    lstm_pruned_stateless_transducer
+   zipformer_mmi

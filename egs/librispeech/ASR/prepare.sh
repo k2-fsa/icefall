@@ -44,9 +44,9 @@ dl_dir=$PWD/download
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  5000
-  2000
-  1000
+  # 5000
+  # 2000
+  # 1000
   500
 )
 
@@ -168,6 +168,22 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     ./local/prepare_lang.py --lang-dir $lang_dir
   fi
+
+  if [ ! -f $lang_dir/L.fst ]; then
+    log "Converting L.pt to L.fst"
+    ./shared/convert-k2-to-openfst.py \
+      --olabels aux_labels \
+      $lang_dir/L.pt \
+      $lang_dir/L.fst
+  fi
+
+  if [ ! -f $lang_dir/L_disambig.fst ]; then
+    log "Converting L_disambig.pt to L_disambig.fst"
+    ./shared/convert-k2-to-openfst.py \
+      --olabels aux_labels \
+      $lang_dir/L_disambig.pt \
+      $lang_dir/disambig_L.fst
+  fi
 fi
 
 
@@ -207,6 +223,22 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       ./local/validate_bpe_lexicon.py \
         --lexicon $lang_dir/lexicon.txt \
         --bpe-model $lang_dir/bpe.model
+    fi
+
+    if [ ! -f $lang_dir/L.fst ]; then
+      log "Converting L.pt to L.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L.pt \
+        $lang_dir/L.fst
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.fst ]; then
+      log "Converting L_disambig.pt to L_disambig.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L_disambig.pt \
+        $lang_dir/L_disambig.fst
     fi
   done
 fi
@@ -271,9 +303,19 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_phone
 
+  # Note If ./local/compile_hlg.py throws OOM,
+  # please switch to the following command
+  #
+  # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
+
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
+
+    # Note If ./local/compile_hlg.py throws OOM,
+    # please switch to the following command
+    #
+    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
   done
 fi
 
