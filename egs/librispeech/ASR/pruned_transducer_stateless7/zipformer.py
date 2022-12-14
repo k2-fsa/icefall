@@ -361,9 +361,9 @@ def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
 def _aux_grad_scale() -> float:
     return 0.2
 def _aux_grad_prob_out() -> ScheduledFloat:
-    return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
+    return 0.0 # ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
 def _aux_grad_prob_in() -> ScheduledFloat:
-    return ScheduledFloat((0.0, 0.25), (1000.0, 0.0))
+    return 0.0 # ScheduledFloat((0.0, 0.25), (1000.0, 0.0))
     #return ScheduledFloat((0.0, 0.25), (1000.0, 0.05), (8000.0, 0.0125))
 
 
@@ -1356,7 +1356,9 @@ class AttentionSqueeze(nn.Module):
                                          aux_grad_scale=_aux_grad_scale(), prob=_aux_grad_prob_in())
 
         self.to_bottleneck_proj = LinearWithAuxLoss(embed_dim,
-                                                    bottleneck_dim)
+                                                    bottleneck_dim,
+                                                    aux_grad_scale=_aux_grad_scale(),
+                                                    prob=_aux_grad_prob_in())
 
 
         # bottleneck_balancer is before the actiation.  Mostly, for well-trained
