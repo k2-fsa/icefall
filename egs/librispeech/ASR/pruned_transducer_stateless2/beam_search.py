@@ -1875,7 +1875,7 @@ def modified_beam_search_LODR(
         sp:
             Sentence piece generator.
         LODR_lm:
-            A low order n-gram LM
+            A low order n-gram LM, whose score will be subtracted during shallow fusion
         LODR_lm_scale:
             The scale of the LODR_lm
         LM:
