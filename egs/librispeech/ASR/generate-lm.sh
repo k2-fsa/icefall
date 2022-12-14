@@ -2,7 +2,7 @@
 
 lang_dir=data/lang_bpe_500
 
-for ngram in 2 3 5; do
+for ngram in 2 3 4 5; do
   if [ ! -f $lang_dir/${ngram}gram.arpa ]; then
     ./shared/make_kn_lm.py \
       -ngram-order ${ngram} \
