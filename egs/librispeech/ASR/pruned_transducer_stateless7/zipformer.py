@@ -1767,7 +1767,7 @@ class Conv2dSubsampling(nn.Module):
         out_channels: int,
         layer1_channels: int = 8,
         layer2_channels: int = 32,
-        layer3_channels: int = 128,
+        layer3_channels: int = 96,
         dropout: FloatLike = 0.1,
     ) -> None:
         """
@@ -1829,7 +1829,6 @@ class Conv2dSubsampling(nn.Module):
                                    ))
 
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
-                                       ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels),
                                        BasicNorm(layer3_channels,
                                                  channel_dim=1))
