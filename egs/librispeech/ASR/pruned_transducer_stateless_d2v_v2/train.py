@@ -1086,7 +1086,6 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
 
-        logging.info(loss)
         if params.batch_idx_train > 4000 and loss > 300:
             wb.log({"valid/loss": 10000})
             raise RunteimError(
