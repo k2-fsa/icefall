@@ -245,7 +245,6 @@ class CachingEvalFunction(torch.autograd.Function):
         # Caution: this assumes you are not going to use any random numbers from torch (for any purpose
         # that matters in the forward pass), e.g. there should be no dropout.
         ctx.random_state = random.getstate()
-        ctx.save_for_backward(x)
         # we are inside torch.no_grad() here, so the following won't create the computation graph.
         y = m(x)
         ctx.save_for_backward(x, y)
