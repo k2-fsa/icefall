@@ -320,6 +320,10 @@ Number of model parameters: 70369391, i.e., 70.37 M
 |----------------------|------------|-------------|----------------------------------------|
 | greedy search        | 2.17       | 5.23        | --epoch 39 --avg 6 --max-duration 600  |
 | modified beam search | 2.15       | 5.20        | --epoch 39 --avg 6 --max-duration 600  |
+| modified beam search + RNNLM shallow fusion | 1.99       | 4.73        | --epoch 39 --avg 6 --max-duration 600  |
+| modified beam search + TransformerLM shallow fusion | 1.94       | 4.73        | --epoch 39 --avg 6 --max-duration 600  |
+| modified beam search + RNNLM + LODR | 1.91       | 4.57        | --epoch 39 --avg 6 --max-duration 600  |
+| modified beam search + TransformerLM + LODR | 1.91       | 4.51        | --epoch 39 --avg 6 --max-duration 600  |
 | fast beam search     | 2.15       | 5.22        | --epoch 39 --avg 6 --max-duration 600  |
 
 The training commands are:
@@ -459,8 +463,8 @@ The WERs are:
 | modified_beam_search                | 2.73       | 7.15       | --iter 468000 --avg 16  |
 | modified_beam_search + RNNLM shallow fusion   | 2.42     |  6.46      | --iter 468000 --avg 16  |
 | modified_beam_search + TransformerLM shallow fusion   | 2.37     |  6.48      | --iter 468000 --avg 16  |
-| modified_beam_search + RNNLM + LODR   | 2.28     |  5.94      | --iter 468000 --avg 16  |
-| modified_beam_search + TransformerLM + LODR   | 2.26     |  5.96      | --iter 468000 --avg 16  |
+| modified_beam_search + RNNLM + LODR   | 2.24     |  5.89      | --iter 468000 --avg 16  |
+| modified_beam_search + TransformerLM + LODR   | 2.19     |  5.90      | --iter 468000 --avg 16  |
 | fast_beam_search                    | 2.76       | 7.31       | --iter 468000 --avg 16  |
 | greedy search (max sym per frame 1) | 2.77       | 7.35       | --iter 472000 --avg 18  |
 | modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
@@ -515,9 +519,10 @@ for m in greedy_search fast_beam_search modified_beam_search; do
 done
 ```
 
-To decode with LM shallow fusion, use the following decoding command. A well-trained RNNLM
-can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>.
-You may also use a transformer LM for shallow fusion, but this will be slower.
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 ```bash
 for iter in 472000; do
@@ -567,7 +572,7 @@ for iter in 472000; do
 done
 ```
 Note that you can also set `--lm-type transformer` to use transformer LM during LODR. But it will be slower
-because it has not been optimized.
+because it has not been optimized. The pre-trained transformer LM is available at <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
@@ -1726,6 +1731,9 @@ layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder di
 | greedy search (max sym per frame 1) | 2.54       | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search                | 2.47       | 5.71       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search + RNNLM shallow fusion     | 2.27       | 5.24      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + RNNLM + LODR     | 2.23       | 5.17      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM shallow fusion     | 2.27       | 5.26      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM + LODR     | 2.22       | 5.11      | --epoch 30 --avg 10  --max-duration 600 |
 | fast beam search                    | 2.5        | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 
 ```bash
@@ -2089,7 +2097,8 @@ subset so that the gigaspeech dataloader never exhausts.
 | greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search + rnnlm shallow fusion  | 1.94     |  4.2    | --iter 1224000 --avg 14  --max-duration 600 |
-| modified beam search + LODR         | 1.83       | 4.03       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + rnnlm + LODR         | 1.77       | 3.99       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + TransformerLM + LODR    | 1.75       | 3.94       | --iter 1224000 --avg 14  --max-duration 600 |
 | fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
 
 The training commands are:
@@ -2135,8 +2144,10 @@ for iter in 1224000; do
   done
 done
 ```
-You may also decode using shallow fusion with external RNNLM. To do so you need to
-download a well-trained RNNLM from this link <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 ```bash
 rnn_lm_scale=0.3
