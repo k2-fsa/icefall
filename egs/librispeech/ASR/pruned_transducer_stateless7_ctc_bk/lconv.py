@@ -84,7 +84,7 @@ class LConv(nn.Module):
         # exchange the temporal dimension and the feature dimension
         x = x.permute(0, 2, 1)  # (#batch, channels, time).
 
-        x = self.pointwise_conv1(x) # (batch, 2*channels, time)
+        x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
 
         x = self.deriv_balancer1(x)
 
@@ -95,6 +95,6 @@ class LConv(nn.Module):
 
         x = self.deriv_balancer2(x)
 
-        x = self.pointwise_conv2(x) # (batch, channels, time)
+        x = self.pointwise_conv2(x)  # (batch, channels, time)
 
         return x.permute(0, 2, 1)
