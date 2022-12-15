@@ -1,9 +1,17 @@
+from typing import List, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
+from scaling import (
+    ActivationBalancer,
+    DoubleSwish,
+    ScaledConv1d,
+)
 
 
 class LConv(nn.Module):
-    """A convolution module to prevent information loss."""
+    """A convolution module to prevent information loss.
+    """
 
     def __init__(
         self,
@@ -26,26 +34,47 @@ class LConv(nn.Module):
             bias=bias,
         )
 
+        self.deriv_balancer1 = ActivationBalancer(
+            2 * channels,
+            channel_dim=1,
+            max_abs=10.0,
+            min_positive=0.05,
+            max_positive=1.0,
+        )
+
         self.depthwise_conv = nn.Conv1d(
             2 * channels,
             2 * channels,
             kernel_size=kernel_size,
             stride=1,
             padding=(kernel_size - 1) // 2,
-            groups=2 * channels,
+            groups=channels,
             bias=bias,
         )
 
-        self.pointwise_conv2 = nn.Conv1d(
+        self.deriv_balancer2 = ActivationBalancer(
+            2 * channels,
+            channel_dim=1,
+            min_positive=0.05,
+            max_positive=1.0,
+            max_abs=20.0,
+        )
+
+        self.pointwise_conv2 = ScaledConv1d(
             2 * channels,
             channels,
             kernel_size=1,
             stride=1,
             padding=0,
             bias=bias,
+            initial_scale=0.05,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        src_key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Args:
             x: A 3-D tensor of shape (N, T, C).
@@ -55,8 +84,17 @@ class LConv(nn.Module):
         # exchange the temporal dimension and the feature dimension
         x = x.permute(0, 2, 1)  # (#batch, channels, time).
 
-        x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
+        x = self.pointwise_conv1(x) # (batch, 2*channels, time)
+
+        x = self.deriv_balancer1(x)
+
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+
         x = self.depthwise_conv(x)
-        x = self.pointwise_conv2(x)  # (batch, channels, time)
+
+        x = self.deriv_balancer2(x)
+
+        x = self.pointwise_conv2(x) # (batch, channels, time)
 
         return x.permute(0, 2, 1)

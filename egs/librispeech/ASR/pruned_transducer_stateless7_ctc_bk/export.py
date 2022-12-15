@@ -25,7 +25,7 @@ Usage:
 (1) Export to torchscript model using torch.jit.script()
 
 ./pruned_transducer_stateless7_ctc_bk/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp_lconv_scaling \
+  --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 13 \
@@ -44,7 +44,7 @@ for how to use the exported models outside of icefall.
 (2) Export `model.state_dict()`
 
 ./pruned_transducer_stateless7_ctc_bk/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp_lconv_scaling \
+  --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 13
@@ -60,7 +60,7 @@ you can do:
 
     cd /path/to/egs/librispeech/ASR
     ./pruned_transducer_stateless7_ctc_bk/decode.py \
-        --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp_lconv_scaling \
+        --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
