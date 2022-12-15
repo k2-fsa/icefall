@@ -891,8 +891,11 @@ class MetricsTracker(collections.defaultdict):
             #norm_value = (
             #    float(v) / num_frames if "utt_" not in k else float(v) / num_utterances
             #)
+            #norm_value = (
+            #    float(v) / num_utterances
+            #)
             norm_value = (
-                float(v) / num_utterances
+                float(v)
             )
 
             ans.append((k, norm_value))
