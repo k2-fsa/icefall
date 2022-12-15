@@ -265,7 +265,7 @@ class CachingEvalFunction(torch.autograd.Function):
             y2 = m(x)
             assert torch.allclose(y, y2, atol=1.0e-02)
             # this call to backward() should create grads in the module's parameters
-            y.backward(gradient=y_grad)
+            y2.backward(gradient=y_grad)
 
         # restore the state from before we entered this function
         random.setstate(random_state)
