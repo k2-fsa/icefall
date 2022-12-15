@@ -1277,7 +1277,7 @@ def run(rank, world_size, args, wb=None):
         optimizer_dec = ScaledAdam(
             dec_param,
             lr=params.peak_dec_lr,
-            clipping_scale=2.0,
+            clipping_scale=5.0,
             parameters_names=[dec_names],
         )
 
