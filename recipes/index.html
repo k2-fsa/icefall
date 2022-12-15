@@ -20,7 +20,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="aishell" href="aishell/index.html" />
+    <link rel="next" title="Non Streaming ASR" href="Non-streaming-ASR/index.html" />
     <link rel="prev" title="Export to ncnn" href="../model-export/export-ncnn.html" /> 
 </head>
 
@@ -40,16 +40,18 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Recipes</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="aishell/index.html">aishell</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/index.html">LibriSpeech</a></li>
-<li class="toctree-l2"><a class="reference internal" href="timit/index.html">TIMIT</a></li>
-<li class="toctree-l2"><a class="reference internal" href="yesno/index.html">YesNo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/index.html">Streaming ASR</a></li>
 </ul>
 </li>
+</ul>
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
 </ul>
@@ -86,26 +88,16 @@ Currently, only speech recognition recipes are provided.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Table of Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="aishell/index.html">aishell</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="aishell/tdnn_lstm_ctc.html">TDNN-LSTM CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="aishell/conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="aishell/stateless_transducer.html">Stateless Transducer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Non-streaming-ASR/index.html">Non Streaming ASR</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/aishell/index.html">aishell</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/timit/index.html">TIMIT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/yesno/index.html">YesNo</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="librispeech/index.html">LibriSpeech</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/lstm_pruned_stateless_transducer.html">LSTM Transducer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/zipformer_mmi.html">Zipformer MMI</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="timit/index.html">TIMIT</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="timit/tdnn_ligru_ctc.html">TDNN-LiGRU-CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="timit/tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="yesno/index.html">YesNo</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="yesno/tdnn.html">TDNN-CTC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Streaming-ASR/index.html">Streaming ASR</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/introduction.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/librispeech/index.html">LibriSpeech</a></li>
 </ul>
 </li>
 </ul>
@@ -117,7 +109,7 @@ Currently, only speech recognition recipes are provided.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="../model-export/export-ncnn.html" class="btn btn-neutral float-left" title="Export to ncnn" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="aishell/index.html" class="btn btn-neutral float-right" title="aishell" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="Non-streaming-ASR/index.html" class="btn btn-neutral float-right" title="Non Streaming ASR" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

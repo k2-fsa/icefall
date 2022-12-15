@@ -5,23 +5,23 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LSTM Transducer &mdash; icefall 0.1 documentation</title>
-      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
-    <script src="../../_static/js/html5shiv.min.js"></script>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-        <script src="../../_static/jquery.js"></script>
-        <script src="../../_static/underscore.js"></script>
-        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script src="../../_static/doctools.js"></script>
-        <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="../../_static/js/theme.js"></script>
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Zipformer MMI" href="zipformer_mmi.html" />
-    <link rel="prev" title="Conformer CTC" href="conformer_ctc.html" /> 
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="Pruned transducer statelessX" href="pruned_transducer_stateless.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -29,10 +29,10 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> icefall
+            <a href="../../../index.html" class="icon icon-home"> icefall
           </a>
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -40,32 +40,28 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../installation/index.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../model-export/index.html">Model export</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="../aishell/index.html">aishell</a></li>
-<li class="toctree-l2 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
-<li class="toctree-l3"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">LSTM Transducer</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#which-model-to-use">Which model to use</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#export-models">Export models</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Streaming ASR</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../introduction.html">Introduction</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">LSTM Transducer</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../contributing/index.html">Contributing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
 </ul>
 
         </div>
@@ -74,19 +70,20 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">icefall</a>
+          <a href="../../../index.html">icefall</a>
       </nav>
 
       <div class="wy-nav-content">
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="../index.html">Recipes</a></li>
+      <li><a href="../../../index.html" class="icon icon-home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Streaming ASR</a></li>
           <li class="breadcrumb-item"><a href="index.html">LibriSpeech</a></li>
       <li class="breadcrumb-item active">LSTM Transducer</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/librispeech/lstm_pruned_stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Streaming-ASR/librispeech/lstm_pruned_stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -379,9 +376,9 @@ $ tensorboard dev upload --logdir . --description <span class="s2">&quot;LSTM tr
 the following screenshot:</p>
 <blockquote>
 <div><figure class="align-center" id="id3">
-<a class="reference external image-reference" href="https://tensorboard.dev/experiment/lzGnETjwRxC3yghNMd4kPw/"><img alt="TensorBoard screenshot" src="../../_images/librispeech-lstm-transducer-tensorboard-log.png" style="width: 600px;" /></a>
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/lzGnETjwRxC3yghNMd4kPw/"><img alt="TensorBoard screenshot" src="../../../_images/librispeech-lstm-transducer-tensorboard-log.png" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 5 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 8 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </div></blockquote>
@@ -701,8 +698,8 @@ for the details of the above pretrained models</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="conformer_ctc.html" class="btn btn-neutral float-left" title="Conformer CTC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="zipformer_mmi.html" class="btn btn-neutral float-right" title="Zipformer MMI" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="pruned_transducer_stateless.html" class="btn btn-neutral float-left" title="Pruned transducer statelessX" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

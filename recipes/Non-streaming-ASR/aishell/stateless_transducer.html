@@ -5,21 +5,21 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stateless Transducer &mdash; icefall 0.1 documentation</title>
-      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
-    <script src="../../_static/js/html5shiv.min.js"></script>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-        <script src="../../_static/jquery.js"></script>
-        <script src="../../_static/underscore.js"></script>
-        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script src="../../_static/doctools.js"></script>
-        <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="../../_static/js/theme.js"></script>
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="LibriSpeech" href="../librispeech/index.html" />
     <link rel="prev" title="Conformer CTC" href="conformer_ctc.html" /> 
 </head>
@@ -29,10 +29,10 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../../index.html" class="icon icon-home"> icefall
+            <a href="../../../index.html" class="icon icon-home"> icefall
           </a>
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -40,32 +40,31 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../../installation/index.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../model-export/index.html">Model export</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
-<li class="toctree-l2 current"><a class="reference internal" href="index.html">aishell</a><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM CTC</a></li>
-<li class="toctree-l3"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Stateless Transducer</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#the-model">The Model</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#the-loss">The Loss</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data Preparation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pre-trained-model">Pre-trained Model</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#colab-notebook">Colab notebook</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Non Streaming ASR</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="index.html">aishell</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM CTC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Stateless Transducer</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
 </ul>
 </li>
 </ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="../librispeech/index.html">LibriSpeech</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="../../contributing/index.html">Contributing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../huggingface/index.html">Huggingface</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
 </ul>
 
         </div>
@@ -74,19 +73,20 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">icefall</a>
+          <a href="../../../index.html">icefall</a>
       </nav>
 
       <div class="wy-nav-content">
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../../index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="../index.html">Recipes</a></li>
+      <li><a href="../../../index.html" class="icon icon-home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Non Streaming ASR</a></li>
           <li class="breadcrumb-item"><a href="index.html">aishell</a></li>
       <li class="breadcrumb-item active">Stateless Transducer</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/aishell/stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/aishell/stateless_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -104,7 +104,7 @@ here. As you will see, there are no RNNs in the model.</p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>We assume you have read the page <a class="reference internal" href="../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+<p>We assume you have read the page <a class="reference internal" href="../../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
 the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
 </div>
 <div class="admonition hint">
@@ -391,7 +391,7 @@ $ tensorboard dev upload --logdir . --name <span class="s2">&quot;Aishell transd
 above output, click it and you will see the following screenshot:</p>
 <blockquote>
 <div><figure class="align-center" id="id3">
-<a class="reference external image-reference" href="https://tensorboard.dev/experiment/laGZ6HrcQxOigbFD5E0Y3Q"><img alt="TensorBoard screenshot" src="../../_images/aishell-transducer_stateless_modified-tensorboard-log.png" style="width: 600px;" /></a>
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/laGZ6HrcQxOigbFD5E0Y3Q"><img alt="TensorBoard screenshot" src="../../../_images/aishell-transducer_stateless_modified-tensorboard-log.png" style="width: 600px;" /></a>
 <figcaption>
 <p><span class="caption-number">Fig. 3 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
 </figcaption>
