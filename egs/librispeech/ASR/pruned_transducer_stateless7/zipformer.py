@@ -41,6 +41,7 @@ from scaling import (
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     penalize_abs_values_gt,
     softmax,
+    caching_eval,
     ScheduledFloat,
     FloatLike,
     limit_param_value,
@@ -317,7 +318,12 @@ class Zipformer(EncoderInterface):
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
         """
-        x = self.encoder_embed(x)
+        if not torch.jit.is_scripting():
+            # This saves memory during training, at the expense of re-doing the encoder_embed
+            # computation in the backward pass.
+            x = caching_eval(x, self.encoder_embed)
+        else:
+            x = self.encoder_embed(x)
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
