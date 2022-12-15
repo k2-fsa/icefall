@@ -21,42 +21,42 @@
 """
 Usage:
 (1) ctc-decoding
-./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --decoding-method ctc-decoding
 (2) 1best
-./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
 (3) nbest
-./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --decoding-method 1best
 (4) nbest-rescoring
-./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
 (5) whole-lattice-rescoring
-./pruned_transducer_stateless7_ctc_bk/ctc_decode.py \
+./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+    --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
     --lm-dir data/lm \
@@ -152,7 +152,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_ctc_bk/exp",
+        default="pruned_transducer_stateless7_ctc_bs/exp",
         help="The experiment dir",
     )
 

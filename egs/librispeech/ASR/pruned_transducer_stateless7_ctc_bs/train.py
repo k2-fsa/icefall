@@ -20,20 +20,20 @@
 """
 Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
-./pruned_transducer_stateless7_ctc_bk/train.py \
+./pruned_transducer_stateless7_ctc_bs/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7_ctc_bk/exp \
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
   --full-libri 1 \
   --max-duration 300
 # For mix precision training:
-./pruned_transducer_stateless7_ctc_bk/train.py \
+./pruned_transducer_stateless7_ctc_bs/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7_ctc_bk/exp \
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
   --full-libri 1 \
   --max-duration 550
 """
@@ -232,7 +232,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_ctc_bk/exp",
+        default="pruned_transducer_stateless7_ctc_bs/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved

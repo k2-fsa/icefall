@@ -19,8 +19,8 @@ This script loads torchscript models, exported by `torch.jit.script()`
 and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless7_ctc_bk/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc_bk/exp \
+./pruned_transducer_stateless7_ctc_bs/export.py \
+  --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10 \
@@ -28,8 +28,8 @@ You can use the following command to get the exported models:
 
 Usage of this script:
 
-./pruned_transducer_stateless7_ctc_bk/jit_pretrained.py \
-  --nn-model-filename ./pruned_transducer_stateless7_ctc_bk/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc_bs/jit_pretrained.py \
+  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
   /path/to/foo.wav \
   /path/to/bar.wav
 """
