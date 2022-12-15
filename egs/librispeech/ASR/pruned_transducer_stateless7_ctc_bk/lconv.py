@@ -10,8 +10,7 @@ from scaling import (
 
 
 class LConv(nn.Module):
-    """A convolution module to prevent information loss.
-    """
+    """A convolution module to prevent information loss."""
 
     def __init__(
         self,
