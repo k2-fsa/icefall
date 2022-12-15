@@ -130,7 +130,7 @@ class Transducer(nn.Module):
 
         # compute ctc log-probs
         ctc_output = self.ctc_output(encoder_out)
-        
+
         # blank skip
         blank_id = self.decoder.blank_id
 
@@ -169,14 +169,12 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens_fr
 
         am = self.simple_am_proj(encoder_out_fr)
-        lm = self.simple_lm_proj(decoder_out)        
+        lm = self.simple_lm_proj(decoder_out)
 
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(

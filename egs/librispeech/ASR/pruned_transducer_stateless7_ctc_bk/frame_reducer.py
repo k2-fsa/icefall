@@ -28,8 +28,7 @@ class FrameReducer(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         padding_mask = make_pad_mask(x_lens)
-        non_blank_mask = (ctc_output[:, :, blank_id] < \
-            math.log(0.9)) * (~padding_mask)
+        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
         T_range = torch.arange(x.shape[1], device=x.device)
 
         frames_list: List[torch.Tensor] = []

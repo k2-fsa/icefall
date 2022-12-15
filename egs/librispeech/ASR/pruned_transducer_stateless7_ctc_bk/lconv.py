@@ -3,8 +3,7 @@ import torch.nn as nn
 
 
 class LConv(nn.Module):
-    """A convolution module to prevent information loss.
-    """
+    """A convolution module to prevent information loss."""
 
     def __init__(
         self,
@@ -56,8 +55,8 @@ class LConv(nn.Module):
         # exchange the temporal dimension and the feature dimension
         x = x.permute(0, 2, 1)  # (#batch, channels, time).
 
-        x = self.pointwise_conv1(x) # (batch, 2*channels, time)
+        x = self.pointwise_conv1(x)  # (batch, 2*channels, time)
         x = self.depthwise_conv(x)
-        x = self.pointwise_conv2(x) # (batch, channels, time)
+        x = self.pointwise_conv2(x)  # (batch, channels, time)
 
         return x.permute(0, 2, 1)
