@@ -1086,6 +1086,12 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
 
+        if params.batch_idx_train > 4000 and loss > 300:
+            wb.log({"valid/loss": 10000})
+            raise RunteimError(
+                    f"divergence... exiting: loss={loss}"
+                )
+
         if batch_idx % (params.log_interval*params.accum_grads) == 0:
             if params.multi_optim:
                 cur_enc_lr = scheduler_enc.get_last_lr()[0]
