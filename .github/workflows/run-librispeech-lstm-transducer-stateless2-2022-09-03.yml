@@ -139,9 +139,14 @@ jobs:
           cd egs/librispeech/ASR
           tree lstm_transducer_stateless2/exp
           cd lstm_transducer_stateless2/exp
-          echo "===modified_beam_search_rnnlm_shallow_fusion==="
-          find modified_beam_search_rnnlm_shallow_fusion  -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find modified_beam_search_rnnlm_shallow_fusion  -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          echo "===modified_beam_search_lm_shallow_fusion==="
+          echo "===Using RNNLM==="
+          find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          echo "===modified_beam_search_lm_shallow_fusion==="
+          echo "===Using TransformerLM==="
+          find modified_beam_search_lm_shallow_fusion  -name "log-*transformer*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search_lm_shallow_fusion  -name "log-*transformer*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Display decoding results for lstm_transducer_stateless2
         if: github.event.label.name == 'LODR'
@@ -151,8 +156,8 @@ jobs:
           tree lstm_transducer_stateless2/exp
           cd lstm_transducer_stateless2/exp
           echo "===modified_beam_search_rnnlm_LODR==="
-          find modified_beam_search_rnnlm_LODR  -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find modified_beam_search_rnnlm_LODR  -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          find modified_beam_search_LODR  -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search_LODR  -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Upload decoding results for lstm_transducer_stateless2
         uses: actions/upload-artifact@v2

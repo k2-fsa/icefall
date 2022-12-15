@@ -193,7 +193,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   ls -lh data
   ls -lh lstm_transducer_stateless2/exp
 
-  log "Decoding test-clean and test-other"
+  log "Decoding test-clean and test-other with RNN LM"
 
   ./lstm_transducer_stateless2/decode.py \
     --use-averaged-model 0 \
@@ -201,14 +201,41 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
     --avg 1 \
     --exp-dir lstm_transducer_stateless2/exp \
     --max-duration 600 \
-    --decoding-method modified_beam_search_rnnlm_shallow_fusion \
+    --decoding-method modified_beam_search_lm_shallow_fusion \
     --beam 4 \
+    --use-shallow-fusion 1 \
+    --lm-type rnn \
+    --lm-exp-dir $lm_repo/exp \
+    --lm-epoch 88 \
+    --lm-avg 1 \
     --rnn-lm-scale 0.3 \
-    --rnn-lm-exp-dir $lm_repo/exp \
-    --rnn-lm-epoch 88 \
-    --rnn-lm-avg 1 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1
+
+  lm_repo_url=https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm
+  log "Download pre-trained Transformer LM model from ${lm_repo_url}"
+  GIT_LFS_SKIP_SMUDGE=1 git clone $lm_repo_url
+  lm_repo=$(basename $lm_repo_url)
+  pushd $lm_repo
+  git lfs pull --include "exp/pretrained.pt"
+  mv exp/pretrained.pt exp/epoch-88.pt
+  popd
+
+  log "Decoding test-clean and test-other with Transformer LM"
+
+  ./lstm_transducer_stateless2/decode.py \
+    --use-averaged-model 0 \
+    --epoch 999 \
+    --avg 1 \
+    --exp-dir lstm_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search_lm_shallow_fusion \
+    --beam 4 \
+    --use-shallow-fusion 1 \
+    --lm-type transformer \
+    --lm-exp-dir $lm_repo/exp \
+    --lm-epoch 88 \
+    --lm-avg 1
 fi
 
 if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
@@ -245,11 +272,13 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
     --avg 1 \
     --exp-dir lstm_transducer_stateless2/exp \
     --max-duration 600 \
-    --decoding-method modified_beam_search_rnnlm_LODR \
+    --decoding-method modified_beam_search_LODR \
     --beam 4 \
-    --rnn-lm-scale 0.3 \
-    --rnn-lm-exp-dir $lm_repo/exp \
-    --rnn-lm-epoch 88 \
+    --use-shallow-fusion 1 \
+    --lm-type rnn \
+    --lm-exp-dir $lm_repo/exp \
+    --lm-scale 0.4 \
+    --lm-epoch 88 \
     --rnn-lm-avg 1 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1 \
