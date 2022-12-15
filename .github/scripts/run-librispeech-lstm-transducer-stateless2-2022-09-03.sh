@@ -208,7 +208,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
     --lm-exp-dir $lm_repo/exp \
     --lm-epoch 88 \
     --lm-avg 1 \
-    --rnn-lm-scale 0.3 \
+    --lm-scale 0.3 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1
 
