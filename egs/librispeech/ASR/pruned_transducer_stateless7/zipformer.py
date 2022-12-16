@@ -355,7 +355,7 @@ class Zipformer(EncoderInterface):
 
 def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
     return ScheduledFloat((0.0, x),
-                          (12000.0, ratio * x),
+                          (20000.0, ratio * x),
                           default=x)
 
 def _aux_grad_scale() -> float:
@@ -399,7 +399,7 @@ class ZipformerEncoderLayer(nn.Module):
             # to work correctly.
             layer_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
             attention_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.0), default=0),
-            conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (16000, 0.0), default=0),
+            conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
             const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
             bypass_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.2), default=0),
             bypass_max: FloatLike = 1.0,
@@ -1408,7 +1408,7 @@ class AttentionSqueeze(nn.Module):
         self.out_balancer = ActivationBalancer(
             embed_dim, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
-            min_abs=ScheduledFloat((0.0, 0.001), (8000.0, 0.005)),
+            min_abs=ScheduledFloat((0.0, 0.001), (4000.0, 0.005)),
         )
 
 
@@ -1543,7 +1543,7 @@ class NonlinAttentionModule(nn.Module):
         self.balancer2 = ActivationBalancer(
             channels, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
-            min_abs=ScheduledFloat((0.0, 0.001), (8000.0, 0.005)),
+            min_abs=ScheduledFloat((0.0, 0.001), (4000.0, 0.005)),
         )
 
 
