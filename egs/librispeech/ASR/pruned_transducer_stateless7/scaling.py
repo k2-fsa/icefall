@@ -547,7 +547,7 @@ class ActivationBalancer(torch.nn.Module):
 
 
         if prob is None:
-            prob = ScheduledFloat((0.0, 0.4), (8000.0, 0.1))
+            prob = ScheduledFloat((0.0, 0.4), (8000.0, 0.1), default=0.4)
         self.prob = prob
 
         # actually self.num_channels is no longer needed except for an assertion.
