@@ -23,15 +23,15 @@ You can use the following command to get the exported models:
 ./pruned_transducer_stateless7_ctc_bs/export.py \
   --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10 \
+  --epoch 30 \
+  --avg 13 \
   --jit 1
 
 Usage of this script:
 
 (1) ctc-decoding
 ./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
-  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
+  --model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
   --bpe-model data/lang_bpe_500/bpe.model \
   --method ctc-decoding \
   --sample-rate 16000 \
@@ -40,7 +40,7 @@ Usage of this script:
 
 (2) 1best
 ./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
-  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
+  --model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --method 1best \
@@ -51,7 +51,7 @@ Usage of this script:
 
 (3) nbest-rescoring
 ./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
-  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
+  --model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
@@ -63,7 +63,7 @@ Usage of this script:
 
 (4) whole-lattice-rescoring
 ./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
-  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
+  --model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
