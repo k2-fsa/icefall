@@ -1730,7 +1730,7 @@ class ConvNeXt(nn.Module):
 
         The returned value has the same shape as x.
         """
-        if (not self.training) or torch.jit.is_scripting() or random.random() < float(self.layerdrop_prob):
+        if torch.jit.is_scripting() or (self.training and random.random() < float(self.layerdrop_prob)):
             return x
 
         bypass = x
