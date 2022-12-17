@@ -463,120 +463,6 @@ class BasicNorm(torch.nn.Module):
         return x * scales
 
 
-class LinearWithAuxLossFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: Tensor, weight: Tensor,
-                aux_grad_scale: float) -> Tensor:
-        """
-        Returns matmul(x, weight.t()).
-        In the backward pass it will include an auxiliary loss based on predicting x from
-        matmul(y, weight).
-        """
-        if torch.is_autocast_enabled():
-            x = x.to(torch.float16)
-        ctx.save_for_backward(x, weight)
-        ctx.aux_grad_scale = aux_grad_scale
-        return torch.matmul(x, weight.t())
-
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, Tensor, Tensor, None]:
-        x, weight = ctx.saved_tensors
-
-        x_grad = torch.matmul(ans_grad, weight.to(ans_grad.dtype))
-        weight_grad = torch.matmul(ans_grad.reshape(-1, ans_grad.shape[-1]).t(),
-                                   x.reshape(-1, x.shape[-1]).to(ans_grad.dtype))
-
-
-        with torch.cuda.amp.autocast(enabled=False):
-            with torch.enable_grad():
-                x = x.to(weight.dtype)
-                x, weight = x.detach(), weight.detach()
-                weight.requires_grad = True
-                # recompute y as we need the gradient; this is easier to implement than
-                # saving y in the context.
-                y = torch.matmul(x, weight.t())
-                z = torch.matmul(y, weight)
-                # subtract mean
-                dims_to_mean = tuple(range(x.ndim-1))
-                x = x - x.mean(dim=dims_to_mean)
-                z = z - z.mean(dim=dims_to_mean)
-                # compute optimal scale on z
-                with torch.no_grad():
-                    alpha = (x * z).sum() / ((z * z).sum() + 1.0e-20)
-                diff = x - alpha * z
-                # meansq is the loss function.
-                meansq = (diff ** 2).mean()
-                meansq.backward()
-                weight_aux_grad = weight.grad
-
-
-        with torch.cuda.amp.autocast(enabled=False):
-            weight_grad_norm = weight_grad.to(torch.float32).norm()
-            aux_grad_norm = weight_aux_grad.norm()
-            weight_grad_scale = ctx.aux_grad_scale * weight_grad_norm / (aux_grad_norm + 1.0e-20)
-        weight_grad = weight_grad + (weight_grad_scale * weight_aux_grad).to(weight_grad.dtype)
-
-        return x_grad, weight_grad, None
-
-
-
-class LinearWithAuxLoss(nn.Module):
-    """
-    A linear layer with an auxiliary loss that you can put on a schedule, that
-    encourages it to correspond to the largest-variance directions of the
-    input features.
-
-      Suppose the input is x, and this layer computes:
-          y = M x
-     (the bias is applied separately), then we define:
-          z = exp(alpha) * M^T y
-      where alpha is learnable; and the auxiliary loss will be:
-         aux_loss = normalize_mean(z - x)^2.
-      (normalize_mean refers to subtracting the average value per channel,
-      over the minibatch).
-      In the backward pass we compute the derivative of the auxiliary loss
-      and add it to the weight and bias grads, with a scale chosen such
-      that the extra grad's norm equals `aux_grad_scales` times the norm
-      of the existing grad.
-    """
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 bias: bool = True,
-                 aux_grad_scale: Optional[FloatLike] = None,
-                 prob: FloatLike = 0.25,
-                 initial_scale: float = 1.0,
-    ):
-        super().__init__()
-        if aux_grad_scale is None:
-            aux_grad_scale = ScheduledFloat((0.0, 1.0), (1000.0, 0.1),
-                                            (2000.0, 0.01), (8000.0, 0.0))
-
-        self.aux_grad_scale = aux_grad_scale
-        self.prob = prob
-
-        self.weight = nn.Parameter(torch.randn(out_channels, in_channels)
-                                   * (in_channels ** -0.5) * initial_scale)
-        if bias:
-            self.bias = nn.Parameter(torch.randn(out_channels) *
-                                     0.01 * initial_scale)
-        else:
-            self.register_parameter('bias', None)
-
-
-    def forward(self,
-                x: Tensor):
-        aux_grad_scale = float(self.aux_grad_scale)
-        if (not self.training or torch.jit.is_scripting() or
-            aux_grad_scale == 0.0 or random.random() > float(self.prob)):
-            return torch.nn.functional.linear(x, self.weight, self.bias)
-        else:
-            ans = LinearWithAuxLossFunction.apply(x, self.weight,
-                                                  aux_grad_scale)
-            if self.bias is not None:
-                ans += self.bias
-            return ans
 
 
 def ScaledLinear(*args,
@@ -711,12 +597,14 @@ class ActivationBalancer(torch.nn.Module):
             scale_gain_factor: FloatLike = 0.04,
             min_abs: FloatLike = 0.2,
             max_abs: FloatLike = 100.0,
-            min_prob: FloatLike = 0.1,
+            prob: Optional[FloatLike] = None,
     ):
         super(ActivationBalancer, self).__init__()
-        # CAUTION: this code expects self.batch_count to be overwritten in the main training
-        # loop.
-        self.batch_count = 0
+
+
+        if prob is None:
+            prob = ScheduledFloat((0.0, 0.4), (8000.0, 0.1), default=0.4)
+        self.prob = prob
 
         # actually self.num_channels is no longer needed except for an assertion.
         self.num_channels = num_channels
@@ -726,7 +614,6 @@ class ActivationBalancer(torch.nn.Module):
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
-        self.min_prob = min_prob
         self.sign_gain_factor = sign_gain_factor
         self.scale_gain_factor = scale_gain_factor
 
@@ -738,9 +625,7 @@ class ActivationBalancer(torch.nn.Module):
         if torch.jit.is_scripting() or not x.requires_grad:
             return _no_op(x)
 
-        # the prob of doing some work exponentially decreases from 0.5 till it hits
-        # a floor at min_prob (==0.1, by default)
-        prob = max(float(self.min_prob), 0.5 ** (1 + (self.batch_count / 4000.0)))
+        prob = float(self.prob)
 
         if random.random() < prob:
             assert x.shape[self.channel_dim] == self.num_channels
