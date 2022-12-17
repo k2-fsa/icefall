@@ -1815,6 +1815,7 @@ class Conv2dSubsampling(nn.Module):
         )
 
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
+                                       ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels))
 
 
