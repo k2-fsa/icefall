@@ -466,9 +466,7 @@ def one_best_decoding(
     Return:
       An FsaVec containing linear paths.
     """
-
     if lm_scale_list is not None:
-
         ans = dict()
         saved_am_scores = lattice.scores - lattice.lm_scores
         for lm_scale in lm_scale_list:
