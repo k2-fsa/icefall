@@ -1673,7 +1673,7 @@ class ConvNeXt(nn.Module):
     """
     def __init__(self,
                  channels: int,
-                 hidden_ratio: int = 3,
+                 hidden_ratio: int = 4,
                  layerdrop_prob: FloatLike = None):
         super().__init__()
         kernel_size = 7
