@@ -257,7 +257,6 @@ class CutoffEstimator:
         if ans:
             self.count_above += 1
         cur_p = self.count_above / self.count
-        print(f"cur_p = {cur_p}, cutoff = {self.cutoff}")
         delta_p = cur_p - self.p
         if (delta_p > 0) == ans:
             q = abs(delta_p)
