@@ -40,6 +40,7 @@ from scaling import (
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     penalize_abs_values_gt,
     softmax,
+    caching_eval,
     ScheduledFloat,
     FloatLike,
     limit_param_value,
@@ -1699,8 +1700,8 @@ class ConvNeXt(nn.Module):
                                                   min_positive=0.3,
                                                   max_positive=1.0,
                                                   min_abs=0.75,
-                                                  max_abs=5.0,
-                                                  min_prob=0.25)
+                                                  max_abs=5.0)
+
         self.activation = SwooshL()
         self.pointwise_conv2 = ScaledConv2d(
             in_channels=hidden_channels,
@@ -1795,9 +1796,7 @@ class Conv2dSubsampling(nn.Module):
 
         self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
                                        ConvNeXt(layer2_channels),
-                                       ConvNeXt(layer2_channels),
-                                       BasicNorm(layer2_channels,
-                                                 channel_dim=1))
+                                       ConvNeXt(layer2_channels))
 
         self.conv2 = nn.Sequential(
                                    nn.Conv2d(
@@ -1809,8 +1808,7 @@ class Conv2dSubsampling(nn.Module):
 
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels),
-                                       BasicNorm(layer3_channels,
-                                                 channel_dim=1))
+                                       ConvNeXt(layer3_channels))
 
 
         out_height = (((in_channels - 1) // 2) - 1) // 2
