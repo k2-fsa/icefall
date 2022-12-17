@@ -741,7 +741,7 @@ class DownsampledZipformerEncoder(nn.Module):
             src,
             feature_mask=feature_mask,
             mask=mask,
-            src_key_padding_mask=mask,
+            src_key_padding_mask=src_key_padding_mask,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
