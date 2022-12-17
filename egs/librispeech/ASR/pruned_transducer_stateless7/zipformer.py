@@ -1792,18 +1792,27 @@ class Conv2dSubsampling(nn.Module):
                 stride=2,
                 padding=0,
             ),
+            ActivationBalancer(layer2_channels,
+                               channel_dim=1,
+                               max_abs=4.0),
+            SwooshR(),
         )
 
         self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
                                        ConvNeXt(layer2_channels))
 
         self.conv2 = nn.Sequential(
-                                   nn.Conv2d(
-                                       in_channels=layer2_channels,
-                                       out_channels=layer3_channels,
-                                       kernel_size=3,
-                                       stride=(1, 2), # (time, freq)
-                                   ))
+            nn.Conv2d(
+                in_channels=layer2_channels,
+                out_channels=layer3_channels,
+                kernel_size=3,
+                stride=(1, 2), # (time, freq)
+            ),
+            ActivationBalancer(layer3_channels,
+                               channel_dim=1,
+                               max_abs=4.0),
+            SwooshR(),
+        )
 
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels))
