@@ -173,13 +173,13 @@ def get_params() -> AttributeDict:
 
 
 def post_processing(
-    results: List[Tuple[List[str], List[str]]],
-) -> List[Tuple[List[str], List[str]]]:
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
     new_results = []
-    for ref, hyp in results:
+    for key, ref, hyp in results:
         new_ref = asr_text_post_processing(" ".join(ref)).split()
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
-        new_results.append((new_ref, new_hyp))
+        new_results.append((key, new_ref, new_hyp))
     return new_results
 
 
@@ -408,7 +408,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -476,14 +476,12 @@ def decode_dataset(
 
                 results[lm_scale].extend(this_batch)
         else:
-            assert (
-                len(results) > 0
-            ), "It should not decode to empty in the first batch!"
+            assert len(results) > 0, "It should not decode to empty in the first batch!"
             this_batch = []
             hyp_words = []
-            for ref_text in texts:
+            for cut_id, ref_text in zip(cut_ids, texts):
                 ref_words = ref_text.split()
-                this_batch.append((ref_words, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             for lm_scale in results.keys():
                 results[lm_scale].extend(this_batch)
@@ -493,16 +491,14 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     if params.method == "attention-decoder":
         # Set it to False since there are too many logs.
@@ -528,9 +524,7 @@ def save_results(
             test_set_wers[key] = wer
 
         if enable_log:
-            logging.info(
-                "Wrote detailed error stats to {}".format(errs_filename)
-            )
+            logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
@@ -705,9 +699,7 @@ def main():
             eos_id=eos_id,
         )
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 

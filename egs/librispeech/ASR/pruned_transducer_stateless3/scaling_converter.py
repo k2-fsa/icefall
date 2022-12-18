@@ -29,7 +29,9 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from lstmp import LSTMP
 from scaling import (
+    ActivationBalancer,
     BasicNorm,
     ScaledConv1d,
     ScaledConv2d,
@@ -85,7 +87,7 @@ def scaled_linear_to_linear(scaled_linear: ScaledLinear) -> nn.Linear:
         in_features=scaled_linear.in_features,
         out_features=scaled_linear.out_features,
         bias=True,  # otherwise, it throws errors when converting to PNNX format
-        # device=weight.device,  # Pytorch version before v1.9.0 does not has
+        # device=weight.device,  # Pytorch version before v1.9.0 does not have
         # this argument. Comment out for now, we will
         # see if it will raise error for versions
         # after v1.9.0
@@ -232,9 +234,7 @@ def scaled_lstm_to_lstm(scaled_lstm: ScaledLSTM) -> nn.LSTM:
 
     assert lstm._flat_weights_names == scaled_lstm._flat_weights_names
     for idx in range(len(scaled_lstm._flat_weights_names)):
-        scaled_weight = (
-            scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
-        )
+        scaled_weight = scaled_lstm._flat_weights[idx] * scaled_lstm._scales[idx].exp()
         lstm._flat_weights[idx].data.copy_(scaled_weight)
 
     return lstm
@@ -258,7 +258,11 @@ def get_submodule(model, target):
     return mod
 
 
-def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
+def convert_scaled_to_non_scaled(
+    model: nn.Module,
+    inplace: bool = False,
+    is_onnx: bool = False,
+):
     """Convert `ScaledLinear`, `ScaledConv1d`, and `ScaledConv2d`
     in the given modle to their unscaled version `nn.Linear`, `nn.Conv1d`,
     and `nn.Conv2d`.
@@ -269,13 +273,16 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
       inplace:
         If True, the input model is modified inplace.
         If False, the input model is copied and we modify the copied version.
+      is_onnx:
+        If True, we are going to export the model to ONNX. In this case,
+        we will convert nn.LSTM with proj_size to LSTMP.
     Return:
       Return a model without scaled layers.
     """
     if not inplace:
         model = copy.deepcopy(model)
 
-    excluded_patterns = r"self_attn\.(in|out)_proj"
+    excluded_patterns = r"(self|src)_attn\.(in|out)_proj"
     p = re.compile(excluded_patterns)
 
     d = {}
@@ -293,7 +300,15 @@ def convert_scaled_to_non_scaled(model: nn.Module, inplace: bool = False):
         elif isinstance(m, BasicNorm):
             d[name] = convert_basic_norm(m)
         elif isinstance(m, ScaledLSTM):
-            d[name] = scaled_lstm_to_lstm(m)
+            if is_onnx:
+                d[name] = LSTMP(scaled_lstm_to_lstm(m))
+                # See
+                # https://github.com/pytorch/pytorch/issues/47887
+                #  d[name] = torch.jit.script(LSTMP(scaled_lstm_to_lstm(m)))
+            else:
+                d[name] = scaled_lstm_to_lstm(m)
+        elif isinstance(m, ActivationBalancer):
+            d[name] = nn.Identity()
 
     for k, v in d.items():
         if "." in k:

@@ -86,7 +86,7 @@ def save_checkpoint(
     }
 
     if model_avg is not None:
-        checkpoint["model_avg"] = model_avg.state_dict()
+        checkpoint["model_avg"] = model_avg.to(torch.float32).state_dict()
 
     if params:
         for k, v in params.items():
@@ -292,15 +292,19 @@ def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
     """
     checkpoints = list(glob.glob(f"{out_dir}/checkpoint-[0-9]*.pt"))
     pattern = re.compile(r"checkpoint-([0-9]+).pt")
-    iter_checkpoints = [
-        (int(pattern.search(c).group(1)), c) for c in checkpoints
-    ]
+    iter_checkpoints = []
+    for c in checkpoints:
+        result = pattern.search(c)
+        if not result:
+            logging.warn(f"Invalid checkpoint filename {c}")
+            continue
+
+        iter_checkpoints.append((int(result.group(1)), c))
+
     # iter_checkpoints is a list of tuples. Each tuple contains
     # two elements: (iteration_number, checkpoint-iteration_number.pt)
 
-    iter_checkpoints = sorted(
-        iter_checkpoints, reverse=True, key=lambda x: x[0]
-    )
+    iter_checkpoints = sorted(iter_checkpoints, reverse=True, key=lambda x: x[0])
     if iteration >= 0:
         ans = [ic[1] for ic in iter_checkpoints if ic[0] >= iteration]
     else:
@@ -466,8 +470,8 @@ def average_state_dict(
 
     uniqued_names = list(uniqued.values())
     for k in uniqued_names:
-        state_dict_1[k] *= weight_1
-        state_dict_1[k] += (
-            state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
-        )
-        state_dict_1[k] *= scaling_factor
+        v = state_dict_1[k]
+        if torch.is_floating_point(v):
+            v *= weight_1
+            v += state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
+            v *= scaling_factor
