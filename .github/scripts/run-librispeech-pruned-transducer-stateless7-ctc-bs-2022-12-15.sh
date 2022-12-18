@@ -145,4 +145,3 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
 
   rm pruned_transducer_stateless7_ctc_bs/exp/*.pt
 fi
-
