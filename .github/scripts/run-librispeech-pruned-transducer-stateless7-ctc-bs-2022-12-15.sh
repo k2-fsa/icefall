@@ -108,39 +108,42 @@ done
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
 
-mkdir -p pruned_transducer_stateless7_ctc_bs/exp
-ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless7_ctc_bs/exp/epoch-999.pt
-ln -s $PWD/$repo/data/lang_bpe_500 data/
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+  mkdir -p pruned_transducer_stateless7_ctc_bs/exp
+  ln -s $PWD/$repo/exp/pretrained.pt pruned_transducer_stateless7_ctc_bs/exp/epoch-999.pt
+  ln -s $PWD/$repo/data/lang_bpe_500 data/
 
-ls -lh data
-ls -lh pruned_transducer_stateless7_ctc_bs/exp
+  ls -lh data
+  ls -lh pruned_transducer_stateless7_ctc_bs/exp
 
-log "Decoding test-clean and test-other"
+  log "Decoding test-clean and test-other"
 
-# use a small value for decoding with CPU
-max_duration=100
+  # use a small value for decoding with CPU
+  max_duration=100
 
-for method in greedy_search fast_beam_search modified_beam_search; do
-  log "Decoding with $method"
+  for method in greedy_search fast_beam_search modified_beam_search; do
+    log "Decoding with $method"
 
-  ./pruned_transducer_stateless7_ctc_bs/decode.py \
-    --decoding-method $method \
-    --epoch 999 \
-    --avg 1 \
-    --use-averaged-model 0 \
-    --max-duration $max_duration \
-    --exp-dir pruned_transducer_stateless7_ctc_bs/exp
-done
-
-for m in ctc-decoding 1best; do
-  ./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
+    ./pruned_transducer_stateless7_ctc_bs/decode.py \
+      --decoding-method $method \
       --epoch 999 \
       --avg 1 \
-      --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
-      --max-duration $max_duration \
       --use-averaged-model 0 \
-      --decoding-method $m \
-      --hlg-scale 0.6 \
-done
+      --max-duration $max_duration \
+      --exp-dir pruned_transducer_stateless7_ctc_bs/exp
+  done
 
-rm pruned_transducer_stateless7_ctc_bs/exp/*.pt
+  for m in ctc-decoding 1best; do
+    ./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
+        --epoch 999 \
+        --avg 1 \
+        --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
+        --max-duration $max_duration \
+        --use-averaged-model 0 \
+        --decoding-method $m \
+        --hlg-scale 0.6 \
+  done
+  
+  rm pruned_transducer_stateless7_ctc_bs/exp/*.pt
+fi
+
