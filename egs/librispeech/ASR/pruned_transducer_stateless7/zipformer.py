@@ -1799,7 +1799,10 @@ class Conv2dSubsampling(nn.Module):
         )
 
         self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
-                                       ConvNeXt(layer2_channels))
+                                       ConvNeXt(layer2_channels),
+                                       BasicNorm(layer2_channels,
+                                                 channel_dim=1))
+
 
         self.conv2 = nn.Sequential(
             nn.Conv2d(
@@ -1815,7 +1818,9 @@ class Conv2dSubsampling(nn.Module):
         )
 
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
-                                       ConvNeXt(layer3_channels))
+                                       ConvNeXt(layer3_channels),
+                                       BasicNorm(layer3_channels,
+                                                 channel_dim=1))
 
 
         out_height = (((in_channels - 1) // 2) - 1) // 2
