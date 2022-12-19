@@ -629,17 +629,7 @@ def run(rank, world_size, args):
         # Keep only utterances with duration between 1 second and 20 seconds
         return 1.0 <= c.duration <= 20.0
 
-    num_in_total = len(train_cuts)
-
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    num_left = len(train_cuts)
-    num_removed = num_in_total - num_left
-    removed_percent = num_removed / num_in_total * 100
-
-    logging.info(f"Before removing short and long utterances: {num_in_total}")
-    logging.info(f"After removing short and long utterances: {num_left}")
-    logging.info(f"Removed {num_removed} utterances ({removed_percent:.5f}%)")
 
     train_dl = librispeech.train_dataloaders(train_cuts)
 
