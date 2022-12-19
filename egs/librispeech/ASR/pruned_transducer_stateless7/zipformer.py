@@ -1666,7 +1666,7 @@ class ConvNeXt(nn.Module):
         pad = (kernel_size - 1) // 2
         hidden_channels = channels * hidden_ratio
         if layerdrop_prob is None:
-            layerdrop_prob = ScheduledFloat((0.0, 0.2), (4000.0, 0.025))
+            layerdrop_prob = ScheduledFloat((0.0, 0.1), (16000.0, 0.01))
         self.layerdrop_prob = layerdrop_prob
 
         self.depthwise_conv = nn.Conv2d(
