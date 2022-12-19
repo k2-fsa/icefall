@@ -141,10 +141,8 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
         --max-duration $max_duration \
         --use-averaged-model 0 \
         --decoding-method $m \
-        --hlg-scale 0.6 \
+        --hlg-scale 0.6
   done
   
   rm pruned_transducer_stateless7_ctc_bs/exp/*.pt
 fi
-
-
