@@ -6,7 +6,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--enable-spec-aug False \
 	--additional-block True \
 	--epoch 23 \
-    --avg 3 \
+    --avg 2 \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
     --max-duration 400 \
     --decoding-method $method \
