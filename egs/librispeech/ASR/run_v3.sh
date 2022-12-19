@@ -36,6 +36,7 @@ else
 		--enable-spec-aug False \
 		--multi-optim True \
 		--start-batch 98000 \
+		--start-epoch 23 \
 		--world-size 4 \
 		--num-epochs 30 \
 		--full-libri 1 \
