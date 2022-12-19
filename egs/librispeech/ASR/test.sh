@@ -15,7 +15,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --encoder-dim 768 \
     --decoder-dim 768 \
     --joiner-dim 768 \
-    --use-averaged-model True
+    --use-averaged-model False
 done
 
 #--epoch 5 \
