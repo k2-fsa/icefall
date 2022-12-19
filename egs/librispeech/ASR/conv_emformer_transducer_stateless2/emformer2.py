@@ -1435,7 +1435,7 @@ class EmformerEncoder(nn.Module):
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
-    ) -> Tuple[torch.Tensor, List[torch.Tensor],]:
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """Forward pass for streaming inference.
 
         B: batch size;
@@ -1640,7 +1640,7 @@ class Emformer(EncoderInterface):
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
-    ) -> Tuple[torch.Tensor, List[torch.Tensor],]:
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """Forward pass for streaming inference.
 
         B: batch size;

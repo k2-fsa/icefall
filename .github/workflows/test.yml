@@ -113,6 +113,9 @@ jobs:
           cd ../pruned_transducer_stateless4
           pytest -v -s
 
+          cd ../pruned_transducer_stateless7
+          pytest -v -s
+
           cd ../transducer_stateless
           pytest -v -s
 
