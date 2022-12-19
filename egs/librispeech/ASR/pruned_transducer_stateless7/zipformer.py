@@ -1291,9 +1291,11 @@ class RelPositionMultiheadAttention(nn.Module):
 
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
-                attn_output_weights.masked_fill_(attn_mask, float("-inf"))
+                attn_output_weights = attn_output_weights.masked_fill(
+                    attn_mask, float("-inf")
+                )
             else:
-                attn_output_weights += attn_mask
+                attn_output_weights = attn_output_weights + attn_mask
 
         if key_padding_mask is not None:
             attn_output_weights = attn_output_weights.view(
