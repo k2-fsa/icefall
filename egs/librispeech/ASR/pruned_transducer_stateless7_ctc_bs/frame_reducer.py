@@ -1,3 +1,22 @@
+#!/usr/bin/env python3
+#
+# Copyright      2022  Xiaomi Corp.        (authors: Yifan Yang,
+#                                                    Zengwei Yao)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 from typing import List, Optional, Tuple, Union
 
@@ -26,6 +45,24 @@ class FrameReducer(nn.Module):
         ctc_output: torch.Tensor,
         blank_id: int = 0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            x:
+              The shared encoder output with shape [N, T, C].
+            x_lens:
+              A tensor of shape (batch_size,) containing the number of frames in
+              `x` before padding.
+            ctc_output:
+              The CTC output with shape [N, T, vocab_size].
+            blank_id:
+              The ID of the blank symbol.
+        Returns:
+            x_fr:
+              The frame reduced encoder output with shape [N, T', C].
+            x_lens_fr:
+              A tensor of shape (batch_size,) containing the number of frames in
+              `x_fr` before padding.
+        """
 
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)

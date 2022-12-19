@@ -32,7 +32,6 @@ def test_model_1():
     params.blank_id = 0
     params.context_size = 2
     params.num_encoder_layers = "2,4,3,2,4"
-    #  params.feedforward_dims = "1024,1024,1536,1536,1024"
     params.feedforward_dims = "1024,1024,2048,2048,1024"
     params.nhead = "8,8,8,8,8"
     params.encoder_dims = "384,384,384,384,384"
