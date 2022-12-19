@@ -35,6 +35,7 @@ else
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim True \
+		--start-batch 98000 \
 		--world-size 4 \
 		--num-epochs 30 \
 		--full-libri 1 \
