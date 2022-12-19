@@ -47,7 +47,7 @@ else
 		--use-fp16 1 \
 		--peak-dec-lr 0.04175 \
 		--peak-enc-lr 0.0003859 \
-		--accum-grads 3 \
+		--accum-grads 4 \
 		--encoder-type d2v \
 		--additional-block True \
 		--prune-range 10 \
