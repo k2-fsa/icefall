@@ -57,12 +57,14 @@ class FairSeqData2VecEncoder(EncoderInterface):
                     "Please install FairSeq: cd ${MAIN_ROOT}/tools && make fairseq.done"
                 )
                 raise e
-
+        
+        '''
         if os.path.exists('/home/work/workspace/models/data2vec_model/audio_base_ls.pt'):
             self.w2v_model_path = '/home/work/workspace/models/data2vec_model/audio_base_ls.pt'
         if os.path.exists('/workspace/models/audio_base_ls.pt'):
             self.w2v_model_path = '/workspace/models/audio_base_ls.pt'
-
+        '''
+        self.w2v_model_path = download_d2v()
         self._output_size = output_size
 
         models, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task(
