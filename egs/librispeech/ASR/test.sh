@@ -13,5 +13,5 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--encoder-type d2v \
     --encoder-dim 768 \
     --decoder-dim 768 \
-    --joiner-dim 768 \
+    --joiner-dim 768 
 done
