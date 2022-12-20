@@ -55,7 +55,6 @@ class FairSeqData2VecEncoder(EncoderInterface):
     ):
         assert check_argument_types()
         super().__init__()
-
                     
         '''
         if os.path.exists('/home/work/workspace/models/data2vec_model/audio_base_ls.pt'):
