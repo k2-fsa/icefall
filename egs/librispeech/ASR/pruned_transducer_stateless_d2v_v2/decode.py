@@ -660,7 +660,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
     
-    if params.model_path:
+    if params.model_name:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         if not params.use_averaged_model:
