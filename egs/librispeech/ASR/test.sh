@@ -6,7 +6,7 @@ for i in {20..30}; do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--epoch 31 \
+	--epoch $i \
     --avg 1 \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
     --max-duration 400 \
