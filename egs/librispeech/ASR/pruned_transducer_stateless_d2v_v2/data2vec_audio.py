@@ -165,7 +165,8 @@ class Data2VecAudioModel(BaseFairseqModel):
 
     def set_num_updates(self, num_updates):
         super().set_num_updates(num_updates)
-
+        
+        '''
         if self.ema is None and self.final_proj is not None:
             logger.info(f"making ema teacher")
             self.make_ema_teacher()
@@ -183,7 +184,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                 self.ema.set_decay(decay)
             if self.ema.get_decay() < 1:
                 self.ema.step(self.encoder if self.cfg.ema_transformer_only else self)
-
+        '''
         self.num_updates = num_updates
 
     def state_dict(self, destination=None, prefix="", keep_vars=False):
