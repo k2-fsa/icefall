@@ -1824,7 +1824,7 @@ class Conv2dSubsampling(nn.Module):
 
         self.out = nn.Linear(out_height * layer3_channels, out_channels)
 
-        self.out_norm = BasicNorm(out_channels, channel_dim=-1)
+        self.out_norm = ConvNorm1d(out_channels)
         self.dropout = Dropout2(dropout)
 
 
@@ -1859,9 +1859,11 @@ class Conv2dSubsampling(nn.Module):
                                   min=float(self.scale_min),
                                   max=float(self.scale_max))
 
-        x = self.out(x)
-        x = self.out_norm(x)
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        x = self.out(x)
+        x = x.transpose(1, 2) # (batch, channels, time)
+        x = self.out_norm(x)
+        x = x.transpose(1, 2)  # (batch, time=((T-1)//2 - 1))//2, channels)
         x = self.dropout(x)
         return x
 
