@@ -157,7 +157,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         logging.info("Pretrained data2vec model parameters reloaded!")
 
 
-def download_w2v(model_url, dir_path):
+def download_w2v(model_url='https://dl.fbaipublicfiles.com/fairseq/data2vec/audio_base_ls.pt', dir_path='./models'):
     os.makedirs(dir_path, exist_ok=True)
 
     model_name = model_url.split("/")[-1]
