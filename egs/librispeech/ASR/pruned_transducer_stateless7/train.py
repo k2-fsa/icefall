@@ -90,13 +90,13 @@ LRSchedulerType = Union[
 ]
 
 
-
 def get_adjusted_batch_count(
         params: AttributeDict) -> float:
     # returns the number of batches we would have used so far if we had used the reference
     # duration.  This is for purposes of set_batch_count().
     return (params.batch_idx_train * params.ref_duration /
             (params.max_duration * params.world_size))
+
 
 
 def set_batch_count(
@@ -856,7 +856,6 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
-
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
@@ -879,7 +878,6 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
@@ -1058,9 +1056,12 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank],
                     find_unused_parameters=True)
 
-    optimizer = ScaledAdam(model.parameters(),
-                           lr=params.base_lr,
-                           clipping_scale=2.0)
+    optimizer = ScaledAdam(
+        model.parameters(),
+        lr=params.base_lr,
+        clipping_scale=2.0,
+        parameters_names=[ [p[0] for p in model.named_parameters()] ],
+    )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
