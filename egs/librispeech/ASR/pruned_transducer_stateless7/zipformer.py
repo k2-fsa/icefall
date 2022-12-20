@@ -27,6 +27,7 @@ from encoder_interface import EncoderInterface
 from scaling import (
     ActivationBalancer,
     BasicNorm,
+    ConvNorm1d,
     Dropout2,
     MaxEig,
     DoubleSwish,
@@ -443,7 +444,7 @@ class ZipformerEncoderLayer(nn.Module):
 
         self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
-        self.norm_final = BasicNorm(embed_dim)
+        self.norm_final = ConvNorm1d(embed_dim)
 
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
@@ -555,8 +556,10 @@ class ZipformerEncoderLayer(nn.Module):
 
         src = src + self.feed_forward2(src)
 
-
-        src = self.norm_final(self.balancer(src))
+        src = self.balancer(src)
+        src = src.permute(1, 2, 0)  # (batch, channels, time)
+        src = self.norm_final(src, src_key_padding_mask)
+        src = src.permute(2, 0, 1)  # (time, batch, channels)
 
         delta = src - src_orig
 
@@ -1606,7 +1609,7 @@ class ConvolutionModule(nn.Module):
         Args:
             x: Input tensor (#time, batch, channels).
            src_key_padding_mask: the mask for the src keys per batch (optional):
-               (batch, #time), contains bool in masked positions.
+               (batch, #time), contains True in masked positions.
 
         Returns:
             Tensor: Output tensor (#time, batch, channels).
