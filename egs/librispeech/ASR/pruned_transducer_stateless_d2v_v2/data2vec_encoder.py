@@ -170,9 +170,9 @@ def download_w2v(model_url, dir_path):
         if not os.path.exists(model_path):
             torch.hub.download_url_to_file(model_url, model_path)
             torch.hub.download_url_to_file(dict_url, dict_path)
-            logging.info(f"Wav2Vec model downloaded {model_path}")
+            logging.info(f"data2vec model downloaded {model_path}")
         else:
-            logging.info(f"Wav2Vec model {model_path} already exists.")
+            logging.info(f"data2vec model {model_path} already exists.")
 
     return model_path
 
