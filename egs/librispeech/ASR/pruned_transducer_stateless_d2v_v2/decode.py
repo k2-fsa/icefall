@@ -18,79 +18,24 @@
 # limitations under the License.
 """
 Usage:
-(1) greedy search
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
-
-(2) beam search (not recommended)
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless7_ctc/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
+(0) for d2v-T decoding
+for method in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless_d2v_v2/decode.py \
+    --input-strategy AudioSamples \
+    --enable-spec-aug False \
+    --additional-block True \
+    --epoch 27 \
+    --avg 1 \
+    --exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
+    --max-duration 400 \
+    --decoding-method $method \
+    --max-sym-per-frame 1 \
+    --encoder-type d2v \
+    --encoder-dim 768 \
+    --decoder-dim 768 \
+    --joiner-dim 768 \
+    --use-averaged-model False
+done
 """
 
 
