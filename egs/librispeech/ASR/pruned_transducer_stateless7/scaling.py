@@ -298,7 +298,7 @@ class SoftmaxFunction(torch.autograd.Function):
 
 
 def softmax(x: Tensor, dim: int):
-    if torch.jit.is_scripting():
+    if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
         return x.softmax(dim)
 
     return SoftmaxFunction.apply(x, dim)
@@ -783,7 +783,7 @@ class WithLoss(torch.autograd.Function):
 
 
 def with_loss(x, y):
-    if torch.jit.is_scripting():
+    if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
         return x
     # returns x but adds y.sum() to the loss function.
     return WithLoss.apply(x, y)
@@ -1013,7 +1013,7 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.onnx.is_in_onnx_export():
             return x * torch.sigmoid(x - 1.0)
         return DoubleSwishFunction.apply(x)
 

@@ -1258,16 +1258,26 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, seq_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.onnx.is_in_onnx_export():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, seq_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
@@ -1458,7 +1468,11 @@ class PoolingModule(nn.Module):
            a Tensor of shape (1, N, C)
         """
         if key_padding_mask is not None:
-            pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
+            if torch.onnx.is_in_onnx_export():
+                temp_not = torch.zeros_like(key_padding_mask, dtype=torch.bool)
+                pooling_mask = (key_padding_mask == temp_not).to(x.dtype)  # (N, T)
+            else:
+                pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
             pooling_mask = pooling_mask / pooling_mask.sum(dim=1, keepdim=True)
             pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
             # now pooling_mask: (T, N, 1)
