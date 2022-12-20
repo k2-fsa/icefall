@@ -661,7 +661,7 @@ def main():
     model = get_transducer_model(params)
     
     if params.model_name:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
     else:
         if not params.use_averaged_model:
             if params.iter > 0:
