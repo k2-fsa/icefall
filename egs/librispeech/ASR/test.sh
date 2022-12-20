@@ -6,7 +6,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--enable-spec-aug False \
 	--additional-block True \
 	--epoch 30 \
-    --avg 1 \
+    --avg 3 \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
     --max-duration 400 \
     --decoding-method $method \
@@ -15,7 +15,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --encoder-dim 768 \
     --decoder-dim 768 \
     --joiner-dim 768 \
-    --use-averaged-model False
+    --use-averaged-model True
 done
 
 #--epoch 5 \
