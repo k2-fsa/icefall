@@ -73,15 +73,6 @@ class FairSeqData2VecEncoder(EncoderInterface):
         model.feature_grad_mult = 0.0 ## for conv network freeze
         model.mask_prob = 0.5 ## for conv network freeze
         
-        if not isinstance(model, Wav2Vec2Model):
-            try:
-                model = model.w2v_encoder.w2v_model
-            
-            except:
-                print(
-                    "using data2vec ..."
-                )
-
         self.encoders = model
         self.pretrained_params = copy.deepcopy(model.state_dict())
 
