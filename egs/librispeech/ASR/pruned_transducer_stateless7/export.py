@@ -264,7 +264,6 @@ def export_encoder_model_onnx(
     # I cannot find which statement causes the above error.
     # torch.onnx.export() will use torch.jit.trace() internally, which
     # works well for the current reworked model
-    warmup = 1.0
     torch.onnx.export(
         encoder_model,
         (x, x_lens),

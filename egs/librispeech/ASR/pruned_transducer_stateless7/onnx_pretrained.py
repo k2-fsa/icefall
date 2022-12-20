@@ -28,11 +28,11 @@ You can use the following command to get the exported models:
 Usage of this script:
 
 ./pruned_transducer_stateless7/onnx_pretrained.py \
-  --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
-  --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
-  --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx \
+  --encoder-model-filename ./pruned_transducer_stateless7/exp/encoder.onnx \
+  --decoder-model-filename ./pruned_transducer_stateless7/exp/decoder.onnx \
+  --joiner-model-filename ./pruned_transducer_stateless7/exp/joiner.onnx \
+  --joiner-encoder-proj-model-filename ./pruned_transducer_stateless7/exp/joiner_encoder_proj.onnx \
+  --joiner-decoder-proj-model-filename ./pruned_transducer_stateless7/exp/joiner_decoder_proj.onnx \
   --bpe-model ./data/lang_bpe_500/bpe.model \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -240,8 +240,13 @@ def greedy_search(
         logits = joiner.run(
             [joiner_output_nodes[0].name],
             {
-                joiner_input_nodes[0].name: np.expand_dims(np.expand_dims(current_encoder_out, axis=1), axis=1),
-                joiner_input_nodes[1].name: projected_decoder_out.unsqueeze(1).unsqueeze(1).numpy(),
+                joiner_input_nodes[0].name: np.expand_dims(
+                    np.expand_dims(current_encoder_out, axis=1), axis=1
+                ),
+                joiner_input_nodes[1]
+                .name: projected_decoder_out.unsqueeze(1)
+                .unsqueeze(1)
+                .numpy(),
             },
         )[0]
         logits = torch.from_numpy(logits).squeeze(1).squeeze(1)

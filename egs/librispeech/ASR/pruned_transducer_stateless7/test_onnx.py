@@ -28,16 +28,14 @@ if not is_module_available("onnxruntime"):
 
 import onnxruntime as ort
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from zipformer import (
+    Conv2dSubsampling,
+    RelPositionalEncoding,
     Zipformer,
     ZipformerEncoder,
     ZipformerEncoderLayer,
-    Conv2dSubsampling,
-    RelPositionalEncoding,
 )
-from scaling_converter import convert_scaled_to_non_scaled
-
-from icefall.utils import make_pad_mask
 
 ort.set_default_logger_severity(3)
 
@@ -139,7 +137,7 @@ def test_rel_pos():
     inputs = {input_nodes[0].name: x.numpy()}
     onnx_pos_emb = session.run(["pos_emb"], inputs)
     onnx_pos_emb = torch.from_numpy(onnx_pos_emb[0])
-    
+
     torch_pos_emb = encoder_pos(x)
     assert torch.allclose(onnx_pos_emb, torch_pos_emb, atol=1e-05), (
         (onnx_pos_emb - torch_pos_emb).abs().max()
@@ -171,7 +169,7 @@ def test_zipformer_encoder_layer():
 
     x = x.permute(1, 0, 2)
     pos_emb = encoder_pos(x)
-    
+
     encoder_layer = ZipformerEncoderLayer(
         d_model,
         attention_dim,
@@ -255,7 +253,9 @@ def test_zipformer_encoder():
         cnn_module_kernel,
         pos_dim,
     )
-    encoder = ZipformerEncoder(encoder_layer, num_encoder_layers, dropout, warmup_begin, warmup_end)
+    encoder = ZipformerEncoder(
+        encoder_layer, num_encoder_layers, dropout, warmup_begin, warmup_end
+    )
     encoder.eval()
     encoder = convert_scaled_to_non_scaled(encoder, inplace=True)
 
