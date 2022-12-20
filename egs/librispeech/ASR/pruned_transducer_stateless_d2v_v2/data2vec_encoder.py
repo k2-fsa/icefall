@@ -154,7 +154,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
 
     def reload_pretrained_parameters(self):
         self.encoders.load_state_dict(self.pretrained_params)
-        logging.info("Pretrained Wav2Vec model parameters reloaded!")
+        logging.info("Pretrained data2vec model parameters reloaded!")
 
 
 def download_w2v(model_url, dir_path):
