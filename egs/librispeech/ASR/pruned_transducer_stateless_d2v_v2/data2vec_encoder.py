@@ -50,7 +50,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         if w2v_url != "":
             try:
                 import fairseq
-                from fairseq.models.wav2vec.wav2vec2 import Wav2Vec2Model
+                from data2vec_audio import *
             except Exception as e:
                 print("Error: FairSeq is not properly installed.")
                 print(
