@@ -89,7 +89,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="",
-        help="""It specifies the model file name to use for decoding.
+        help="""It specifies the model file name to use for decoding."""
     )
 
     parser.add_argument(
