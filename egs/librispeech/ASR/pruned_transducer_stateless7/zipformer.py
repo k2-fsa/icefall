@@ -28,6 +28,7 @@ from scaling import (
     ActivationBalancer,
     BasicNorm,
     ConvNorm1d,
+    ConvNorm2d,
     Dropout2,
     MaxEig,
     DoubleSwish,
@@ -1792,8 +1793,8 @@ class Conv2dSubsampling(nn.Module):
 
         self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
                                        ConvNeXt(layer2_channels),
-                                       BasicNorm(layer2_channels,
-                                                 channel_dim=1))
+                                       ConvNorm2d(layer2_channels,
+                                                  kernel_size=(15, 7)))  # (time, freq)
 
 
         self.conv2 = nn.Sequential(
@@ -1812,8 +1813,8 @@ class Conv2dSubsampling(nn.Module):
         self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels),
                                        ConvNeXt(layer3_channels),
-                                       BasicNorm(layer3_channels,
-                                                 channel_dim=1))
+                                       ConvNorm2d(layer3_channels,
+                                                  kernel_size=(15, 5)))  # (time, freq)
 
 
         out_height = (((in_channels - 1) // 2) - 1) // 2
