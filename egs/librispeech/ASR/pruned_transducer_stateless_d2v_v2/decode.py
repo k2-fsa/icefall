@@ -87,7 +87,7 @@ def get_parser():
     )
     parser.add_argument(
         "--model-name",
-        type=int,
+        type=str,
         default=30,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
