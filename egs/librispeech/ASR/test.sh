@@ -15,5 +15,3 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --decoder-dim 768 \
     --joiner-dim 768 \
 done
-
-#--epoch 5 \
