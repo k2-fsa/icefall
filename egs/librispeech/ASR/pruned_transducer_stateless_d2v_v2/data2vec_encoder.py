@@ -20,6 +20,15 @@ from encoder_interface import EncoderInterface
 from torch import Tensor, nn
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
+try:
+    import fairseq
+    from data2vec_audio import *
+except Exception as e:
+    print("Error: FairSeq is not properly installed.")
+    print(
+        "Please install FairSeq: cd ${MAIN_ROOT}/tools && make fairseq.done"
+    )
+    raise e
 
 
 class FairSeqData2VecEncoder(EncoderInterface):
@@ -47,17 +56,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         assert check_argument_types()
         super().__init__()
 
-        if w2v_url != "":
-            try:
-                import fairseq
-                from data2vec_audio import *
-            except Exception as e:
-                print("Error: FairSeq is not properly installed.")
-                print(
-                    "Please install FairSeq: cd ${MAIN_ROOT}/tools && make fairseq.done"
-                )
-                raise e
-        
+                    
         '''
         if os.path.exists('/home/work/workspace/models/data2vec_model/audio_base_ls.pt'):
             self.w2v_model_path = '/home/work/workspace/models/data2vec_model/audio_base_ls.pt'
