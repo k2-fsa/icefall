@@ -89,6 +89,10 @@ def get_parser():
         "--model-name",
         type=str,
         default="",
+        help="""It specifies the model file name to use for decoding.
+        Note: Epoch counts from 1.
+        You can specify --avg to use more checkpoints for model averaging.""",
+
     )
 
     parser.add_argument(
