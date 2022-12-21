@@ -560,7 +560,7 @@ class ConvNorm1d(torch.nn.Module):
         learn_eps: bool = True,
         eps_min: float = -3.0,
         eps_max: float = 3.0,
-        conv_min: float = 0.1,
+        conv_min: float = 0.001,
         conv_max: float = 1.0,
         kernel_size: int = 15,
     ) -> None:
@@ -677,7 +677,7 @@ class ConvNorm2d(torch.nn.Module):
         learn_eps: bool = True,
         eps_min: float = -3.0,
         eps_max: float = 3.0,
-        conv_min: float = 0.05,
+        conv_min: float = 0.001,
         conv_max: float = 1.0,
         kernel_size: Tuple[int, int] = (3, 3),
     ) -> None:
