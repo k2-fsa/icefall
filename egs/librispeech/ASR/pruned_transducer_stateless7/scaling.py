@@ -871,9 +871,6 @@ class ActivationBalancer(torch.nn.Module):
         if prob is None:
             prob = ScheduledFloat((0.0, 0.5), (8000.0, 0.125), default=0.4)
         self.prob = prob
-        # 5% of the time we will return and do nothing because memory usage is
-        # too high.
-        self.mem_cutoff = CutoffEstimator(0.05)
 
         # actually self.num_channels is no longer needed except for an assertion.
         self.num_channels = num_channels
@@ -888,8 +885,7 @@ class ActivationBalancer(torch.nn.Module):
 
 
     def forward(self, x: Tensor) -> Tensor:
-        if (torch.jit.is_scripting() or not x.requires_grad or
-            (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))):
+        if torch.jit.is_scripting() or not x.requires_grad:
             return _no_op(x)
 
         prob = float(self.prob)
