@@ -20,18 +20,17 @@ This script loads torchscript models, exported by `torch.jit.script()`
 and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless7_ctc/export.py \
-  --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+./pruned_transducer_stateless7_ctc_bs/export.py \
+  --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
-  --avg 10 \
-  --jit 1
+  --avg 10
 
 Usage of this script:
 
 (1) ctc-decoding
-./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
-  --model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt \
   --bpe-model data/lang_bpe_500/bpe.model \
   --method ctc-decoding \
   --sample-rate 16000 \
@@ -39,8 +38,8 @@ Usage of this script:
   /path/to/bar.wav
 
 (2) 1best
-./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
-  --model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --method 1best \
@@ -48,10 +47,9 @@ Usage of this script:
   /path/to/foo.wav \
   /path/to/bar.wav
 
-
 (3) nbest-rescoring
-./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
-  --model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
+./bruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
@@ -62,8 +60,8 @@ Usage of this script:
 
 
 (4) whole-lattice-rescoring
-./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
-  --model-filename ./pruned_transducer_stateless7_ctc/exp/cpu_jit.pt \
+./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py \
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
   --G data/lm/G_4_gram.pt \
@@ -85,7 +83,7 @@ import torch
 import torchaudio
 from ctc_decode import get_decoding_params
 from torch.nn.utils.rnn import pad_sequence
-from train import get_params
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.decode import (
     get_lattice,
@@ -102,10 +100,19 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--model-filename",
+        "--checkpoint",
         type=str,
         required=True,
-        help="Path to the torchscript model.",
+        help="Path to the checkpoint. "
+        "The checkpoint is assumed to be saved by "
+        "icefall.checkpoint.save_checkpoint().",
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram, 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -225,6 +232,8 @@ def get_parser():
         "The sample rate has to be 16kHz.",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -243,9 +252,9 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert (
-            sample_rate == expected_sample_rate
-        ), f"Expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
+        assert sample_rate == expected_sample_rate, (
+            f"expected sample rate: {expected_sample_rate}. " f"Given: {sample_rate}"
+        )
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -260,6 +269,8 @@ def main():
     # add decoding params
     params.update(get_decoding_params())
     params.update(vars(args))
+    params.vocab_size = params.num_classes
+    params.blank_id = 0
 
     logging.info(f"{params}")
 
@@ -269,7 +280,14 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = torch.jit.load(args.model_filename)
+    logging.info("Creating model")
+    model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
+
+    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
 
@@ -304,10 +322,7 @@ def main():
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(
-        [
-            [i, 0, feature_lengths[i] // params.subsampling_factor]
-            for i in range(batch_size)
-        ],
+        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
         dtype=torch.int32,
     )
 
@@ -421,6 +436,5 @@ def main():
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()
