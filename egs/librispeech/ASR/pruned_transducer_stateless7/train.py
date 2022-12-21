@@ -861,7 +861,7 @@ def train_one_epoch(
                              params=params,
                              optimizer=optimizer,
                              scheduler=scheduler,
-                             sampler=sampler,
+                             sampler=train_dl.sampler,
                              scaler=scaler,
                              rank=0)
 
