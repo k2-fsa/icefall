@@ -450,8 +450,8 @@ class BasicNormFunction(torch.autograd.Function):
             bias = bias.unsqueeze(-1)
         scales  = (torch.mean((x + bias) ** 2, dim=channel_dim, keepdim=True) + eps.exp()) ** -0.5
         ans = x * scales - bias
-        ctx.save_for_backward(ans if store_output_for_backprop else x,
-                              scales, bias, eps)
+        ctx.save_for_backward(ans.detach() if store_output_for_backprop else x.detach(),
+                              scales.detach(), bias.detach(), eps.detach())
         return ans
 
     @staticmethod
@@ -463,8 +463,6 @@ class BasicNormFunction(torch.autograd.Function):
         else:
             x = ans_or_x
         x = x.detach()
-        bias = bias.detach()
-        eps = eps.detach()
         x.requires_grad = True
         bias.requires_grad = True
         eps.requires_grad = True
