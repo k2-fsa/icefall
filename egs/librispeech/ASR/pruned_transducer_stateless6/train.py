@@ -985,9 +985,11 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
+            '''
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
+            '''
             return False
 
         # In pruned RNN-T, we require that T >= S
@@ -998,8 +1000,9 @@ def run(rank, world_size, args):
         # for subsampling
         T = ((c.num_frames - 1) // 2 - 1) // 2
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
-
+        
         if T < len(tokens):
+            '''
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. "
                 f"Number of frames (before subsampling): {c.num_frames}. "
@@ -1008,8 +1011,9 @@ def run(rank, world_size, args):
                 f"Tokens: {tokens}. "
                 f"Number of tokens: {len(tokens)}"
             )
+            '''
             return False
-
+        
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
