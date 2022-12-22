@@ -254,7 +254,7 @@ class TensorDiagnostic(object):
                             "Error getting eigenvalues, trying another method."
                         )
                         eigs, _ = torch.eig(stats)
-                        stats = eigs.abs().sqrt()
+                        stats = eigs.norm(dim=1).sqrt()
                         # sqrt so it reflects data magnitude, like stddev- not variance
 
                 if stats_type in [ "rms", "stddev" ]:
