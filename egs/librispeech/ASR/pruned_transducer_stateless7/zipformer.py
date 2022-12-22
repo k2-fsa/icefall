@@ -1899,7 +1899,7 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_whiten(x)
         x = self.out_norm(x)
         x = self.dropout(x)
-        return 4.0 * x
+        return x
 
 class AttentionCombine(nn.Module):
     """
