@@ -1258,7 +1258,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        if torch.onnx.is_in_onnx_export():
+        if torch.jit.is_tracing():
             (batch_size, num_heads, time1, n) = pos_weights.shape
             rows = torch.arange(start=time1 - 1, end=-1, step=-1)
             cols = torch.arange(seq_len)
@@ -1468,7 +1468,7 @@ class PoolingModule(nn.Module):
            a Tensor of shape (1, N, C)
         """
         if key_padding_mask is not None:
-            if torch.onnx.is_in_onnx_export():
+            if torch.jit.is_tracing():
                 temp_not = torch.zeros_like(key_padding_mask, dtype=torch.bool)
                 pooling_mask = (key_padding_mask == temp_not).to(x.dtype)  # (N, T)
             else:
