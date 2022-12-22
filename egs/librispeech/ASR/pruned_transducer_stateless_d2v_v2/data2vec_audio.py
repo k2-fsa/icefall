@@ -253,7 +253,8 @@ class Data2VecAudioModel(BaseFairseqModel):
                     mask_dropout=self.cfg.mask_dropout,
                 )
                 mask_indices = torch.from_numpy(mask_indices).to(x.device)
-            x = index_put(x, mask_indices, self.mask_emb)
+            #x = index_put(x, mask_indices, self.mask_emb)
+            x = index_put(x, mask_indices, 0)
         else:
             mask_indices = None
 
