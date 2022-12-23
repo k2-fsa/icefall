@@ -1683,7 +1683,7 @@ class ConvNeXt(nn.Module):
         pad = (kernel_size - 1) // 2
         hidden_channels = channels * hidden_ratio
         if layerdrop_rate is None:
-            layerdrop_rate = ScheduledFloat((0.0, 0.2), (20000.0, 0.0))
+            layerdrop_rate = ScheduledFloat((0.0, 0.2), (20000.0, 0.015))
         self.layerdrop_rate = layerdrop_rate
 
         self.depthwise_conv = nn.Conv2d(
