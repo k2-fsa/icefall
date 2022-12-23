@@ -50,7 +50,7 @@ full_libri=False
 #   "True" -> stage 0 and stage 1 would be skipped,
 #     and directly download the extracted codebook indexes for distillation
 #   "False" -> start from scratch
-use_extracted_codebook=False
+use_extracted_codebook=True
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
