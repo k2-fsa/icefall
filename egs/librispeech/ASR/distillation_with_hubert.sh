@@ -44,7 +44,7 @@ mkdir -p $exp_dir
 # full_libri can be "True" or "False"
 #   "True" -> use full librispeech dataset for distillation
 #   "False" -> use train-clean-100 subset for distillation
-full_libri=False
+full_libri=True
 
 # use_extracted_codebook can be "True" or "False"
 #   "True" -> stage 0 and stage 1 would be skipped,
