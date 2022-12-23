@@ -481,16 +481,10 @@ class BasicNorm(torch.nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
-        eps = self.eps
-        if self.training and random.random() < 0.25:
-            # with probability 0.25, in training mode, clamp eps between the min
-            # and max; this will encourage it to learn parameters within the
-            # allowed range by making parameters that are outside the allowed
-            # range noisy.
 
-            # gradients to allow the parameter to get back into the allowed
-            # region if it happens to exit it.
-            eps = eps.clamp(min=self.eps_min, max=self.eps_max)
+        eps = self.eps
+        if self.training:
+            eps = limit_param_value(self.eps, min=self.eps_min, max=self.eps_max)
         eps = eps.exp()
         scales = (
             (torch.mean(x ** 2, dim=self.channel_dim, keepdim=True) + eps) /

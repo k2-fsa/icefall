@@ -216,6 +216,7 @@ class Zipformer(EncoderInterface):
                                                      encoder_dim[-1],
                                                      downsample=output_downsampling_factor,
                                                      dropout=dropout)
+        self.norm = BasicNorm(num_channels=encoder_dim[-1])
 
 
     def _init_skip_modules(self):
@@ -357,6 +358,7 @@ class Zipformer(EncoderInterface):
         lengths = (lengths + 1) // 2
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        x = self.norm(x)
 
         return x, lengths
 
