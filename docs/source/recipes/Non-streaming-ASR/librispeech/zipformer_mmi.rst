@@ -382,7 +382,7 @@ can run:
     /path/to/bar.wav
 
 Export model using ``torch.jit.script()``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 

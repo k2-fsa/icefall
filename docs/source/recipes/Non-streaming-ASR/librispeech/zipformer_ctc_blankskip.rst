@@ -1,5 +1,5 @@
 Zipformer CTC Blank Skip
-===============
+========================
 
 .. hint::
 
@@ -403,7 +403,7 @@ To test CTC branch using the exported model with ``./pruned_transducer_stateless
     /path/to/bar.wav
 
 Export model using ``torch.jit.script()``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
