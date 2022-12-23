@@ -9,3 +9,4 @@ LibriSpeech
    pruned_transducer_stateless
    lstm_pruned_stateless_transducer
    zipformer_mmi
+   zipformer_ctc_blankskip
