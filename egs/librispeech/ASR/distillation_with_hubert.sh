@@ -23,7 +23,7 @@
 # To start from scratch, you can
 # set stage=0, stop_stage=4, use_extracted_codebook=False
 
-stage=3
+stage=1
 stop_stage=4
 
 # Set the GPUs available.
