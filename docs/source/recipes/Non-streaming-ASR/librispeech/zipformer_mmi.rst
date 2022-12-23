@@ -272,7 +272,7 @@ You will find the following files in that directory:
 Usage example
 ~~~~~~~~~~~~~
 
-You can use the following command to start the training using 8 GPUs:
+You can use the following command to start the training using 4 GPUs:
 
 .. code-block:: bash
 
