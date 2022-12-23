@@ -466,8 +466,8 @@ class BasicNorm(torch.nn.Module):
         channel_dim: int = -1,  # CAUTION: see documentation.
         eps: float = 0.25,
         learn_eps: bool = True,
-        eps_min: float = -3.0,
-        eps_max: float = 3.0,
+        eps_min: float = -2.0,
+        eps_max: float = 2.0,
     ) -> None:
         super(BasicNorm, self).__init__()
         self.num_channels = num_channels
