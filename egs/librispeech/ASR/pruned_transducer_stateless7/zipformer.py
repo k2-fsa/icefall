@@ -573,9 +573,8 @@ class ZipformerEncoderLayer(nn.Module):
         src = src + self.feed_forward2(src)
 
         src = self.balancer(src)
-        src = self.norm_final(src)
 
-        delta = src - src_orig
+        delta = self.norm_final(src - src_orig)
 
         src = src_orig + delta * self.get_bypass_scale(src.shape[1])
         src = self.whiten(src)
