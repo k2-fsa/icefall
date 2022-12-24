@@ -573,8 +573,9 @@ class ZipformerEncoderLayer(nn.Module):
         src = src + self.feed_forward2(src)
 
         src = self.balancer(src)
+        src = self.norm_final(src)
 
-        delta = self.norm_final(src - src_orig)
+        delta = src - src_orig
 
         src = src_orig + delta * self.get_bypass_scale(src.shape[1])
         src = self.whiten(src)
@@ -1820,13 +1821,12 @@ class Conv2dSubsampling(nn.Module):
         )
 
         self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
-                                       ConvNeXt(layer2_channels))
+                                       ConvNeXt(layer2_channels),
+                                       BasicNorm(layer2_channels,
+                                                 channel_dim=1))
 
 
         cur_width = (in_channels - 1) // 2
-
-        self.norm1 = BasicNorm(layer2_channels * cur_width,
-                               channel_dim=-1)
 
 
         self.conv2 = nn.Sequential(
@@ -1883,10 +1883,6 @@ class Conv2dSubsampling(nn.Module):
         x = self.conv1(x)
         x = self.convnext1(x)
 
-        (batch_size, layer2_channels, num_frames, cur_width) = x.shape
-        x = x.permute(0, 2, 1, 3).reshape(batch_size, num_frames, layer2_channels * cur_width)
-        x = self.norm1(x)
-        x = x.reshape(batch_size, num_frames, layer2_channels, cur_width).permute(0, 2, 1, 3)
 
         x = self.conv2(x)
         x = self.convnext2(x)
