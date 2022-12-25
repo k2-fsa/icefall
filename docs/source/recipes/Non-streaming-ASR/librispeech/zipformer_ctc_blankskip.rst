@@ -15,7 +15,7 @@ with the `LibriSpeech <https://www.openslr.org/12>`_ dataset.
 
     We use both CTC and RNN-T loss to train. During the forward pass, the encoder output
     is first used to calculate the CTC posterior probability; then for each output frame,
-    if its blank posterior is bigger than some thresholds, it will be simply discarded
+    if its blank posterior is bigger than some threshold, it will be simply discarded
     from the encoder output. To prevent information loss, we also put a convolution module
     similar to the one used in conformer (referred to as “LConv”) before the frame reduction.
 
