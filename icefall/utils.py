@@ -150,7 +150,6 @@ def setup_logger(
         format=formatter,
         level=level,
         filemode="w",
-        force=True,
     )
     if use_console:
         console = logging.StreamHandler()

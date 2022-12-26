@@ -14,7 +14,7 @@ repo_url=https://huggingface.co/marcoyang/icefall-asr-librispeech-finetune-huber
 
 log "Downloading pre-trained model from $repo_url"
 git lfs install
-#GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 log "Display test files"
