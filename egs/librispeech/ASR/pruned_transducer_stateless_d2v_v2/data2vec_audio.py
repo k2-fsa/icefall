@@ -39,15 +39,6 @@ class TransformerEncoderAdapter(TransformerEncoder):
         super().__init__(args)
         self.adapters = ResidualAdapterModule()
 
-    @classmethod
-    def add_adapter_arguments(cls, parser: argparse.ArgumentParser):
-        parser.add_argument(
-            "--add-adapter",
-            type=str2bool,
-            default=False,
-            help="add adapter to rep model's encoder"
-        )
-
     def forward(self, x, padding_mask=None, layer=None, tgt_layer=None):
         x, layer_results = self.extract_features_with_adapter(
                                 x, 
