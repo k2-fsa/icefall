@@ -1020,9 +1020,9 @@ def train_one_epoch(
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
-            loggin.info('1')
+            logging.info('1')
             scaler.scale(loss).backward()
-            loggin.info('2')
+            logging.info('2')
 
             if params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
@@ -1034,13 +1034,13 @@ def train_one_epoch(
                 optimizer_enc.zero_grad()
                 optimizer_dec.zero_grad()
             elif not params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
-                loggin.info('3')
+                logging.info('3')
                 set_batch_count(model, params.batch_idx_train)
                 scheduler.step_batch(params.batch_idx_train)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
-                loggin.info('4')
+                logging.info('4')
 
         except:  # noqa
             display_and_save_batch(batch, params=params, sp=sp)
