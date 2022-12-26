@@ -1465,7 +1465,6 @@ def run_adapter(rank, world_size, args, wb=None):
     """
     params = get_params()
     params.update(vars(args))
-    #params.warm_step *= params.accum_grads
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -1495,8 +1494,6 @@ def run_adapter(rank, world_size, args, wb=None):
 
     logging.info("About to create model")
     model = get_transducer_model(params)
-    logging.info(model)
-    exit()
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
