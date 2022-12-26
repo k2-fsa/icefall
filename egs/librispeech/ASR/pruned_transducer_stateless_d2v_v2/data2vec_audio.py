@@ -39,6 +39,8 @@ class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
         self.adapters = ResidualAdapterModule()
+        for p in self.adapters.parameters():
+            p.data = torch.nn.parameters(0.)
 
     def forward(self, x, padding_mask=None, layer=None, tgt_layer=None):
         x, layer_results = self.extract_features_with_adapter(
