@@ -96,7 +96,6 @@ class TransformerEncoderAdapter(TransformerEncoder):
                     x, self_attn_padding_mask=padding_mask, need_weights=False,
                 )
                 x = self.adapters(x, layer_id=i)
-                exit()
 
                 if i >= min_layer:
                     layer_results.append((x, z, lr))
@@ -155,16 +154,11 @@ class ResidualAdapterModule(nn.Module):
     
     def forward(self, x, layer_id=-1):
         layer_id = 0
-        print(x.size())
         x = x.transpose(0, 1)
         residual = x
-        print(residual.size())
         x = self.adapter_layers[layer_id](x)
-        print(x.size())
         x = residual + x
-        print(x.size())
         x = x.transpose(0, 1)
-        print(x.size())
         return x
 
 
