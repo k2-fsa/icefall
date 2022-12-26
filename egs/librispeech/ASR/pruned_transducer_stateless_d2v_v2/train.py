@@ -1495,7 +1495,7 @@ def run_adapter(rank, world_size, args, wb=None):
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    num_param = sum([p.numel() for p in model.parameters()])
+    num_param = sum([p.numel() if p.requires_grad else 0 for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     assert params.save_every_n >= params.average_period
