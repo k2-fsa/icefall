@@ -1521,8 +1521,8 @@ def run_adapter(rank, world_size, args, wb=None):
         if 'adapters' in n:
             adapter_names.append(n)
             adapter_param.append(p)
-        else:
-            p.requires_grad = False
+        #else:
+        #    p.requires_grad = False
     
     optimizer_adapter = ScaledAdam(
             adapter_param,
