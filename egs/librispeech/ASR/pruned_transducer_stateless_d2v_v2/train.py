@@ -1523,7 +1523,7 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_param.append(p)
     
     optimizer_adapter = ScaledAdam(
-            adapter_,
+            adapter_param,
             lr=params.peak_enc_lr,
             clipping_scale=None,
             parameters_names=[enc_names],
