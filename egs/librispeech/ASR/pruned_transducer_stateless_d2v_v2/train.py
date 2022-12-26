@@ -138,6 +138,15 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     model.encoder.num_updates = int(batch_count)
 
 
+def add_adapter_arguments(cls, parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--add-adapter",
+        type=str2bool,
+        default=False,
+        help="add adapter to rep model's encoder"
+    )
+
+
 def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--wandb",
