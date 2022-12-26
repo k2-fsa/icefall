@@ -1038,6 +1038,7 @@ def train_one_epoch(
                 set_batch_count(model, params.batch_idx_train)
                 logging.info('4')
                 scheduler.step_batch(params.batch_idx_train)
+                print(optimizer)
                 logging.info('5')
                 scaler.step(optimizer)
                 logging.info('6')
