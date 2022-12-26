@@ -53,6 +53,7 @@
 <li class="toctree-l4 current"><a class="current reference internal" href="#">Conformer CTC</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
 <li class="toctree-l4"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
@@ -337,10 +338,10 @@ $ tensorboard dev upload --logdir . --description <span class="s2">&quot;Conform
 <p>Note there is a URL in the above output, click it and you will see
 the following screenshot:</p>
 <blockquote>
-<div><figure class="align-center" id="id2">
+<div><figure class="align-center" id="id4">
 <a class="reference external image-reference" href="https://tensorboard.dev/experiment/lzGnETjwRxC3yghNMd4kPw/"><img alt="TensorBoard screenshot" src="../../../_images/librispeech-conformer-ctc-tensorboard-log.png" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 4 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 4 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </div></blockquote>
@@ -931,6 +932,8 @@ Caution:
    related to <span class="sb">`</span>model.forward<span class="sb">`</span> <span class="k">in</span> this file.
 </pre></div>
 </div>
+<section id="id2">
+<h3>CTC decoding<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/ctc_decode <span class="se">\</span>
   --use_gpu <span class="nb">true</span> <span class="se">\</span>
   --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt <span class="se">\</span>
@@ -963,6 +966,9 @@ Caution:
 <span class="n">YET</span> <span class="n">THESE</span> <span class="n">THOUGHTS</span> <span class="n">AFFECTED</span> <span class="n">HESTER</span> <span class="n">PRYNNE</span> <span class="n">LESS</span> <span class="n">WITH</span> <span class="n">HOPE</span> <span class="n">THAN</span> <span class="n">APPREHENSION</span>
 </pre></div>
 </div>
+</section>
+<section id="id3">
+<h3>HLG decoding<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/hlg_decode <span class="se">\</span>
   --use_gpu <span class="nb">true</span> <span class="se">\</span>
   --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt <span class="se">\</span>
@@ -996,6 +1002,9 @@ Caution:
 <span class="n">YET</span> <span class="n">THESE</span> <span class="n">THOUGHTS</span> <span class="n">AFFECTED</span> <span class="n">HESTER</span> <span class="n">PRYNNE</span> <span class="n">LESS</span> <span class="n">WITH</span> <span class="n">HOPE</span> <span class="n">THAN</span> <span class="n">APPREHENSION</span>
 </pre></div>
 </div>
+</section>
+<section id="hlg-decoding-n-gram-lm-rescoring">
+<h3>HLG decoding + n-gram LM rescoring<a class="headerlink" href="#hlg-decoding-n-gram-lm-rescoring" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/ngram_lm_rescore <span class="se">\</span>
   --use_gpu <span class="nb">true</span> <span class="se">\</span>
   --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt <span class="se">\</span>
@@ -1035,6 +1044,9 @@ Caution:
 <span class="n">YET</span> <span class="n">THESE</span> <span class="n">THOUGHTS</span> <span class="n">AFFECTED</span> <span class="n">HESTER</span> <span class="n">PRYNNE</span> <span class="n">LESS</span> <span class="n">WITH</span> <span class="n">HOPE</span> <span class="n">THAN</span> <span class="n">APPREHENSION</span>
 </pre></div>
 </div>
+</section>
+<section id="hlg-decoding-n-gram-lm-rescoring-attention-decoder-rescoring">
+<h3>HLG decoding + n-gram LM rescoring + attention decoder rescoring<a class="headerlink" href="#hlg-decoding-n-gram-lm-rescoring-attention-decoder-rescoring" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/attention_rescore <span class="se">\</span>
   --use_gpu <span class="nb">true</span> <span class="se">\</span>
   --nn_model ./icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09/exp/cpu_jit.pt <span class="se">\</span>
@@ -1083,6 +1095,7 @@ Caution:
 </div>
 <p>There is a Colab notebook showing you how to run a torch scripted model in C++.
 Please see <a class="reference external" href="https://colab.research.google.com/drive/1BIGLWzS36isskMXHKcqC9ysN6pspYXs_?usp=sharing"><img alt="librispeech asr conformer ctc torch script colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+</section>
 </section>
 </section>
 

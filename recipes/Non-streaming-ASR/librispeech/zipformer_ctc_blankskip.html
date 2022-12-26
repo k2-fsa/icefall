@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zipformer MMI &mdash; icefall 0.1 documentation</title>
+  <title>Zipformer CTC Blank Skip &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -20,8 +20,8 @@
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Zipformer CTC Blank Skip" href="zipformer_ctc_blankskip.html" />
-    <link rel="prev" title="Pruned transducer statelessX" href="pruned_transducer_stateless.html" /> 
+    <link rel="next" title="TIMIT" href="../timit/index.html" />
+    <link rel="prev" title="Zipformer MMI" href="zipformer_mmi.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -52,8 +52,8 @@
 <li class="toctree-l4"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
 <li class="toctree-l4"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
 <li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
-<li class="toctree-l4 current"><a class="current reference internal" href="#">Zipformer MMI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Zipformer CTC Blank Skip</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
@@ -86,9 +86,9 @@
           <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
           <li class="breadcrumb-item"><a href="../index.html">Non Streaming ASR</a></li>
           <li class="breadcrumb-item"><a href="index.html">LibriSpeech</a></li>
-      <li class="breadcrumb-item active">Zipformer MMI</li>
+      <li class="breadcrumb-item active">Zipformer CTC Blank Skip</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/librispeech/zipformer_mmi.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/librispeech/zipformer_ctc_blankskip.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -96,20 +96,23 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="zipformer-mmi">
-<h1>Zipformer MMI<a class="headerlink" href="#zipformer-mmi" title="Permalink to this heading"></a></h1>
+  <section id="zipformer-ctc-blank-skip">
+<h1>Zipformer CTC Blank Skip<a class="headerlink" href="#zipformer-ctc-blank-skip" title="Permalink to this heading"></a></h1>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>Please scroll down to the bottom of this page to find download links
 for pretrained models if you don’t want to train a model from scratch.</p>
 </div>
-<p>This tutorial shows you how to train an Zipformer MMI model
+<p>This tutorial shows you how to train a Zipformer model based on the guidance from
+a co-trained CTC model using <a class="reference external" href="https://arxiv.org/pdf/2210.16481.pdf">blank skip method</a>
 with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset.</p>
-<p>We use LF-MMI to compute the loss.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>You can find the document about LF-MMI training at the following address:</p>
-<p><a class="reference external" href="https://github.com/k2-fsa/next-gen-kaldi-wechat/blob/master/pdf/LF-MMI-training-and-decoding-in-k2-Part-I.pdf">https://github.com/k2-fsa/next-gen-kaldi-wechat/blob/master/pdf/LF-MMI-training-and-decoding-in-k2-Part-I.pdf</a></p>
+<p>We use both CTC and RNN-T loss to train. During the forward pass, the encoder output
+is first used to calculate the CTC posterior probability; then for each output frame,
+if its blank posterior is bigger than some threshold, it will be simply discarded
+from the encoder output. To prevent information loss, we also put a convolution module
+similar to the one used in conformer (referred to as “LConv”) before the frame reduction.</p>
 </div>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
@@ -169,11 +172,11 @@ the following YouTube channel by <a class="reference external" href="https://www
 </iframe></div></section>
 <section id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
-<p>For stability, it uses CTC loss for model warm-up and then switches to MMI loss.</p>
+<p>For stability, it doesn`t use blank skip method until model warm-up.</p>
 <section id="configurable-options">
 <h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./zipformer_mmi/train.py --help
+$ ./pruned_transducer_stateless7_ctc_bs/train.py --help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -193,14 +196,14 @@ If <code class="docutils literal notranslate"><span class="pre">--full-libri</sp
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--num-epochs</span></code></p>
 <p>It is the number of epochs to train. For instance,
-<code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30 epochs
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30 epochs
 and generates <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-2.pt</span></code>, …, <code class="docutils literal notranslate"><span class="pre">epoch-30.pt</span></code>
-in the folder <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/exp</span></code>.</p>
+in the folder <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/exp</span></code>.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--start-epoch</span></code></p>
 <p>It’s used to resume training.
-<code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
-checkpoint <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/exp/epoch-9.pt</span></code> and starts
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
+checkpoint <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/exp/epoch-9.pt</span></code> and starts
 training from epoch 10, based on the state from epoch 9.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--world-size</span></code></p>
@@ -224,7 +227,7 @@ GPU 2 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
 $ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./zipformer_mmi/train.py --world-size <span class="m">2</span>
+$ ./pruned_transducer_stateless7_ctc_bs/train.py --world-size <span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -232,7 +235,7 @@ $ ./zipformer_mmi/train.py --world-size <span class="m">2</span>
 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./zipformer_mmi/train.py --world-size <span class="m">4</span>
+$ ./pruned_transducer_stateless7_ctc_bs/train.py --world-size <span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -241,7 +244,7 @@ for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
 $ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./zipformer_mmi/train.py --world-size <span class="m">1</span>
+$ ./pruned_transducer_stateless7_ctc_bs/train.py --world-size <span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -274,13 +277,13 @@ tune it.</p>
 number of warmup steps, results dir, etc,
 that are not passed from the commandline.
 They are pre-configured by the function <code class="docutils literal notranslate"><span class="pre">get_params()</span></code> in
-<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/zipformer_mmi/train.py">zipformer_mmi/train.py</a></p>
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7_ctc_bs/train.py">pruned_transducer_stateless7_ctc_bs/train.py</a></p>
 <p>You don’t need to change these pre-configured parameters. If you really need to change
-them, please modify <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/train.py</span></code> directly.</p>
+them, please modify <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/train.py</span></code> directly.</p>
 </section>
 <section id="training-logs">
 <h3>Training logs<a class="headerlink" href="#training-logs" title="Permalink to this heading"></a></h3>
-<p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">zipformer_mmi/exp</span></code>.
+<p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/exp</span></code>.
 You will find the following files in that directory:</p>
 <blockquote>
 <div><ul>
@@ -289,7 +292,7 @@ You will find the following files in that directory:</p>
 <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./zipformer_mmi/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_ctc_bs/train.py --start-epoch <span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -299,7 +302,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">checkpoint-436000</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./zipformer_mmi/train.py --start-batch <span class="m">436000</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_ctc_bs/train.py --start-batch <span class="m">436000</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -308,7 +311,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains tensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> zipformer_mmi/exp/tensorboard
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> pruned_transducer_stateless7_ctc_bs/exp/tensorboard
 $ tensorboard dev upload --logdir . --description <span class="s2">&quot;Zipformer MMI training for LibriSpeech with icefall&quot;</span>
 </pre></div>
 </div>
@@ -333,7 +336,7 @@ tensorboard.</p>
 <p>If you don’t have access to google, you can use the following command
 to view the tensorboard log locally:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> zipformer_mmi/exp/tensorboard
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_ctc_bs/exp/tensorboard
 tensorboard --logdir . --port <span class="m">6008</span>
 </pre></div>
 </div>
@@ -360,15 +363,14 @@ you saw printed to the console during training.</p>
 <h3>Usage example<a class="headerlink" href="#usage-example" title="Permalink to this heading"></a></h3>
 <p>You can use the following command to start the training using 4 GPUs:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
-./zipformer_mmi/train.py <span class="se">\</span>
+./pruned_transducer_stateless7_ctc_bs/train.py <span class="se">\</span>
   --world-size <span class="m">4</span> <span class="se">\</span>
   --num-epochs <span class="m">30</span> <span class="se">\</span>
   --start-epoch <span class="m">1</span> <span class="se">\</span>
   --full-libri <span class="m">1</span> <span class="se">\</span>
-  --exp-dir zipformer_mmi/exp <span class="se">\</span>
-  --max-duration <span class="m">500</span> <span class="se">\</span>
-  --use-fp16 <span class="m">1</span> <span class="se">\</span>
-  --num-workers <span class="m">2</span>
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp <span class="se">\</span>
+  --max-duration <span class="m">600</span> <span class="se">\</span>
+  --use-fp16 <span class="m">1</span>
 </pre></div>
 </div>
 </section>
@@ -384,70 +386,88 @@ to run the training part first.</p>
 <div><ul class="simple">
 <li><p>(1) <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-2.pt</span></code>, …, which are saved at the end
 of each epoch. You can pass <code class="docutils literal notranslate"><span class="pre">--epoch</span></code> to
-<code class="docutils literal notranslate"><span class="pre">zipformer_mmi/decode.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code> to use them.</p></li>
 <li><p>(2) <code class="docutils literal notranslate"><span class="pre">checkpoints-436000.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-438000.pt</span></code>, …, which are saved
 every <code class="docutils literal notranslate"><span class="pre">--save-every-n</span></code> batches. You can pass <code class="docutils literal notranslate"><span class="pre">--iter</span></code> to
-<code class="docutils literal notranslate"><span class="pre">zipformer_mmi/decode.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code> to use them.</p></li>
 </ul>
 <p>We suggest that you try both types of checkpoints and choose the one
 that produces the lowest WERs.</p>
 </div></blockquote>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./zipformer_mmi/decode.py --help
+$ ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py --help
 </pre></div>
 </div>
 <p>shows the options for decoding.</p>
 <p>The following shows the example using <code class="docutils literal notranslate"><span class="pre">epoch-*.pt</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescoring-4-gram<span class="p">;</span> <span class="k">do</span>
-  ./zipformer_mmi/decode.py <span class="se">\</span>
-    --epoch <span class="m">30</span> <span class="se">\</span>
-    --avg <span class="m">10</span> <span class="se">\</span>
-    --exp-dir ./zipformer_mmi/exp/ <span class="se">\</span>
-    --max-duration <span class="m">100</span> <span class="se">\</span>
-    --lang-dir data/lang_bpe_500 <span class="se">\</span>
-    --nbest-scale <span class="m">1</span>.2 <span class="se">\</span>
-    --hp-scale <span class="m">1</span>.0 <span class="se">\</span>
-    --decoding-method <span class="nv">$m</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
+    ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py <span class="se">\</span>
+        --epoch <span class="m">30</span> <span class="se">\</span>
+        --avg <span class="m">13</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_ctc_bs/exp <span class="se">\</span>
+        --max-duration <span class="m">600</span> <span class="se">\</span>
+        --decoding-method <span class="nv">$m</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>To test CTC branch, you can use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> ctc-decoding 1best<span class="p">;</span> <span class="k">do</span>
+    ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py <span class="se">\</span>
+        --epoch <span class="m">30</span> <span class="se">\</span>
+        --avg <span class="m">13</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_ctc_bs/exp <span class="se">\</span>
+        --max-duration <span class="m">600</span> <span class="se">\</span>
+        --decoding-method <span class="nv">$m</span>
 <span class="k">done</span>
 </pre></div>
 </div>
 </section>
 <section id="export-models">
 <h2>Export models<a class="headerlink" href="#export-models" title="Permalink to this heading"></a></h2>
-<p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/zipformer_mmi/export.py">zipformer_mmi/export.py</a> supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">zipformer_mmi/exp</span></code> in the following ways.</p>
+<p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7_ctc_bs/export.py">pruned_transducer_stateless7_ctc_bs/export.py</a> supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/exp</span></code> in the following ways.</p>
 <section id="export-model-state-dict">
 <h3>Export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code><a class="headerlink" href="#export-model-state-dict" title="Permalink to this heading"></a></h3>
-<p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">zipformer_mmi/train.py</span></code> also include
+<p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/train.py</span></code> also include
 <code class="docutils literal notranslate"><span class="pre">optimizer.state_dict()</span></code>. It is useful for resuming training. But after training,
 we are interested only in <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>. You can use the following
 command to extract <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./zipformer_mmi/export.py <span class="se">\</span>
-  --exp-dir ./zipformer_mmi/exp <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp <span class="se">\</span>
   --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
   --epoch <span class="m">30</span> <span class="se">\</span>
-  --avg <span class="m">9</span> <span class="se">\</span>
+  --avg <span class="m">13</span> <span class="se">\</span>
   --jit <span class="m">0</span>
 </pre></div>
 </div>
-<p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/exp/pretrained.pt</span></code>.</p>
+<p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt</span></code>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">zipformer_mmi/decode.py</span></code>,
+<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code>,
 you can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> zipformer_mmi/exp
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_ctc_bs/exp
 ln -s pretrained epoch-9999.pt
 </pre></div>
 </div>
 <p>And then pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">9999</span> <span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code> to
-<code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/decode.py</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code>.</p>
 </div>
-<p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/pretrained.py</span></code>, you
+<p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/pretrained.py</span></code>, you
 can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./zipformer_mmi/pretrained.py <span class="se">\</span>
-  --checkpoint ./zipformer_mmi/exp/pretrained.pt <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/pretrained.py <span class="se">\</span>
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt <span class="se">\</span>
   --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --method 1best <span class="se">\</span>
+  --method greedy_search <span class="se">\</span>
+  /path/to/foo.wav <span class="se">\</span>
+  /path/to/bar.wav
+</pre></div>
+</div>
+<p>To test CTC branch using the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/pretrained_ctc.py</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py <span class="se">\</span>
+  --checkpoint ./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --method ctc-decoding <span class="se">\</span>
+  --sample-rate <span class="m">16000</span> <span class="se">\</span>
   /path/to/foo.wav <span class="se">\</span>
   /path/to/bar.wav
 </pre></div>
@@ -455,11 +475,11 @@ can run:</p>
 </section>
 <section id="export-model-using-torch-jit-script">
 <h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./zipformer_mmi/export.py <span class="se">\</span>
-  --exp-dir ./zipformer_mmi/exp <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp <span class="se">\</span>
   --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
   --epoch <span class="m">30</span> <span class="se">\</span>
-  --avg <span class="m">9</span> <span class="se">\</span>
+  --avg <span class="m">13</span> <span class="se">\</span>
   --jit <span class="m">1</span>
 </pre></div>
 </div>
@@ -467,11 +487,19 @@ can run:</p>
 load it by <code class="docutils literal notranslate"><span class="pre">torch.jit.load(&quot;cpu_jit.pt&quot;)</span></code>.</p>
 <p>Note <code class="docutils literal notranslate"><span class="pre">cpu</span></code> in the name <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> means the parameters when loaded into Python
 are on CPU. You can use <code class="docutils literal notranslate"><span class="pre">to(&quot;cuda&quot;)</span></code> to move them to a CUDA device.</p>
-<p>To use the generated files with <code class="docutils literal notranslate"><span class="pre">./zipformer_mmi/jit_pretrained.py</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./zipformer_mmi/jit_pretrained.py <span class="se">\</span>
-  --nn-model-filename ./zipformer_mmi/exp/cpu_jit.pt <span class="se">\</span>
-  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --method 1best <span class="se">\</span>
+<p>To use the generated files with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/jit_pretrained.py</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/jit_pretrained.py <span class="se">\</span>
+  --nn-model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt <span class="se">\</span>
+  /path/to/foo.wav <span class="se">\</span>
+  /path/to/bar.wav
+</pre></div>
+</div>
+<p>To test CTC branch using the generated files with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/jit_pretrained_ctc.py <span class="se">\</span>
+  --model-filename ./pruned_transducer_stateless7_ctc_bs/exp/cpu_jit.pt <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --method ctc-decoding <span class="se">\</span>
+  --sample-rate <span class="m">16000</span> <span class="se">\</span>
   /path/to/foo.wav <span class="se">\</span>
   /path/to/bar.wav
 </pre></div>
@@ -484,7 +512,7 @@ are on CPU. You can use <code class="docutils literal notranslate"><span class="
 by visiting the following links:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08">https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2022-12-14">https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2022-12-14</a></p></li>
 </ul>
 <p>See <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md</a>
 for the details of the above pretrained models</p>
@@ -496,8 +524,8 @@ for the details of the above pretrained models</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="pruned_transducer_stateless.html" class="btn btn-neutral float-left" title="Pruned transducer statelessX" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="zipformer_ctc_blankskip.html" class="btn btn-neutral float-right" title="Zipformer CTC Blank Skip" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="zipformer_mmi.html" class="btn btn-neutral float-left" title="Zipformer MMI" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../timit/index.html" class="btn btn-neutral float-right" title="TIMIT" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

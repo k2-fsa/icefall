@@ -331,10 +331,10 @@ $ tensorboard dev upload --logdir . --name <span class="s2">&quot;Aishell confor
 <p>Note there is a URL in the above output, click it and you will see
 the following screenshot:</p>
 <blockquote>
-<div><figure class="align-center" id="id2">
+<div><figure class="align-center" id="id3">
 <a class="reference external image-reference" href="https://tensorboard.dev/experiment/WE1DocDqRRCOSAgmGyClhg/"><img alt="TensorBoard screenshot" src="../../../_images/aishell-conformer-ctc-tensorboard-log.jpg" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 2 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 2 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </div></blockquote>
@@ -748,6 +748,8 @@ Caution:
    related to <span class="sb">`</span>model.forward<span class="sb">`</span> <span class="k">in</span> this file.
 </pre></div>
 </div>
+<section id="id2">
+<h3>HLG decoding<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/hlg_decode <span class="se">\</span>
   --use_gpu <span class="nb">true</span> <span class="se">\</span>
   --nn_model icefall_asr_aishell_conformer_ctc/exp/cpu_jit.pt <span class="se">\</span>
@@ -782,6 +784,7 @@ Caution:
 </div>
 <p>There is a Colab notebook showing you how to run a torch scripted model in C++.
 Please see <a class="reference external" href="https://colab.research.google.com/drive/1Vh7RER7saTW01DtNbvr7CY7ovNZgmfWz?usp=sharing"><img alt="aishell asr conformer ctc torch script colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+</section>
 </section>
 </section>
 

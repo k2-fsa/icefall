@@ -53,6 +53,7 @@
 <li class="toctree-l4"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">Pruned transducer statelessX</a></li>
 <li class="toctree-l4"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
@@ -578,6 +579,14 @@ can run:</p>
 </section>
 <section id="export-model-using-torch-jit-script">
 <h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless4/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless4/exp <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --epoch <span class="m">25</span> <span class="se">\</span>
+  --avg <span class="m">3</span> <span class="se">\</span>
+  --jit <span class="m">1</span>
+</pre></div>
+</div>
 <p>It will generate a file <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> in the given <code class="docutils literal notranslate"><span class="pre">exp_dir</span></code>. You can later
 load it by <code class="docutils literal notranslate"><span class="pre">torch.jit.load(&quot;cpu_jit.pt&quot;)</span></code>.</p>
 <p>Note <code class="docutils literal notranslate"><span class="pre">cpu</span></code> in the name <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> means the parameters when loaded into Python
