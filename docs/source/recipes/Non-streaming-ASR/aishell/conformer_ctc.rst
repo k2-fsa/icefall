@@ -703,7 +703,7 @@ It will show you the following message:
 
 
 HLG decoding
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 .. code-block:: bash
 

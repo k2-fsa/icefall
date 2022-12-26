@@ -888,7 +888,7 @@ It will show you the following message:
 
 
 CTC decoding
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -926,7 +926,7 @@ Its output is:
   YET THESE THOUGHTS AFFECTED HESTER PRYNNE LESS WITH HOPE THAN APPREHENSION
 
 HLG decoding
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -966,7 +966,7 @@ The output is:
 
 
 HLG decoding + n-gram LM rescoring
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -1012,7 +1012,7 @@ The output is:
 
 
 HLG decoding + n-gram LM rescoring + attention decoder rescoring
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
