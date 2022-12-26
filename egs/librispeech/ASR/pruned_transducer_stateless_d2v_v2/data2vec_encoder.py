@@ -56,12 +56,6 @@ class FairSeqData2VecEncoder(EncoderInterface):
         assert check_argument_types()
         super().__init__()
                     
-        '''
-        if os.path.exists('/home/work/workspace/models/data2vec_model/audio_base_ls.pt'):
-            self.w2v_model_path = '/home/work/workspace/models/data2vec_model/audio_base_ls.pt'
-        if os.path.exists('/workspace/models/audio_base_ls.pt'):
-            self.w2v_model_path = '/workspace/models/audio_base_ls.pt'
-        '''
         self.w2v_model_path = download_d2v()
         self._output_size = output_size
 
@@ -120,7 +114,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
             self.num_updates += 1
         elif ft and self.num_updates == self.freeze_finetune_updates + 1:
             self.num_updates += 1
-            logging.info("Start fine-tuning wav2vec parameters!")
+            logging.info("Start fine-tuning data2vec parameters!")
         
         with torch.no_grad() if not ft else contextlib.nullcontext():
             enc_outputs = self.encoders(
