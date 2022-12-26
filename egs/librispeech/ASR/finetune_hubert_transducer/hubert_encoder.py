@@ -82,9 +82,7 @@ class HubertEncoder(EncoderInterface):
         self.hubert_output_size = cfg["model"]["encoder_embed_dim"]
         if mask_channel_length != model.mask_channel_length:
             logging.warning(
-                "Overwriting mask channel length to {}".format(
-                    mask_channel_length
-                )
+                "Overwriting mask channel length to {}".format(mask_channel_length)
             )
             model.mask_channel_length = mask_channel_length
         if mask_channel_prob != model.mask_channel_prob:
@@ -137,7 +135,7 @@ class HubertEncoder(EncoderInterface):
         parser.add_argument(
             "--hubert-freeze-finetune-updates",
             type=int,
-            default=0,
+            default=10000,
             help="The number of updates during which the transformer blocks \
                 in hubert are frozen.",
         )
@@ -177,9 +175,7 @@ class HubertEncoder(EncoderInterface):
             choices=["concat", "concat_relu", "concat_tanh", "avgpooling"],
         )
 
-    def normalise_input(
-        self, x: torch.Tensor, x_lens: torch.Tensor
-    ) -> torch.Tensor:
+    def normalise_input(self, x: torch.Tensor, x_lens: torch.Tensor) -> torch.Tensor:
         """
         Normalize a batch of audio samples to zero mean unit variance
 
@@ -194,9 +190,7 @@ class HubertEncoder(EncoderInterface):
         """
         row_mean = (x.sum(dim=-1) / x_lens).view(-1, 1)
         row_std = (
-            torch.tensor(
-                [sample[: x_lens[i]].std() for i, sample in enumerate(x)]
-            )
+            torch.tensor([sample[: x_lens[i]].std() for i, sample in enumerate(x)])
             .view(x.size(0), 1)
             .to(x.device)
         )
@@ -205,7 +199,7 @@ class HubertEncoder(EncoderInterface):
         return x
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
+        self, x: torch.Tensor, x_lens: torch.Tensor, is_training: bool = True
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward function of Fairseq Hubert Encoder
 
@@ -214,12 +208,8 @@ class HubertEncoder(EncoderInterface):
                 Input padded tensor of shape (B,T)
             x_lens (torch.Tensor):
                 The number of frames of input (x) before padding
-            warmup (float, optional):
-                A floating point value that gradually increases from 0
-                throughout training; when it is >= 1.0 we are "fully
-                warmed up".  It is used to turn modules on sequentially.
-                Actually not used in this function, just for consistency.
-
+            is_training (bool, optional):
+                If the model is being trained
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
             A tuple of two tensors: Embedding and Embedding's length
@@ -229,18 +219,18 @@ class HubertEncoder(EncoderInterface):
         x = self.normalise_input(x, x_lens)
 
         # check if still in freezing mode
-        ft = (
-            self.freeze_finetune_updates <= self.num_updates
-        ) and self.training
+        ft = (self.num_updates > self.freeze_finetune_updates) and is_training
 
-        if self.num_updates <= self.freeze_finetune_updates:
+        # if still in freezing mode, increase update count
+        if not ft and is_training:
             self.num_updates += 1
 
+        # enter FT mode, no frozen parts
         if ft and self.num_updates == self.freeze_finetune_updates + 1:
-            self.num_updates += 1
             logging.warning(
                 f"Start finetuning encoder after {self.num_updates} updates!"
             )
+            self.num_updates += 1
 
         # only apply modified specaug during training
         apply_mask = self.training
@@ -263,12 +253,9 @@ class HubertEncoder(EncoderInterface):
                 xs_pad = self.subsample(xs_pad)
                 olens = torch.floor(olens / 2)
             else:
-                xs_pad = self.subsample(xs_pad.permute(0, 2, 1)).permute(
-                    0, 2, 1
-                )
+                xs_pad = self.subsample(xs_pad.permute(0, 2, 1)).permute(0, 2, 1)
                 olens = torch.floor(olens / 2)
-
-        return xs_pad, olens
+        return xs_pad, olens.long()
 
 
 def get_subsample_module(

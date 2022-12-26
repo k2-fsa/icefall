@@ -66,9 +66,7 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = ScaledLinear(
-            encoder_dim, vocab_size, initial_speed=0.5
-        )
+        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
     def forward(
@@ -79,8 +77,8 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        warmup: float = 1.0,
         reduction: str = "sum",
+        is_training: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -101,13 +99,12 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
-          warmup:
-            A value warmup >= 0 that determines which modules are active, values
-            warmup > 1 "are fully warmed up" and all modules will be active.
           reduction:
             "sum" to sum the losses over all utterances in the batch.
             "none" to return the loss in a 1-D tensor for each utterance
             in the batch.
+          is_training:
+            If true, update counter in the model will be updated
         Returns:
           Return the transducer loss.
 
@@ -123,7 +120,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens = self.encoder(x, x_lens, is_training=is_training)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -144,9 +141,7 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 

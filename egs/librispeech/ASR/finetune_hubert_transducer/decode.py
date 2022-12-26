@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -26,7 +27,6 @@ Usage:
     --max-duration 600 \
     --decoding-method greedy_search \
     --hubert-model-dir ./path/to/pretrained_hubert_model \
-    --hubert-output-size 1024 \
     --encoder-dim 1024 \
     --hubert-subsample-output 1 \
     --hubert-subsample-mode concat_tanh \
@@ -42,7 +42,21 @@ Usage:
     --decoding-method modified_beam_search \
     --beam-size 4 \
     --hubert-model-dir ./path/to/pretrained_hubert_model \
-    --hubert-output-size 1024 \
+    --encoder-dim 1024 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --use-averaged-model 1 \
+    --input-strategy AudioSamples
+
+(3) fast beam search
+./finetune_hubert_transducer/decode.py \
+    --epoch 30 \
+    --avg 10 \
+    --exp-dir ./finetune_hubert_transducer/exp_960h \
+    --max-duration 600 \
+    --decoding-method search \
+    --beam-size 4 \
+    --hubert-model-dir ./path/to/pretrained_hubert_model \
     --encoder-dim 1024 \
     --hubert-subsample-output 1 \
     --hubert-subsample-mode concat_tanh \
@@ -62,7 +76,12 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import greedy_search, greedy_search_batch, modified_beam_search
+from beam_search import (
+    fast_beam_search_one_best,
+    greedy_search,
+    greedy_search_batch,
+    modified_beam_search,
+)
 from hubert_encoder import HubertEncoder
 from train import get_params, get_transducer_model
 
@@ -146,6 +165,7 @@ def get_parser():
         help="""Possible values are:
           - greedy_search
           - modified_beam_search
+          - fast_beam_search
         """,
     )
 
@@ -159,11 +179,37 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--beam",
+        type=float,
+        default=20.0,
+        help="""A floating point value to calculate the cutoff score during beam
+        search (i.e., `cutoff = max-score - beam`), which is the same as the
+        `beam` in Kaldi.
+        Used only when --decoding-method is fast_beam_search, fast_beam_search_LG,
+        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle
+        """,
+    )
+
+    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=8,
+        help="Used only when --decoding-method is fast_beam_search*",
+    )
+
+    parser.add_argument(
+        "--max-states",
+        type=int,
+        default=64,
+        help="Used only when --decoding-method fast_beam_search",
     )
 
     parser.add_argument(
@@ -186,6 +232,7 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -224,7 +271,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_samples"].to(device)
 
     layer_results, encoder_out_lens = model.encoder(
-        x=feature, x_lens=feature_lens
+        x=feature, x_lens=feature_lens, is_training=False
     )
     if layer_results.ndim == 4:
         encoder_out = layer_results[-1]
@@ -232,10 +279,20 @@ def decode_one_batch(
         encoder_out = layer_results
     hyps = []
 
-    if (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    if params.decoding_method == "fast_beam_search":
+        hyp_tokens = fast_beam_search_one_best(
+            model=model,
+            decoding_graph=decoding_graph,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+            max_contexts=params.max_contexts,
+            max_states=params.max_states,
+        )
+        if params.decoding_method == "fast_beam_search":
+            for hyp in sp.decode(hyp_tokens):
+                hyps.append(hyp.split())
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -273,6 +330,16 @@ def decode_one_batch(
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
+    elif "fast_beam_search" in params.decoding_method:
+        key = f"beam_{params.beam}_"
+        key += f"max_contexts_{params.max_contexts}_"
+        key += f"max_states_{params.max_states}"
+        if "nbest" in params.decoding_method:
+            key += f"_num_paths_{params.num_paths}_"
+            key += f"nbest_scale_{params.nbest_scale}"
+        if "LG" in params.decoding_method:
+            key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        return {key: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -282,6 +349,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -327,6 +395,7 @@ def decode_dataset(
             model=model,
             sp=sp,
             decoding_graph=decoding_graph,
+            word_table=word_table,
             batch=batch,
         )
 
@@ -344,9 +413,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -379,8 +446,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -408,6 +474,7 @@ def main():
 
     assert params.decoding_method in (
         "greedy_search",
+        "fast_beam_search",
         "modified_beam_search",
     )
     params.res_dir = params.exp_dir / params.decoding_method
@@ -421,10 +488,13 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        if "nbest" in params.decoding_method:
+            params.suffix += f"-nbest-scale-{params.nbest_scale}"
+            params.suffix += f"-num-paths-{params.num_paths}"
+        if "LG" in params.decoding_method:
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -459,9 +529,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -489,9 +559,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -539,8 +609,10 @@ def main():
     model.eval()
 
     if params.decoding_method == "fast_beam_search":
+        word_table = None
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
+        word_table = None
         decoding_graph = None
 
     num_param = sum([p.numel() for p in model.parameters()])
@@ -565,6 +637,7 @@ def main():
             params=params,
             model=model,
             sp=sp,
+            word_table=word_table,
             decoding_graph=decoding_graph,
         )
 

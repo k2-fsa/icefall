@@ -120,9 +120,7 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def get_parser():
@@ -222,8 +220,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -246,8 +243,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)" "part.",
     )
 
     parser.add_argument(
@@ -341,9 +337,7 @@ def get_parser():
         "--TSA-warmup-lr", type=float, default=3e-5, help="TSA warmup lr"
     )
 
-    parser.add_argument(
-        "--TSA-end-lr", type=float, default=1.5e-6, help="TSA end lr"
-    )
+    parser.add_argument("--TSA-end-lr", type=float, default=1.5e-6, help="TSA end lr")
 
     parser.add_argument(
         "--TSA-total-steps", type=int, default=80000, help="TSA total steps"
@@ -409,6 +403,7 @@ def get_params() -> AttributeDict:
             # parameters for joiner
             "joiner_dim": 512,
             # parameters for Noam
+            "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -613,11 +608,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
 
     # at entry, feature is (N, T)
@@ -641,8 +632,8 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            warmup=warmup,
             reduction="none",
+            is_training=is_training,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -675,14 +666,9 @@ def compute_loss(
         # overwhelming the simple_loss and causing it to diverge,
         # in case it had not fully learned the alignment yet.
         pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
         # if is_training and params.enable_distillation:
         #     assert codebook_loss is not None
         #     loss += params.codebook_loss_scale * codebook_loss
@@ -885,9 +871,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -1139,7 +1123,6 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    warmup=warmup,
                 )
             loss.backward()
             optimizer.step()
