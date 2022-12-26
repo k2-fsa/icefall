@@ -154,8 +154,8 @@ class ResidualAdapterModule(nn.Module):
         self.adapter_layers = nn.ModuleList(
             [build_adapter(embedding_dim, proj_dim) for _ in range(layer_num)]
         )
-
-    def forward(x):#, layer_id=0):#, layer_id=-1):
+    
+    def forward(self, x, layer_id=-1):
         layer_id = 0
         print(x.size())
         x = x.transpose(0, 1)
