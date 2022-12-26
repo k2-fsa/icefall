@@ -1161,7 +1161,6 @@ def train_one_epoch(
                 wb.log({"train/pruned_loss": loss_info["pruned_loss"]*numel})
                 wb.log({"train/ctc_loss": loss_info["ctc_loss"]*numel})
 
-#if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
     logging.info("Computing validation loss")
     valid_info = compute_validation_loss(
         params=params,
