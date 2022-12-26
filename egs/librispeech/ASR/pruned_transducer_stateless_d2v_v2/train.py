@@ -1528,7 +1528,7 @@ def run_adapter(rank, world_size, args, wb=None):
             clipping_scale=None,
             parameters_names=[adapter_names],
         )
-    scheduler_enc = Eden(optimizer_adapter, 0, 0) #params.lr_batche, params.lr_epochs)
+    scheduler_adapter = Eden(optimizer_adapter, 0, 0) #params.lr_batche, params.lr_epochs)
     
     if checkpoints and ("optimizer" in checkpoints or "optimizer_enc" in checkpoints):
         if params.multi_optim:
