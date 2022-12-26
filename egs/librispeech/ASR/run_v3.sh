@@ -45,7 +45,7 @@ else
 		--encoder-dim 768 \
 		--decoder-dim 768 \
 		--joiner-dim 768 \
-		--use-fp16 1 \
+		--use-fp16 0 \
 		--peak-dec-lr 0.04175 \
 		--peak-enc-lr 0.0003859 \
 		--accum-grads 1 \
