@@ -453,7 +453,7 @@ class ZipformerEncoderLayer(nn.Module):
 
         self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
-        self.norm_final = BasicNorm(embed_dim, eps_max=4.0)
+        self.norm_final = BasicNorm(embed_dim)
 
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
@@ -868,11 +868,10 @@ class SimpleCombiner(torch.nn.Module):
         dim2 = src2.shape[-1]
 
 
-        weight1 = self.weight1
-        if self.training:
-            weight1 = limit_param_value(weight1,
-                                        min=self.min_weight[0],
-                                        max=1.0-self.min_weight[1])
+        weight1 = limit_param_value(self.weight1,
+                                    min=self.min_weight[0],
+                                    max=1.0-self.min_weight[1],
+                                    training=self.training)
 
         src1_dim = src1.shape[-1]
         src2_dim = src2.shape[-1]
@@ -1896,7 +1895,8 @@ class Conv2dSubsampling(nn.Module):
 
         x = x * limit_param_value(self.scale,
                                   min=float(self.scale_min),
-                                  max=float(self.scale_max))
+                                  max=float(self.scale_max),
+                                  training=self.training)
 
         # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
         x = self.out(x)
