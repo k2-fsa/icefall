@@ -40,7 +40,6 @@ class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
         self.adapters = ResidualAdapterModule()
-        print(self.adapters.adapter_layers)
 
     def forward(self, x, padding_mask=None, layer=None, tgt_layer=None):
         x, layer_results = self.extract_features_with_adapter(
@@ -97,6 +96,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
                 x, (z, lr) = layer(
                     x, self_attn_padding_mask=padding_mask, need_weights=False,
                 )
+                print(x.size())
                 x = self.adapters(x)
 
                 if i >= min_layer:
