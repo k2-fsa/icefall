@@ -94,7 +94,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
             dropout_probability = np.random.random() if self.layerdrop > 0 else 1
             if not self.training or (dropout_probability > self.layerdrop):
                 x, (z, lr) = layer(
-                    x, self_attn_padding_mask=padding_mask, need_weights=False, layer_num=i
+                    x, self_attn_padding_mask=padding_mask, need_weights=False,
                 )
                 x = self.adapters(x, layer_id=i)
 
