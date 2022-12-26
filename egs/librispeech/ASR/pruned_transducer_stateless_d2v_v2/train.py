@@ -1020,6 +1020,7 @@ def train_one_epoch(
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
+            loggin.info('1')
             scaler.scale(loss).backward()
 
             if params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
