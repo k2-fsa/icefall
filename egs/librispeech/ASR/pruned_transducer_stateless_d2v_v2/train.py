@@ -1034,6 +1034,7 @@ def train_one_epoch(
                 optimizer_enc.zero_grad()
                 optimizer_dec.zero_grad()
             elif not params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
+                loggin.info('3')
                 set_batch_count(model, params.batch_idx_train)
                 scheduler.step_batch(params.batch_idx_train)
                 scaler.step(optimizer)
