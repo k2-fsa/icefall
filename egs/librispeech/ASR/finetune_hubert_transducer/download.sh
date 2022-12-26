@@ -8,6 +8,13 @@
 # For example, if you want to download Hubert large, run:
 # ./finetune_hubert_transducer/download.sh large
 
+
+# url_dict = {
+#         "base": "https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt",
+#         "large": "https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k.pt",
+#         "xlarge": "https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k.pt"
+#     }
+
 model_type=$1
 
 download_dir="pretrained_models"
@@ -41,11 +48,6 @@ else
 fi
 
 # download dict file
-wget https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt -P ${download_dir}
-
-
-# url_dict = {
-#         "base": "https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt",
-#         "large": "https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k.pt",
-#         "xlarge": "https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k.pt"
-#     }
+if [ -f "${download_dir}/dict.ltr.txt"]; then
+    wget https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt -P ${download_dir}
+fi

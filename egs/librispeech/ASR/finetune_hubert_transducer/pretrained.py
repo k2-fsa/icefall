@@ -249,10 +249,11 @@ def main():
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
-        hyp_tokens, _ = greedy_search_batch(
+        hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            return_timestamps=False,
         )
         print(hyp_tokens)
         for hyp in sp.decode(hyp_tokens):
