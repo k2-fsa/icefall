@@ -1514,6 +1514,14 @@ def run_adapter(rank, world_size, args, wb=None):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     
+    adapter_names = []
+    adapter_param = []
+    for n, p  in model.named_parameters():
+        if 'adapters' in n:
+            logging.info(n)
+
+    exit()
+
     if params.multi_optim:
         logging.info("Using seperate optimizers over encoder, decoder ...")
 
