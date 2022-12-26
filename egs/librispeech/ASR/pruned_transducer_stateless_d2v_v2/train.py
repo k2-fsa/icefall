@@ -1519,7 +1519,6 @@ def run_adapter(rank, world_size, args, wb=None):
     for n, p  in model.named_parameters():
         if 'adapters' in n:
             logging.info(n)
-
     exit()
 
     if params.multi_optim:
@@ -1619,21 +1618,11 @@ def run_adapter(rank, world_size, args, wb=None):
         train_cuts += librispeech.train_other_500_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
         return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
-        # We only load the sampler's state dict when it loads a checkpoint
-        # saved in the middle of an epoch
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
@@ -1646,17 +1635,6 @@ def run_adapter(rank, world_size, args, wb=None):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
     
-    '''
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
-    '''
-
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
