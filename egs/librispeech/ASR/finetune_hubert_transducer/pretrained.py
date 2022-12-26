@@ -47,13 +47,13 @@ import logging
 import math
 from typing import List
 
-import kaldifeat
 import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import greedy_search, greedy_search_batch, modified_beam_search
+from hubert_encoder import HubertEncoder
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
+from train import get_params, get_transducer_model
 
 
 def get_parser():
@@ -82,9 +82,7 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
-          - beam_search
           - modified_beam_search
-          - fast_beam_search
         """,
     )
 
@@ -154,8 +152,6 @@ def get_parser():
         """,
     )
 
-    add_model_arguments(parser)
-
     return parser
 
 
@@ -186,6 +182,7 @@ def read_sound_files(
 @torch.no_grad()
 def main():
     parser = get_parser()
+    HubertEncoder.add_arguments(parser)
     args = parser.parse_args()
 
     params = get_params()
@@ -220,16 +217,6 @@ def main():
     model.eval()
     model.device = device
 
-    logging.info("Constructing Fbank computer")
-    opts = kaldifeat.FbankOptions()
-    opts.device = device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = params.sample_rate
-    opts.mel_opts.num_bins = params.feature_dim
-
-    fbank = kaldifeat.Fbank(opts)
-
     logging.info(f"Reading sound files: {params.sound_files}")
     waves = read_sound_files(
         filenames=params.sound_files, expected_sample_rate=params.sample_rate
@@ -237,18 +224,14 @@ def main():
     waves = [w.to(device) for w in waves]
 
     logging.info("Decoding started")
-    features = fbank(waves)
-    feature_lengths = [f.size(0) for f in features]
+    waves_lengths = [w.size(0) for w in waves]
 
-    features = pad_sequence(
-        features, batch_first=True, padding_value=math.log(1e-10)
-    )
+    # pad waveform input
+    waves = pad_sequence(waves, batch_first=True, padding_value=math.log(1e-10))
 
-    feature_lengths = torch.tensor(feature_lengths, device=device)
+    waves_lengths = torch.tensor(waves_lengths, device=device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=features, x_lens=feature_lengths
-    )
+    encoder_out, encoder_out_lens = model.encoder(x=waves, x_lens=waves_lengths)
 
     num_waves = encoder_out.size(0)
     hyps = []
@@ -268,11 +251,12 @@ def main():
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
-        hyp_tokens = greedy_search_batch(
+        hyp_tokens, _ = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
+        print(hyp_tokens)
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     else:

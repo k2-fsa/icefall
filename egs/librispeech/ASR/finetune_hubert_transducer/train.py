@@ -403,7 +403,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for hubert transducer
-            "encoder_dim": 768,
+            "encoder_dim": 1024,
             # parameters for decoder
             "decoder_dim": 512,
             # parameters for joiner
