@@ -1036,11 +1036,15 @@ def train_one_epoch(
             elif not params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
                 logging.info('3')
                 set_batch_count(model, params.batch_idx_train)
-                scheduler.step_batch(params.batch_idx_train)
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad()
                 logging.info('4')
+                scheduler.step_batch(params.batch_idx_train)
+                logging.info('5')
+                scaler.step(optimizer)
+                logging.info('6')
+                scaler.update()
+                logging.info('7')
+                optimizer.zero_grad()
+                logging.info('8')
 
         except:  # noqa
             display_and_save_batch(batch, params=params, sp=sp)
