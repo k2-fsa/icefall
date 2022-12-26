@@ -97,7 +97,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
                     x, self_attn_padding_mask=padding_mask, need_weights=False,
                 )
                 print(x.size())
-                x = self.adapters(x)
+                x_ = self.adapters(x)
                 print(x.size())
 
                 if i >= min_layer:
