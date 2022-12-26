@@ -1560,9 +1560,9 @@ def run_adapter(rank, world_size, args, wb=None):
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
     
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
-    if checkpoints and "grad_scaler" in checkpoints:
-        logging.info("Loading grad scaler state dict")
-        scaler.load_state_dict(checkpoints["grad_scaler"])
+    #if checkpoints and "grad_scaler" in checkpoints:
+    #    logging.info("Loading grad scaler state dict")
+    #    scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
