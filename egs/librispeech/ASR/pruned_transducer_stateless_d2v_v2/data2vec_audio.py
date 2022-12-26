@@ -98,7 +98,8 @@ class TransformerEncoderAdapter(TransformerEncoder):
                 )
                 print(x.size())
                 x_ = self.adapters(x)
-                print(x.size())
+                print(x_.size())
+                exit()
 
                 if i >= min_layer:
                     layer_results.append((x, z, lr))
