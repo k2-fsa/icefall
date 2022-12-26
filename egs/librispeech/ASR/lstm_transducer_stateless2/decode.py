@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -91,8 +92,40 @@ Usage:
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
-"""
 
+(8) modified beam search (with RNNLM shallow fusion)
+./lstm_transducer_stateless2/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless2/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search_rnnlm_shallow_fusion \
+    --beam 4 \
+    --rnn-lm-scale 0.3 \
+    --rnn-lm-exp-dir /path/to/RNNLM \
+    --rnn-lm-epoch 99 \
+    --rnn-lm-avg 1 \
+    --rnn-lm-num-layers 3 \
+    --rnn-lm-tie-weights 1
+
+(9) modified beam search with RNNLM shallow fusion + LODR
+./lstm_transducer_stateless2/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --max-duration 600 \
+    --exp-dir ./lstm_transducer_stateless2/exp \
+    --decoding-method modified_beam_search_rnnlm_LODR \
+    --beam 4 \
+    --max-contexts 4 \
+    --rnn-lm-scale 0.4 \
+    --rnn-lm-exp-dir /path/to/RNNLM/exp \
+    --rnn-lm-epoch 99 \
+    --rnn-lm-avg 1 \
+    --rnn-lm-num-layers 3 \
+    --rnn-lm-tie-weights 1 \
+    --tokens-ngram 2 \
+    --ngram-lm-scale -0.16 \
+"""
 
 import argparse
 import logging
@@ -115,10 +148,14 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
+    modified_beam_search_ngram_rescoring,
+    modified_beam_search_rnnlm_LODR,
+    modified_beam_search_rnnlm_shallow_fusion,
 )
 from librispeech import LibriSpeech
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -126,6 +163,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -214,6 +252,9 @@ def get_parser():
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
+          - modified_beam_search_ngram_rescoring
+          - modified_beam_search_rnnlm_shallow_fusion
+          - modified_beam_search_rnnlm_LODR
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
@@ -273,8 +314,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -303,6 +343,89 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--rnn-lm-scale",
+        type=float,
+        default=0.0,
+        help="""Used only when --method is modified-beam-search_rnnlm_shallow_fusion.
+        It specifies the path to RNN LM exp dir.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-exp-dir",
+        type=str,
+        default="rnn_lm/exp",
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        It specifies the path to RNN LM exp dir.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-epoch",
+        type=int,
+        default=7,
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        It specifies the checkpoint to use.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-avg",
+        type=int,
+        default=2,
+        help="""Used only when --method is modified_beam_search_rnnlm_shallow_fusion.
+        It specifies the number of checkpoints to average.
+        """,
+    )
+
+    parser.add_argument(
+        "--rnn-lm-embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
+    )
+
+    parser.add_argument(
+        "--rnn-lm-num-layers",
+        type=int,
+        default=4,
+        help="Number of RNN layers the model",
+    )
+    parser.add_argument(
+        "--rnn-lm-tie-weights",
+        type=str2bool,
+        default=False,
+        help="""True to share the weights between the input embedding layer and the
+        last output linear layer
+        """,
+    )
+
+    parser.add_argument(
+        "--tokens-ngram",
+        type=int,
+        default=3,
+        help="""Token Ngram used for rescoring.
+            Used only when the decoding method is
+            modified_beam_search_ngram_rescoring""",
+    )
+
+    parser.add_argument(
+        "--backoff-id",
+        type=int,
+        default=500,
+        help="""ID of the backoff symbol.
+                Used only when the decoding method is
+                modified_beam_search_ngram_rescoring""",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -315,6 +438,10 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
+    rnnlm: Optional[RnnLmModel] = None,
+    rnnlm_scale: float = 1.0,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -367,9 +494,7 @@ def decode_one_batch(
     )
     feature_lens += num_tail_padded_frames
 
-    encoder_out, encoder_out_lens, _ = model.encoder(
-        x=feature, x_lens=feature_lens
-    )
+    encoder_out, encoder_out_lens, _ = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
 
@@ -428,10 +553,7 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -445,6 +567,43 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_ngram_rescoring":
+        hyp_tokens = modified_beam_search_ngram_rescoring(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_rnnlm_shallow_fusion":
+        hyp_tokens = modified_beam_search_rnnlm_shallow_fusion(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            sp=sp,
+            rnnlm=rnnlm,
+            rnnlm_scale=rnnlm_scale,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_rnnlm_LODR":
+        hyp_tokens = modified_beam_search_rnnlm_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            sp=sp,
+            LODR_lm=ngram_lm,
+            LODR_lm_scale=ngram_lm_scale,
+            rnnlm=rnnlm,
+            rnnlm_scale=rnnlm_scale,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -497,7 +656,11 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
+    rnnlm: Optional[RnnLmModel] = None,
+    rnnlm_scale: float = 1.0,
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -546,6 +709,10 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            rnnlm=rnnlm,
+            rnnlm_scale=rnnlm_scale,
         )
 
         for name, hyps in hyps_dict.items():
@@ -562,16 +729,14 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -597,8 +762,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -631,6 +795,9 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "modified_beam_search_rnnlm_LODR",
+        "modified_beam_search_ngram_rescoring",
+        "modified_beam_search_rnnlm_shallow_fusion",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -649,12 +816,16 @@ def main():
             if "LG" in params.decoding_method:
                 params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+    params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+    if "rnnlm" in params.decoding_method:
+        params.suffix += f"-rnnlm-lm-scale-{params.rnn_lm_scale}"
+
+    if "LODR" in params.decoding_method:
+        params.suffix += "-LODR"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -683,9 +854,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -717,9 +888,9 @@ def main():
             )
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -768,6 +939,44 @@ def main():
     model.to(device)
     model.eval()
 
+    # only load N-gram LM when needed
+    if "ngram" in params.decoding_method or "LODR" in params.decoding_method:
+        lm_filename = f"{params.tokens_ngram}gram.fst.txt"
+        logging.info(f"lm filename: {lm_filename}")
+        ngram_lm = NgramLm(
+            str(params.lang_dir / lm_filename),
+            backoff_id=params.backoff_id,
+            is_binary=False,
+        )
+        logging.info(f"num states: {ngram_lm.lm.num_states}")
+        ngram_lm_scale = params.ngram_lm_scale
+    else:
+        ngram_lm = None
+        ngram_lm_scale = None
+
+    # only load rnnlm if used
+    if "rnnlm" in params.decoding_method:
+        rnn_lm_scale = params.rnn_lm_scale
+
+        rnn_lm_model = RnnLmModel(
+            vocab_size=params.vocab_size,
+            embedding_dim=params.rnn_lm_embedding_dim,
+            hidden_dim=params.rnn_lm_hidden_dim,
+            num_layers=params.rnn_lm_num_layers,
+            tie_weights=params.rnn_lm_tie_weights,
+        )
+        assert params.rnn_lm_avg == 1
+
+        load_checkpoint(
+            f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",
+            rnn_lm_model,
+        )
+        rnn_lm_model.to(device)
+        rnn_lm_model.eval()
+    else:
+        rnn_lm_model = None
+        rnn_lm_scale = 0.0
+
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
@@ -780,9 +989,7 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
         word_table = None
@@ -812,6 +1019,10 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            rnnlm=rnn_lm_model,
+            rnnlm_scale=rnn_lm_scale,
         )
 
         save_results(

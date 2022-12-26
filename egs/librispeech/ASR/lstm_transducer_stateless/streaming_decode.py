@@ -199,8 +199,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -359,9 +358,7 @@ def modified_beam_search(
             index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, encoder_out_dim)
 
-        logits = model.joiner(
-            current_encoder_out, decoder_out, project_input=False
-        )
+        logits = model.joiner(current_encoder_out, decoder_out, project_input=False)
         # logits is of shape (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)
@@ -378,9 +375,7 @@ def modified_beam_search(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -539,9 +534,7 @@ def decode_one_chunk(
         feature_list, batch_first=True, padding_value=LOG_EPSILON
     ).to(device)
     feature_lens = torch.tensor(feature_len_list, device=device)
-    num_processed_frames = torch.tensor(
-        num_processed_frames_list, device=device
-    )
+    num_processed_frames = torch.tensor(num_processed_frames_list, device=device)
 
     # Make sure it has at least 1 frame after subsampling
     tail_length = params.subsampling_factor + 5
@@ -583,8 +576,7 @@ def decode_one_chunk(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             processed_lens = (
-                num_processed_frames // params.subsampling_factor
-                + encoder_out_lens
+                num_processed_frames // params.subsampling_factor + encoder_out_lens
             )
         fast_beam_search_one_best(
             model=model,
@@ -596,9 +588,7 @@ def decode_one_chunk(
             max_states=params.max_states,
         )
     else:
-        raise ValueError(
-            f"Unsupported decoding method: {params.decoding_method}"
-        )
+        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
 
     # Update cached states of each stream
     state_list = unstack_states(states)
@@ -773,8 +763,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -816,9 +805,7 @@ def main():
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -852,9 +839,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -881,9 +868,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"

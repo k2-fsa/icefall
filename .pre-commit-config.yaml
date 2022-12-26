@@ -1,26 +1,38 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 21.6b0
+    rev: 22.3.0
     hooks:
       - id: black
-        args: [--line-length=80]
-        additional_dependencies: ['click==8.0.1']
+        args: ["--line-length=88"]
+        additional_dependencies: ['click==8.1.0']
         exclude: icefall\/__init__\.py
 
   - repo: https://github.com/PyCQA/flake8
-    rev: 3.9.2
+    rev: 5.0.4
     hooks:
       - id: flake8
-        args: [--max-line-length=80]
+        args: ["--max-line-length=88", "--extend-ignore=E203,E266,E501,F401,E402,F403,F841,W503"]
+
+      # What are we ignoring here?
+      # E203: whitespace before ':'
+      # E266: too many leading '#' for block comment
+      # E501: line too long
+      # F401: module imported but unused
+      # E402: module level import not at top of file
+      # F403: 'from module import *' used; unable to detect undefined names
+      # F841: local variable is assigned to but never used
+      # W503: line break before binary operator
+      # In addition, the default ignore list is:
+      # E121,E123,E126,E226,E24,E704,W503,W504
 
   - repo: https://github.com/pycqa/isort
-    rev: 5.9.2
+    rev: 5.10.1
     hooks:
       - id: isort
-        args: [--profile=black, --line-length=80]
+        args: ["--profile=black"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.2.0
     hooks:
       - id: check-executables-have-shebangs
       - id: end-of-file-fixer

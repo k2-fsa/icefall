@@ -21,7 +21,6 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from multi_quantization.prediction import JointCodebookLoss
 from scaling import ScaledLinear
 
 from icefall.utils import add_sos
@@ -70,10 +69,16 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = ScaledLinear(
-            encoder_dim, vocab_size, initial_speed=0.5
-        )
+        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+
+        from icefall import is_module_available
+
+        if not is_module_available("multi_quantization"):
+            raise ValueError("Please 'pip install multi_quantization' first.")
+
+        from multi_quantization.prediction import JointCodebookLoss
+
         if num_codebooks > 0:
             self.codebook_loss_net = JointCodebookLoss(
                 predictor_channels=encoder_dim,
@@ -173,9 +178,7 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 
@@ -230,9 +233,7 @@ class Transducer(nn.Module):
         return (simple_loss, pruned_loss, codebook_loss)
 
     @staticmethod
-    def concat_successive_codebook_indexes(
-        middle_layer_output, codebook_indexes
-    ):
+    def concat_successive_codebook_indexes(middle_layer_output, codebook_indexes):
         # Output rate of hubert is 50 frames per second,
         # while that of current encoder is 25.
         # Following code handling two issues:

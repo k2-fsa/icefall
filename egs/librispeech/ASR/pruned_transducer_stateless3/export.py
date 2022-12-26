@@ -62,13 +62,20 @@ It will generates 3 files: `encoder_jit_trace.pt`,
   --avg 10 \
   --onnx 1
 
-It will generate the following three files in the given `exp_dir`.
+It will generate the following files in the given `exp_dir`.
 Check `onnx_check.py` for how to use them.
 
     - encoder.onnx
     - decoder.onnx
     - joiner.onnx
+    - joiner_encoder_proj.onnx
+    - joiner_decoder_proj.onnx
 
+Please see ./onnx_pretrained.py for usage of the generated files
+
+Check
+https://github.com/k2-fsa/sherpa-onnx
+for how to use the exported models outside of icefall.
 
 (4) Export `model.state_dict()`
 
@@ -115,18 +122,13 @@ import argparse
 import logging
 from pathlib import Path
 
-import onnx
 import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import str2bool
 
 
@@ -213,13 +215,15 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""If True, --jit is ignored and it exports the model
-        to onnx format. Three files will be generated:
+        to onnx format. It will generate the following files:
 
             - encoder.onnx
             - decoder.onnx
             - joiner.onnx
+            - joiner_encoder_proj.onnx
+            - joiner_decoder_proj.onnx
 
-        Check ./onnx_check.py and ./onnx_pretrained.py for how to use them.
+        Refer to ./onnx_check.py and ./onnx_pretrained.py for how to use them.
         """,
     )
 
@@ -227,8 +231,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -476,65 +479,95 @@ def export_joiner_model_onnx(
     opset_version: int = 11,
 ) -> None:
     """Export the joiner model to ONNX format.
-    The exported model has two inputs:
+    The exported joiner model has two inputs:
+
+        - projected_encoder_out: a tensor of shape (N, joiner_dim)
+        - projected_decoder_out: a tensor of shape (N, joiner_dim)
+
+    and produces one output:
+
+        - logit: a tensor of shape (N, vocab_size)
+
+    The exported encoder_proj model has one input:
 
         - encoder_out: a tensor of shape (N, encoder_out_dim)
+
+    and produces one output:
+
+        - projected_encoder_out: a tensor of shape (N, joiner_dim)
+
+    The exported decoder_proj model has one input:
+
         - decoder_out: a tensor of shape (N, decoder_out_dim)
 
-    and has one output:
+    and produces one output:
 
-        - joiner_out: a tensor of shape (N, vocab_size)
-
-    Note: The argument project_input is fixed to True. A user should not
-    project the encoder_out/decoder_out by himself/herself. The exported joiner
-    will do that for the user.
+        - projected_decoder_out: a tensor of shape (N, joiner_dim)
     """
+    encoder_proj_filename = str(joiner_filename).replace(".onnx", "_encoder_proj.onnx")
+
+    decoder_proj_filename = str(joiner_filename).replace(".onnx", "_decoder_proj.onnx")
+
     encoder_out_dim = joiner_model.encoder_proj.weight.shape[1]
     decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
-    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
-    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+    joiner_dim = joiner_model.decoder_proj.weight.shape[0]
 
-    project_input = True
+    projected_encoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+    projected_decoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+
+    project_input = False
     # Note: It uses torch.jit.trace() internally
     torch.onnx.export(
         joiner_model,
-        (encoder_out, decoder_out, project_input),
+        (projected_encoder_out, projected_decoder_out, project_input),
         joiner_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["encoder_out", "decoder_out", "project_input"],
+        input_names=[
+            "projected_encoder_out",
+            "projected_decoder_out",
+            "project_input",
+        ],
         output_names=["logit"],
         dynamic_axes={
-            "encoder_out": {0: "N"},
-            "decoder_out": {0: "N"},
+            "projected_encoder_out": {0: "N"},
+            "projected_decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
     )
     logging.info(f"Saved to {joiner_filename}")
 
-
-def export_all_in_one_onnx(
-    encoder_filename: str,
-    decoder_filename: str,
-    joiner_filename: str,
-    all_in_one_filename: str,
-):
-    encoder_onnx = onnx.load(encoder_filename)
-    decoder_onnx = onnx.load(decoder_filename)
-    joiner_onnx = onnx.load(joiner_filename)
-
-    encoder_onnx = onnx.compose.add_prefix(encoder_onnx, prefix="encoder/")
-    decoder_onnx = onnx.compose.add_prefix(decoder_onnx, prefix="decoder/")
-    joiner_onnx = onnx.compose.add_prefix(joiner_onnx, prefix="joiner/")
-
-    combined_model = onnx.compose.merge_models(
-        encoder_onnx, decoder_onnx, io_map={}
+    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
+    torch.onnx.export(
+        joiner_model.encoder_proj,
+        encoder_out,
+        encoder_proj_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["encoder_out"],
+        output_names=["projected_encoder_out"],
+        dynamic_axes={
+            "encoder_out": {0: "N"},
+            "projected_encoder_out": {0: "N"},
+        },
     )
-    combined_model = onnx.compose.merge_models(
-        combined_model, joiner_onnx, io_map={}
+    logging.info(f"Saved to {encoder_proj_filename}")
+
+    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+    torch.onnx.export(
+        joiner_model.decoder_proj,
+        decoder_out,
+        decoder_proj_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["decoder_out"],
+        output_names=["projected_decoder_out"],
+        dynamic_axes={
+            "decoder_out": {0: "N"},
+            "projected_decoder_out": {0: "N"},
+        },
     )
-    onnx.save(combined_model, all_in_one_filename)
-    logging.info(f"Saved to {all_in_one_filename}")
+    logging.info(f"Saved to {decoder_proj_filename}")
 
 
 @torch.no_grad()
@@ -574,8 +607,7 @@ def main():
         ]
         if len(filenames) == 0:
             raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
+                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
             )
         elif len(filenames) < params.avg:
             raise ValueError(
@@ -628,14 +660,6 @@ def main():
             joiner_filename,
             opset_version=opset_version,
         )
-
-        all_in_one_filename = params.exp_dir / "all_in_one.onnx"
-        export_all_in_one_onnx(
-            encoder_filename,
-            decoder_filename,
-            joiner_filename,
-            all_in_one_filename,
-        )
     elif params.jit is True:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.script()")
@@ -681,9 +705,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

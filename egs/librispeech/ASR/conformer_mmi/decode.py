@@ -404,7 +404,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -478,16 +478,14 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     if params.method == "attention-decoder":
         # Set it to False since there are too many logs.
@@ -512,9 +510,7 @@ def save_results(
             test_set_wers[key] = wer
 
         if enable_log:
-            logging.info(
-                "Wrote detailed error stats to {}".format(errs_filename)
-            )
+            logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
@@ -653,9 +649,7 @@ def main():
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
+        torch.save({"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt")
         return
 
     model.to(device)
@@ -666,14 +660,22 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
+
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
     # CAUTION: `test_sets` is for displaying only.
     # If you want to skip test-clean, you have to skip
     # it inside the for loop. That is, use
     #
     #   if test_set == 'test-clean': continue
-    #
     test_sets = ["test-clean", "test-other"]
-    for test_set, test_dl in zip(test_sets, librispeech.test_dataloaders()):
+    test_dls = [test_clean_dl, test_other_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -687,9 +689,7 @@ def main():
             eos_id=eos_id,
         )
 
-        save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict
-        )
+        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 

@@ -29,10 +29,7 @@ from lhotse.dataset import (
     K2SpeechRecognitionDataset,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (
-    OnTheFlyFeatures,
-    PrecomputedFeatures,
-)
+from lhotse.dataset.input_strategies import OnTheFlyFeatures, PrecomputedFeatures
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -162,9 +159,7 @@ class AsrDataModule:
         if cuts_musan is not None:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -173,9 +168,7 @@ class AsrDataModule:
 
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
-            logging.info(
-                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
-            )
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -252,9 +245,7 @@ class AsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:

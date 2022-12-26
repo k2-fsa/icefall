@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -10,7 +12,6 @@ cd egs/librispeech/ASR
 
 repo_url=https://github.com/csukuangfj/icefall-asr-conformer-ctc-bpe-500
 git lfs install
-git clone $repo
 
 log "Downloading pre-trained model from $repo_url"
 git clone $repo_url

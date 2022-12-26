@@ -28,17 +28,20 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-import multi_quantization as quantization
 
+from icefall import is_module_available
+
+if not is_module_available("multi_quantization"):
+    raise ValueError("Please 'pip install multi_quantization' first.")
+
+import multi_quantization as quantization
 from asr_datamodule import LibriSpeechAsrDataModule
 from hubert_xlarge import HubertXlargeFineTuned
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-)
 from lhotse import CutSet, load_manifest
 from lhotse.cut import MonoCut
 from lhotse.features.io import NumpyHdf5Writer
+
+from icefall.utils import AttributeDict, setup_logger
 
 
 class CodebookIndexExtractor:
@@ -65,9 +68,7 @@ class CodebookIndexExtractor:
     def init_dirs(self):
         # vq_dir is the root dir for quantization, containing:
         # training data, trained quantizer, and extracted codebook indexes
-        self.vq_dir = (
-            self.params.exp_dir / f"vq/{self.params.teacher_model_id}/"
-        )
+        self.vq_dir = self.params.exp_dir / f"vq/{self.params.teacher_model_id}/"
         self.vq_dir.mkdir(parents=True, exist_ok=True)
 
         # manifest_dir contains:
@@ -205,9 +206,7 @@ class CodebookIndexExtractor:
                 start = cur_offset % (data.shape[0] + 1 - B)
                 end = start + B
                 cur_offset += B
-                yield data[start:end, :].to(self.params.device).to(
-                    dtype=torch.float
-                )
+                yield data[start:end, :].to(self.params.device).to(dtype=torch.float)
 
         for x in minibatch_generator(train, repeat=True):
             trainer.step(x)
@@ -224,9 +223,7 @@ class CodebookIndexExtractor:
         """
         for subset in self.params.subsets:
             logging.info(f"About to split {subset}.")
-            ori_manifest = (
-                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
-            )
+            ori_manifest = f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
             split_cmd = f"lhotse split {self.params.world_size} {ori_manifest} {self.manifest_dir}"
             os.system(f"{split_cmd}")
 
@@ -237,16 +234,13 @@ class CodebookIndexExtractor:
         logging.info("Start to join manifest files.")
         for subset in self.params.subsets:
             vq_manifest_path = (
-                self.dst_manifest_dir
-                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
+                self.dst_manifest_dir / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
             )
             ori_manifest_path = (
-                self.ori_manifest_dir
-                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+                self.ori_manifest_dir / f"librispeech_cuts_train-{subset}.jsonl.gz"
             )
             dst_vq_manifest_path = (
-                self.dst_manifest_dir
-                / f"librispeech_cuts_train-{subset}.jsonl.gz"
+                self.dst_manifest_dir / f"librispeech_cuts_train-{subset}.jsonl.gz"
             )
             cuts_vq = load_manifest(vq_manifest_path)
             cuts_ori = load_manifest(ori_manifest_path)
@@ -266,8 +260,7 @@ class CodebookIndexExtractor:
         for subset in self.params.subsets:
             vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-librispeech-cuts_train-{subset}*.jsonl.gz"
             dst_vq_manifest = (
-                self.dst_manifest_dir
-                / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
+                self.dst_manifest_dir / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
             )
             if 1 == self.params.world_size:
                 merge_cmd = f"cp {vq_manifests} {dst_vq_manifest}"
@@ -327,9 +320,7 @@ class CodebookIndexExtractor:
 
     def load_ori_dl(self, subset):
         if self.params.world_size == 1:
-            ori_manifest_path = (
-                f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
-            )
+            ori_manifest_path = f"./data/fbank/librispeech_cuts_train-{subset}.jsonl.gz"
         else:
             ori_manifest_path = (
                 self.manifest_dir

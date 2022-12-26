@@ -173,14 +173,10 @@ def modified_beam_search(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
-            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(
-                num_active_paths
-            )
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(num_active_paths)
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -40,7 +42,7 @@ for sym in 1 2 3; do
     --lang-dir $repo/data/lang_char \
     $repo/test_wavs/BAC009S0764W0121.wav \
     $repo/test_wavs/BAC009S0764W0122.wav \
-    $rep/test_wavs/BAC009S0764W0123.wav
+    $repo/test_wavs/BAC009S0764W0123.wav
 done
 
 for method in modified_beam_search beam_search fast_beam_search; do
@@ -53,7 +55,7 @@ for method in modified_beam_search beam_search fast_beam_search; do
     --lang-dir $repo/data/lang_char \
     $repo/test_wavs/BAC009S0764W0121.wav \
     $repo/test_wavs/BAC009S0764W0122.wav \
-    $rep/test_wavs/BAC009S0764W0123.wav
+    $repo/test_wavs/BAC009S0764W0123.wav
 done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"

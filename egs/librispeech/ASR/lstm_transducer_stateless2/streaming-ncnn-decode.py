@@ -144,9 +144,7 @@ class Model:
             assert ret == 0, ret
 
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
-            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(
-                torch.int32
-            )
+            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
             hx = torch.from_numpy(ncnn_out2.numpy()).clone()
             cx = torch.from_numpy(ncnn_out3.numpy()).clone()
             return encoder_out, encoder_out_lens, hx, cx
@@ -188,10 +186,9 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -229,17 +226,14 @@ def greedy_search(
     if decoder_out is None:
         assert hyp is None, hyp
         hyp = [blank_id] * context_size
-        decoder_input = torch.tensor(
-            hyp, dtype=torch.int32
-        )  # (1, context_size)
+        decoder_input = torch.tensor(hyp, dtype=torch.int32)  # (1, context_size)
         decoder_out = model.run_decoder(decoder_input).squeeze(0)
-
     else:
         assert decoder_out.ndim == 1
         assert hyp is not None, hyp
 
     joiner_out = model.run_joiner(encoder_out, decoder_out)
-    y = joiner_out.argmax(dim=0).tolist()
+    y = joiner_out.argmax(dim=0).item()
     if y != blank_id:
         hyp.append(y)
         decoder_input = hyp[-context_size:]
@@ -311,9 +305,7 @@ def main():
                 frames.append(online_fbank.get_frame(num_processed_frames + i))
             num_processed_frames += offset
             frames = torch.cat(frames, dim=0)
-            encoder_out, encoder_out_lens, hx, cx = model.run_encoder(
-                frames, states
-            )
+            encoder_out, encoder_out_lens, hx, cx = model.run_encoder(frames, states)
             states = (hx, cx)
             hyp, decoder_out = greedy_search(
                 model, encoder_out.squeeze(0), decoder_out, hyp
@@ -329,9 +321,7 @@ def main():
             frames.append(online_fbank.get_frame(num_processed_frames + i))
         num_processed_frames += offset
         frames = torch.cat(frames, dim=0)
-        encoder_out, encoder_out_lens, hx, cx = model.run_encoder(
-            frames, states
-        )
+        encoder_out, encoder_out_lens, hx, cx = model.run_encoder(frames, states)
         states = (hx, cx)
         hyp, decoder_out = greedy_search(
             model, encoder_out.squeeze(0), decoder_out, hyp
@@ -344,9 +334,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

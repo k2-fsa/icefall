@@ -274,7 +274,7 @@ def decode_dataset(
     HLG: k2.Fsa,
     lexicon: Lexicon,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -336,16 +336,14 @@ def decode_dataset(
         if batch_idx % 100 == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
@@ -400,9 +398,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(
-        torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu")
-    )
+    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu"))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -462,9 +458,7 @@ def main():
 
     if params.export:
         logging.info(f"Export averaged model to {params.exp_dir}/pretrained.pt")
-        torch.save(
-            {"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt"
-        )
+        torch.save({"model": model.state_dict()}, f"{params.exp_dir}/pretrained.pt")
         return
 
     model.to(device)
@@ -485,9 +479,7 @@ def main():
         G=G,
     )
 
-    save_results(
-        params=params, test_set_name=test_set, results_dict=results_dict
-    )
+    save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info("Done!")
 

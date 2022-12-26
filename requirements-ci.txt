@@ -23,4 +23,4 @@ multi_quantization
 
 onnx
 onnxruntime
-onnx_graphsurgeon -i https://pypi.ngc.nvidia.com
+kaldifst
