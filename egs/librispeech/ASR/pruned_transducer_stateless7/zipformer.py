@@ -453,7 +453,7 @@ class ZipformerEncoderLayer(nn.Module):
 
         self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
-        self.norm_final = BasicNorm(embed_dim)
+        self.norm_final = BasicNorm(embed_dim, eps_max=4.0)
 
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
