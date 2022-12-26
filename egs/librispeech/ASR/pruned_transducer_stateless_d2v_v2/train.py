@@ -1022,6 +1022,7 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             loggin.info('1')
             scaler.scale(loss).backward()
+            loggin.info('2')
 
             if params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
