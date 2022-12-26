@@ -1040,6 +1040,7 @@ def train_one_epoch(
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
+                loggin.info('4')
 
         except:  # noqa
             display_and_save_batch(batch, params=params, sp=sp)
