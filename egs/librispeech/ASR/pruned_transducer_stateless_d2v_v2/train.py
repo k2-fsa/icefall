@@ -145,6 +145,13 @@ def add_adapter_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="add adapter to rep model's encoder"
     )
+    
+    parser.add_argument(
+        "--adapter_lr",
+        type=float,
+        default=0.0001,
+        help="adapter learning rate"
+    )
 
 
 def add_rep_arguments(parser: argparse.ArgumentParser):
@@ -1522,7 +1529,6 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_param.append(p)
         #else:
         #    p.requires_grad = False
-    
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=0.0001,
