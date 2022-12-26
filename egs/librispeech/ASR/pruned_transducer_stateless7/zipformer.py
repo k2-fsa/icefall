@@ -474,7 +474,7 @@ class ZipformerEncoderLayer(nn.Module):
     def get_bypass_scale(self, batch_size: int):
         # returns bypass-scale of shape (num_channels,),
         # or (batch_size, num_channels,).  This is actually the
-        # scale on the delta src - src_orig, so 0 correponds to bypassing
+        # scale on the non-residual term, so 0 correponds to bypassing
         # this module.
         if torch.jit.is_scripting() or not self.training:
             return self.bypass_scale
@@ -575,9 +575,9 @@ class ZipformerEncoderLayer(nn.Module):
         src = self.balancer(src)
         src = self.norm_final(src)
 
-        delta = src - src_orig
+        bypass_scale = self.get_bypass_scale(src.shape[1])
+        src = src * bypass_scale + src_orig * (1.0 - bypass_scale)
 
-        src = src_orig + delta * self.get_bypass_scale(src.shape[1])
         src = self.whiten(src)
 
         return src, attn_weights
