@@ -1526,7 +1526,7 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_param,
             lr=0.0001,
             clipping_scale=None,
-            parameters_names=[enc_names],
+            parameters_names=[adapter_names],
         )
 
     if params.multi_optim:
