@@ -163,6 +163,7 @@ class ResidualAdapterModule(nn.Module):
         x = residual + x
         print(x.size())
         x = x.transpose(0, 1)
+        print(x.size())
         return x
 
 
