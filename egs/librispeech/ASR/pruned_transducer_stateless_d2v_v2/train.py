@@ -1528,6 +1528,8 @@ def run_adapter(rank, world_size, args, wb=None):
         if p.requires_grad:
             logging.info(n)
 
+    exit()
+
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=0.0001,
