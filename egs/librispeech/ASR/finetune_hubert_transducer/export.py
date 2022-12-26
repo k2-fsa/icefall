@@ -46,6 +46,7 @@ you can do:
         --exp-dir ./finetune_hubert_transducer/exp_dir \
         --epoch 9999 \
         --avg 1 \
+        --use-averaged-model False
         --max-duration 600 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model \
