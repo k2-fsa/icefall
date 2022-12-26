@@ -47,7 +47,7 @@ done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode" || x"${GITHUB_EVENT_LABEL_NAME}" == x"ready"]]; then
   mkdir -p finetune_hubert_transducer/exp
   ln -s $PWD/$repo/train_960h_hubert_large/epoch-9999.pt finetune_hubert_transducer/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
