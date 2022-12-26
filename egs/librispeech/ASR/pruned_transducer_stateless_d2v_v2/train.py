@@ -870,7 +870,7 @@ def compute_loss(
             use_double_scores=params.use_double_scores,
         )
         #assert ctc_loss.requires_grad == is_training
-        logging.info(ctc_loss.requires_grad, is_training)
+        print(ctc_loss.requires_grad, is_training)
         loss += params.ctc_loss_scale * ctc_loss
     
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
