@@ -1519,8 +1519,8 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_param = []
     for n, p  in model.named_parameters():
         if 'adapters' in n:
-            logging.info(n)
-    exit()
+            adapter_names.append(n)
+            adapter_param.append(p)
 
     if params.multi_optim:
         logging.info("Using seperate optimizers over encoder, decoder ...")
