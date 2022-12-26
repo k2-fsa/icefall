@@ -152,7 +152,6 @@ def export_encoder_model_jit_trace(
 
     x = torch.zeros(1, T, 80, dtype=torch.float32)
     states = encoder_model.init_states()
-    states = encoder_model.init_states()
 
     traced_model = torch.jit.trace(encoder_model, (x, states))
     traced_model.save(encoder_filename)

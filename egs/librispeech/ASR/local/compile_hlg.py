@@ -24,7 +24,7 @@ This script takes as input lang_dir and generates HLG from
 
         Caution: We use a lexicon that contains disambiguation symbols
 
-    - G, the LM, built from data/lm/G_3_gram.fst.txt
+    - G, the LM, built from data/lm/G_n_gram.fst.txt
 
 The generated HLG is saved in $lang_dir/HLG.pt
 """

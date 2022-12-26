@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c)  2021  University of Chinese Academy of Sciences (author: Han Zhu)
+# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -454,7 +454,7 @@ class ZipformerEncoderLayer(nn.Module):
         # pooling module
         if torch.jit.is_scripting():
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
-        elif random.random() > dynamic_dropout:
+        elif random.random() >= dynamic_dropout:
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
 
         if torch.jit.is_scripting():
@@ -478,7 +478,7 @@ class ZipformerEncoderLayer(nn.Module):
                 src, src_key_padding_mask=src_key_padding_mask
             )
         else:
-            use_self_attn = random.random() > dynamic_dropout
+            use_self_attn = random.random() >= dynamic_dropout
             if use_self_attn:
                 src_att, attn_weights = self.self_attn(
                     src,
@@ -488,7 +488,7 @@ class ZipformerEncoderLayer(nn.Module):
                 )
                 src = src + src_att
 
-            if random.random() > dynamic_dropout:
+            if random.random() >= dynamic_dropout:
                 src = src + self.conv_module1(
                     src, src_key_padding_mask=src_key_padding_mask
                 )
@@ -497,7 +497,7 @@ class ZipformerEncoderLayer(nn.Module):
             if use_self_attn:
                 src = src + self.self_attn.forward2(src, attn_weights)
 
-            if random.random() > dynamic_dropout:
+            if random.random() >= dynamic_dropout:
                 src = src + self.conv_module2(
                     src, src_key_padding_mask=src_key_padding_mask
                 )
@@ -741,7 +741,7 @@ class DownsampledZipformerEncoder(nn.Module):
             src,
             feature_mask=feature_mask,
             mask=mask,
-            src_key_padding_mask=mask,
+            src_key_padding_mask=src_key_padding_mask,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
@@ -1289,17 +1289,13 @@ class RelPositionMultiheadAttention(nn.Module):
             bsz * num_heads, seq_len, seq_len
         )
 
-        assert list(attn_output_weights.size()) == [
-            bsz * num_heads,
-            seq_len,
-            seq_len,
-        ]
-
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
-                attn_output_weights.masked_fill_(attn_mask, float("-inf"))
+                attn_output_weights = attn_output_weights.masked_fill(
+                    attn_mask, float("-inf")
+                )
             else:
-                attn_output_weights += attn_mask
+                attn_output_weights = attn_output_weights + attn_mask
 
         if key_padding_mask is not None:
             attn_output_weights = attn_output_weights.view(
@@ -1318,6 +1314,34 @@ class RelPositionMultiheadAttention(nn.Module):
         # we are in automatic mixed precision mode (amp) == autocast,
         # only storing the half-precision output for backprop purposes.
         attn_output_weights = softmax(attn_output_weights, dim=-1)
+
+        # If we are using chunk-wise attention mask and setting a limited
+        # num_left_chunks, the attention may only see the padding values which
+        # will also be masked out by `key_padding_mask`. At this circumstances,
+        # the whole column of `attn_output_weights` will be `-inf`
+        # (i.e. be `nan` after softmax). So we fill `0.0` at the masking
+        # positions to avoid invalid loss value below.
+        if (
+            attn_mask is not None
+            and attn_mask.dtype == torch.bool
+            and key_padding_mask is not None
+        ):
+            if attn_mask.size(0) != 1:
+                attn_mask = attn_mask.view(bsz, num_heads, seq_len, seq_len)
+                combined_mask = attn_mask | key_padding_mask.unsqueeze(1).unsqueeze(2)
+            else:
+                # attn_mask.shape == (1, tgt_len, src_len)
+                combined_mask = attn_mask.unsqueeze(0) | key_padding_mask.unsqueeze(
+                    1
+                ).unsqueeze(2)
+
+            attn_output_weights = attn_output_weights.view(
+                bsz, num_heads, seq_len, seq_len
+            )
+            attn_output_weights = attn_output_weights.masked_fill(combined_mask, 0.0)
+            attn_output_weights = attn_output_weights.view(
+                bsz * num_heads, seq_len, seq_len
+            )
 
         attn_output_weights = nn.functional.dropout(
             attn_output_weights, p=dropout_p, training=training

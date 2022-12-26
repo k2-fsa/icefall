@@ -294,7 +294,6 @@ def main():
 
     if params.jit is True:
         convert_scaled_to_non_scaled(model, inplace=True)
-        logging.info("Using torch.jit.script()")
         # We won't use the forward() method of the model in C++, so just ignore
         # it here.
         # Otherwise, one of its arguments is a ragged tensor and is not
