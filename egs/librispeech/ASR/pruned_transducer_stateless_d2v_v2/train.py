@@ -1022,7 +1022,7 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
 
-            if params.multi_optim and batch_idx % params.accum_grads == 0:
+            if params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
                 scheduler_enc.step_batch(params.batch_idx_train)
                 scheduler_dec.step_batch(params.batch_idx_train)
@@ -1031,7 +1031,7 @@ def train_one_epoch(
                 scaler.update()
                 optimizer_enc.zero_grad()
                 optimizer_dec.zero_grad()
-            elif not params.multi_optim and batch_idx % params.accum_grads == 0:
+            elif not params.multi_optim and (batch_idx+1) % params.accum_grads == 0:
                 set_batch_count(model, params.batch_idx_train)
                 scheduler.step_batch(params.batch_idx_train)
                 scaler.step(optimizer)
