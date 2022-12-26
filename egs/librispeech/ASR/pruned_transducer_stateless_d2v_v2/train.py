@@ -1546,8 +1546,8 @@ def run_adapter(rank, world_size, args, wb=None):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
-        sampler_state_dict = checkpoints["sampler"]
+    #if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
+    #    sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
 
