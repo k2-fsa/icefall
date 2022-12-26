@@ -41,6 +41,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
         self.adapters = ResidualAdapterModule()
         for p in self.adapters.parameters():
             p.data = torch.nn.parameters(torch.zeros(p.size()).to('cuda'))
+            print(p)
 
     def forward(self, x, padding_mask=None, layer=None, tgt_layer=None):
         x, layer_results = self.extract_features_with_adapter(
