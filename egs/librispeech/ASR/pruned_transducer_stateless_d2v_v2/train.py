@@ -1521,6 +1521,13 @@ def run_adapter(rank, world_size, args, wb=None):
         if 'adapters' in n:
             adapter_names.append(n)
             adapter_param.append(p)
+    
+    optimizer_adapter = ScaledAdam(
+            adapter_,
+            lr=params.peak_enc_lr,
+            clipping_scale=None,
+            parameters_names=[enc_names],
+        )
 
     if params.multi_optim:
         logging.info("Using seperate optimizers over encoder, decoder ...")
