@@ -96,7 +96,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
                 x, (z, lr) = layer(
                     x, self_attn_padding_mask=padding_mask, need_weights=False,
                 )
-                x = self.adapters(x, layer_id=i)
+                x = self.adapters(x)
 
                 if i >= min_layer:
                     layer_results.append((x, z, lr))
