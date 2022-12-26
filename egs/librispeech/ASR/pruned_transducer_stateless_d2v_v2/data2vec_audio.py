@@ -29,7 +29,7 @@ from fairseq.modules import (
     LayerNorm,
 )
 from fairseq.utils import index_put
-from .utils import pad_to_multiple
+from utils import pad_to_multiple
 
 logger = logging.getLogger(__name__)
 
