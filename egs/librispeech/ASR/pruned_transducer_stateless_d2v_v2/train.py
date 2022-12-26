@@ -1530,38 +1530,6 @@ def run_adapter(rank, world_size, args, wb=None):
         )
     scheduler_adapter = Eden(optimizer_adapter, 0, 0) #params.lr_batche, params.lr_epochs)
     
-    if checkpoints and ("optimizer" in checkpoints or "optimizer_enc" in checkpoints):
-        if params.multi_optim:
-            logging.info("Loading optimizer state dict")
-            optimizer_enc.load_state_dict(checkpoints["optimizer_enc"])
-            optimizer_dec.load_state_dict(checkpoints["optimizer_dec"])
-
-        else:
-            logging.info("Loading optimizer state dict")
-            optimizer.load_state_dict(checkpoints["optimizer"])
-
-    if checkpoints:
-        if (
-            params.multi_optim 
-            and "scheduler_enc" in checkpoints
-            and checkpoints["scheduler_enc"] is not None
-        ):
-            logging.info("Loading enc/dec scheduler state dict")
-            scheduler_enc.load_state_dict(checkpoints["scheduler_enc"])
-            scheduler_dec.load_state_dict(checkpoints["scheduler_dec"])        
-        else:
-            logging.info("Loading scheduler state dict")
-            scheduler.load_state_dict(checkpoints["scheduler"])
-
-    if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(
-            2**22
-        )  # allow 4 megabytes per sub-module
-        diagnostic = diagnostics.attach_diagnostics(model, opts)
-
-    if params.inf_check:
-        register_inf_check_hooks(model)
-
     librispeech = LibriSpeechAsrDataModule(args)
 
     train_cuts = librispeech.train_clean_100_cuts()
