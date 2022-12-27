@@ -684,6 +684,8 @@ def load_checkpoint_if_available(
         filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
     elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    elif params.add_adapter:
+        filename = params.exp_dir / f"d2v-base-T.pt"
     else:
         return None
 
