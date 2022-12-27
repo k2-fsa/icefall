@@ -65,6 +65,7 @@ jobs:
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf
+          pip install fairseq==0.12.2
 
       - name: Cache kaldifeat
         id: my-cache
