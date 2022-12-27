@@ -1532,7 +1532,7 @@ def run_adapter(rank, world_size, args, wb=None):
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=params.adapter_lr,
-            clipping_scale=10.0,
+            clipping_scale=5.0,
             parameters_names=[adapter_names],
         )
     scheduler_adapter = Eden(optimizer_adapter, 5000, 3.5) #params.lr_batche, params.lr_epochs)
