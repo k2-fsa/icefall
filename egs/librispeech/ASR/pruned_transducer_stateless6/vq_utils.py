@@ -244,10 +244,25 @@ class CodebookIndexExtractor:
             )
             cuts_vq = load_manifest(vq_manifest_path)
             cuts_ori = load_manifest(ori_manifest_path)
-            cuts_vq = cuts_vq.sort_like(cuts_ori)
-            for cut_idx, (cut_vq, cut_ori) in enumerate(zip(cuts_vq, cuts_ori)):
-                assert cut_vq.id == cut_ori.id
-                cut_ori.codebook_indexes = cut_vq.codebook_indexes
+            assert len(cuts_vq) == len(cuts_ori), "Cuts should have the same length!"
+            
+            # get the mapping between audio and cut ID
+            ori_id_map = {}
+            for id in cuts_ori.ids:
+                # some text normalization
+                if 'sp' in id:
+                    clean_id = '-'.join(id.split('-')[:3]) + '_' + id.split('_')[-1]
+                else:
+                    clean_id = '-'.join(id.split('-')[:3])
+                ori_id_map[clean_id] = id
+
+            for id in cuts_vq.ids:
+                if 'sp' in id:
+                    clean_id = '-'.join(id.split('-')[:3]) + '_' + id.split('_')[-1]
+                else:
+                    clean_id = '-'.join(id.split('-')[:3])
+                assert clean_id in ori_id_map, clean_id
+                cuts_ori[ori_id_map[clean_id]].codebook_indexes = cuts_vq[id].codebook_indexes
 
             CutSet.from_cuts(cuts_ori).to_jsonl(dst_vq_manifest_path)
             logging.info(f"Processed {subset}.")
