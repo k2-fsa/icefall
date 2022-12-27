@@ -18,7 +18,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.wav2vec import (
