@@ -157,7 +157,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     # Make sure you have git-lfs installed (https://git-lfs.github.com)
     # The codebook indexes are generated using lhotse 1.11.0, to avoid
     # potential issues, we recommend you to use lhotse version >= 1.11.0
-    lhotse_version=$(python3 -c "import lhotse; print(lhotse.version.__version__>='1.11.0)")
+    lhotse_version=$(python3 -c "import lhotse; from packaging import version; print(version.parse(lhotse.version.__version__)>=version.parse('1.11.0'))")
     if [ "$lhotse_version" == "False" ]; then
       log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
     fi
