@@ -156,12 +156,10 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     log "Downloading extracted codebook indexes to $codebook_download_dir"
     # Make sure you have git-lfs installed (https://git-lfs.github.com)
     # The codebook indexes are generated using lhotse 1.11.0, to avoid
-    # potential issues, we recommend you to use the same version of lhotse
-    # to run `prepare.sh`.
-    lhotse_version=$(python3 -c "import lhotse; print(lhotse.version.__version__)")
-    if [ "$lhotse_version" != "1.11.0" ]; then
-      log "Using the wrong lhotse version(Expected: 1.11.0, but using $lhotse_version). Please install lhotse 1.11.0 before proceeding. Try pip install lhotse==1.11.0"
-      exit 1
+    # potential issues, we recommend you to use lhotse version >= 1.11.0
+    lhotse_version=$(python3 -c "import lhotse; print(lhotse.version.__version__>='1.11.0)")
+    if [ "$lhotse_version" == "False" ]; then
+      log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
     fi
     git lfs install
     git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
