@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   run_librispeech_2022_12_26_finetune_hubert:
-    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event.label.name == 'hubert' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -153,7 +153,7 @@ jobs:
 
       - name: Upload decoding results for librispeech finetune_hubert_transducer
         uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event.label.name == 'hubert'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-finetune_hubert_transducer-2022-11-11
           path: egs/librispeech/ASR/finetune_hubert_transducer/exp/

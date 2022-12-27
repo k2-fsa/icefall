@@ -48,6 +48,9 @@ else
 fi
 
 # download dict file
-if [ -f "${download_dir}/dict.ltr.txt"]; then
+if [ -f "${download_dir}/dict.ltr.txt" ]; then
     wget https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt -P ${download_dir}
 fi
+
+echo "Finished downloading!"
+ls -lh $download_dir
