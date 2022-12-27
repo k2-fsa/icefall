@@ -4,7 +4,7 @@ workstation="whale"
 
 if [ $workstation = "whale" ]; then
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-	./pruned_transducer_stateless_d2v_v2/train.py \
+	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
 		--adapter-lr 0.000025 \
 		--wandb False \
