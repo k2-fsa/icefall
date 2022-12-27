@@ -697,7 +697,7 @@ def load_checkpoint_if_available(
         model_avg=model_avg,
         optimizer=optimizer,
         scheduler=scheduler,
-        strict=False,
+        strict=True if not params.add_adapter else False,
     )
 
     keys = [
