@@ -5,7 +5,7 @@ workstation="bear"
 if [ $workstation = "whale" ]; then
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	./pruned_transducer_stateless_d2v_v2/train.py \
-		--wandb true \
+		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
