@@ -228,7 +228,7 @@ You will find the following files in that directory:
       .. code-block:: bash
 
         $ cd pruned_transducer_stateless7_ctc_bs/exp/tensorboard
-        $ tensorboard dev upload --logdir . --description "Zipformer MMI training for LibriSpeech with icefall"
+        $ tensorboard dev upload --logdir . --description "Zipformer-CTC co-training using blank skip for LibriSpeech with icefall"
 
     It will print something like below:
 
