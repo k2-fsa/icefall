@@ -17,7 +17,7 @@ if [ $workstation = "whale" ]; then
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 200 \
-		--use-fp16 1 \
+		--use-fp16 0 \
 		--encoder-type d2v \
 		--additional-block True \
 		--encoder-dim 768 \
