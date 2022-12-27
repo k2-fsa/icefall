@@ -1716,7 +1716,6 @@ def main():
         if not args.add_adapter: run(rank=0, world_size=1, args=args, wb=wb)
         else: run(rank=0, world_size=1, args=args, wb=wb)
 
-
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
