@@ -72,7 +72,8 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
       --exp-dir finetune_hubert_transducer/exp \
       --hubert-model-dir ./finetune_hubert_transducer/pretrained_models/hubert_large_ll60k.pt \
       --hubert-subsample-output 1 \
-      --hubert-subsample-mode concat_tanh
+      --hubert-subsample-mode concat_tanh \
+      --input-strategy AudioSamples
   done
 
   rm finetune_hubert_transducer/exp/*.pt
