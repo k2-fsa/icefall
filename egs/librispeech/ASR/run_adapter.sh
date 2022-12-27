@@ -8,7 +8,7 @@ if [ $workstation = "whale" ]; then
 		--wandb true \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
-		--multi-optim True \
+		--multi-optim False \
 		--world-size 8 \
 		--num-epochs 10 \
 		--start-epoch 1 \
