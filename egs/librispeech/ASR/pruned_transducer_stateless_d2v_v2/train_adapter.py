@@ -808,7 +808,6 @@ def compute_loss(
         feature_lens = []
         for supervision in supervisions['cut']:
             print(supervision)
-            exit()
             try: feature_lens.append(supervision.tracks[0].cut.recording.num_samples)
             except: feature_lens.append(supervision.recording.num_samples)
         feature_lens = torch.tensor(feature_lens)
