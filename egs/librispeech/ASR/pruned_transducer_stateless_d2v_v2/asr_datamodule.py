@@ -399,7 +399,7 @@ class LibriSpeechAsrDataModule:
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100_new.jsonl"
+            self.args.manifest_dir / "librispeech_cuts_train-clean-100_new.jsonl.gz"
         )
 
     @lru_cache()
