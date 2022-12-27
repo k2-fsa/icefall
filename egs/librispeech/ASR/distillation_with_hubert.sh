@@ -23,8 +23,8 @@
 # To start from scratch, you can
 # set stage=0, stop_stage=4, use_extracted_codebook=False
 
-stage=0
-stop_stage=4
+stage=2
+stop_stage=2
 
 # Set the GPUs available.
 # This script requires at least one GPU.
@@ -49,7 +49,7 @@ full_libri=False
 #   "True" -> stage 0 and stage 1 would be skipped,
 #     and directly download the extracted codebook indexes for distillation
 #   "False" -> start from scratch
-use_extracted_codebook=False
+use_extracted_codebook=True
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
@@ -155,8 +155,16 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     fi
     log "Downloading extracted codebook indexes to $codebook_download_dir"
     # Make sure you have git-lfs installed (https://git-lfs.github.com)
+    # The codebook indexes are generated using lhotse 1.11.0, to avoid
+    # potential issues, we recommend you to use the same version of lhotse
+    # to run `prepare.sh`.
+    lhotse_version=$(python3 -c "import lhotse; print(lhotse.version.__version__)")
+    if [ "$lhotse_version" != "1.11.0" ]; then
+      log "Using the wrong lhotse version(Expected: 1.11.0, but using $lhotse_version). Please install lhotse 1.11.0 before proceeding. Try pip install lhotse==1.11.0"
+      exit 1
+    fi
     git lfs install
-    git clone https://huggingface.co/Zengwei/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
+    git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
 
     mkdir -p data/vq_fbank
     mv $codebook_download_dir/*.jsonl.gz data/vq_fbank/
