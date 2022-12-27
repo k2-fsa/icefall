@@ -23,8 +23,8 @@
 # To start from scratch, you can
 # set stage=0, stop_stage=4, use_extracted_codebook=False
 
-stage=2
-stop_stage=2
+stage=0
+stop_stage=4
 
 # Set the GPUs available.
 # This script requires at least one GPU.
@@ -35,7 +35,7 @@ stop_stage=2
 # export CUDA_VISIBLE_DEVICES="0"
 #
 # Suppose GPU 2,3,4,5 are available.
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 exp_dir=./pruned_transducer_stateless6/exp
 mkdir -p $exp_dir
