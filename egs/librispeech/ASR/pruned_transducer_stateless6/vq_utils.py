@@ -246,7 +246,8 @@ class CodebookIndexExtractor:
             cuts_ori = load_manifest(ori_manifest_path)
             assert len(cuts_vq) == len(cuts_ori), "Cuts should have the same length!"
             
-            if set(cut_vq.ids) == set(cuts_ori.ids):
+            if set(cuts_vq.ids) == set(cuts_ori.ids):
+                # IDs match exactly
                 cuts_vq = cuts_vq.sort_like(cuts_ori)
                 for cut_idx, (cut_vq, cut_ori) in enumerate(zip(cuts_vq, cuts_ori)):
                     assert cut_vq.id == cut_ori.id
@@ -254,6 +255,7 @@ class CodebookIndexExtractor:
             else:
                 # in case of ID mismatch, remap them
                 # get the mapping between audio and cut ID
+                logging
                 ori_id_map = {}
                 for id in cuts_ori.ids:
                     # some text normalization
