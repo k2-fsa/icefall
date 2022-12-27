@@ -224,8 +224,10 @@ def decode_one_chunk(
     feature_lens = torch.tensor(feature_lens, device=device)
     features = pad_sequence(features, batch_first=True, padding_value=LOG_EPS)
 
-    # We subsample features with ((x_len - 7) // 2 + 1) // 2.
-    tail_length = params.decode_chunk_len + 7
+    # We subsample features with ((x_len - 7) // 2 + 1) // 2 and the max downsampling
+    # factor in encoders is 8.
+    # After feature embedding, we have (23 - 7) // 2 = 8.
+    tail_length = 23
     if features.size(1) < tail_length:
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length
@@ -244,7 +246,7 @@ def decode_one_chunk(
         x_lens=feature_lens,
         states=states,
         # Used after feature embedding.
-        processed_lens=processed_lens * 2,
+        # processed_lens=processed_lens * 2,
     )
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
@@ -491,9 +493,6 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    # Decoding in streaming requires causal convolution
-    params.causal_convolution = True
 
     logging.info(params)
 

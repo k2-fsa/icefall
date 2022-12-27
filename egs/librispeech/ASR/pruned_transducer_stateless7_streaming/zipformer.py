@@ -60,13 +60,14 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
       state_list:
         Each element in state_list corresponding to the internal state
         of the zipformer model for a single utterance.
-        ``states[i]`` is a list of 6 * num_encoders elements of i-th utterance.
-        ``states[i][0:num_encoders]`` is the cached average tensors.
-        ``states[i][num_encoders:2*num_encoders]`` is the cached key tensors of the first attention modules.
-        ``states[i][2*num_encoders:3*num_encoders]`` is the cached value tensors of the first attention modules.
-        ``states[i][3*num_encoders:4*num_encoders]`` is the cached value tensors of the second attention modules.
-        ``states[i][4*num_encoders:5*num_encoders]`` is the cached left contexts of the first convolution modules.
-        ``states[i][5*num_encoders:6*num_encoders]`` is the cached left contexts of the second convolution modules.
+        ``states[i]`` is a list of 7 * num_encoders elements of i-th utterance.
+        ``states[i][0:num_encoders]`` is the cached numbers of past frames.
+        ``states[i][num_encoders:2*num_encoders]`` is the cached average tensors.
+        ``states[i][2*num_encoders:3*num_encoders]`` is the cached key tensors of the first attention modules.
+        ``states[i][3*num_encoders:4*num_encoders]`` is the cached value tensors of the first attention modules.
+        ``states[i][4*num_encoders:5*num_encoders]`` is the cached value tensors of the second attention modules.
+        ``states[i][5*num_encoders:6*num_encoders]`` is the cached left contexts of the first convolution modules.
+        ``states[i][6*num_encoders:7*num_encoders]`` is the cached left contexts of the second convolution modules.
 
     Returns:
       A new state corresponding to a batch of utterances.
@@ -74,9 +75,10 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
       of the returned tensor.
     """
     batch_size = len(state_list)
-    assert len(state_list[0]) % 6 == 0, len(state_list[0])
-    num_encoders = len(state_list[0]) // 6
+    assert len(state_list[0]) % 7 == 0, len(state_list[0])
+    num_encoders = len(state_list[0]) // 7
 
+    cached_len = []
     cached_avg = []
     cached_key = []
     cached_val = []
@@ -84,8 +86,17 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
     cached_conv1 = []
     cached_conv2 = []
 
+    # For cached_len
+    len_list = [state_list[n][0:num_encoders] for n in range(batch_size)]
+    for i in range(num_encoders):
+        # len_avg: (num_layers, batch_size)
+        len_avg = torch.cat([len_list[n][i] for n in range(batch_size)], dim=1)
+        cached_len.append(len_avg)
+
     # For cached_avg
-    avg_list = [state_list[n][0:num_encoders] for n in range(batch_size)]
+    avg_list = [
+        state_list[n][num_encoders : 2 * num_encoders] for n in range(batch_size)
+    ]
     for i in range(num_encoders):
         # avg: (num_layers, batch_size, D)
         avg = torch.cat([avg_list[n][i] for n in range(batch_size)], dim=1)
@@ -93,7 +104,7 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
 
     # For cached_key
     key_list = [
-        state_list[n][num_encoders : 2 * num_encoders] for n in range(batch_size)
+        state_list[n][2 * num_encoders : 3 * num_encoders] for n in range(batch_size)
     ]
     for i in range(num_encoders):
         # key: (num_layers, left_context_size, batch_size, D)
@@ -102,7 +113,7 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
 
     # For cached_val
     val_list = [
-        state_list[n][2 * num_encoders : 3 * num_encoders] for n in range(batch_size)
+        state_list[n][3 * num_encoders : 4 * num_encoders] for n in range(batch_size)
     ]
     for i in range(num_encoders):
         # val: (num_layers, left_context_size, batch_size, D)
@@ -111,7 +122,7 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
 
     # For cached_val2
     val2_list = [
-        state_list[n][3 * num_encoders : 4 * num_encoders] for n in range(batch_size)
+        state_list[n][4 * num_encoders : 5 * num_encoders] for n in range(batch_size)
     ]
     for i in range(num_encoders):
         # val2: (num_layers, left_context_size, batch_size, D)
@@ -120,7 +131,7 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
 
     # For cached_conv1
     conv1_list = [
-        state_list[n][4 * num_encoders : 5 * num_encoders] for n in range(batch_size)
+        state_list[n][5 * num_encoders : 6 * num_encoders] for n in range(batch_size)
     ]
     for i in range(num_encoders):
         # conv1: (num_layers, batch_size, D, kernel-1)
@@ -129,7 +140,7 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
 
     # For cached_conv2
     conv2_list = [
-        state_list[n][5 * num_encoders : 6 * num_encoders] for n in range(batch_size)
+        state_list[n][6 * num_encoders : 7 * num_encoders] for n in range(batch_size)
     ]
     for i in range(num_encoders):
         # conv2: (num_layers, batch_size, D, kernel-1)
@@ -137,7 +148,13 @@ def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
         cached_conv2.append(conv2)
 
     states = (
-        cached_avg + cached_key + cached_val + cached_val2 + cached_conv1 + cached_conv2
+        cached_len
+        + cached_avg
+        + cached_key
+        + cached_val
+        + cached_val2
+        + cached_conv1
+        + cached_conv2
     )
     return states
 
@@ -152,30 +169,39 @@ def unstack_states(states: List[Tensor]) -> List[List[Tensor]]:
 
     Args:
       states:
-        A list of 6 * num_encoders elements:
-        ``states[0:num_encoders]`` is the cached average tensors.
-        ``states[num_encoders:2*num_encoders]`` is the cached key tensors of the first attention modules.
-        ``states[2*num_encoders:3*num_encoders]`` is the cached value tensors of the first attention modules.
-        ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the second attention modules.
-        ``states[4*num_encoders:5*num_encoders]`` is the cached left contexts of the first convolution modules.
-        ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the second convolution modules.
+        A list of 7 * num_encoders elements:
+        ``states[0:num_encoders]`` is the cached numbers of past frames.
+        ``states[num_encoders:2*num_encoders]`` is the cached average tensors.
+        ``states[2*num_encoders:3*num_encoders]`` is the cached key tensors of the first attention modules.
+        ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the first attention modules.
+        ``states[4*num_encoders:5*num_encoders]`` is the cached value tensors of the second attention modules.
+        ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the first convolution modules.
+        ``states[6*num_encoders:7*num_encoders]`` is the cached left contexts of the second convolution modules.
 
     Returns:
       A list of states.
-      ``states[i]`` is a list of 6 * num_encoders elements of i-th utterance.
+      ``states[i]`` is a list of 7 * num_encoders elements of i-th utterance.
     """
-    assert len(states) % 6 == 0, len(states)
-    num_encoders = len(states) // 6
+    assert len(states) % 7 == 0, len(states)
+    num_encoders = len(states) // 7
     (
+        cached_len,
         cached_avg,
         cached_key,
         cached_val,
         cached_val2,
         cached_conv1,
         cached_conv2,
-    ) = (states[i * num_encoders : (i + 1) * num_encoders] for i in range(6))
+    ) = (states[i * num_encoders : (i + 1) * num_encoders] for i in range(7))
 
-    batch_size = cached_avg[0].shape[1]
+    batch_size = cached_len[0].shape[1]
+
+    len_list = [[] for _ in range(batch_size)]
+    for i in range(num_encoders):
+        # cached_len[i]: (num_layers, batch_size)
+        len_avg = cached_len[i].chunk(chunks=batch_size, dim=1)
+        for n in range(batch_size):
+            len_list[n].append(len_avg[n])
 
     avg_list = [[] for _ in range(batch_size)]
     for i in range(num_encoders):
@@ -184,9 +210,6 @@ def unstack_states(states: List[Tensor]) -> List[List[Tensor]]:
         for n in range(batch_size):
             avg_list[n].append(avg[n])
 
-    # import pdb
-
-    # pdb.set_trace()
     key_list = [[] for _ in range(batch_size)]
     for i in range(num_encoders):
         # cached_key[i]: (num_layers, left_context, batch_size, D)
@@ -224,7 +247,8 @@ def unstack_states(states: List[Tensor]) -> List[List[Tensor]]:
 
     state_list = [
         (
-            avg_list[i]
+            len_list[i]
+            + avg_list[i]
             + key_list[i]
             + val_list[i]
             + val2_list[i]
@@ -547,7 +571,6 @@ class Zipformer(EncoderInterface):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        processed_lens: Tensor,
         states: List[Tensor],
     ) -> Tuple[Tensor, Tensor, List[Tensor]]:
         """
@@ -559,13 +582,14 @@ class Zipformer(EncoderInterface):
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
           states:
-            A list of 6 * num_encoders elements:
-            ``states[0:num_encoders]`` is the cached average tensors.
-            ``states[num_encoders:2*num_encoders]`` is the cached key tensors of the first attention modules.
-            ``states[2*num_encoders:3*num_encoders]`` is the cached value tensors of the first attention modules.
-            ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the second attention modules.
-            ``states[4*num_encoders:5*num_encoders]`` is the cached left contexts of the first convolution modules.
-            ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the second convolution modules.
+            A list of 7 * num_encoders elements:
+            ``states[0:num_encoders]`` is the cached numbers of past frames.
+            ``states[num_encoders:2*num_encoders]`` is the cached average tensors.
+            ``states[2*num_encoders:3*num_encoders]`` is the cached key tensors of the first attention modules.
+            ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the first attention modules.
+            ``states[4*num_encoders:5*num_encoders]`` is the cached value tensors of the second attention modules.
+            ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the first convolution modules.
+            ``states[6*num_encoders:7*num_encoders]`` is the cached left contexts of the second convolution modules.
 
         Returns:
           Return a tuple containing 3 tensors:
@@ -574,48 +598,23 @@ class Zipformer(EncoderInterface):
               of frames in `embeddings` before padding.
             - updated states.
         """
-        assert len(states) == 6 * self.num_encoders, (len(states), self.num_encoders)
+        assert len(states) == 7 * self.num_encoders, (len(states), self.num_encoders)
 
-        cached_avg = states[: self.num_encoders]
-        cached_key = states[self.num_encoders : 2 * self.num_encoders]
-        cached_val = states[2 * self.num_encoders : 3 * self.num_encoders]
-        cached_val2 = states[3 * self.num_encoders : 4 * self.num_encoders]
-        cached_conv1 = states[4 * self.num_encoders : 5 * self.num_encoders]
-        cached_conv2 = states[5 * self.num_encoders : 6 * self.num_encoders]
-        assert len(cached_key) == self.num_encoders, (
-            len(cached_key),
-            self.num_encoders,
-        )
-        assert len(cached_val) == self.num_encoders, (
-            len(cached_val),
-            self.num_encoders,
-        )
-        assert len(cached_val2) == self.num_encoders, (
-            len(cached_val2),
-            self.num_encoders,
-        )
-        assert len(cached_conv1) == self.num_encoders, (
-            len(cached_conv1),
-            self.num_encoders,
-        )
-        assert len(cached_conv2) == self.num_encoders, (
-            len(cached_conv2),
-            self.num_encoders,
-        )
-        assert len(cached_avg) == self.num_encoders, (
-            len(cached_avg),
-            self.num_encoders,
-        )
+        cached_len = states[: self.num_encoders]
+        cached_avg = states[self.num_encoders : 2 * self.num_encoders]
+        cached_key = states[2 * self.num_encoders : 3 * self.num_encoders]
+        cached_val = states[3 * self.num_encoders : 4 * self.num_encoders]
+        cached_val2 = states[4 * self.num_encoders : 5 * self.num_encoders]
+        cached_conv1 = states[5 * self.num_encoders : 6 * self.num_encoders]
+        cached_conv2 = states[6 * self.num_encoders : 7 * self.num_encoders]
 
         x = self.encoder_embed(x)
-
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
         lengths = (x_lens - 7) >> 1
         assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
-        assert x.size(0) == self.decode_chunk_size, (x.size(0), self.decode_chunk_size)
 
         outputs = []
+        new_cached_len = []
         new_cached_avg = []
         new_cached_key = []
         new_cached_val = []
@@ -626,22 +625,22 @@ class Zipformer(EncoderInterface):
         for i, (module, skip_module) in enumerate(
             zip(self.encoders, self.skip_modules)
         ):
-            ds = self.zipformer_downsampling_factors[i]
             k = self.skip_layers[i]
             if isinstance(k, int):
                 x = skip_module(outputs[k], x)
-            x, avg, key, val, val2, conv1, conv2 = module.streaming_forward(
+            x, len_avg, avg, key, val, val2, conv1, conv2 = module.streaming_forward(
                 x,
+                cached_len=cached_len[i],
+                cached_avg=cached_avg[i],
                 cached_key=cached_key[i],
                 cached_val=cached_val[i],
                 cached_val2=cached_val2[i],
                 cached_conv1=cached_conv1[i],
                 cached_conv2=cached_conv2[i],
-                processed_lens=torch.div(processed_lens, ds, rounding_mode="floor"),
-                cached_avg=cached_avg[i],
             )
             outputs.append(x)
             # Update caches
+            new_cached_len.append(len_avg)
             new_cached_avg.append(avg)
             new_cached_key.append(key)
             new_cached_val.append(val)
@@ -649,7 +648,7 @@ class Zipformer(EncoderInterface):
             new_cached_conv1.append(conv1)
             new_cached_conv2.append(conv2)
 
-        x = self.downsample_output.streaming_forward(x)
+        x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         lengths = (lengths + 1) >> 1
@@ -657,7 +656,8 @@ class Zipformer(EncoderInterface):
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         new_states = (
-            new_cached_avg
+            new_cached_len
+            + new_cached_avg
             + new_cached_key
             + new_cached_val
             + new_cached_val2
@@ -672,14 +672,16 @@ class Zipformer(EncoderInterface):
         device: torch.device = torch.device("cpu"),
     ) -> List[Tensor]:
         """Get initial states.
-        A list of 6 * num_encoders elements:
-        ``states[0:num_encoders]`` is the cached average tensors.
-        ``states[num_encoders:2*num_encoders]`` is the cached key tensors of the first attention modules.
-        ``states[2*num_encoders:3*num_encoders]`` is the cached value tensors of the first attention modules.
-        ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the second attention modules.
-        ``states[4*num_encoders:5*num_encoders]`` is the cached left contexts of the first convolution modules.
-        ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the second convolution modules.
+        A list of 7 * num_encoders elements:
+        ``states[0:num_encoders]`` is the cached numbers of past frames.
+        ``states[num_encoders:2*num_encoders]`` is the cached average tensors.
+        ``states[2*num_encoders:3*num_encoders]`` is the cached key tensors of the first attention modules.
+        ``states[3*num_encoders:4*num_encoders]`` is the cached value tensors of the first attention modules.
+        ``states[4*num_encoders:5*num_encoders]`` is the cached value tensors of the second attention modules.
+        ``states[5*num_encoders:6*num_encoders]`` is the cached left contexts of the first convolution modules.
+        ``states[6*num_encoders:7*num_encoders]`` is the cached left contexts of the second convolution modules.
         """
+        cached_len = []
         cached_avg = []
         cached_key = []
         cached_val = []
@@ -694,6 +696,9 @@ class Zipformer(EncoderInterface):
             ds = 1
             if isinstance(encoder, DownsampledZipformerEncoder):
                 ds = encoder.downsample_factor
+
+            len_avg = torch.zeros(num_layers, 1, dtype=torch.int32, device=device)
+            cached_len.append(len_avg)
 
             avg = torch.zeros(num_layers, 1, encoder.d_model, device=device)
             cached_avg.append(avg)
@@ -744,7 +749,8 @@ class Zipformer(EncoderInterface):
             cached_conv2.append(conv2)
 
         states = (
-            cached_avg
+            cached_len
+            + cached_avg
             + cached_key
             + cached_val
             + cached_val2
@@ -959,34 +965,35 @@ class ZipformerEncoderLayer(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
+        cached_len: Tensor,
+        cached_avg: Tensor,
         cached_key: Tensor,
         cached_val: Tensor,
         cached_val2: Tensor,
         cached_conv1: Tensor,
         cached_conv2: Tensor,
-        cached_avg: Tensor,
-        processed_lens: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """
         Pass the input through the encoder layer.
 
         Args:
             src: the sequence to the encoder layer (required).
             pos_emb: Positional embedding tensor (required).
-            src_mask: the mask for the src sequence (optional).
-            left_context: length of cached left context.
+            cached_len: processed number of past frames.
+            cached_avg: cached average of past frames.
             cached_key: cached key tensor of left context for the first attention module.
             cached_val: cached value tensor of left context for the first attention module.
             cached_val2: cached value tensor of left context for the second attention module.
             cached_conv1: cached left context for the first convolution module.
             cached_conv2: cached left context for the second convolution module.
-            cached_avg: cached average of past frames
-            processed_lens: processed number of past frames
 
         Shape:
             src: (S, N, E).
             pos_emb: (N, left_context_len+2*S-1, E)
-            attn_mask: (S, S).
+            cached_len: (N,)
+              N is the batch size.
+            cached_avg: (N, C).
+              N is the batch size, C is the feature dimension.
             cached_key: (left_context_len, N, K).
               N is the batch size, K is the key dimension.
             cached_val: (left_context_len, N, V).
@@ -997,19 +1004,15 @@ class ZipformerEncoderLayer(nn.Module):
               N is the batch size, C is the convolution channels.
             cached_conv2: (N, C, kernel_size-1).
               N is the batch size, C is the convolution channels.
-            cached_avg: (N, C).
-              N is the batch size, C is the feature dimension.
-            processed_lens: (N,)
-              N is the batch size.
         """
         src_orig = src
 
         # macaron style feed forward module
         src = src + self.feed_forward1(src)
 
-        src_pool, cached_avg = self.pooling.streaming_forward(
+        src_pool, cached_len, cached_avg = self.pooling.streaming_forward(
             src,
-            cached_len=processed_lens,
+            cached_len=cached_len,
             cached_avg=cached_avg,
         )
         src = src + src_pool
@@ -1058,6 +1061,7 @@ class ZipformerEncoderLayer(nn.Module):
 
         return (
             src,
+            cached_len,
             cached_avg,
             cached_key,
             cached_val,
@@ -1243,54 +1247,61 @@ class ZipformerEncoder(nn.Module):
     def streaming_forward(
         self,
         src: Tensor,
+        cached_len: Tensor,
+        cached_avg: Tensor,
         cached_key: Tensor,
         cached_val: Tensor,
         cached_val2: Tensor,
         cached_conv1: Tensor,
         cached_conv2: Tensor,
-        cached_avg: Tensor,
-        processed_lens: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
             src: the sequence to the encoder (required).
-            feature_mask: something that broadcasts with src, that we'll multiply `src`
-               by at every layer.
-            mask: the mask for the src sequence (optional).
-            left_context: length of cached left context.
+            cached_len: number of past frames.
+            cached_avg: cached average of past frames.
             cached_key: cached key tensor for first attention module.
             cached_val: cached value tensor for first attention module.
             cached_val2: cached value tensor for second attention module.
             cached_conv1: cached left contexts for the first convolution module.
             cached_conv2: cached left contexts for the second convolution module.
-            cached_avg: cached average of past frames.
-            processed_lens: number of past frames.
 
         Shape:
             src: (S, N, E).
-            pos_emb: (N, 2*S-1, E)
+            cached_len: (N,)
+              N is the batch size.
+            cached_avg: (num_layers, N, C).
+              N is the batch size, C is the feature dimension.
             cached_key: (num_layers, left_context_len, N, K).
               N is the batch size, K is the key dimension.
             cached_val: (num_layers, left_context_len, N, V).
+              N is the batch size, V is the key dimension.
+            cached_val2: (num_layers, left_context_len, N, V).
               N is the batch size, V is the key dimension.
             cached_conv1: (num_layers, N, C, kernel_size-1).
               N is the batch size, C is the convolution channels.
             cached_conv2: (num_layers, N, C, kernel_size-1).
               N is the batch size, C is the convolution channels.
-            cached_avg: (num_layers, N, C).
-              N is the batch size, C is the feature dimension.
-            processed_lens: (N,)
-              N is the batch size.
 
-        Returns: A tuple of 4 tensors:
+        Returns: A tuple of 8 tensors:
             - output tensor
+            - updated cached number of past frmaes.
             - updated cached average of past frmaes.
-            - updated cached attention key tensor of left contexts.
-            - updated cached attention val tensor of left contexts.
+            - updated cached key tensor of of the first attention module.
+            - updated cached value tensor of of the first attention module.
+            - updated cached value tensor of of the second attention module.
             - updated cached left contexts of the first convolution module.
             - updated cached left contexts of the second convolution module.
         """
+        assert cached_len.size(0) == self.num_layers, (
+            cached_len.size(0),
+            self.num_layers,
+        )
+        assert cached_avg.size(0) == self.num_layers, (
+            cached_avg.size(0),
+            self.num_layers,
+        )
         assert cached_key.size(0) == self.num_layers, (
             cached_key.size(0),
             self.num_layers,
@@ -1311,15 +1322,12 @@ class ZipformerEncoder(nn.Module):
             cached_conv2.size(0),
             self.num_layers,
         )
-        assert cached_avg.size(0) == self.num_layers, (
-            cached_avg.size(0),
-            self.num_layers,
-        )
 
         left_context_len = cached_key.shape[1]
         pos_emb = self.encoder_pos(src, left_context_len)
         output = src
 
+        new_cached_len = []
         new_cached_avg = []
         new_cached_key = []
         new_cached_val = []
@@ -1327,18 +1335,19 @@ class ZipformerEncoder(nn.Module):
         new_cached_conv1 = []
         new_cached_conv2 = []
         for i, mod in enumerate(self.layers):
-            output, avg, key, val, val2, conv1, conv2 = mod.streaming_forward(
+            output, len_avg, avg, key, val, val2, conv1, conv2 = mod.streaming_forward(
                 output,
                 pos_emb,
+                cached_len=cached_len[i],
+                cached_avg=cached_avg[i],
                 cached_key=cached_key[i],
                 cached_val=cached_val[i],
                 cached_val2=cached_val2[i],
                 cached_conv1=cached_conv1[i],
                 cached_conv2=cached_conv2[i],
-                cached_avg=cached_avg[i],
-                processed_lens=processed_lens,
             )
             # Update caches
+            new_cached_len.append(len_avg)
             new_cached_avg.append(avg)
             new_cached_key.append(key)
             new_cached_val.append(val)
@@ -1348,6 +1357,7 @@ class ZipformerEncoder(nn.Module):
 
         return (
             output,
+            torch.stack(new_cached_len, dim=0),
             torch.stack(new_cached_avg, dim=0),
             torch.stack(new_cached_key, dim=0),
             torch.stack(new_cached_val, dim=0),
@@ -1426,29 +1436,32 @@ class DownsampledZipformerEncoder(nn.Module):
     def streaming_forward(
         self,
         src: Tensor,
+        cached_len: Tensor,
+        cached_avg: Tensor,
         cached_key: Tensor,
         cached_val: Tensor,
         cached_val2: Tensor,
         cached_conv1: Tensor,
         cached_conv2: Tensor,
-        cached_avg: Tensor,
-        processed_lens: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         r"""Downsample, go through encoder, upsample.
 
         Args:
             src: the sequence to the encoder (required).
+            cached_avg: cached average value of past frames.
+            cached_len: length of past frames.
             cached_key: cached key tensor for the first attention module.
             cached_val: cached value tensor for the first attention module.
             cached_val2: cached value tensor for the second attention module.
             cached_conv1: cached left context for the first convolution module.
             cached_conv2: cached left context for the second convolution module.
-            cached_avg: cached average value of past frames.
-            processed_lens: length of past frames. Should be downsampled already.
 
         Shape:
             src: (S, N, E).
-            attn_mask: (S, S).
+            cached_len: (N,)
+              N is the batch size.
+            cached_avg: (num_layers, N, C).
+              N is the batch size, C is the feature dimension.
             cached_key: (num_layers, left_context_len, N, K).
               N is the batch size, K is the key dimension.
             cached_val: (num_layers, left_context_len, N, V).
@@ -1459,18 +1472,15 @@ class DownsampledZipformerEncoder(nn.Module):
               N is the batch size, C is the convolution channels.
             cached_conv2: (num_layers, N, C, kernel_size-1).
               N is the batch size, C is the convolution channels.
-            cached_avg: (num_layers, N, C).
-              N is the batch size, C is the feature dimension.
-            processed_lens: (N,)
-              N is the batch size.
         Returns: output of shape (S, N, F) where F is the number of output features
             (output_dim to constructor)
         """
         src_orig = src
-        src = self.downsample.streaming_forward(src)
+        src = self.downsample(src)
 
         (
             src,
+            cached_len,
             cached_avg,
             cached_key,
             cached_val,
@@ -1479,13 +1489,13 @@ class DownsampledZipformerEncoder(nn.Module):
             cached_conv2,
         ) = self.encoder.streaming_forward(
             src,
+            cached_len=cached_len,
+            cached_avg=cached_avg,
             cached_key=cached_key,
             cached_val=cached_val,
             cached_val2=cached_val2,
             cached_conv1=cached_conv1,
             cached_conv2=cached_conv2,
-            cached_avg=cached_avg,
-            processed_lens=processed_lens,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
@@ -1493,6 +1503,7 @@ class DownsampledZipformerEncoder(nn.Module):
 
         return (
             self.out_combiner(src_orig, src),
+            cached_len,
             cached_avg,
             cached_key,
             cached_val,
@@ -1546,31 +1557,6 @@ class AttentionDownsample(torch.nn.Module):
 
         if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
-
-        weights = scores.softmax(dim=1)
-
-        # ans1 is the first `in_channels` channels of the output
-        ans = (src * weights).sum(dim=1)
-        src = src.permute(0, 2, 1, 3).reshape(d_seq_len, batch_size, ds * in_channels)
-
-        if self.extra_proj is not None:
-            ans2 = self.extra_proj(src)
-            ans = torch.cat((ans, ans2), dim=2)
-        return ans
-
-    def streaming_forward(self, src: Tensor) -> Tensor:
-        """TODO: remove it
-        x: (seq_len, 1, in_channels)
-        Returns a tensor of shape
-           ( (seq_len+downsample-1)//downsample, batch_size, out_channels)
-        """
-        (seq_len, batch_size, in_channels) = src.shape
-        ds = self.downsample
-        assert seq_len % ds == 0, (seq_len, ds)
-        d_seq_len = seq_len // ds
-
-        src = src.reshape(d_seq_len, ds, batch_size, in_channels)
-        scores = (src * self.query).sum(dim=-1, keepdim=True)
 
         weights = scores.softmax(dim=1)
 
@@ -2256,11 +2242,6 @@ class RelPositionMultiheadAttention(nn.Module):
         # p is the position-encoding query, its dimension is num_heads*pos_dim..
         p = x_proj[..., 2 * attention_dim + value_dim :]
 
-        k = self.whiten_keys(k)  # does nothing in the forward pass.
-        v = self.whiten_values(v)  # does nothing in the forward pass.
-        q = self.copy_query(q)  # for diagnostics only, does nothing.
-        p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
-
         left_context_len = cached_key.shape[0]
         assert left_context_len > 0, left_context_len
         assert cached_key.shape[0] == cached_val.shape[0], (
@@ -2390,7 +2371,6 @@ class RelPositionMultiheadAttention(nn.Module):
         head_dim = self.attention_dim // num_heads
         # v: (tgt_len, bsz, embed_dim // 2)
         v = self.in_proj2(x)
-        v = self.whiten_values2(v)  # does nothing in the forward pass.
 
         left_context_len = cached_val.shape[0]
         assert left_context_len > 0, left_context_len
@@ -2504,7 +2484,7 @@ class PoolingModule(nn.Module):
         x: Tensor,
         cached_len: Tensor,
         cached_avg: Tensor,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Args:
            x: a Tensor of shape (T, N, C)
@@ -2527,12 +2507,11 @@ class PoolingModule(nn.Module):
         # now pooling_mask: (T, N, 1)
         x = x * pooling_mask  # (T, N, C)
 
-        # For the chunk in batch with padding, (i.e., it has reached the end),
-        # its updated cached_avg are useless.
+        cached_len = cached_len + x.size(0)
         cached_avg = x[-1]
 
         x = self.proj(x)
-        return x, cached_avg
+        return x, cached_len, cached_avg
 
 
 class FeedforwardModule(nn.Module):
@@ -2814,7 +2793,7 @@ class Conv2dSubsampling(nn.Module):
 def _test_zipformer_main():
     feature_dim = 50
     batch_size = 5
-    seq_len = 20
+    seq_len = 47
     feature_dim = 50
     # Just make sure the forward pass runs.
 
@@ -2823,9 +2802,8 @@ def _test_zipformer_main():
         encoder_dims=(64, 96),
         encoder_unmasked_dims=(48, 64),
         nhead=(4, 4),
+        decode_chunk_size=4,
     )
-    batch_size = 5
-    seq_len = 20
     # Just make sure the forward pass runs.
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
@@ -2866,85 +2844,11 @@ def _test_pooling_module():
         start = i * chunk_len
         end = start + chunk_len
         x_chunk = x[start:end]
-        y_chunk, cached_avg = m.streaming_forward(
+        y_chunk, cached_len, cached_avg = m.streaming_forward(
             x_chunk,
             cached_len=cached_len,
             cached_avg=cached_avg,
         )
-        cached_len += chunk_len
-        assert torch.allclose(y_chunk, y[start:end]), (y_chunk, y[start:end])
-
-
-def _test_zipformer_encoder_layer():
-    d_model, attention_dim, cnn_module_kernel = 384, 256, 31
-    m = ZipformerEncoderLayer(
-        d_model=d_model,
-        nhead=4,
-        attention_dim=attention_dim,
-        cnn_module_kernel=cnn_module_kernel,
-    )
-    m.eval()
-
-    N, S, chunk_size, left_context_len = 2, 12, 4, 4
-    x = torch.randn(S, N, d_model)
-    lengths = torch.randint(low=9, high=S, size=(N,))
-    lengths[0] = S
-    padding_mask = make_pad_mask(lengths)
-    pos_enc = RelPositionalEncoding(d_model, dropout_rate=0.0)
-    pos_emb = pos_enc(x, left_context_len=left_context_len)
-    attn_mask = ~subsequent_chunk_mask(
-        size=x.size(0),
-        chunk_size=chunk_size,
-        num_left_chunks=1,
-    )
-    y = m(
-        x,
-        pos_emb=pos_emb[:, left_context_len:],
-        src_key_padding_mask=padding_mask,
-        attn_mask=attn_mask,
-    )
-
-    processed_lens = torch.zeros(N, dtype=torch.int32)
-    cached_avg = torch.zeros(N, d_model)
-    cached_key = torch.zeros(left_context_len, N, attention_dim)
-    cached_val = torch.zeros(left_context_len, N, attention_dim // 2)
-    cached_val2 = torch.zeros(left_context_len, N, attention_dim // 2)
-    cached_conv1 = torch.zeros(N, d_model, cnn_module_kernel - 1)
-    cached_conv2 = torch.zeros(N, d_model, cnn_module_kernel - 1)
-    for i in range(S // chunk_size):
-        start = i * chunk_size
-        end = start + chunk_size
-        x_chunk = x[start:end]
-        pos_emb = pos_enc(x_chunk, left_context_len=left_context_len)
-
-        # Used to mask out initial zero states
-        left_context_mask = torch.arange(left_context_len, device=x.device).expand(
-            N, left_context_len
-        )
-        left_context_mask = (processed_lens.view(N, 1) <= left_context_mask).flip(1)
-
-        (
-            y_chunk,
-            cached_avg,
-            cached_key,
-            cached_val,
-            cached_val2,
-            cached_conv1,
-            cached_conv2,
-        ) = m.streaming_forward(
-            x_chunk,
-            pos_emb=pos_emb,
-            src_key_padding_mask=padding_mask[:, start:end],
-            processed_lens=processed_lens,
-            left_context_mask=left_context_mask,
-            cached_avg=cached_avg,
-            cached_key=cached_key,
-            cached_val=cached_val,
-            cached_val2=cached_val2,
-            cached_conv1=cached_conv1,
-            cached_conv2=cached_conv2,
-        )
-        processed_lens += chunk_size
         assert torch.allclose(y_chunk, y[start:end]), (y_chunk, y[start:end])
 
 
@@ -2962,7 +2866,7 @@ def _test_state_stack_unstack():
     s2 = m.get_init_state()
     states = stack_states([s1, s2])
     new_s1, new_s2 = unstack_states(states)
-    for i in range(m.num_encoders * 6):
+    for i in range(m.num_encoders * 7):
         for x, y in zip(s1[i], new_s1[i]):
             assert torch.equal(x, y)
         for x, y in zip(s2[i], new_s2[i]):
@@ -2976,5 +2880,4 @@ if __name__ == "__main__":
     _test_zipformer_main()
     _test_conv2d_subsampling()
     _test_pooling_module()
-    _test_zipformer_encoder_layer()
     _test_state_stack_unstack()
