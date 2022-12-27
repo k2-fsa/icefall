@@ -250,7 +250,7 @@ class CodebookIndexExtractor:
                 # IDs match exactly
                 cuts_vq = cuts_vq.sort_like(cuts_ori)
                 for cut_idx, (cut_vq, cut_ori) in enumerate(zip(cuts_vq, cuts_ori)):
-                    assert cut_vq.id == cut_ori.id
+                    assert cut_vq.id == cut_ori.id, (cut_vq.id, cut_ori.id)
                     cut_ori.codebook_indexes = cut_vq.codebook_indexes
             else:
                 # in case of ID mismatch, remap them
