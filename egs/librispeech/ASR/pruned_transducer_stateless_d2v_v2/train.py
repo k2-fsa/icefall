@@ -1707,9 +1707,14 @@ def main():
     world_size = args.world_size
     assert world_size >= 1
     if world_size > 1:
-        mp.spawn(run_adapter, args=(world_size, args, wb), nprocs=world_size, join=True)
+        mp.spawn(run if not args.add_adapter else run_adapter, 
+                 args=(world_size, args, wb), 
+                 nprocs=world_size, 
+                 join=True
+            )
     else:
-        run(rank=0, world_size=1, args=args, wb=wb)
+        if not args.add_adapter: run(rank=0, world_size=1, args=args, wb=wb)
+        else: run(rank=0, world_size=1, args=args, wb=wb)
 
 
 torch.set_num_threads(1)
