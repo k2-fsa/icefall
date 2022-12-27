@@ -278,7 +278,8 @@ class Data2VecAudioModel(BaseFairseqModel):
         self.final_proj = nn.Linear(self.embed, self.embed)
 
         self.num_updates = 0
-
+    
+    '''
     def make_ema_teacher(self):
         ema_config = EMAModuleConfig(
             ema_decay=self.cfg.ema_decay,
@@ -295,6 +296,7 @@ class Data2VecAudioModel(BaseFairseqModel):
             ema_config,
             skip_keys=skip_keys,
         )
+    '''
 
     def set_num_updates(self, num_updates):
         super().set_num_updates(num_updates)
