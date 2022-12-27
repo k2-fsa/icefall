@@ -245,7 +245,7 @@ class CodebookIndexExtractor:
             cuts_vq = load_manifest(vq_manifest_path)
             cuts_ori = load_manifest(ori_manifest_path)
             assert len(cuts_vq) == len(cuts_ori), "Cuts should have the same length!"
-            
+
             if set(cuts_vq.ids) == set(cuts_ori.ids):
                 # IDs match exactly
                 cuts_vq = cuts_vq.sort_like(cuts_ori)
@@ -259,19 +259,21 @@ class CodebookIndexExtractor:
                 ori_id_map = {}
                 for id in cuts_ori.ids:
                     # some text normalization
-                    if 'sp' in id:
-                        clean_id = '-'.join(id.split('-')[:3]) + '_' + id.split('_')[-1]
+                    if "sp" in id:
+                        clean_id = "-".join(id.split("-")[:3]) + "_" + id.split("_")[-1]
                     else:
-                        clean_id = '-'.join(id.split('-')[:3])
+                        clean_id = "-".join(id.split("-")[:3])
                     ori_id_map[clean_id] = id
 
                 for id in cuts_vq.ids:
-                    if 'sp' in id:
-                        clean_id = '-'.join(id.split('-')[:3]) + '_' + id.split('_')[-1]
+                    if "sp" in id:
+                        clean_id = "-".join(id.split("-")[:3]) + "_" + id.split("_")[-1]
                     else:
-                        clean_id = '-'.join(id.split('-')[:3])
+                        clean_id = "-".join(id.split("-")[:3])
                     assert clean_id in ori_id_map, clean_id
-                    cuts_ori[ori_id_map[clean_id]].codebook_indexes = cuts_vq[id].codebook_indexes
+                    cuts_ori[ori_id_map[clean_id]].codebook_indexes = cuts_vq[
+                        id
+                    ].codebook_indexes
 
             CutSet.from_cuts(cuts_ori).to_jsonl(dst_vq_manifest_path)
             logging.info(f"Processed {subset}.")
