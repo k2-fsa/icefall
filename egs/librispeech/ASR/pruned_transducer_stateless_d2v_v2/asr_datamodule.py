@@ -430,9 +430,18 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def train_other_500_cuts(self, option=None) -> CutSet:
         logging.info("About to get train-other-500 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500_new.jsonl"
-        )
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-other-500_new.jsonl"
+            )
+        elif option == 'male':
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-other-500_male.jsonl"
+            )
+        elif option == 'female':
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-other-500_female.jsonl"
+            )
 
     @lru_cache()
     def train_all_shuf_cuts(self) -> CutSet:
