@@ -33,9 +33,8 @@ else
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
-		--start-epoch 28 \
 		--world-size 4 \
-		--num-epochs 30 \
+		--num-epochs 10 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
