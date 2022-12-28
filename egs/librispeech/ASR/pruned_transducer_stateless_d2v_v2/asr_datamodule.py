@@ -406,6 +406,10 @@ class LibriSpeechAsrDataModule:
             return load_manifest_lazy(
                 self.args.manifest_dir / "librispeech_cuts_train-clean-100_male.jsonl"
             )
+        elif option == 'female':
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-clean-100_female.jsonl"
+            )
 
     @lru_cache()
     def train_clean_360_cuts(self) -> CutSet:
