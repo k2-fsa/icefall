@@ -92,13 +92,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="Context size of the decoder model",
-    )
-
-    parser.add_argument(
         "--decode-chunk-len",
         type=int,
         default=32,
@@ -236,9 +229,10 @@ def main():
 
     logging.info("Decoding started")
     chunk_length = args.decode_chunk_len
-    # Set up decode_chunk_size
-    assert encoder.decode_chunk_size == chunk_length // 2
-    # encoder.decode_chunk_size = chunk_length // 2
+    assert encoder.decode_chunk_size == chunk_length // 2, (
+        encoder.decode_chunk_size,
+        chunk_length,
+    )
 
     # we subsample features with ((x_len - 7) // 2 + 1) // 2
     pad_length = 7
@@ -273,49 +267,19 @@ def main():
             for i in range(T):
                 frames.append(online_fbank.get_frame(num_processed_frames + i))
             frames = torch.cat(frames, dim=0).unsqueeze(0)
-            x_lens = torch.tensor([T])
+            x_lens = torch.tensor([T], dtype=torch.int32)
             encoder_out, out_lens, states = encoder(
                 x=frames,
                 x_lens=x_lens,
                 states=states,
             )
             num_processed_frames += chunk_length
-            print(num_processed_frames, online_fbank.num_frames_ready)
 
             hyp, decoder_out = greedy_search(
                 decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp
             )
-            print(hyp)
-
-    # tail = online_fbank.num_frames_ready - num_processed_frames
-    # if tail < T:
-    #     frames = []
-    #     for i in range(tail):
-    #         frames.append(online_fbank.get_frame(num_processed_frames + i))
-    #     frames = torch.cat(frames, dim=0).unsqueeze(0)
-    #     frames = torch.cat(
-    #         [
-    #             frames,
-    #             torch.full((1, T - tail, 80), math.log(1e-10), device=frames.device),
-    #         ],
-    #         dim=1,
-    #     )
-    #     x_lens = torch.tensor([T])
-    #     encoder_out, _, states = encoder(
-    #         x=frames,
-    #         x_lens=x_lens,
-    #         states=states,
-    #         # Used after feature embedding.
-    #         processed_lens=torch.tensor([num_processed_frames // 2], device=device),
-    #     )
-    #     num_processed_frames += chunk_length
-    #     hyp, decoder_out = greedy_search(
-    #         decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp
-    #     )
-    #     print("tail", hyp)
 
     context_size = 2
-
     logging.info(args.sound_file)
     logging.info(sp.decode(hyp[context_size:]))
 

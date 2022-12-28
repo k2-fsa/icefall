@@ -691,11 +691,9 @@ class Zipformer(EncoderInterface):
 
         left_context_len = self.decode_chunk_size * self.num_left_chunks
 
-        for encoder in self.encoders:
+        for i, encoder in enumerate(self.encoders):
             num_layers = encoder.num_layers
-            ds = 1
-            if isinstance(encoder, DownsampledZipformerEncoder):
-                ds = encoder.downsample_factor
+            ds = self.zipformer_downsampling_factors[i]
 
             len_avg = torch.zeros(num_layers, 1, dtype=torch.int32, device=device)
             cached_len.append(len_avg)

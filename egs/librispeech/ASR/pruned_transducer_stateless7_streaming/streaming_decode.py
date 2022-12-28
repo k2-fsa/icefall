@@ -226,7 +226,7 @@ def decode_one_chunk(
 
     # We subsample features with ((x_len - 7) // 2 + 1) // 2 and the max downsampling
     # factor in encoders is 8.
-    # After feature embedding, we have (23 - 7) // 2 = 8.
+    # After feature embedding (x_len - 7) // 2, we have (23 - 7) // 2 = 8.
     tail_length = 23
     if features.size(1) < tail_length:
         pad_length = tail_length - features.size(1)
@@ -245,8 +245,6 @@ def decode_one_chunk(
         x=features,
         x_lens=feature_lens,
         states=states,
-        # Used after feature embedding.
-        # processed_lens=processed_lens * 2,
     )
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
