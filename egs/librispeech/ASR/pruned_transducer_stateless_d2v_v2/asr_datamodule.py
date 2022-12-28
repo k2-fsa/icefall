@@ -451,5 +451,5 @@ class LibriSpeechAsrDataModule:
     def test_other_cuts(self, option='new') -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other_new.jsonl"
+            self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
         )
