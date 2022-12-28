@@ -417,17 +417,17 @@ class LibriSpeechAsrDataModule:
         )
 
     @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
+    def train_all_shuf_cuts(self, option='new') -> CutSet:
         logging.info(
             "About to get the shuffled train-clean-100, \
             train-clean-360 and train-other-500 cuts"
         )
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf_new.jsonl"
+            self.args.manifest_dir / f"librispeech_cuts_train-all-shuf_{option}.jsonl"
         )
     
     @lru_cache()
-    def dev_clean_cuts(self) -> CutSet:
+    def dev_clean_cuts(self, option='new') -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_dev-clean_new.jsonl"
