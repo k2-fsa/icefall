@@ -402,7 +402,7 @@ class LibriSpeechAsrDataModule:
             return load_manifest_lazy(
                 self.args.manifest_dir / "librispeech_cuts_train-clean-100_new.jsonl"
             )
-        elif option == 'male'
+        elif option == 'male':
             return load_manifest_lazy(
                 self.args.manifest_dir / "librispeech_cuts_train-clean-100_male.jsonl"
             )
