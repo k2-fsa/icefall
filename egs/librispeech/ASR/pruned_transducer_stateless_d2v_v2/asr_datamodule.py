@@ -427,26 +427,6 @@ class LibriSpeechAsrDataModule:
         )
     
     @lru_cache()
-    def train_all_shuf_cuts_male(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf_male.jsonl"
-        )
-    
-    @lru_cache()
-    def train_all_shuf_cuts_female(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf_female.jsonl"
-        )
-
-    @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
@@ -472,60 +452,4 @@ class LibriSpeechAsrDataModule:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_test-other_new.jsonl"
-        )
-    
-    @lru_cache()
-    def dev_clean_cuts_male(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean_male.jsonl"
-        )
-
-    @lru_cache()
-    def dev_other_cuts_male(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other_male.jsonl"
-        )
-
-    @lru_cache()
-    def test_clean_cuts_male(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean_male.jsonl"
-        )
-
-    @lru_cache()
-    def test_other_cuts_male(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other_male.jsonl"
-        )
-
-    @lru_cache()
-    def dev_clean_cuts_female(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean_female.jsonl"
-        )
-
-    @lru_cache()
-    def dev_other_cuts_female(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other_female.jsonl"
-        )
-
-    @lru_cache()
-    def test_clean_cuts_female(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean_female.jsonl"
-        )
-
-    @lru_cache()
-    def test_other_cuts_female(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other_female.jsonl"
         )
