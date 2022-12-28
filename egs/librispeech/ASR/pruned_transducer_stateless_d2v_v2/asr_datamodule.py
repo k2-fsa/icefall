@@ -396,55 +396,28 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_100_cuts(self, option=None) -> CutSet:
+    def train_clean_100_cuts(self, option='new') -> CutSet:
         logging.info("About to get train-clean-100 cuts")
-        if option is None:
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-100_new.jsonl"
-            )
-        elif option == 'male':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-100_male.jsonl"
-            )
-        elif option == 'female':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-100_female.jsonl"
-            )
+        return load_manifest_lazy(
+            self.args.manifest_dir / f"librispeech_cuts_train-clean-100_{option}.jsonl"
+        )
 
     @lru_cache()
-    def train_clean_360_cuts(self, option=None) -> CutSet:
+    def train_clean_360_cuts(self, option='new') -> CutSet:
         logging.info("About to get train-clean-360 cuts")
-        if option is None:
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-360_new.jsonl"
-            )
-        elif option == 'male':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-360_male.jsonl"
-            )
-        elif option == 'female':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-clean-360_female.jsonl"
-            )
+        return load_manifest_lazy(
+            self.args.manifest_dir / f"librispeech_cuts_train-clean-360_{option}.jsonl"
+        )
 
     @lru_cache()
-    def train_other_500_cuts(self, option=None) -> CutSet:
+    def train_other_500_cuts(self, option='new') -> CutSet:
         logging.info("About to get train-other-500 cuts")
-        if option is None:
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-other-500_new.jsonl"
-            )
-        elif option == 'male':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-other-500_male.jsonl"
-            )
-        elif option == 'female':
-            return load_manifest_lazy(
-                self.args.manifest_dir / "librispeech_cuts_train-other-500_female.jsonl"
-            )
+        return load_manifest_lazy(
+            self.args.manifest_dir / f"librispeech_cuts_train-other-500_{option}.jsonl"
+        )
 
     @lru_cache()
-    def train_all_shuf_cuts(self, option=None) -> CutSet:
+    def train_all_shuf_cuts(self) -> CutSet:
         logging.info(
             "About to get the shuffled train-clean-100, \
             train-clean-360 and train-other-500 cuts"
