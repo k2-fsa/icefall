@@ -318,13 +318,13 @@ Number of model parameters: 70369391, i.e., 70.37 M
 
 |                      | test-clean | test-other  | comment                                |
 |----------------------|------------|-------------|----------------------------------------|
-| greedy search        | 2.17       | 5.23        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search | 2.15       | 5.20        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search + RNNLM shallow fusion | 1.99       | 4.73        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search + TransformerLM shallow fusion | 1.94       | 4.73        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search + RNNLM + LODR | 1.91       | 4.57        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search + TransformerLM + LODR | 1.91       | 4.51        | --epoch 39 --avg 6 --max-duration 600  |
-| fast beam search     | 2.15       | 5.22        | --epoch 39 --avg 6 --max-duration 600  |
+| greedy search        | 2.17       | 5.23        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search | 2.15       | 5.20        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM shallow fusion | 1.99       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM shallow fusion | 1.94       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM + LODR | 1.91       | 4.57        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM + LODR | 1.91       | 4.51        | --epoch 30 --avg 9 --max-duration 600  |
+| fast beam search     | 2.15       | 5.22        | --epoch 30 --avg 9 --max-duration 600  |
 
 The training commands are:
 ```bash
