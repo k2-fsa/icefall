@@ -60,7 +60,8 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   # use a small value for decoding with CPU
   max_duration=100
 
-  for method in greedy_search fast_beam_search modified_beam_search; do
+  # only use greedy search due to time limit
+  for method in greedy_search; do
     log "Decoding with $method"
 
     ./finetune_hubert_transducer/decode.py \
