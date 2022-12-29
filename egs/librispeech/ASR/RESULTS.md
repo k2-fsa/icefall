@@ -1586,6 +1586,77 @@ results at:
 <https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-stateless-emformer-rnnt2-2022-06-01>
 
 
+### LibriSpeech BPE training results (Hubert Transducer)
+
+[finetune_hubert_transducer](./finetune_hubert_transducer)
+
+See <https://github.com/k2-fsa/icefall/pull/588>
+
+A pre-trained Hubert model finetuned with pruned RNN-T loss. Note that fairseq issued
+three versions of [Hubert](https://arxiv.org/abs/2106.07447) of different sizes (base, large, xlarge).
+The first two versions are tested whereas the last one is not due to GPU memory constraint. Before
+trying this recipe, you may need to first download the fairseq pretrained HuBert models. See [./finetune_hubert_transducer/download.sh](./finetune_hubert_transducer/download.sh) for instructions.
+
+The models are finetuned base on the instructions given in [Hubert](https://arxiv.org/abs/2106.07447)
+and [Wav2vec 2.0](https://arxiv.org/abs/2006.11477). Models are trained using Adam optimizer with
+a tri-state lr scheduler. The 960h models are trained for 320k updates using a vocab of 500. The WERs are listed below:
+| model name  | decoding-method | test-clean | test-other |
+| ----------- |-----------------| -----------|------------|
+| Hubert base | `modified_beam_search` |  2.82     | 7.09|
+| Hubert large| `modified_beam_search` |  1.93     | 3.93|
+| Hubert large| `fast_beam_search`     |  1.97     | 3.99|
+
+you can find the pre-trained model, training logs, tensorboard logs and decoding results in:
+<https://huggingface.co/marcoyang/icefall_finetuned_hubert>
+Training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,"
+
+python finetune_huber_transducer/train.py \
+    --world-size 6 \
+    --num-epochs 20 \
+    --exp-dir finetune_hubert_transducer/exp_960h_HubertL \
+    --full-libri 1 \
+    --max-duration 80 \
+    --bpe-model data/lang_bpe_500/bpe.model \
+    --input-strategy AudioSamples \
+    --hubert-model-dir ./finetune_huber_transducer/pretrained_models/hubert_large_ll60k.pt \
+    --hubert-freeze-finetune-updates 10000 \
+    --hubert-mask-channel-length 64 \
+    --hubert-mask-prob 0.25 \
+    --hubert-mask-channel-prob 0.5 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --encoder-dim 1024 \
+    --enable-spec-aug 0 \
+    --TSA-init-lr 5e-7 \
+    --TSA-warmup-lr 3e-5 \
+    --TSA-end-lr 1.5e-6 \
+    --TSA-total-steps 320000 \
+    --enable-musan 1
+```
+
+To decode, you can use the following command:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+
+python3 finetune_hubert_transducer/decode.py \
+    --epoch 12 \
+    --avg 7 \
+    --exp-dir ./finetune_hubert_transducer/exp_960h_HubertL \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4 \
+    --hubert-model-dir ./finetune_huber_transducer/pretrained_models/hubert_large_ll60k.pt \
+    --encoder-dim 1024 \
+    --hubert-subsample-output 1 \
+    --hubert-subsample-mode concat_tanh \
+    --use-averaged-model 1 \
+    --input-strategy AudioSamples
+```
+
+
 ### LibriSpeech BPE training results (Pruned Stateless Transducer 5)
 
 #### [pruned_transducer_stateless5](./pruned_transducer_stateless5)

@@ -352,6 +352,7 @@ class LibriSpeechAsrDataModule:
             )
         else:
             validate = K2SpeechRecognitionDataset(
+                input_strategy=eval(self.args.input_strategy)(),
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
