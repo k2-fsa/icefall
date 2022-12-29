@@ -1567,8 +1567,8 @@ def run_adapter(rank, world_size, args, wb=None):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts(option='male')
-    valid_cuts += librispeech.dev_other_cuts(option='male')
+    valid_cuts = librispeech.dev_clean_cuts(option=params.gender)
+    valid_cuts += librispeech.dev_other_cuts(option=params.gender)
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
     
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
