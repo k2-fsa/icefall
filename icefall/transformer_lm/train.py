@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2021  Xiaomi Corp.        (authors: Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,16 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """
 Usage:
-    ./rnn_lm/train.py \
+    ./transformer_lm/train.py \
         --start-epoch 0 \
         --world-size 2 \
         --num-epochs 1 \
         --use-fp16 0 \
-        --embedding-dim 800 \
-        --hidden-dim 200 \
-        --num-layers 2 \
+        --num-layers 12 \
         --batch-size 400
 
 """
@@ -42,7 +41,7 @@ import torch.nn as nn
 import torch.optim as optim
 from dataset import get_dataloader
 from lhotse.utils import fix_random_seed
-from model import RnnLmModel
+from model import TransformerLM
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -100,7 +99,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="rnn_lm/exp",
+        default="transformer_lm/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, logs, etc, are saved
@@ -142,24 +141,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--embedding-dim",
-        type=int,
-        default=2048,
-        help="Embedding dim of the model",
-    )
-
-    parser.add_argument(
-        "--hidden-dim",
-        type=int,
-        default=2048,
-        help="Hidden dim of the model",
-    )
-
-    parser.add_argument(
         "--num-layers",
         type=int,
-        default=3,
-        help="Number of RNN layers the model",
+        default=12,
+        help="Number of Transformer layers in the model",
     )
 
     parser.add_argument(
@@ -199,7 +184,12 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 200,
             "reset_interval": 2000,
-            "valid_interval": 5000,
+            "valid_interval": 1000,
+            "nhead": 8,
+            "embedding_dim": 768,
+            "encoder_dim": 768,
+            "dim_feedforward": 2048,
+            "dropout": 0.1,
             "env_info": get_env_info(),
         }
     )
@@ -304,7 +294,7 @@ def compute_loss(
     """Compute the negative log-likelihood loss given a model and its input.
     Args:
       model:
-        The NN model, e.g., RnnLmModel.
+        The NN model,
       x:
         A 2-D tensor. Each row contains BPE token IDs for a sentence. Also,
         each row starts with SOS ID.
@@ -523,12 +513,15 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
 
     logging.info("About to create model")
-    model = RnnLmModel(
+    model = TransformerLM(
         vocab_size=params.vocab_size,
+        d_model=params.encoder_dim,
         embedding_dim=params.embedding_dim,
-        hidden_dim=params.hidden_dim,
+        dim_feedforward=params.dim_feedforward,
+        nhead=params.nhead,
         num_layers=params.num_layers,
         tie_weights=params.tie_weights,
+        params=params,
     )
 
     num_param = sum([p.numel() for p in model.parameters()])
