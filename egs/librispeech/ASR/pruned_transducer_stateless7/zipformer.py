@@ -1405,7 +1405,7 @@ class FeedforwardModule(nn.Module):
         self.activation = SwooshL()
         self.dropout = Dropout2(dropout)
         self.out_proj = ScaledLinear(feedforward_dim, embed_dim,
-                                     initial_scale=0.01)
+                                     initial_scale=0.1)
 
         self.out_whiten =  Whiten(num_groups=1,
                                   whitening_limit=_whitening_schedule(7.5),
