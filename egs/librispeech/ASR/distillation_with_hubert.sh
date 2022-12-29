@@ -194,7 +194,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --spec-aug-time-warp-factor -1 \
     --max-duration 300 \
     --world-size ${WORLD_SIZE} \
-    --num-epochs 20 \
+    --num-epochs 50 \
     --exp-dir $exp_dir \
     --enable-distillation True
 fi
@@ -205,7 +205,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   # errs-test-other-beam_size_4-epoch-20-avg-10-beam-4.txt:%WER = 15.60
   ./pruned_transducer_stateless6/decode.py \
     --decoding-method "modified_beam_search" \
-    --epoch 20 \
+    --epoch 50 \
     --avg 10 \
     --max-duration 200 \
     --exp-dir $exp_dir \
