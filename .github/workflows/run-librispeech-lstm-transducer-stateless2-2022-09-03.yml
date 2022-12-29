@@ -143,10 +143,6 @@ jobs:
           echo "===Using RNNLM==="
           find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
-          echo "===modified_beam_search_lm_shallow_fusion==="
-          echo "===Using TransformerLM==="
-          find modified_beam_search_lm_shallow_fusion  -name "log-*transformer*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find modified_beam_search_lm_shallow_fusion  -name "log-*transformer*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Display decoding results for lstm_transducer_stateless2
         if: github.event.label.name == 'LODR'
