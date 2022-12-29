@@ -1078,7 +1078,7 @@ class Balancer(torch.nn.Module):
             max_positive: FloatLike = 0.95,
             min_abs: FloatLike = 0.2,
             max_abs: FloatLike = 100.0,
-            grad_scale: FloatLike = 0.02,
+            grad_scale: FloatLike = 0.04,
             prob: Optional[FloatLike] = None,
     ):
         super().__init__()
