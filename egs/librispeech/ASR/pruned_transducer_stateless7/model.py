@@ -22,7 +22,11 @@ import random
 from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos
-from scaling import penalize_abs_values_gt
+from scaling import (
+    penalize_abs_values_gt,
+    ScaledLinear
+)
+
 
 
 class Transducer(nn.Module):
@@ -64,10 +68,13 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = nn.Linear(
-            encoder_dim, vocab_size,
+        self.simple_am_proj = ScaledLinear(
+            encoder_dim, vocab_size, initial_scale=0.25,
         )
-        self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
+        self.simple_lm_proj = ScaledLinear(
+            decoder_dim, vocab_size, initial_scale=0.25,
+        )
+
 
     def forward(
         self,
