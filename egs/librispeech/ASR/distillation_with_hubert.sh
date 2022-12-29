@@ -146,7 +146,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       exit 1
     fi
     mkdir -p $exp_dir/vq
-    codebook_dir=$exp_dir/../vq/$teacher_model_id
+    codebook_dir=$exp_dir/vq/$teacher_model_id
     mkdir -p codebook_dir
     codebook_download_dir=$exp_dir/download_codebook
     if [ -d $codebook_download_dir ]; then
