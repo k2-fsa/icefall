@@ -1344,7 +1344,7 @@ class AttentionSqueeze(nn.Module):
         self.out_balancer = ActivationBalancer(
             embed_dim, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
-            min_abs=ScheduledFloat((0.0, 0.001), (4000.0, 0.005)),
+            min_abs=ScheduledFloat((0.0, 0.004), (4000.0, 0.02)),
             prob=0.05,  # out of concern for memory usage
         )
 
