@@ -37,7 +37,7 @@ stop_stage=4
 # Suppose GPU 2,3,4,5 are available.
 # export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-exp_dir=./pruned_transducer_stateless6/exp2
+exp_dir=./pruned_transducer_stateless6/exp
 mkdir -p $exp_dir
 
 # full_libri can be "True" or "False"
