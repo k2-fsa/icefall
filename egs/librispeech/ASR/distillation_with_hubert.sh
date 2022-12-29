@@ -177,7 +177,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     --full-libri $full_libri \
     --exp-dir $exp_dir \
     --embedding-layer 36 \
-    --num-utts 1000 \
+    --num-utts 10000 \
     --num-codebooks 32 \
     --max-duration 100 \
     --teacher-model-id $teacher_model_id \
