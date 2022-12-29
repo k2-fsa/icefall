@@ -89,7 +89,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ] && [ ! "$use_extracted_codebook" ==
 
   log "Download HuBERT model."
   # Parameters about model.
-  hubert_model_dir=${exp_dir}/hubert_models
+  hubert_model_dir=${exp_dir}/../hubert_models
   hubert_model=${hubert_model_dir}/${teacher_model_id}.pt
   mkdir -p ${hubert_model_dir}
   # For more models refer to: https://github.com/pytorch/fairseq/tree/main/examples/hubert
