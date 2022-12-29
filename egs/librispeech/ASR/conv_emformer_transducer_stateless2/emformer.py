@@ -1133,7 +1133,10 @@ class EmformerEncoder(nn.Module):
       tanh_on_mem (bool, optional):
         If ``true``, applies tanh to memory elements. (default: ``false``)
       negative_inf (float, optional):
-        Value to use for negative infinity in attention weights. (default: -1e8)
+        Value to use for negative infinity in attention weights. (default: -1e8),
+      output_layers:
+        A list of integers containing the id of emformer layers whose activations
+        will be returned
     """
 
     def __init__(
@@ -1151,6 +1154,7 @@ class EmformerEncoder(nn.Module):
         memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        output_layers: List[int] = None,
     ):
         super().__init__()
 
@@ -1188,6 +1192,7 @@ class EmformerEncoder(nn.Module):
         self.chunk_length = chunk_length
         self.memory_size = memory_size
         self.cnn_module_kernel = cnn_module_kernel
+        self.output_layers = output_layers
 
     def _gen_right_context(self, x: torch.Tensor) -> torch.Tensor:
         """Hard copy each chunk's right context and concat them."""
@@ -1366,7 +1371,8 @@ class EmformerEncoder(nn.Module):
         padding_mask = make_pad_mask(M + right_context.size(0) + output_lengths)
 
         output = utterance
-        for layer in self.emformer_layers:
+        layer_results = []
+        for layer_index, layer in enumerate(self.emformer_layers):
             output, right_context = layer(
                 output,
                 right_context,
@@ -1374,8 +1380,11 @@ class EmformerEncoder(nn.Module):
                 padding_mask=padding_mask,
                 warmup=warmup,
             )
+            if layer_index in self.output_layers:
+                # (T, N, C) --> (N, T, C)
+                layer_results.append(output.permute(1, 0, 2))
 
-        return output, output_lengths
+        return layer_results, output_lengths
 
     @torch.jit.export
     def infer(
@@ -1545,6 +1554,7 @@ class Emformer(EncoderInterface):
         memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        middle_output_layer: int = None,  # 0-based layer index
     ):
         super().__init__()
 
@@ -1573,6 +1583,17 @@ class Emformer(EncoderInterface):
         #   (2) embedding: num_features -> d_model
         self.encoder_embed = Conv2dSubsampling(num_features, d_model)
 
+        output_layers = []
+        if middle_output_layer is not None:
+            assert (
+                middle_output_layer >= 0
+                and middle_output_layer < num_encoder_layers
+            ), f"Invalid middle output layer"
+            output_layers.append(middle_output_layer)
+
+        # The last layer is always needed.
+        output_layers.append(num_encoder_layers - 1)
+
         self.encoder = EmformerEncoder(
             chunk_length=chunk_length // subsampling_factor,
             d_model=d_model,
@@ -1587,7 +1608,8 @@ class Emformer(EncoderInterface):
             memory_size=memory_size,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
-        )
+            output_layers=output_layers, # for distillation
+        )     
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
@@ -1624,9 +1646,7 @@ class Emformer(EncoderInterface):
         x_lens = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == x_lens.max().item()
 
-        output, output_lengths = self.encoder(x, x_lens, warmup=warmup)  # (T, N, C)
-
-        output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
+        output, output_lengths = self.encoder(x, x_lens, warmup=warmup)  # (N, T, C)
 
         return output, output_lengths
 
