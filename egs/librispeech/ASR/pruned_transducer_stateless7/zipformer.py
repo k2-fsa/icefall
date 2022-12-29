@@ -461,7 +461,7 @@ class ZipformerEncoderLayer(nn.Module):
         self.balancer = ActivationBalancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
-            min_abs=0.25, max_abs=6.0,
+            min_abs=1.0, max_abs=6.0,
         )
         self.whiten = Whiten(num_groups=1,
                              whitening_limit=_whitening_schedule(4.0, ratio=3.0),
@@ -1478,7 +1478,7 @@ class NonlinAttentionModule(nn.Module):
         self.balancer2 = ActivationBalancer(
             channels, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
-            min_abs=ScheduledFloat((0.0, 0.001), (4000.0, 0.005)),
+            min_abs=ScheduledFloat((0.0, 0.004), (4000.0, 0.02)),
             prob=0.05,  # out of concern for memory usage
         )
 
@@ -1714,7 +1714,7 @@ class ConvNeXt(nn.Module):
         self.out_balancer = ActivationBalancer(
             channels, channel_dim=1,
             min_positive=0.4, max_positive=0.6,
-            min_abs=0.25, max_abs=6.0,
+            min_abs=1.0, max_abs=6.0,
         )
         self.out_whiten = Whiten(num_groups=1,
                                  whitening_limit=5.0,
