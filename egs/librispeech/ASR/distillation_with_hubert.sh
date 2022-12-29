@@ -193,7 +193,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --master-port 12359 \
     --full-libri $full_libri \
     --spec-aug-time-warp-factor -1 \
-    --max-duration 300 \
+    --max-duration 600 \
     --world-size ${WORLD_SIZE} \
     --num-epochs 50 \
     --exp-dir $exp_dir \
