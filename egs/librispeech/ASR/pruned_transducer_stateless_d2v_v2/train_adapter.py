@@ -157,7 +157,7 @@ def add_adapter_arguments(parser: argparse.ArgumentParser):
         "--gender",
         type=str,
         default='male',
-        help="adapter learning rate"
+        help="select gender"
     )
 
 
