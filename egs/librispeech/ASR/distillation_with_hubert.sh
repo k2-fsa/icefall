@@ -25,6 +25,7 @@
 
 stage=3
 stop_stage=4
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 # Set the GPUs available.
 # This script requires at least one GPU.
@@ -172,7 +173,6 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     rm -rf $codebook_download_dir
   fi
   
-  export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   ./pruned_transducer_stateless6/extract_codebook_index.py \
     --full-libri $full_libri \
     --exp-dir $exp_dir \
