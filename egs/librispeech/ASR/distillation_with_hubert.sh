@@ -35,7 +35,7 @@ stop_stage=4
 # export CUDA_VISIBLE_DEVICES="0"
 #
 # Suppose GPU 2,3,4,5 are available.
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 exp_dir=./pruned_transducer_stateless6/exp
 mkdir -p $exp_dir
@@ -49,7 +49,7 @@ full_libri=False
 #   "True" -> stage 0 and stage 1 would be skipped,
 #     and directly download the extracted codebook indexes for distillation
 #   "False" -> start from scratch
-use_extracted_codebook=False
+use_extracted_codebook=True
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
@@ -155,8 +155,14 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     fi
     log "Downloading extracted codebook indexes to $codebook_download_dir"
     # Make sure you have git-lfs installed (https://git-lfs.github.com)
+    # The codebook indexes are generated using lhotse 1.11.0, to avoid
+    # potential issues, we recommend you to use lhotse version >= 1.11.0
+    lhotse_version=$(python3 -c "import lhotse; from packaging import version; print(version.parse(lhotse.version.__version__)>=version.parse('1.11.0'))")
+    if [ "$lhotse_version" == "False" ]; then
+      log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
+    fi
     git lfs install
-    git clone https://huggingface.co/Zengwei/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
+    git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
 
     mkdir -p data/vq_fbank
     mv $codebook_download_dir/*.jsonl.gz data/vq_fbank/
