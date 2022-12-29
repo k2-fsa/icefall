@@ -1,5 +1,83 @@
 ## Results
 
+### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
+
+#### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
+
+See <https://github.com/k2-fsa/icefall/pull/787> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+##### training on full librispeech
+
+The WERs are:
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 3.15       | 8.09       | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 320ms      | 3.17       | 8.24       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 320ms      | 3.2        | 8.04       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 320ms      | 3.36       | 8.19       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 320ms      | 3.12       | 8.11       | --epoch 30 --avg 9  | chunk-size           |
+| greedy search        | 640ms      | 2.97       | 7.5        | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 640ms      | 2.98       | 7.67       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 640ms      | 3.02       | 7.47       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 640ms      | 2.96       | 7.61       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 640ms      | 2.94       | 7.36       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 640ms      | 2.95       | 7.53       | --epoch 30 --avg 9  | chunk-size           |
+
+Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless7_streaming/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --full-libri 1 \
+  --max-duration 750 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/A46UpqEWQWS7oDi5VcQ8rg/>
+
+The simulated streaming decoding command (e.g., chunk-size=320ms) is:
+```bash
+for $m in greedy_search fast_beam_search modified_beam_search; do
+  ./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --decoding-method $m
+done
+```
+
+The streaming chunk-size decoding command (e.g., chunk-size=320ms) is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless7_streaming/streaming_decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --decoding-method $m \
+    --decode-chunk-len 32 \
+    --num-decode-streams 2000
+done
+```
+
+
 ### zipformer_mmi (zipformer with mmi loss)
 
 See <https://github.com/k2-fsa/icefall/pull/746> for more details.
