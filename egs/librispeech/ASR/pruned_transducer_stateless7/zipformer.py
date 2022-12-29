@@ -26,6 +26,7 @@ import random
 from encoder_interface import EncoderInterface
 from scaling import (
     ActivationBalancer,
+    Balancer,
     BasicNorm,
     ConvNorm1d,
     ConvNorm2d,
@@ -456,7 +457,7 @@ class ZipformerEncoderLayer(nn.Module):
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
-        self.balancer = ActivationBalancer(
+        self.balancer = Balancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
             min_abs=1.0, max_abs=6.0,
@@ -1302,7 +1303,7 @@ class AttentionSqueeze(nn.Module):
         # instances of this module, the mean absolute values per channel are in
         # the range 0.1 to 0.4.  We apply the upper limit of 0.4 at the
         # beginning, and make it looser over time.
-        self.bottleneck_balancer = ActivationBalancer(
+        self.bottleneck_balancer = Balancer(
             bottleneck_dim, channel_dim=-1,
             min_positive=0.2, max_positive=0.8,
             min_abs=0.05,
@@ -1316,13 +1317,13 @@ class AttentionSqueeze(nn.Module):
         # many degrees of freedom for the scales of the various activations.
         # Make them run with very low probability, since only a small
         # application of these balancers should be enough to stop such "drift".
-        self.scale_balancer = ActivationBalancer(
+        self.scale_balancer = Balancer(
             hidden_dim, channel_dim=-1,
             min_positive=0.2, max_positive=0.8,
             min_abs=0.2,  max_abs=1.0,
             prob=_balancer_schedule(0.05),
         )
-        self.activation_balancer = ActivationBalancer(
+        self.activation_balancer = Balancer(
             hidden_dim, channel_dim=-1,
             min_positive=0.2, max_positive=0.8,
             min_abs=0.2,  max_abs=1.0,
@@ -1339,7 +1340,7 @@ class AttentionSqueeze(nn.Module):
         self.out_proj = ScaledLinear(hidden_dim, embed_dim,
                                      bias=False, initial_scale=0.05)
 
-        self.out_balancer = ActivationBalancer(
+        self.out_balancer = Balancer(
             embed_dim, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
             min_abs=ScheduledFloat((0.0, 0.004), (4000.0, 0.02)),
@@ -1396,7 +1397,7 @@ class FeedforwardModule(nn.Module):
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(embed_dim, feedforward_dim)
 
-        self.hidden_balancer = ActivationBalancer(feedforward_dim,
+        self.hidden_balancer = Balancer(feedforward_dim,
                                                   channel_dim=-1,
                                                   min_positive=0.3,
                                                   max_positive=1.0,
@@ -1447,7 +1448,7 @@ class NonlinAttentionModule(nn.Module):
         # because we noticed that well-trained instances of this module have abs-value before the sigmoid
         # starting from about 3, and poorly-trained instances of the module have smaller abs values
         # before the sigmoid.
-        self.balancer1 = ActivationBalancer(
+        self.balancer1 = Balancer(
             hidden_channels, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.25), (20000.0, 0.05)),
             max_positive=ScheduledFloat((0.0, 0.75), (20000.0, 0.95)),
@@ -1473,7 +1474,7 @@ class NonlinAttentionModule(nn.Module):
                               prob=(0.025, 0.25),
                               grad_scale=0.01)
 
-        self.balancer2 = ActivationBalancer(
+        self.balancer2 = Balancer(
             channels, channel_dim=-1,
             min_positive=0.3, max_positive=0.7,
             min_abs=ScheduledFloat((0.0, 0.004), (4000.0, 0.02)),
@@ -1566,7 +1567,7 @@ class ConvolutionModule(nn.Module):
         # constrain the rms values to a reasonable range via a constraint of max_abs=10.0,
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
-        self.balancer1 = ActivationBalancer(
+        self.balancer1 = Balancer(
             bottleneck_dim, channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.05), (8000.0, 0.025)),
             max_positive=1.0,
@@ -1590,7 +1591,7 @@ class ConvolutionModule(nn.Module):
             bias=True,
         )
 
-        self.balancer2 = ActivationBalancer(
+        self.balancer2 = Balancer(
             bottleneck_dim, channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
@@ -1695,7 +1696,7 @@ class ConvNeXt(nn.Module):
             out_channels=hidden_channels,
             kernel_size=1)
 
-        self.hidden_balancer = ActivationBalancer(hidden_channels,
+        self.hidden_balancer = Balancer(hidden_channels,
                                                   channel_dim=1,
                                                   min_positive=0.3,
                                                   max_positive=1.0,
@@ -1709,7 +1710,7 @@ class ConvNeXt(nn.Module):
             kernel_size=1,
             initial_scale=0.01)
 
-        self.out_balancer = ActivationBalancer(
+        self.out_balancer = Balancer(
             channels, channel_dim=1,
             min_positive=0.4, max_positive=0.6,
             min_abs=1.0, max_abs=6.0,
@@ -1800,7 +1801,7 @@ class Conv2dSubsampling(nn.Module):
                 padding=(0, 1),  # (time, freq)
             ),
             ScaleGrad(0.2),
-            ActivationBalancer(layer1_channels,
+            Balancer(layer1_channels,
                                channel_dim=1,
                                max_abs=1.0),
             SwooshR(),
@@ -1811,7 +1812,7 @@ class Conv2dSubsampling(nn.Module):
                 stride=2,
                 padding=0,
             ),
-            ActivationBalancer(layer2_channels,
+            Balancer(layer2_channels,
                                channel_dim=1,
                                max_abs=4.0),
             SwooshR(),
@@ -1833,7 +1834,7 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=(1, 2), # (time, freq)
             ),
-            ActivationBalancer(layer3_channels,
+            Balancer(layer3_channels,
                                channel_dim=1,
                                max_abs=4.0),
             SwooshR(),
