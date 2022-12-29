@@ -23,7 +23,7 @@
 # To start from scratch, you can
 # set stage=0, stop_stage=4, use_extracted_codebook=False
 
-stage=3
+stage=1
 stop_stage=4
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
