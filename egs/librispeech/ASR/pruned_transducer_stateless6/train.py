@@ -59,6 +59,7 @@ import argparse
 import copy
 import logging
 import warnings
+warnings.filterwarnings('ignore')
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
