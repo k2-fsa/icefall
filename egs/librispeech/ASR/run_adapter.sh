@@ -16,7 +16,7 @@ if [ $workstation = "whale" ]; then
 		--num-epochs 10 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
-		--max-duration 250 \
+		--max-duration 200 \
 		--encoder-dim 768 \
 		--decoder-dim 768 \
 		--joiner-dim 768 \
