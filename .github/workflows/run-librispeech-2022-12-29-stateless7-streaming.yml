@@ -130,7 +130,7 @@ jobs:
 
           .github/scripts/run-librispeech-pruned-transducer-stateless7-streaming-2022-12-29.sh
 
-      - name: Display decoding results for librispeech pruned_transducer_stateless7
+      - name: Display decoding results for librispeech pruned_transducer_stateless7_streaming
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         shell: bash
         run: |
