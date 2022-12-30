@@ -664,8 +664,6 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    print(model)
-    
     if params.model_name:
         load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
     else:
