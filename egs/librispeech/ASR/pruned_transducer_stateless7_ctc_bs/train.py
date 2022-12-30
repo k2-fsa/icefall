@@ -55,9 +55,9 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
+from frame_reducer import FrameReducer
 from joiner import Joiner
 from lconv import LConv
-from frame_reducer import FrameReducer
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -1100,6 +1100,20 @@ def run(rank, world_size, args):
                 f"Text: {c.supervisions[0].text}. "
                 f"Tokens: {tokens}. "
                 f"Number of tokens: {len(tokens)}"
+            )
+            return False
+
+        # Zipformer has DownsampledZipformerEncoders with different downsampling factors
+        # after encoder_embed that does T -> (T - 7) // 2
+        ds = tuple(map(int, params.zipformer_downsampling_factors.split(",")))
+        max_ds = max(ds)
+        T = (c.num_frames - 7) // 2
+        if T < max_ds:
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before encoder_embed): {c.num_frames}. "
+                f"Number of frames (after encoder_embed): {T}. "
+                f"Max downsampling factor in Zipformer: {max_ds}. "
             )
             return False
 

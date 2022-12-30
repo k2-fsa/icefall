@@ -1064,6 +1064,20 @@ def run(rank, world_size, args):
             )
             return False
 
+        # Zipformer has DownsampledZipformerEncoders with different downsampling factors
+        # after encoder_embed that does T -> (T - 7) // 2
+        ds = tuple(map(int, params.zipformer_downsampling_factors.split(",")))
+        max_ds = max(ds)
+        T = (c.num_frames - 7) // 2
+        if T < max_ds:
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before encoder_embed): {c.num_frames}. "
+                f"Number of frames (after encoder_embed): {T}. "
+                f"Max downsampling factor in Zipformer: {max_ds}. "
+            )
+            return False
+
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)

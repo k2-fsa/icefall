@@ -1017,7 +1017,7 @@ def train_one_epoch(
 
 
 def filter_short_and_long_utterances(
-    cuts: CutSet, sp: spm.SentencePieceProcessor
+    cuts: CutSet, sp: spm.SentencePieceProcessor, zipformer_downsampling_factors: str
 ) -> CutSet:
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1051,6 +1051,20 @@ def filter_short_and_long_utterances(
                 f"Text: {c.supervisions[0].text}. "
                 f"Tokens: {tokens}. "
                 f"Number of tokens: {len(tokens)}"
+            )
+            return False
+
+        # Zipformer has DownsampledZipformerEncoders with different downsampling factors
+        # after encoder_embed that does T -> (T - 7) // 2
+        ds = tuple(map(int, zipformer_downsampling_factors.split(",")))
+        max_ds = max(ds)
+        T = (c.num_frames - 7) // 2
+        if T < max_ds:
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before encoder_embed): {c.num_frames}. "
+                f"Number of frames (after encoder_embed): {T}. "
+                f"Max downsampling factor in Zipformer: {max_ds}. "
             )
             return False
 
@@ -1159,7 +1173,9 @@ def run(rank, world_size, args):
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
 
-    train_cuts = filter_short_and_long_utterances(train_cuts, sp)
+    train_cuts = filter_short_and_long_utterances(
+        train_cuts, sp, params.zipformer_downsampling_factors
+    )
 
     gigaspeech = GigaSpeech(manifest_dir=args.manifest_dir)
     # XL 10k hours
