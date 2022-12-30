@@ -663,6 +663,7 @@ def main():
 
     logging.info("About to create model")
     model = get_transducer_model(params)
+    print(model)
     
     if params.model_name:
         load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
@@ -757,7 +758,7 @@ def main():
                 torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
-        else:
+        else
             word_table = None
             decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
