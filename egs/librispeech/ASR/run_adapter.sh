@@ -27,7 +27,7 @@ else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
-		--adapter-lr 0.0001 \
+		--adapter-lr 0.001 \
 		--gender male \
 		--wandb False \
 		--input-strategy AudioSamples \
