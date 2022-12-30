@@ -8,7 +8,7 @@ if [ $workstation = "whale" ]; then
 		--add-adapter True \
 		--adapter-lr 0.001 \
 		--gender female
-		--wandb False \
+		--wandb false \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
