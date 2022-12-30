@@ -153,9 +153,24 @@ class RnnLmModel(torch.nn.Module):
     def clean_cache(self):
         self.cache = {}
 
-    def score_token(self, tokens: torch.Tensor, state=None):
+    def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
+        """Score a batch of tokens
+
+        Args:
+            x (torch.Tensor):
+                A batch of tokens
+            x_lens (torch.Tensor):
+                The length of tokens in the batch before padding
+            state (_type_, optional):
+                Either None or a tuple of two torch.Tensor. Each tensor has
+                the shape of (hidden_dim)
+
+
+        Returns:
+            _type_: _description_
+        """
         device = next(self.parameters()).device
-        batch_size = tokens.size(0)
+        batch_size = x.size(0)
         if state:
             h, c = state
         else:
@@ -166,7 +181,7 @@ class RnnLmModel(torch.nn.Module):
                 device
             )
 
-        embedding = self.input_embedding(tokens)
+        embedding = self.input_embedding(x)
         rnn_out, states = self.rnn(embedding, (h, c))
         logits = self.output_linear(rnn_out)
 
