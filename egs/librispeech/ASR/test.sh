@@ -5,8 +5,8 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name epoch-27.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
+	--model-name epoch-10.pt \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/d2v-T-adapter_male \
     --max-duration 400 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
