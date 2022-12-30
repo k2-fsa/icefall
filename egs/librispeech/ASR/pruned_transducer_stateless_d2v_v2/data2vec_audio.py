@@ -144,11 +144,11 @@ class ResidualAdapterModule(nn.Module):
         
         def build_adapter(embedding_dim, proj_dim):
             return nn.Sequential(
-                    nn.LayerNorm(embedding_dim),
+                    #nn.LayerNorm(embedding_dim),
                     nn.Linear(embedding_dim, proj_dim),
                     nn.ReLU(),
                     nn.Linear(proj_dim, embedding_dim),
-                    #nn.LayerNorm(embedding_dim),
+                    nn.LayerNorm(embedding_dim),
                 )
 
         self.adapter_layers = nn.ModuleList(
