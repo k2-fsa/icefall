@@ -1121,6 +1121,9 @@ def train_one_epoch(
                 )
 
         if batch_idx % (params.log_interval*params.accum_grads) == 0:
+            for n, p in model.named_parameters():
+                if 'adapter' in n:
+                    print(p)
             if params.multi_optim:
                 cur_enc_lr = scheduler_enc.get_last_lr()[0]
                 cur_dec_lr = scheduler_dec.get_last_lr()[0]
