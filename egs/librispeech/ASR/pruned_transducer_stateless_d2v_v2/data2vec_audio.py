@@ -148,7 +148,7 @@ class ResidualAdapterModule(nn.Module):
                     nn.Linear(embedding_dim, proj_dim),
                     nn.ReLU(),
                     nn.Linear(proj_dim, embedding_dim),
-                    nn.LayerNorm(embedding_dim),
+                    #nn.LayerNorm(embedding_dim),
                 )
 
         self.adapter_layers = nn.ModuleList(
