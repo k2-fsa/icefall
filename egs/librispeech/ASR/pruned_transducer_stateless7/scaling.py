@@ -512,7 +512,7 @@ class BasicNorm(torch.nn.Module):
             self,
             num_channels: int,
             channel_dim: int = -1,  # CAUTION: see documentation.
-            log_scale: float = 2.0,
+            log_scale: float = 0.0,
             eps: float = 0.25,
             log_scale_min: FloatLike = -1.5,
             log_scale_max: FloatLike = 1.5,
