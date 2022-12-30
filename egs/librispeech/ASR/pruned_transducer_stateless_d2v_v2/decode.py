@@ -780,6 +780,10 @@ def main():
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
 
+    for n, p in model.named_parameters():
+        if 'adapter' in n:
+            print(p)
+
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
