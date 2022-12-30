@@ -1,5 +1,5 @@
 Zipformer Transducer
-============================
+====================
 
 This tutorial shows you how to run a **streaming** zipformer transducer model
 with the `LibriSpeech <https://www.openslr.org/12>`_ dataset.
