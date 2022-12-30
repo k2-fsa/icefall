@@ -137,7 +137,7 @@ class ResidualAdapterModule(nn.Module):
         self,
         embedding_dim: float = 768,
         layer_num: int = 12,
-        proj_dim: float = 384,
+        proj_dim: float = 512,
     ) -> None:
         
         super().__init__()
