@@ -468,7 +468,7 @@ class ZipformerEncoderLayer(nn.Module):
         self.balancer2 = Balancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
-            min_abs=0.5, max_abs=2.0,
+            min_abs=0.1, max_abs=1.0,
         )
 
 
