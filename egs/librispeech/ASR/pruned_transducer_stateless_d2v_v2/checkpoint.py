@@ -122,7 +122,6 @@ def load_checkpoint(
     """
     TODO: document it
     """
-    print(model)
     logging.info(f"Loading checkpoint from {filename}")
     checkpoint = torch.load(filename, map_location="cpu")
 
