@@ -28,7 +28,7 @@ else
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
 		--adapter-lr 0.0001 \
-		--gender female \
+		--gender male \
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
