@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pruned transducer statelessX &mdash; icefall 0.1 documentation</title>
+  <title>Zipformer Transducer &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -20,8 +20,8 @@
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="LSTM Transducer" href="lstm_pruned_stateless_transducer.html" />
-    <link rel="prev" title="LibriSpeech" href="index.html" /> 
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="LSTM Transducer" href="lstm_pruned_stateless_transducer.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -50,9 +50,9 @@
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html">Streaming ASR</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="../introduction.html">Introduction</a></li>
 <li class="toctree-l3 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
-<li class="toctree-l4 current"><a class="current reference internal" href="#">Pruned transducer statelessX</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
 <li class="toctree-l4"><a class="reference internal" href="lstm_pruned_stateless_transducer.html">LSTM Transducer</a></li>
-<li class="toctree-l4"><a class="reference internal" href="zipformer_transducer.html">Zipformer Transducer</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Zipformer Transducer</a></li>
 </ul>
 </li>
 </ul>
@@ -82,9 +82,9 @@
           <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
           <li class="breadcrumb-item"><a href="../index.html">Streaming ASR</a></li>
           <li class="breadcrumb-item"><a href="index.html">LibriSpeech</a></li>
-      <li class="breadcrumb-item active">Pruned transducer statelessX</li>
+      <li class="breadcrumb-item active">Zipformer Transducer</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Streaming-ASR/librispeech/pruned_transducer_stateless.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Streaming-ASR/librispeech/zipformer_transducer.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -92,17 +92,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="pruned-transducer-statelessx">
-<h1>Pruned transducer statelessX<a class="headerlink" href="#pruned-transducer-statelessx" title="Permalink to this heading"></a></h1>
-<p>This tutorial shows you how to run a <strong>streaming</strong> conformer transducer model
+  <section id="zipformer-transducer">
+<h1>Zipformer Transducer<a class="headerlink" href="#zipformer-transducer" title="Permalink to this heading"></a></h1>
+<p>This tutorial shows you how to run a <strong>streaming</strong> zipformer transducer model
 with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The tutorial is suitable for <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless">pruned_transducer_stateless</a>,
-<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless2">pruned_transducer_stateless2</a>,
-<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless4">pruned_transducer_stateless4</a>,
-<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless5">pruned_transducer_stateless5</a>,
-We will take pruned_transducer_stateless4 as an example in this tutorial.</p>
+<p>The tutorial is suitable for <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming">pruned_transducer_stateless7_streaming</a>,</p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -127,7 +123,7 @@ for pretrained models if you don’t want to train a model from scratch.</p>
 <p>The transducer model consists of 3 parts:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>Encoder, a.k.a, the transcription network. We use a Conformer model (the reworked version by Daniel Povey)</p></li>
+<li><p>Encoder, a.k.a, the transcription network. We use a Zipformer model (proposed by Daniel Povey)</p></li>
 <li><p>Decoder, a.k.a, the prediction network. We use a stateless model consisting of
 <code class="docutils literal notranslate"><span class="pre">nn.Embedding</span></code> and <code class="docutils literal notranslate"><span class="pre">nn.Conv1d</span></code></p></li>
 <li><p>Joiner, a.k.a, the joint network.</p></li>
@@ -197,17 +193,10 @@ the following YouTube channel by <a class="reference external" href="https://www
 </iframe></div></section>
 <section id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We put the streaming and non-streaming model in one recipe, to train a streaming model you only
-need to add <strong>4</strong> extra options comparing with training a non-streaming model. These options are
-<code class="docutils literal notranslate"><span class="pre">--dynamic-chunk-training</span></code>, <code class="docutils literal notranslate"><span class="pre">--num-left-chunks</span></code>, <code class="docutils literal notranslate"><span class="pre">--causal-convolution</span></code>, <code class="docutils literal notranslate"><span class="pre">--short-chunk-size</span></code>.
-You can see the configurable options below for their meanings or read <a class="reference external" href="https://arxiv.org/pdf/2012.05481.pdf">https://arxiv.org/pdf/2012.05481.pdf</a> for more details.</p>
-</div>
 <section id="configurable-options">
 <h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless4/train.py --help
+$ ./pruned_transducer_stateless7_streaming/train.py --help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -230,14 +219,14 @@ If <code class="docutils literal notranslate"><span class="pre">--full-libri</sp
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--num-epochs</span></code></p>
 <p>It is the number of epochs to train. For instance,
-<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30 epochs
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/train.py</span> <span class="pre">--num-epochs</span> <span class="pre">30</span></code> trains for 30 epochs
 and generates <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-2.pt</span></code>, …, <code class="docutils literal notranslate"><span class="pre">epoch-30.pt</span></code>
-in the folder <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/exp</span></code>.</p>
+in the folder <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp</span></code>.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--start-epoch</span></code></p>
 <p>It’s used to resume training.
-<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
-checkpoint <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/exp/epoch-9.pt</span></code> and starts
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/train.py</span> <span class="pre">--start-epoch</span> <span class="pre">10</span></code> loads the
+checkpoint <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/epoch-9.pt</span></code> and starts
 training from epoch 10, based on the state from epoch 9.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--world-size</span></code></p>
@@ -261,7 +250,7 @@ GPU 2 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
 $ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./pruned_transducer_stateless4/train.py --world-size <span class="m">2</span>
+$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -269,7 +258,7 @@ $ ./pruned_transducer_stateless4/train.py --world-size <span class="m">2</span>
 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless4/train.py --world-size <span class="m">4</span>
+$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -278,7 +267,7 @@ for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
 $ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./pruned_transducer_stateless4/train.py --world-size <span class="m">1</span>
+$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -306,23 +295,20 @@ tune it.</p>
 <p>If it is True, the model will train with half precision, from our experiment
 results, by using half precision you can train with two times larger <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code>
 so as to get almost 2X speed up.</p>
-</li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--dynamic-chunk-training</span></code></p>
-<p>The flag that indicates whether to train a streaming model or not, it
-<strong>MUST</strong> be True if you want to train a streaming model.</p>
+<p>We recommend using <code class="docutils literal notranslate"><span class="pre">--use-fp16</span> <span class="pre">True</span></code>.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--short-chunk-size</span></code></p>
 <p>When training a streaming attention model with chunk masking, the chunk size
 would be either max sequence length of current batch or uniformly sampled from
-(1, short_chunk_size). The default value is 25, you don’t have to change it most of the time.</p>
+(1, short_chunk_size). The default value is 50, you don’t have to change it most of the time.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--num-left-chunks</span></code></p>
 <p>It indicates how many left context (in chunks) that can be seen when calculating attention.
 The default value is 4, you don’t have to change it most of the time.</p>
 </li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--causal-convolution</span></code></p>
-<p>Whether to use causal convolution in conformer encoder layer, this requires
-to be True when training a streaming model.</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code></p>
+<p>The chunk size for decoding (in frames before subsampling). It is used for validation.
+The default value is 32 (i.e., 320ms).</p>
 </li>
 </ul>
 </div></blockquote>
@@ -333,18 +319,13 @@ to be True when training a streaming model.</p>
 encoder dimension, decoder dimension, number of warmup steps etc,
 that are not passed from the commandline.
 They are pre-configured by the function <code class="docutils literal notranslate"><span class="pre">get_params()</span></code> in
-<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless4/train.py">pruned_transducer_stateless4/train.py</a></p>
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming/train.py">pruned_transducer_stateless7_streaming/train.py</a></p>
 <p>You don’t need to change these pre-configured parameters. If you really need to change
-them, please modify <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/train.py</span></code> directly.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The options for <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless5/train.py">pruned_transducer_stateless5</a> are a little different from
-other recipes. It allows you to configure <code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code>, <code class="docutils literal notranslate"><span class="pre">--dim-feedforward</span></code>, <code class="docutils literal notranslate"><span class="pre">--nhead</span></code>, <code class="docutils literal notranslate"><span class="pre">--encoder-dim</span></code>, <code class="docutils literal notranslate"><span class="pre">--decoder-dim</span></code>, <code class="docutils literal notranslate"><span class="pre">--joiner-dim</span></code> from commandline, so that you can train models with different size with pruned_transducer_stateless5.</p>
-</div>
+them, please modify <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/train.py</span></code> directly.</p>
 </section>
 <section id="training-logs">
 <h3>Training logs<a class="headerlink" href="#training-logs" title="Permalink to this heading"></a></h3>
-<p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">--exp-dir</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/exp</span></code>.
+<p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">--exp-dir</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/exp</span></code>.
 You will find the following files in that directory:</p>
 <blockquote>
 <div><ul>
@@ -353,7 +334,7 @@ You will find the following files in that directory:</p>
 <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless4/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_streaming/train.py --start-epoch <span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -363,7 +344,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">checkpoint-436000</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless4/train.py --start-batch <span class="m">436000</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_streaming/train.py --start-batch <span class="m">436000</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -372,36 +353,10 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains tensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> pruned_transducer_stateless4/exp/tensorboard
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp/tensorboard
 $ tensorboard dev upload --logdir . --description <span class="s2">&quot;pruned transducer training for LibriSpeech with icefall&quot;</span>
 </pre></div>
 </div>
-</div></blockquote>
-<p>It will print something like below:</p>
-<blockquote>
-<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
-<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
-
-<span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
-
-<span class="n">New</span> <span class="n">experiment</span> <span class="n">created</span><span class="o">.</span> <span class="n">View</span> <span class="n">your</span> <span class="n">TensorBoard</span> <span class="n">at</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">tensorboard</span><span class="o">.</span><span class="n">dev</span><span class="o">/</span><span class="n">experiment</span><span class="o">/</span><span class="mi">97</span><span class="n">VKXf80Ru61CnP2ALWZZg</span><span class="o">/</span>
-
-<span class="p">[</span><span class="mi">2022</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">20</span><span class="n">T15</span><span class="p">:</span><span class="mi">50</span><span class="p">:</span><span class="mi">50</span><span class="p">]</span> <span class="n">Started</span> <span class="n">scanning</span> <span class="n">logdir</span><span class="o">.</span>
-<span class="n">Uploading</span> <span class="mi">4468</span> <span class="n">scalars</span><span class="o">...</span>
-<span class="p">[</span><span class="mi">2022</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">20</span><span class="n">T15</span><span class="p">:</span><span class="mi">53</span><span class="p">:</span><span class="mi">02</span><span class="p">]</span> <span class="n">Total</span> <span class="n">uploaded</span><span class="p">:</span> <span class="mi">210171</span> <span class="n">scalars</span><span class="p">,</span> <span class="mi">0</span> <span class="n">tensors</span><span class="p">,</span> <span class="mi">0</span> <span class="n">binary</span> <span class="n">objects</span>
-<span class="n">Listening</span> <span class="k">for</span> <span class="n">new</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">logdir</span><span class="o">...</span>
-</pre></div>
-</div>
-</div></blockquote>
-<p>Note there is a URL in the above output. Click it and you will see
-the following screenshot:</p>
-<blockquote>
-<div><figure class="align-center" id="id7">
-<a class="reference external image-reference" href="https://tensorboard.dev/experiment/97VKXf80Ru61CnP2ALWZZg/"><img alt="TensorBoard screenshot" src="../../../_images/streaming-librispeech-pruned-transducer-tensorboard-log.jpg" style="width: 600px;" /></a>
-<figcaption>
-<p><span class="caption-number">Fig. 7 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id7" title="Permalink to this image"></a></p>
-</figcaption>
-</figure>
 </div></blockquote>
 </li>
 </ul>
@@ -410,7 +365,7 @@ the following screenshot:</p>
 <p>If you don’t have access to google, you can use the following command
 to view the tensorboard log locally:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless4/exp/tensorboard
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp/tensorboard
 tensorboard --logdir . --port <span class="m">6008</span>
 </pre></div>
 </div>
@@ -437,21 +392,15 @@ you saw printed to the console during training.</p>
 <h3>Usage example<a class="headerlink" href="#usage-example" title="Permalink to this heading"></a></h3>
 <p>You can use the following command to start the training using 4 GPUs:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
-./pruned_transducer_stateless4/train.py <span class="se">\</span>
-   --world-size <span class="m">4</span> <span class="se">\</span>
-   --dynamic-chunk-training <span class="m">1</span> <span class="se">\</span>
-   --causal-convolution <span class="m">1</span> <span class="se">\</span>
-   --num-epochs <span class="m">30</span> <span class="se">\</span>
-   --start-epoch <span class="m">1</span> <span class="se">\</span>
-   --exp-dir pruned_transducer_stateless4/exp <span class="se">\</span>
-   --full-libri <span class="m">1</span> <span class="se">\</span>
-   --max-duration <span class="m">300</span>
+./pruned_transducer_stateless7_streaming/train.py <span class="se">\</span>
+  --world-size <span class="m">4</span> <span class="se">\</span>
+  --num-epochs <span class="m">30</span> <span class="se">\</span>
+  --start-epoch <span class="m">1</span> <span class="se">\</span>
+  --use-fp16 <span class="m">1</span> <span class="se">\</span>
+  --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
+  --full-libri <span class="m">1</span> <span class="se">\</span>
+  --max-duration <span class="m">550</span>
 </pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Comparing with training a non-streaming model, you only need to add two extra options,
-<code class="docutils literal notranslate"><span class="pre">--dynamic-chunk-training</span> <span class="pre">1</span></code>  and <code class="docutils literal notranslate"><span class="pre">--causal-convolution</span> <span class="pre">1</span></code> .</p>
 </div>
 </section>
 </section>
@@ -466,10 +415,10 @@ to run the training part first.</p>
 <div><ul class="simple">
 <li><p>(1) <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-2.pt</span></code>, …, which are saved at the end
 of each epoch. You can pass <code class="docutils literal notranslate"><span class="pre">--epoch</span></code> to
-<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/decode.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/decode.py</span></code> to use them.</p></li>
 <li><p>(2) <code class="docutils literal notranslate"><span class="pre">checkpoints-436000.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-438000.pt</span></code>, …, which are saved
 every <code class="docutils literal notranslate"><span class="pre">--save-every-n</span></code> batches. You can pass <code class="docutils literal notranslate"><span class="pre">--iter</span></code> to
-<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/decode.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/decode.py</span></code> to use them.</p></li>
 </ul>
 <p>We suggest that you try both types of checkpoints and choose the one
 that produces the lowest WERs.</p>
@@ -478,64 +427,39 @@ that produces the lowest WERs.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>To decode a streaming model, you can use either <code class="docutils literal notranslate"><span class="pre">simulate</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> or
-<code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code>, the difference between <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">chunk-wise</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code>. The difference between <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> and
 <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code> is that, <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> processes the whole acoustic frames at one time with masking (i.e. same as training),
-but <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code> processes the acoustic frames chunk by chunk (so it can only see limited context).</p>
+but <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code> processes the acoustic frames chunk by chunk.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">simulate</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> and <code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code> should
-produce almost the same results given the same <code class="docutils literal notranslate"><span class="pre">--decode-chunk-size</span></code> and <code class="docutils literal notranslate"><span class="pre">--left-context</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">simulate</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> and <code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">chunk-size</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> in <code class="docutils literal notranslate"><span class="pre">streaming_decode.py</span></code> should
+produce almost the same results given the same <code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code>.</p>
 </div>
 <section id="simulate-streaming-decoding">
 <h3>Simulate streaming decoding<a class="headerlink" href="#simulate-streaming-decoding" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless4/decode.py --help
+$ ./pruned_transducer_stateless7_streaming/decode.py --help
 </pre></div>
 </div>
 <p>shows the options for decoding.
 The following options are important for streaming models:</p>
 <blockquote>
-<div><p><code class="docutils literal notranslate"><span class="pre">--simulate-streaming</span></code></p>
+<div><p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code></p>
 <blockquote>
-<div><p>If you want to decode a streaming model with <code class="docutils literal notranslate"><span class="pre">decode.py</span></code>, you <strong>MUST</strong> set
-<code class="docutils literal notranslate"><span class="pre">--simulate-streaming</span></code> to <code class="docutils literal notranslate"><span class="pre">True</span></code>. <code class="docutils literal notranslate"><span class="pre">simulate</span></code> here means the acoustic frames
-are not processed frame by frame (or chunk by chunk), instead, the whole sequence
-is processed at one time with masking (the same as training).</p>
-</div></blockquote>
-<p><code class="docutils literal notranslate"><span class="pre">--causal-convolution</span></code></p>
-<blockquote>
-<div><p>If True, the convolution module in encoder layers will be causal convolution.
-This is <strong>MUST</strong> be True when decoding with a streaming model.</p>
-</div></blockquote>
-<p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-size</span></code></p>
-<blockquote>
-<div><p>For streaming models, we will calculate the chunk-wise attention, <code class="docutils literal notranslate"><span class="pre">--decode-chunk-size</span></code>
-indicates the chunk length (in frames after subsampling) for chunk-wise attention.
-For <code class="docutils literal notranslate"><span class="pre">simulate</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> the <code class="docutils literal notranslate"><span class="pre">decode-chunk-size</span></code> is used to generate
-the attention mask.</p>
-</div></blockquote>
-<p><code class="docutils literal notranslate"><span class="pre">--left-context</span></code></p>
-<blockquote>
-<div><p><code class="docutils literal notranslate"><span class="pre">--left-context</span></code> indicates how many left context frames (after subsampling) can be seen
-for current chunk when calculating chunk-wise attention. Normally, <code class="docutils literal notranslate"><span class="pre">left-context</span></code> should equal
-to <code class="docutils literal notranslate"><span class="pre">decode-chunk-size</span> <span class="pre">*</span> <span class="pre">num-left-chunks</span></code>, where <code class="docutils literal notranslate"><span class="pre">num-left-chunks</span></code> is the option used
-to train this model. For <code class="docutils literal notranslate"><span class="pre">simulate</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code> the <code class="docutils literal notranslate"><span class="pre">left-context</span></code> is used to generate
-the attention mask.</p>
+<div><p>It is same as in <code class="docutils literal notranslate"><span class="pre">train.py</span></code>, which specifies the chunk size for decoding (in frames before subsampling).
+The default value is 32 (i.e., 320ms).</p>
 </div></blockquote>
 </div></blockquote>
 <p>The following shows two examples (for the two types of checkpoints):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">25</span> <span class="m">20</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">7</span> <span class="m">5</span> <span class="m">3</span> <span class="m">1</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless4/decode.py <span class="se">\</span>
+  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">30</span><span class="p">;</span> <span class="k">do</span>
+    <span class="k">for</span> avg <span class="k">in</span> <span class="m">12</span> <span class="m">11</span> <span class="m">10</span> <span class="m">9</span> <span class="m">8</span><span class="p">;</span> <span class="k">do</span>
+      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
         --epoch <span class="nv">$epoch</span> <span class="se">\</span>
         --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --simulate-streaming <span class="m">1</span> <span class="se">\</span>
-        --causal-convolution <span class="m">1</span> <span class="se">\</span>
-        --decode-chunk-size <span class="m">16</span> <span class="se">\</span>
-        --left-context <span class="m">64</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless4/exp <span class="se">\</span>
+        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
         --max-duration <span class="m">600</span> <span class="se">\</span>
         --decoding-method <span class="nv">$m</span>
     <span class="k">done</span>
@@ -546,14 +470,11 @@ the attention mask.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
   <span class="k">for</span> iter <span class="k">in</span> <span class="m">474000</span><span class="p">;</span> <span class="k">do</span>
     <span class="k">for</span> avg <span class="k">in</span> <span class="m">8</span> <span class="m">10</span> <span class="m">12</span> <span class="m">14</span> <span class="m">16</span> <span class="m">18</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless4/decode.py <span class="se">\</span>
+      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
         --iter <span class="nv">$iter</span> <span class="se">\</span>
         --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --simulate-streaming <span class="m">1</span> <span class="se">\</span>
-        --causal-convolution <span class="m">1</span> <span class="se">\</span>
-        --decode-chunk-size <span class="m">16</span> <span class="se">\</span>
-        --left-context <span class="m">64</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless4/exp <span class="se">\</span>
+        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
         --max-duration <span class="m">600</span> <span class="se">\</span>
         --decoding-method <span class="nv">$m</span>
     <span class="k">done</span>
@@ -565,24 +486,17 @@ the attention mask.</p>
 <section id="real-streaming-decoding">
 <h3>Real streaming decoding<a class="headerlink" href="#real-streaming-decoding" title="Permalink to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless4/streaming_decode.py --help
+$ ./pruned_transducer_stateless7_streaming/streaming_decode.py --help
 </pre></div>
 </div>
 <p>shows the options for decoding.
 The following options are important for streaming models:</p>
 <blockquote>
-<div><p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-size</span></code></p>
+<div><p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code></p>
 <blockquote>
-<div><p>For streaming models, we will calculate the chunk-wise attention, <code class="docutils literal notranslate"><span class="pre">--decode-chunk-size</span></code>
-indicates the chunk length (in frames after subsampling) for chunk-wise attention.
-For <code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code>, we will process <code class="docutils literal notranslate"><span class="pre">decode-chunk-size</span></code> acoustic frames at each time.</p>
-</div></blockquote>
-<p><code class="docutils literal notranslate"><span class="pre">--left-context</span></code></p>
-<blockquote>
-<div><p><code class="docutils literal notranslate"><span class="pre">--left-context</span></code> indicates how many left context frames (after subsampling) can be seen
-for current chunk when calculating chunk-wise attention. Normally, <code class="docutils literal notranslate"><span class="pre">left-context</span></code> should equal
-to <code class="docutils literal notranslate"><span class="pre">decode-chunk-size</span> <span class="pre">*</span> <span class="pre">num-left-chunks</span></code>, where <code class="docutils literal notranslate"><span class="pre">num-left-chunks</span></code> is the option used
-to train this model.</p>
+<div><p>It is same as in <code class="docutils literal notranslate"><span class="pre">train.py</span></code>, which specifies the chunk size for decoding (in frames before subsampling).
+The default value is 32 (i.e., 320ms).
+For <code class="docutils literal notranslate"><span class="pre">real</span> <span class="pre">streaming</span> <span class="pre">decoding</span></code>, we will process <code class="docutils literal notranslate"><span class="pre">decode-chunk-len</span></code> acoustic frames at each time.</p>
 </div></blockquote>
 <p><code class="docutils literal notranslate"><span class="pre">--num-decode-streams</span></code></p>
 <blockquote>
@@ -592,24 +506,16 @@ For <code class="docutils literal notranslate"><span class="pre">real</span> <sp
 suppose sequence 1 and 2 are done, so, sequence 3 to 12 will be processed parallelly in a batch.</p>
 </div></blockquote>
 </div></blockquote>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We also try adding <code class="docutils literal notranslate"><span class="pre">--right-context</span></code> in the real streaming decoding, but it seems not to benefit
-the performance for all the models, the reasons might be the training and decoding mismatch. You
-can try decoding with <code class="docutils literal notranslate"><span class="pre">--right-context</span></code> to see if it helps. The default value is 0.</p>
-</div>
 <p>The following shows two examples (for the two types of checkpoints):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">25</span> <span class="m">20</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">7</span> <span class="m">5</span> <span class="m">3</span> <span class="m">1</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless4/decode.py <span class="se">\</span>
+  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">30</span><span class="p">;</span> <span class="k">do</span>
+    <span class="k">for</span> avg <span class="k">in</span> <span class="m">12</span> <span class="m">11</span> <span class="m">10</span> <span class="m">9</span> <span class="m">8</span><span class="p">;</span> <span class="k">do</span>
+      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
         --epoch <span class="nv">$epoch</span> <span class="se">\</span>
         --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-size <span class="m">16</span> <span class="se">\</span>
-        --left-context <span class="m">64</span> <span class="se">\</span>
+        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
         --num-decode-streams <span class="m">100</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless4/exp <span class="se">\</span>
-        --max-duration <span class="m">600</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
         --decoding-method <span class="nv">$m</span>
     <span class="k">done</span>
   <span class="k">done</span>
@@ -619,14 +525,12 @@ can try decoding with <code class="docutils literal notranslate"><span class="pr
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
   <span class="k">for</span> iter <span class="k">in</span> <span class="m">474000</span><span class="p">;</span> <span class="k">do</span>
     <span class="k">for</span> avg <span class="k">in</span> <span class="m">8</span> <span class="m">10</span> <span class="m">12</span> <span class="m">14</span> <span class="m">16</span> <span class="m">18</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless4/decode.py <span class="se">\</span>
+      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
         --iter <span class="nv">$iter</span> <span class="se">\</span>
         --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-size <span class="m">16</span> <span class="se">\</span>
-        --left-context <span class="m">64</span> <span class="se">\</span>
+        --decode-chunk-len <span class="m">16</span> <span class="se">\</span>
         --num-decode-streams <span class="m">100</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless4/exp <span class="se">\</span>
-        --max-duration <span class="m">600</span> <span class="se">\</span>
+        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
         --decoding-method <span class="nv">$m</span>
     <span class="k">done</span>
   <span class="k">done</span>
@@ -691,53 +595,47 @@ you can implement them by yourself or file a issue in <a class="reference extern
 </section>
 <section id="export-model">
 <h2>Export Model<a class="headerlink" href="#export-model" title="Permalink to this heading"></a></h2>
-<p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless4/export.py">pruned_transducer_stateless4/export.py</a> supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/exp</span></code> in the following ways.</p>
+<p>Currently it supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/exp</span></code> in the following ways.</p>
 <section id="export-model-state-dict">
 <h3>Export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code><a class="headerlink" href="#export-model-state-dict" title="Permalink to this heading"></a></h3>
-<p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/train.py</span></code> also include
+<p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/train.py</span></code> also include
 <code class="docutils literal notranslate"><span class="pre">optimizer.state_dict()</span></code>. It is useful for resuming training. But after training,
 we are interested only in <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>. You can use the following
 command to extract <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Assume that --epoch 25 --avg 3 produces the smallest WER</span>
-<span class="c1"># (You can get such information after running ./pruned_transducer_stateless4/decode.py)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Assume that --epoch 30 --avg 9 produces the smallest WER</span>
+<span class="c1"># (You can get such information after running ./pruned_transducer_stateless7_streaming/decode.py)</span>
 
-<span class="nv">epoch</span><span class="o">=</span><span class="m">25</span>
-<span class="nv">avg</span><span class="o">=</span><span class="m">3</span>
+<span class="nv">epoch</span><span class="o">=</span><span class="m">30</span>
+<span class="nv">avg</span><span class="o">=</span><span class="m">9</span>
 
-./pruned_transducer_stateless4/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless4/exp <span class="se">\</span>
-  --streaming-model <span class="m">1</span> <span class="se">\</span>
-  --causal-convolution <span class="m">1</span> <span class="se">\</span>
+./pruned_transducer_stateless7_streaming/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
   --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
   --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-  --avg  <span class="nv">$avg</span>
+  --avg  <span class="nv">$avg</span> <span class="se">\</span>
+  --use-averaged-model<span class="o">=</span>True <span class="se">\</span>
+  --decode-chunk-len <span class="m">32</span>
 </pre></div>
 </div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p><code class="docutils literal notranslate"><span class="pre">--streaming-model</span></code> and <code class="docutils literal notranslate"><span class="pre">--causal-convolution</span></code> require to be True to export
-a streaming mdoel.</p>
-</div>
-<p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/exp/pretrained.pt</span></code>.</p>
+<p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/pretrained.pt</span></code>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless4/decode.py</span></code>,
+<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/decode.py</span></code>,
 you can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless4/exp
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp
 ln -s pretrained.pt epoch-999.pt
 </pre></div>
 </div>
 <p>And then pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">999</span> <span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code> to
-<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/decode.py</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/decode.py</span></code>.</p>
 </div>
-<p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless4/pretrained.py</span></code>, you
+<p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/pretrained.py</span></code>, you
 can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless4/pretrained.py <span class="se">\</span>
-  --checkpoint ./pruned_transducer_stateless4/exp/pretrained.pt <span class="se">\</span>
-  --simulate-streaming <span class="m">1</span> <span class="se">\</span>
-  --causal-convolution <span class="m">1</span> <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/pretrained.py <span class="se">\</span>
+  --checkpoint ./pruned_transducer_stateless7_streaming/exp/pretrained.pt <span class="se">\</span>
   --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
   --method greedy_search <span class="se">\</span>
+  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
   /path/to/foo.wav <span class="se">\</span>
   /path/to/bar.wav
 </pre></div>
@@ -745,28 +643,59 @@ can run:</p>
 </section>
 <section id="export-model-using-torch-jit-script">
 <h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless4/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless4/exp <span class="se">\</span>
-  --streaming-model <span class="m">1</span> <span class="se">\</span>
-  --causal-convolution <span class="m">1</span> <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export.py <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
   --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --epoch <span class="m">25</span> <span class="se">\</span>
-  --avg <span class="m">3</span> <span class="se">\</span>
+  --epoch <span class="m">30</span> <span class="se">\</span>
+  --avg <span class="m">9</span> <span class="se">\</span>
+  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
   --jit <span class="m">1</span>
 </pre></div>
 </div>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p><code class="docutils literal notranslate"><span class="pre">--streaming-model</span></code> and <code class="docutils literal notranslate"><span class="pre">--causal-convolution</span></code> require to be True to export
-a streaming mdoel.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code> is required to export a ScriptModule.</p>
 </div>
 <p>It will generate a file <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> in the given <code class="docutils literal notranslate"><span class="pre">exp_dir</span></code>. You can later
 load it by <code class="docutils literal notranslate"><span class="pre">torch.jit.load(&quot;cpu_jit.pt&quot;)</span></code>.</p>
 <p>Note <code class="docutils literal notranslate"><span class="pre">cpu</span></code> in the name <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> means the parameters when loaded into Python
 are on CPU. You can use <code class="docutils literal notranslate"><span class="pre">to(&quot;cuda&quot;)</span></code> to move them to a CUDA device.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>You will need this <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> when deploying with Sherpa framework.</p>
+</section>
+<section id="export-model-using-torch-jit-trace">
+<h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code><a class="headerlink" href="#export-model-using-torch-jit-trace" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">epoch</span><span class="o">=</span><span class="m">30</span>
+<span class="nv">avg</span><span class="o">=</span><span class="m">9</span>
+
+./pruned_transducer_stateless7_streaming/jit_trace_export.py <span class="se">\</span>
+  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --use-averaged-model<span class="o">=</span>True <span class="se">\</span>
+  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
+  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
+  --epoch <span class="nv">$epoch</span> <span class="se">\</span>
+  --avg <span class="nv">$avg</span>
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code> is required to export a ScriptModule.</p>
+</div>
+<p>It will generate 3 files:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/encoder_jit_trace.pt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/decoder_jit_trace.pt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/joiner_jit_trace.pt</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>To use the generated files with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/jit_trace_pretrained.py</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/jit_trace_pretrained.py <span class="se">\</span>
+  --encoder-model-filename ./pruned_transducer_stateless7_streaming/exp/encoder_jit_trace.pt <span class="se">\</span>
+  --decoder-model-filename ./pruned_transducer_stateless7_streaming/exp/decoder_jit_trace.pt <span class="se">\</span>
+  --joiner-model-filename ./pruned_transducer_stateless7_streaming/exp/joiner_jit_trace.pt <span class="se">\</span>
+  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
+  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
+  /path/to/foo.wav
+</pre></div>
 </div>
 </section>
 </section>
@@ -776,10 +705,7 @@ are on CPU. You can use <code class="docutils literal notranslate"><span class="
 by visiting the following links:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><a class="reference external" href="https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless_20220625">pruned_transducer_stateless</a></p></li>
-<li><p><a class="reference external" href="https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless2_20220625">pruned_transducer_stateless2</a></p></li>
-<li><p><a class="reference external" href="https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless4_20220625">pruned_transducer_stateless4</a></p></li>
-<li><p><a class="reference external" href="https://huggingface.co/pkufool/icefall_librispeech_streaming_pruned_transducer_stateless5_20220729">pruned_transducer_stateless5</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29">pruned_transducer_stateless7_streaming</a></p></li>
 </ul>
 <p>See <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md</a>
 for the details of the above pretrained models</p>
@@ -796,8 +722,8 @@ for how to deploy the models in <code class="docutils literal notranslate"><span
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="LibriSpeech" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="lstm_pruned_stateless_transducer.html" class="btn btn-neutral float-right" title="LSTM Transducer" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="lstm_pruned_stateless_transducer.html" class="btn btn-neutral float-left" title="LSTM Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
