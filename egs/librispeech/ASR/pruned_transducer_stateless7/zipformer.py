@@ -462,11 +462,6 @@ class ZipformerEncoderLayer(nn.Module):
             min_abs=1.0, max_abs=4.0,
         )
 
-
-
-
-
-
         # balancer for output of NonlinAttentionModule
         self.balancer_na = Balancer(
             embed_dim, channel_dim=-1,
