@@ -1869,9 +1869,9 @@ class Conv2dSubsampling(nn.Module):
             SwooshR(),
         )
 
-        self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels, kernel_size=(5, 5)),
-                                       ConvNeXt(layer3_channels, kernel_size=(5, 5)),
-                                       ConvNeXt(layer3_channels, kernel_size=(5, 5)))
+        self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels, kernel_size=(7, 7)),
+                                       ConvNeXt(layer3_channels, kernel_size=(7, 7)),
+                                       ConvNeXt(layer3_channels, kernel_size=(7, 7)))
 
         out_width = (((in_channels - 1) // 2) - 1) // 2
 
