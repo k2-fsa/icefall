@@ -459,7 +459,7 @@ class ZipformerEncoderLayer(nn.Module):
         self.balancer1 = Balancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
-            min_abs=1.0, max_abs=4.0,
+            min_abs=0.2, max_abs=4.0,
         )
 
         # balancer for output of NonlinAttentionModule
@@ -1878,7 +1878,10 @@ class Conv2dSubsampling(nn.Module):
                                  prob=(0.025, 0.25),
                                  grad_scale=0.02)
 
-        self.out_norm = BasicNorm(out_channels)
+        # max_log_eps=0.0 is to prevent both eps and the output of self.out from
+        # getting large, there is an unnecessary degree of freedom.
+        self.out_norm = BasicNorm(out_channels, eps=1.0,
+                                  min_log_eps=-0.1, max_log_eps=0.0)
         self.dropout = Dropout2(dropout)
 
 

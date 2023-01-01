@@ -1390,6 +1390,7 @@ class LimitParamValue(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor, min: float, max: float):
         ctx.save_for_backward(x)
+        assert max >= min
         ctx.min = min
         ctx.max = max
         return x
