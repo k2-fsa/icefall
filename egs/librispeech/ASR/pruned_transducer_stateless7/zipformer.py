@@ -439,11 +439,11 @@ class ZipformerEncoderLayer(nn.Module):
                                         value_head_dim)
 
         self.feed_forward1 = FeedforwardModule(embed_dim,
-                                               feedforward_dim,
+                                               (feedforward_dim * 3) // 4,
                                                dropout)
 
         self.feed_forward2 = FeedforwardModule(embed_dim,
-                                               feedforward_dim,
+                                               (feedforward_dim * 5) // 4,
                                                dropout)
 
         self.nonlin_attention = NonlinAttention(embed_dim,
