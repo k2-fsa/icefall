@@ -1881,7 +1881,7 @@ class Conv2dSubsampling(nn.Module):
         # max_log_eps=0.0 is to prevent both eps and the output of self.out from
         # getting large, there is an unnecessary degree of freedom.
         self.out_norm = BasicNorm(out_channels, eps=1.0,
-                                  min_log_eps=-0.1, max_log_eps=0.0)
+                                  log_eps_min=-0.1, log_eps_max=0.0)
         self.dropout = Dropout2(dropout)
 
 
