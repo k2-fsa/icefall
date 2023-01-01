@@ -403,8 +403,9 @@ class ZipformerEncoderLayer(nn.Module):
             # to work correctly.
             layer_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
             attention_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
-            conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
+            conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.01), default=0),
             const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
+            ff2_skip_rate: FloatLike = 0.01,
             bypass_min: FloatLike = ScheduledFloat((0.0, 0.75), (20000.0, 0.2), default=0),
             bypass_max: FloatLike = 1.0,
     ) -> None:
@@ -418,6 +419,9 @@ class ZipformerEncoderLayer(nn.Module):
         # an additional skip probability that applies to ConvModule to stop it from
         # contributing too much early on.
         self.conv_skip_rate = copy.deepcopy(conv_skip_rate)
+        # ff2_skip_rate is to prevent the ff2 module from having output that's too big
+        # compared to its residual.
+        self.ff2_skip_rate = copy.deepcopy(ff2_skip_rate)
 
         # min and max for self.bypass_scale, applied with probability 0.5 to avoid grads
         # ever becoming zero.
@@ -603,7 +607,8 @@ class ZipformerEncoderLayer(nn.Module):
         if torch.jit.is_scripting() or random.random() >=  float(self.conv_skip_rate):
             src = src + self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.balancer_ff2(self.feed_forward2(src))
+        if torch.jit.is_scripting() or random.random() >=  float(self.ff2_skip_rate):
+            src = src + self.balancer_ff2(self.feed_forward2(src))
 
         src = self.balancer1(src)
         src = self.norm(src)
@@ -1694,10 +1699,10 @@ class ConvNeXt(nn.Module):
     def __init__(self,
                  channels: int,
                  hidden_ratio: int = 3,
+                 kernel_size: Tuple[int, int] = (7, 7),
                  layerdrop_rate: FloatLike = None):
         super().__init__()
-        kernel_size = 7
-        pad = (kernel_size - 1) // 2
+        padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
         hidden_channels = channels * hidden_ratio
         if layerdrop_rate is None:
             layerdrop_rate = ScheduledFloat((0.0, 0.2), (20000.0, 0.015))
@@ -1707,8 +1712,8 @@ class ConvNeXt(nn.Module):
             in_channels=channels,
             out_channels=channels,
             groups=channels,
-            kernel_size=7,
-            padding=(3, 3))
+            kernel_size=kernel_size,
+            padding=padding)
 
         self.pointwise_conv1 = nn.Conv2d(
             in_channels=channels,
@@ -1837,8 +1842,8 @@ class Conv2dSubsampling(nn.Module):
             SwooshR(),
         )
 
-        self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels),
-                                       ConvNeXt(layer2_channels),
+        self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels, kernel_size=(5, 5)),
+                                       ConvNeXt(layer2_channels, kernel_size=(5, 5)),
                                        BasicNorm(layer2_channels,
                                                  channel_dim=1))
 
@@ -1859,9 +1864,9 @@ class Conv2dSubsampling(nn.Module):
             SwooshR(),
         )
 
-        self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels),
-                                       ConvNeXt(layer3_channels),
-                                       ConvNeXt(layer3_channels))
+        self.convnext2 = nn.Sequential(ConvNeXt(layer3_channels, kernel_size=(7, 7)),
+                                       ConvNeXt(layer3_channels, kernel_size=(7, 7)),
+                                       ConvNeXt(layer3_channels, kernel_size=(7, 7)))
 
         out_width = (((in_channels - 1) // 2) - 1) // 2
 
