@@ -1336,7 +1336,7 @@ class AttentionSqueeze(nn.Module):
         self.to_bottleneck_proj = nn.Linear(embed_dim,
                                             bottleneck_dim)
 
-        # bottleneck_balancer is before the actiation.  Mostly, for well-trained
+        # bottleneck_balancer is before the activation.  Mostly, for well-trained
         # instances of this module, the mean absolute values per channel are in
         # the range 0.1 to 0.4.  We apply the upper limit of 0.4 at the
         # beginning, and make it looser over time.
