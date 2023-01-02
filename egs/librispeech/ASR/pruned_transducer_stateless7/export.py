@@ -385,8 +385,6 @@ def export_joiner_model_onnx(
         dynamic_axes={
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
-            "projected_encoder_out": {0: "N"},
-            "projected_decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
     )
