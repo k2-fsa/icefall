@@ -51,6 +51,15 @@ log "Export to torchscript model"
 ls -lh $repo/exp/*.pt
 
 log "Decode with ONNX models"
+
+./pruned_transducer_stateless7/onnx_check.py \
+  --jit-filename $repo/exp/cpu_jit.pt \
+  --onnx-encoder-filename $repo/exp/encoder.onnx \
+  --onnx-decoder-filename $repo/exp/decoder.onnx \
+  --onnx-joiner-filename $repo/exp/joiner.onnx \
+  --onnx-joiner-encoder-proj-filename $repo/exp/joiner_encoder_proj.onnx \
+  --onnx-joiner-decoder-proj-filename $repo/exp/joiner_decoder_proj.onnx
+
 ./pruned_transducer_stateless7/onnx_pretrained.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --encoder-model-filename $repo/exp/encoder.onnx \
