@@ -1469,8 +1469,7 @@ class PoolingModule(nn.Module):
         """
         if key_padding_mask is not None:
             if torch.jit.is_tracing():
-                temp_not = torch.zeros_like(key_padding_mask, dtype=torch.bool)
-                pooling_mask = (key_padding_mask == temp_not).to(x.dtype)  # (N, T)
+                pooling_mask = (~key_padding_mask).to(x.dtype)
             else:
                 pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
             pooling_mask = pooling_mask / pooling_mask.sum(dim=1, keepdim=True)
