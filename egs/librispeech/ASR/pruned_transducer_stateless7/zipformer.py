@@ -667,7 +667,7 @@ class ZipformerEncoder(nn.Module):
         output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
-            if not torch.jit.is_scripting() or torch.jit.is_tracing():
+            if not torch.jit.is_scripting() and not torch.jit.is_tracing():
                 if i in layers_to_drop:
                     continue
             output = mod(
@@ -864,7 +864,7 @@ class SimpleCombiner(torch.nn.Module):
         assert src1.shape[:-1] == src2.shape[:-1], (src1.shape, src2.shape)
 
         weight1 = self.weight1
-        if not torch.jit.is_scripting() or torch.jit.is_tracing():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if (
                 self.training
                 and random.random() < 0.25
@@ -1282,7 +1282,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
 
-        if not torch.jit.is_scripting() or torch.jit.is_tracing():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if training and random.random() < 0.1:
                 # This is a harder way of limiting the attention scores to not be too large.
                 # It incurs a penalty if any of them has an absolute value greater than 50.0.
@@ -1393,7 +1393,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # now v: (bsz * num_heads, seq_len, head_dim // 2)
         attn_output = torch.bmm(attn_weights, v)
 
-        if not torch.jit.is_scripting() or torch.jit.is_tracing():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if random.random() < 0.001 or __name__ == "__main__":
                 self._print_attn_stats(attn_weights, attn_output)
 
