@@ -403,7 +403,7 @@ class ZipformerEncoderLayer(nn.Module):
             # to work correctly.
             layer_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.05), default=0),
             attention_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
-            small_conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.3), (4000.0, 0.1), (16000, 0.05), default=0),
+            small_conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.2), (16000, 0.1), default=0),
             conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
             const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
             ff2_skip_rate: FloatLike = 0.01,
