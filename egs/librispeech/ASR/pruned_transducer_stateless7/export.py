@@ -251,8 +251,8 @@ def export_encoder_model_onnx(
       opset_version:
         The opset version to use.
     """
-    x = torch.zeros(1, 100, 80, dtype=torch.float32)
-    x_lens = torch.tensor([100], dtype=torch.int64)
+    x = torch.zeros(1, 101, 80, dtype=torch.float32)
+    x_lens = torch.tensor([101], dtype=torch.int64)
 
     #  encoder_model = torch.jit.script(encoder_model)
     # It throws the following error for the above statement
@@ -383,6 +383,8 @@ def export_joiner_model_onnx(
         ],
         output_names=["logit"],
         dynamic_axes={
+            "encoder_out": {0: "N"},
+            "decoder_out": {0: "N"},
             "projected_encoder_out": {0: "N"},
             "projected_decoder_out": {0: "N"},
             "logit": {0: "N"},
