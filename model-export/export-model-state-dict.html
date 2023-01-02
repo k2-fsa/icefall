@@ -123,13 +123,13 @@ as an example.</p>
 <p class="admonition-title">Note</p>
 <p>The steps for other recipes are almost the same.</p>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 
-./pruned_transducer_stateless3/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless3/exp <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --epoch <span class="m">20</span> <span class="se">\</span>
-  --avg <span class="m">10</span>
+./pruned_transducer_stateless3/export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless3/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">10</span>
 </pre></div>
 </div>
 <p>will generate a file <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless3/exp/pretrained.pt</span></code>, which
@@ -141,10 +141,10 @@ is a dict containing <code class="docutils literal notranslate"><span class="pre
 You can find links to pretrained models in <code class="docutils literal notranslate"><span class="pre">RESULTS.md</span></code> of each dataset.</p>
 <p>In the following, we demonstrate how to use the pretrained model from
 <a class="reference external" href="https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13">https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13</a>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 
-git lfs install
-git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
 </pre></div>
 </div>
 <p>After cloning the repo with <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code>, you will find several files in the folder
@@ -153,15 +153,15 @@ that have a prefix <code class="docutils literal notranslate"><span class="pre">
 exported by the above <code class="docutils literal notranslate"><span class="pre">export.py</span></code>.</p>
 <p>In each recipe, there is also a file <code class="docutils literal notranslate"><span class="pre">pretrained.py</span></code>, which can use
 <code class="docutils literal notranslate"><span class="pre">pretrained-xxx.pt</span></code> to decode waves. The following is an example:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 
-./pruned_transducer_stateless3/pretrained.py <span class="se">\</span>
-   --checkpoint ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/pretrained-iter-1224000-avg-14.pt <span class="se">\</span>
-   --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/bpe.model <span class="se">\</span>
-   --method greedy_search <span class="se">\</span>
-   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav <span class="se">\</span>
-   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav <span class="se">\</span>
-   ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0002.wav
+./pruned_transducer_stateless3/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--checkpoint<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/pretrained-iter-1224000-avg-14.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--method<span class="w"> </span>greedy_search<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0002.wav
 </pre></div>
 </div>
 <p>The above commands show how to use the exported model with <code class="docutils literal notranslate"><span class="pre">pretrained.py</span></code> to
@@ -195,25 +195,25 @@ decode multiple sound files. Its output is given as follows for reference:</p>
 <p>When we publish the model, we always note down its WERs on some test
 dataset in <code class="docutils literal notranslate"><span class="pre">RESULTS.md</span></code>. This section describes how to use the
 pretrained model to reproduce the WER.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
-git lfs install
-git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+git<span class="w"> </span>lfs<span class="w"> </span>install
+git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
 
-<span class="nb">cd</span> icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp
-ln -s pretrained-iter-1224000-avg-14.pt epoch-9999.pt
-<span class="nb">cd</span> ../..
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp
+ln<span class="w"> </span>-s<span class="w"> </span>pretrained-iter-1224000-avg-14.pt<span class="w"> </span>epoch-9999.pt
+<span class="nb">cd</span><span class="w"> </span>../..
 </pre></div>
 </div>
 <p>We create a symlink with name <code class="docutils literal notranslate"><span class="pre">epoch-9999.pt</span></code> to <code class="docutils literal notranslate"><span class="pre">pretrained-iter-1224000-avg-14.pt</span></code>,
 so that we can pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">9999</span> <span class="pre">--avg</span> <span class="pre">1</span></code> to <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> in the following
 command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless3/decode.py <span class="se">\</span>
-    --epoch <span class="m">9999</span> <span class="se">\</span>
-    --avg <span class="m">1</span> <span class="se">\</span>
-    --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp <span class="se">\</span>
-    --lang-dir ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500 <span class="se">\</span>
-    --max-duration <span class="m">600</span> <span class="se">\</span>
-    --decoding-method greedy_search
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless3/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">9999</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lang-dir<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
 </pre></div>
 </div>
 <p>You will find the decoding results in

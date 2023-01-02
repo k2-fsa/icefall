@@ -130,8 +130,8 @@ the environment for <code class="docutils literal notranslate"><span class="pre"
 </div></blockquote>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
@@ -146,13 +146,13 @@ options:</p>
 </div></blockquote>
 <p>to control which stage(s) should be run. By default, all stages are executed.</p>
 <p>For example,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span>
 </pre></div>
 </div>
 <p>means to run only stage 0.</p>
 <p>To run stage 2 to stage 5, use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 <div class="admonition hint">
@@ -167,8 +167,8 @@ the <code class="docutils literal notranslate"><span class="pre">dl_dir</span></
 <p class="admonition-title">Hint</p>
 <p>A 3-gram language model will be downloaded from huggingface, we assume you have
 intalled and initialized <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code>. If not, you could install <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code> by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ sudo apt-get install git-lfs
-$ git-lfs install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>git-lfs
+$<span class="w"> </span>git-lfs<span class="w"> </span>install
 </pre></div>
 </div>
 <p>If you don’t have the <code class="docutils literal notranslate"><span class="pre">sudo</span></code> permission, you could download the
@@ -184,8 +184,8 @@ are saved in <code class="docutils literal notranslate"><span class="pre">./data
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
 <section id="configurable-options">
 <h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./tdnn_lstm_ctc/train.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -223,26 +223,26 @@ training from epoch 10, based on the state from epoch 9.</p>
 <div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
 GPU 2 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">2</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">4</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">1</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -295,7 +295,7 @@ You will find the following files in that directory:</p>
 <p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_lstm_ctc/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -304,8 +304,8 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains TensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> tdnn_lstm_ctc/exp/tensorboard
-$ tensorboard dev upload --logdir . --description <span class="s2">&quot;TDNN-LSTM CTC training for Aishell with icefall&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tdnn_lstm_ctc/exp/tensorboard
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;TDNN-LSTM CTC training for Aishell with icefall&quot;</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -347,17 +347,17 @@ you saw printed to the console during training.</p>
 <p>The following shows typical use cases:</p>
 <section id="case-1">
 <h4><strong>Case 1</strong><a class="headerlink" href="#case-1" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
-$ ./tdnn_lstm_ctc/train.py --world-size <span class="m">2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 <p>It uses GPU 0 and GPU 3 for DDP training.</p>
 </section>
 <section id="case-2">
 <h4><strong>Case 2</strong><a class="headerlink" href="#case-2" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./tdnn_lstm_ctc/train.py --num-epochs <span class="m">10</span> --start-epoch <span class="m">3</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--num-epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">3</span>
 </pre></div>
 </div>
 <p>It loads checkpoint <code class="docutils literal notranslate"><span class="pre">./tdnn_lstm_ctc/exp/epoch-2.pt</span></code> and starts
@@ -369,8 +369,8 @@ training from epoch 3. Also, it trains for 10 epochs.</p>
 <h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./tdnn_lstm_ctc/decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./tdnn_lstm_ctc/decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.</p>
@@ -424,27 +424,27 @@ $ git clone https://huggingface.co/pkufool/icefall_asr_aishell_tdnn_lstm_ctc
 <p>In order to use this pre-trained model, your k2 version has to be v1.7 or later.</p>
 </div>
 <p>After downloading, you will have the following files:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ tree tmp
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>tree<span class="w"> </span>tmp
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/
-<span class="sb">`</span>-- icefall_asr_aishell_tdnn_lstm_ctc
-    <span class="p">|</span>-- README.md
-    <span class="p">|</span>-- data
-    <span class="p">|</span>   <span class="sb">`</span>-- lang_phone
-    <span class="p">|</span>       <span class="p">|</span>-- HLG.pt
-    <span class="p">|</span>       <span class="p">|</span>-- tokens.txt
-    <span class="p">|</span>       <span class="sb">`</span>-- words.txt
-    <span class="p">|</span>-- exp
-    <span class="p">|</span>   <span class="sb">`</span>-- pretrained.pt
-    <span class="sb">`</span>-- test_waves
-        <span class="p">|</span>-- BAC009S0764W0121.wav
-        <span class="p">|</span>-- BAC009S0764W0122.wav
-        <span class="p">|</span>-- BAC009S0764W0123.wav
-        <span class="sb">`</span>-- trans.txt
+<span class="sb">`</span>--<span class="w"> </span>icefall_asr_aishell_tdnn_lstm_ctc
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>README.md
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>data
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>lang_phone
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>HLG.pt
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>tokens.txt
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="sb">`</span>--<span class="w"> </span>words.txt
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>exp
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>pretrained.pt
+<span class="w">    </span><span class="sb">`</span>--<span class="w"> </span>test_waves
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0121.wav
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0122.wav
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0123.wav
+<span class="w">        </span><span class="sb">`</span>--<span class="w"> </span>trans.txt
 
-<span class="m">5</span> directories, <span class="m">9</span> files
+<span class="m">5</span><span class="w"> </span>directories,<span class="w"> </span><span class="m">9</span><span class="w"> </span>files
 </pre></div>
 </div>
 <p><strong>File descriptions</strong>:</p>
@@ -486,38 +486,38 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 </ul>
 </div></blockquote>
 <p>The information of the test sound files is listed below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/*.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>soxi<span class="w"> </span>tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/*.wav
 
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.20 <span class="o">=</span> <span class="m">67263</span> samples ~ <span class="m">315</span>.295 CDDA sectors
-File Size      : 135k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
-
-
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.12 <span class="o">=</span> <span class="m">65840</span> samples ~ <span class="m">308</span>.625 CDDA sectors
-File Size      : 132k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.20<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">67263</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">315</span>.295<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>135k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
 
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.00 <span class="o">=</span> <span class="m">64000</span> samples ~ <span class="m">300</span> CDDA sectors
-File Size      : 128k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.12<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">65840</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">308</span>.625<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>132k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
-Total Duration of <span class="m">3</span> files: <span class="m">00</span>:00:12.32
+
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.00<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">64000</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">300</span><span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>128k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
+
+Total<span class="w"> </span>Duration<span class="w"> </span>of<span class="w"> </span><span class="m">3</span><span class="w"> </span>files:<span class="w"> </span><span class="m">00</span>:00:12.32
 </pre></div>
 </div>
 </section>
@@ -532,15 +532,15 @@ $ ./tdnn_lstm_ctc/pretrained.py --help
 <h4>HLG decoding<a class="headerlink" href="#hlg-decoding" title="Permalink to this heading"></a></h4>
 <p>HLG decoding uses the best path of the decoding lattice as the decoding result.</p>
 <p>The command to run HLG decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./tdnn_lstm_ctc/pretrained.py <span class="se">\</span>
-  --checkpoint ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/exp/pretrained.pt <span class="se">\</span>
-  --words-file ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/words.txt <span class="se">\</span>
-  --HLG ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/HLG.pt <span class="se">\</span>
-  --method 1best <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./tdnn_lstm_ctc/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>1best<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_tdnn_lstm_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is given below:</p>

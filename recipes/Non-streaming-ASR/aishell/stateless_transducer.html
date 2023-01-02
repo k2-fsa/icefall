@@ -211,9 +211,9 @@ alternatives.</p>
 <section id="data-preparation">
 <h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
 <p>To prepare the data for training, please use the following commands:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/aishell/ASR
-./prepare.sh --stop-stage <span class="m">4</span>
-./prepare.sh --stage <span class="m">6</span> --stop-stage <span class="m">6</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+./prepare.sh<span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">4</span>
+./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">6</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">6</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -231,8 +231,8 @@ are not used in transducer training.</p>
 </section>
 <section id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/aishell/ASR
-./transducer_stateless_modified/train.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+./transducer_stateless_modified/train.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -274,26 +274,26 @@ training from epoch 10, based on the state from epoch 9.</p>
 <div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
 GPU 2 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./transducer_stateless_modified/train.py --world-size <span class="m">2</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./transducer_stateless_modified/train.py --world-size <span class="m">4</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./transducer_stateless_modified/train.py --world-size <span class="m">1</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -358,7 +358,7 @@ Each epoch actually processes <code class="docutils literal notranslate"><span c
 <p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./transducer_stateless_modified/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -367,8 +367,8 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains TensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> transducer_stateless_modified/exp/tensorboard
-$ tensorboard dev upload --logdir . --name <span class="s2">&quot;Aishell transducer training with icefall&quot;</span> --description <span class="s2">&quot;Training modified transducer, see https://github.com/k2-fsa/icefall/pull/219&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>transducer_stateless_modified/exp/tensorboard
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--name<span class="w"> </span><span class="s2">&quot;Aishell transducer training with icefall&quot;</span><span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Training modified transducer, see https://github.com/k2-fsa/icefall/pull/219&quot;</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -410,25 +410,25 @@ you saw printed to the console during training.</p>
 <p>The following shows typical use cases:</p>
 <section id="case-1">
 <h4><strong>Case 1</strong><a class="headerlink" href="#case-1" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./transducer_stateless_modified/train.py --max-duration <span class="m">250</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--max-duration<span class="w"> </span><span class="m">250</span>
 </pre></div>
 </div>
 <p>It uses <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> of 250 to avoid OOM.</p>
 </section>
 <section id="case-2">
 <h4><strong>Case 2</strong><a class="headerlink" href="#case-2" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
-$ ./transducer_stateless_modified/train.py --world-size <span class="m">2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 <p>It uses GPU 0 and GPU 3 for DDP training.</p>
 </section>
 <section id="case-3">
 <h4><strong>Case 3</strong><a class="headerlink" href="#case-3" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./transducer_stateless_modified/train.py --num-epochs <span class="m">10</span> --start-epoch <span class="m">3</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./transducer_stateless_modified/train.py<span class="w"> </span>--num-epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">3</span>
 </pre></div>
 </div>
 <p>It loads checkpoint <code class="docutils literal notranslate"><span class="pre">./transducer_stateless_modified/exp/epoch-2.pt</span></code> and starts
@@ -440,8 +440,8 @@ training from epoch 3. Also, it trains for 10 epochs.</p>
 <h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./transducer_stateless_modified/decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./transducer_stateless_modified/decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.</p>
@@ -539,34 +539,34 @@ $ git clone https://huggingface.co/csukuangfj/icefall-aishell-transducer-statele
 <p>You have to use <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">lfs</span></code> to download the pre-trained model.</p>
 </div>
 <p>After downloading, you will have the following files:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ tree tmp/icefall-aishell-transducer-stateless-modified-2022-03-01
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>tree<span class="w"> </span>tmp/icefall-aishell-transducer-stateless-modified-2022-03-01
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/
-<span class="p">|</span>-- README.md
-<span class="p">|</span>-- data
-<span class="p">|</span>   <span class="sb">`</span>-- lang_char
-<span class="p">|</span>       <span class="p">|</span>-- L.pt
-<span class="p">|</span>       <span class="p">|</span>-- lexicon.txt
-<span class="p">|</span>       <span class="p">|</span>-- tokens.txt
-<span class="p">|</span>       <span class="sb">`</span>-- words.txt
-<span class="p">|</span>-- exp
-<span class="p">|</span>   <span class="sb">`</span>-- pretrained.pt
-<span class="p">|</span>-- log
-<span class="p">|</span>   <span class="p">|</span>-- errs-test-beam_4-epoch-64-avg-33-beam-4.txt
-<span class="p">|</span>   <span class="p">|</span>-- errs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
-<span class="p">|</span>   <span class="p">|</span>-- log-decode-epoch-64-avg-33-beam-4-2022-03-02-12-05-03
-<span class="p">|</span>   <span class="p">|</span>-- log-decode-epoch-64-avg-33-context-2-max-sym-per-frame-1-2022-02-28-18-13-07
-<span class="p">|</span>   <span class="p">|</span>-- recogs-test-beam_4-epoch-64-avg-33-beam-4.txt
-<span class="p">|</span>   <span class="sb">`</span>-- recogs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
-<span class="sb">`</span>-- test_wavs
-    <span class="p">|</span>-- BAC009S0764W0121.wav
-    <span class="p">|</span>-- BAC009S0764W0122.wav
-    <span class="p">|</span>-- BAC009S0764W0123.wav
-    <span class="sb">`</span>-- transcript.txt
+<span class="p">|</span>--<span class="w"> </span>README.md
+<span class="p">|</span>--<span class="w"> </span>data
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>lang_char
+<span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>L.pt
+<span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>lexicon.txt
+<span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>tokens.txt
+<span class="p">|</span><span class="w">       </span><span class="sb">`</span>--<span class="w"> </span>words.txt
+<span class="p">|</span>--<span class="w"> </span>exp
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>pretrained.pt
+<span class="p">|</span>--<span class="w"> </span>log
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>errs-test-beam_4-epoch-64-avg-33-beam-4.txt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>errs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>log-decode-epoch-64-avg-33-beam-4-2022-03-02-12-05-03
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>log-decode-epoch-64-avg-33-context-2-max-sym-per-frame-1-2022-02-28-18-13-07
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>recogs-test-beam_4-epoch-64-avg-33-beam-4.txt
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>recogs-test-greedy_search-epoch-64-avg-33-context-2-max-sym-per-frame-1.txt
+<span class="sb">`</span>--<span class="w"> </span>test_wavs
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0121.wav
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0122.wav
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0123.wav
+<span class="w">    </span><span class="sb">`</span>--<span class="w"> </span>transcript.txt
 
-<span class="m">5</span> directories, <span class="m">16</span> files
+<span class="m">5</span><span class="w"> </span>directories,<span class="w"> </span><span class="m">16</span><span class="w"> </span>files
 </pre></div>
 </div>
 <p><strong>File descriptions</strong>:</p>
@@ -595,38 +595,38 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 </ul>
 </div></blockquote>
 <p>The information of the test sound files is listed below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>soxi<span class="w"> </span>tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/*.wav
 
-Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.20 <span class="o">=</span> <span class="m">67263</span> samples ~ <span class="m">315</span>.295 CDDA sectors
-File Size      : 135k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
-
-
-Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.12 <span class="o">=</span> <span class="m">65840</span> samples ~ <span class="m">308</span>.625 CDDA sectors
-File Size      : 132k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.20<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">67263</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">315</span>.295<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>135k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
 
-Input File     : <span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.00 <span class="o">=</span> <span class="m">64000</span> samples ~ <span class="m">300</span> CDDA sectors
-File Size      : 128k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.12<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">65840</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">308</span>.625<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>132k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
-Total Duration of <span class="m">3</span> files: <span class="m">00</span>:00:12.32
+
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.00<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">64000</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">300</span><span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>128k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
+
+Total<span class="w"> </span>Duration<span class="w"> </span>of<span class="w"> </span><span class="m">3</span><span class="w"> </span>files:<span class="w"> </span><span class="m">00</span>:00:12.32
 </pre></div>
 </div>
 </section>
@@ -655,14 +655,14 @@ it may give you poor results.</p>
 <section id="greedy-search">
 <h4>Greedy search<a class="headerlink" href="#greedy-search" title="Permalink to this heading"></a></h4>
 <p>The command to run greedy search is given below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
-    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
-    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
-    --method greedy_search <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./transducer_stateless_modified/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lang-dir<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--method<span class="w"> </span>greedy_search<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is as follows:</p>
@@ -692,16 +692,16 @@ $ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
 <section id="beam-search">
 <h4>Beam search<a class="headerlink" href="#beam-search" title="Permalink to this heading"></a></h4>
 <p>The command to run beam search is given below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
 
-$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
-    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
-    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
-    --method beam_search <span class="se">\</span>
-    --beam-size <span class="m">4</span> <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+$<span class="w"> </span>./transducer_stateless_modified/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lang-dir<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--method<span class="w"> </span>beam_search<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--beam-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is as follows:</p>
@@ -731,16 +731,16 @@ $ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
 <section id="modified-beam-search">
 <h4>Modified Beam search<a class="headerlink" href="#modified-beam-search" title="Permalink to this heading"></a></h4>
 <p>The command to run modified beam search is given below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
 
-$ ./transducer_stateless_modified/pretrained.py <span class="se">\</span>
-    --checkpoint ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt <span class="se">\</span>
-    --lang-dir ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char <span class="se">\</span>
-    --method modified_beam_search <span class="se">\</span>
-    --beam-size <span class="m">4</span> <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav <span class="se">\</span>
-    ./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
+$<span class="w"> </span>./transducer_stateless_modified/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--checkpoint<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lang-dir<span class="w"> </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/data/lang_char<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--method<span class="w"> </span>modified_beam_search<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--beam-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./tmp/icefall-aishell-transducer-stateless-modified-2022-03-01/test_wavs/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is as follows:</p>

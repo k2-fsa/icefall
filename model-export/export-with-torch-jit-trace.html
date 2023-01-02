@@ -111,14 +111,14 @@ as an example in the following.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">iter</span><span class="o">=</span><span class="m">468000</span>
 <span class="nv">avg</span><span class="o">=</span><span class="m">16</span>
 
-<span class="nb">cd</span> egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 
-./lstm_transducer_stateless2/export.py <span class="se">\</span>
-  --exp-dir ./lstm_transducer_stateless2/exp <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --iter <span class="nv">$iter</span> <span class="se">\</span>
-  --avg  <span class="nv">$avg</span> <span class="se">\</span>
-  --jit-trace <span class="m">1</span>
+./lstm_transducer_stateless2/export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./lstm_transducer_stateless2/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--iter<span class="w"> </span><span class="nv">$iter</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w">  </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--jit-trace<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 <p>It will generate three files inside <code class="docutils literal notranslate"><span class="pre">lstm_transducer_stateless2/exp</span></code>:</p>
@@ -132,15 +132,15 @@ as an example in the following.</p>
 <p>You can use
 <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/jit_pretrained.py">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/lstm_transducer_stateless2/jit_pretrained.py</a>
 to decode sound files with the following commands:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
-./lstm_transducer_stateless2/jit_pretrained.py <span class="se">\</span>
-  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --encoder-model-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace.pt <span class="se">\</span>
-  --decoder-model-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace.pt <span class="se">\</span>
-  --joiner-model-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace.pt <span class="se">\</span>
-  /path/to/foo.wav <span class="se">\</span>
-  /path/to/bar.wav <span class="se">\</span>
-  /path/to/baz.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+./lstm_transducer_stateless2/jit_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-model-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-model-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-model-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/joiner_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/foo.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/bar.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/baz.wav
 </pre></div>
 </div>
 </section>

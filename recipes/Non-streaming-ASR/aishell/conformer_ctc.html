@@ -130,8 +130,8 @@ the environment for <code class="docutils literal notranslate"><span class="pre"
 </div></blockquote>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
@@ -146,13 +146,13 @@ options:</p>
 </div></blockquote>
 <p>to control which stage(s) should be run. By default, all stages are executed.</p>
 <p>For example,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span>
 </pre></div>
 </div>
 <p>means to run only stage 0.</p>
 <p>To run stage 2 to stage 5, use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 <div class="admonition hint">
@@ -167,8 +167,8 @@ the <code class="docutils literal notranslate"><span class="pre">dl_dir</span></
 <p class="admonition-title">Hint</p>
 <p>A 3-gram language model will be downloaded from huggingface, we assume you have
 intalled and initialized <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code>. If not, you could install <code class="docutils literal notranslate"><span class="pre">git-lfs</span></code> by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ sudo apt-get install git-lfs
-$ git-lfs install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>git-lfs
+$<span class="w"> </span>git-lfs<span class="w"> </span>install
 </pre></div>
 </div>
 <p>If you don’t have the <code class="docutils literal notranslate"><span class="pre">sudo</span></code> permission, you could download the
@@ -184,8 +184,8 @@ are saved in <code class="docutils literal notranslate"><span class="pre">./data
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
 <section id="configurable-options">
 <h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/train.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -227,26 +227,26 @@ training from epoch 10, based on the state from epoch 9.</p>
 <div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
 GPU 2 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./conformer_ctc/train.py --world-size <span class="m">2</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/train.py --world-size <span class="m">4</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./conformer_ctc/train.py --world-size <span class="m">1</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -299,7 +299,7 @@ Each epoch actually processes <code class="docutils literal notranslate"><span c
 <p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./conformer_ctc/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -308,8 +308,8 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains TensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> conformer_ctc/exp/tensorboard
-$ tensorboard dev upload --logdir . --name <span class="s2">&quot;Aishell conformer ctc training with icefall&quot;</span> --description <span class="s2">&quot;Training with new LabelSmoothing loss, see https://github.com/k2-fsa/icefall/pull/109&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>conformer_ctc/exp/tensorboard
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--name<span class="w"> </span><span class="s2">&quot;Aishell conformer ctc training with icefall&quot;</span><span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Training with new LabelSmoothing loss, see https://github.com/k2-fsa/icefall/pull/109&quot;</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -351,25 +351,25 @@ you saw printed to the console during training.</p>
 <p>The following shows typical use cases:</p>
 <section id="case-1">
 <h4><strong>Case 1</strong><a class="headerlink" href="#case-1" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/train.py --max-duration <span class="m">200</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--max-duration<span class="w"> </span><span class="m">200</span>
 </pre></div>
 </div>
 <p>It uses <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> of 200 to avoid OOM.</p>
 </section>
 <section id="case-2">
 <h4><strong>Case 2</strong><a class="headerlink" href="#case-2" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
-$ ./conformer_ctc/train.py --world-size <span class="m">2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,3&quot;</span>
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 <p>It uses GPU 0 and GPU 3 for DDP training.</p>
 </section>
 <section id="case-3">
 <h4><strong>Case 3</strong><a class="headerlink" href="#case-3" title="Permalink to this heading"></a></h4>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/train.py --num-epochs <span class="m">10</span> --start-epoch <span class="m">3</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/train.py<span class="w"> </span>--num-epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">3</span>
 </pre></div>
 </div>
 <p>It loads checkpoint <code class="docutils literal notranslate"><span class="pre">./conformer_ctc/exp/epoch-2.pt</span></code> and starts
@@ -381,8 +381,8 @@ training from epoch 3. Also, it trains for 10 epochs.</p>
 <h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.</p>
@@ -440,27 +440,27 @@ $ git clone https://huggingface.co/pkufool/icefall_asr_aishell_conformer_ctc
 <p>In order to use this pre-trained model, your k2 version has to be v1.7 or later.</p>
 </div>
 <p>After downloading, you will have the following files:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ tree tmp
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>tree<span class="w"> </span>tmp
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp/
-<span class="sb">`</span>-- icefall_asr_aishell_conformer_ctc
-    <span class="p">|</span>-- README.md
-    <span class="p">|</span>-- data
-    <span class="p">|</span>   <span class="sb">`</span>-- lang_char
-    <span class="p">|</span>       <span class="p">|</span>-- HLG.pt
-    <span class="p">|</span>       <span class="p">|</span>-- tokens.txt
-    <span class="p">|</span>       <span class="sb">`</span>-- words.txt
-    <span class="p">|</span>-- exp
-    <span class="p">|</span>   <span class="sb">`</span>-- pretrained.pt
-    <span class="sb">`</span>-- test_waves
-        <span class="p">|</span>-- BAC009S0764W0121.wav
-        <span class="p">|</span>-- BAC009S0764W0122.wav
-        <span class="p">|</span>-- BAC009S0764W0123.wav
-        <span class="sb">`</span>-- trans.txt
+<span class="sb">`</span>--<span class="w"> </span>icefall_asr_aishell_conformer_ctc
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>README.md
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>data
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>lang_char
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>HLG.pt
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="p">|</span>--<span class="w"> </span>tokens.txt
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="sb">`</span>--<span class="w"> </span>words.txt
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>exp
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>pretrained.pt
+<span class="w">    </span><span class="sb">`</span>--<span class="w"> </span>test_waves
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0121.wav
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0122.wav
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>BAC009S0764W0123.wav
+<span class="w">        </span><span class="sb">`</span>--<span class="w"> </span>trans.txt
 
-<span class="m">5</span> directories, <span class="m">9</span> files
+<span class="m">5</span><span class="w"> </span>directories,<span class="w"> </span><span class="m">9</span><span class="w"> </span>files
 </pre></div>
 </div>
 <p><strong>File descriptions</strong>:</p>
@@ -502,38 +502,38 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 </ul>
 </div></blockquote>
 <p>The information of the test sound files is listed below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ soxi tmp/icefall_asr_aishell_conformer_ctc/test_waves/*.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>soxi<span class="w"> </span>tmp/icefall_asr_aishell_conformer_ctc/test_waves/*.wav
 
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.20 <span class="o">=</span> <span class="m">67263</span> samples ~ <span class="m">315</span>.295 CDDA sectors
-File Size      : 135k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
-
-
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.12 <span class="o">=</span> <span class="m">65840</span> samples ~ <span class="m">308</span>.625 CDDA sectors
-File Size      : 132k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.20<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">67263</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">315</span>.295<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>135k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
 
-Input File     : <span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav&#39;</span>
-Channels       : <span class="m">1</span>
-Sample Rate    : <span class="m">16000</span>
-Precision      : <span class="m">16</span>-bit
-Duration       : <span class="m">00</span>:00:04.00 <span class="o">=</span> <span class="m">64000</span> samples ~ <span class="m">300</span> CDDA sectors
-File Size      : 128k
-Bit Rate       : 256k
-Sample Encoding: <span class="m">16</span>-bit Signed Integer PCM
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.12<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">65840</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">308</span>.625<span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>132k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
 
-Total Duration of <span class="m">3</span> files: <span class="m">00</span>:00:12.32
+
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav&#39;</span>
+Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
+Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
+Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
+Duration<span class="w">       </span>:<span class="w"> </span><span class="m">00</span>:00:04.00<span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">64000</span><span class="w"> </span>samples<span class="w"> </span>~<span class="w"> </span><span class="m">300</span><span class="w"> </span>CDDA<span class="w"> </span>sectors
+File<span class="w"> </span>Size<span class="w">      </span>:<span class="w"> </span>128k
+Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> </span>256k
+Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>Signed<span class="w"> </span>Integer<span class="w"> </span>PCM
+
+Total<span class="w"> </span>Duration<span class="w"> </span>of<span class="w"> </span><span class="m">3</span><span class="w"> </span>files:<span class="w"> </span><span class="m">00</span>:00:12.32
 </pre></div>
 </div>
 </section>
@@ -556,14 +556,14 @@ $ ./conformer_ctc/pretrained.py --help
 <h4>CTC decoding<a class="headerlink" href="#ctc-decoding" title="Permalink to this heading"></a></h4>
 <p>CTC decoding only uses the ctc topology for decoding without a lexicon and language model</p>
 <p>The command to run CTC decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/pretrained.py <span class="se">\</span>
-  --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt <span class="se">\</span>
-  --tokens-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt <span class="se">\</span>
-  --method ctc-decoding <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens-file<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>ctc-decoding<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is given below:</p>
@@ -593,15 +593,15 @@ $ ./conformer_ctc/pretrained.py <span class="se">\</span>
 <h4>HLG decoding<a class="headerlink" href="#hlg-decoding" title="Permalink to this heading"></a></h4>
 <p>HLG decoding uses the best path of the decoding lattice as the decoding result.</p>
 <p>The command to run HLG decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/pretrained.py <span class="se">\</span>
-  --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt <span class="se">\</span>
-  --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt <span class="se">\</span>
-  --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt <span class="se">\</span>
-  --method 1best <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>1best<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is given below:</p>
@@ -633,15 +633,15 @@ $ ./conformer_ctc/pretrained.py <span class="se">\</span>
 <p>It extracts n paths from the lattice, recores the extracted paths with
 an attention decoder. The path with the highest score is the decoding result.</p>
 <p>The command to run HLG decoding + attention decoder rescoring is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/aishell/ASR
-$ ./conformer_ctc/pretrained.py <span class="se">\</span>
-  --checkpoint ./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt <span class="se">\</span>
-  --words-file ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt <span class="se">\</span>
-  --HLG ./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt <span class="se">\</span>
-  --method attention-decoder <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
-  ./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/aishell/ASR
+$<span class="w"> </span>./conformer_ctc/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./tmp/icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>attention-decoder<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp/icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is below:</p>
@@ -693,20 +693,20 @@ Python dependencies.</p>
 <p>At present, it does NOT support streaming decoding.</p>
 </div>
 <p>First, let us compile k2 from source:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> <span class="nv">$HOME</span>
-$ git clone https://github.com/k2-fsa/k2
-$ <span class="nb">cd</span> k2
-$ git checkout v2.0-pre
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span><span class="nv">$HOME</span>
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/k2
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>k2
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>v2.0-pre
 </pre></div>
 </div>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>You have to switch to the branch <code class="docutils literal notranslate"><span class="pre">v2.0-pre</span></code>!</p>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ mkdir build-release
-$ <span class="nb">cd</span> build-release
-$ cmake -DCMAKE_BUILD_TYPE<span class="o">=</span>Release ..
-$ make -j hlg_decode
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>build-release
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build-release
+$<span class="w"> </span>cmake<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span>..
+$<span class="w"> </span>make<span class="w"> </span>-j<span class="w"> </span>hlg_decode
 
 <span class="c1"># You will find four binaries in `./bin`, i.e. ./bin/hlg_decode,</span>
 </pre></div>
@@ -714,8 +714,8 @@ $ make -j hlg_decode
 <p>Now you are ready to go!</p>
 <p>Assume you have run:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> k2/build-release
-$ ln -s /path/to/icefall-asr-aishell-conformer-ctc ./
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>k2/build-release
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>/path/to/icefall-asr-aishell-conformer-ctc<span class="w"> </span>./
 </pre></div>
 </div>
 </div></blockquote>
@@ -724,40 +724,40 @@ $ ln -s /path/to/icefall-asr-aishell-conformer-ctc ./
 </pre></div>
 </div>
 <p>It will show you the following message:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Please provide --nn_model
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Please<span class="w"> </span>provide<span class="w"> </span>--nn_model
 
-This file implements decoding with an HLG decoding graph.
+This<span class="w"> </span>file<span class="w"> </span>implements<span class="w"> </span>decoding<span class="w"> </span>with<span class="w"> </span>an<span class="w"> </span>HLG<span class="w"> </span>decoding<span class="w"> </span>graph.
 
 Usage:
-  ./bin/hlg_decode <span class="se">\</span>
-    --use_gpu <span class="nb">true</span> <span class="se">\</span>
-    --nn_model &lt;path to torch scripted pt file&gt; <span class="se">\</span>
-    --hlg &lt;path to HLG.pt&gt; <span class="se">\</span>
-    --word_table &lt;path to words.txt&gt; <span class="se">\</span>
-    &lt;path to foo.wav&gt; <span class="se">\</span>
-    &lt;path to bar.wav&gt; <span class="se">\</span>
-    &lt;more waves <span class="k">if</span> any&gt;
+<span class="w">  </span>./bin/hlg_decode<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use_gpu<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--nn_model<span class="w"> </span>&lt;path<span class="w"> </span>to<span class="w"> </span>torch<span class="w"> </span>scripted<span class="w"> </span>pt<span class="w"> </span>file&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--hlg<span class="w"> </span>&lt;path<span class="w"> </span>to<span class="w"> </span>HLG.pt&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--word_table<span class="w"> </span>&lt;path<span class="w"> </span>to<span class="w"> </span>words.txt&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;path<span class="w"> </span>to<span class="w"> </span>foo.wav&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;path<span class="w"> </span>to<span class="w"> </span>bar.wav&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;more<span class="w"> </span>waves<span class="w"> </span><span class="k">if</span><span class="w"> </span>any&gt;
 
-To see all possible options, use
-  ./bin/hlg_decode --help
+To<span class="w"> </span>see<span class="w"> </span>all<span class="w"> </span>possible<span class="w"> </span>options,<span class="w"> </span>use
+<span class="w">  </span>./bin/hlg_decode<span class="w"> </span>--help
 
 Caution:
- - Only sound files <span class="o">(</span>*.wav<span class="o">)</span> with single channel are supported.
- - It assumes the model is conformer_ctc/transformer.py from icefall.
-   If you use a different model, you have to change the code
-   related to <span class="sb">`</span>model.forward<span class="sb">`</span> <span class="k">in</span> this file.
+<span class="w"> </span>-<span class="w"> </span>Only<span class="w"> </span>sound<span class="w"> </span>files<span class="w"> </span><span class="o">(</span>*.wav<span class="o">)</span><span class="w"> </span>with<span class="w"> </span>single<span class="w"> </span>channel<span class="w"> </span>are<span class="w"> </span>supported.
+<span class="w"> </span>-<span class="w"> </span>It<span class="w"> </span>assumes<span class="w"> </span>the<span class="w"> </span>model<span class="w"> </span>is<span class="w"> </span>conformer_ctc/transformer.py<span class="w"> </span>from<span class="w"> </span>icefall.
+<span class="w">   </span>If<span class="w"> </span>you<span class="w"> </span>use<span class="w"> </span>a<span class="w"> </span>different<span class="w"> </span>model,<span class="w"> </span>you<span class="w"> </span>have<span class="w"> </span>to<span class="w"> </span>change<span class="w"> </span>the<span class="w"> </span>code
+<span class="w">   </span>related<span class="w"> </span>to<span class="w"> </span><span class="sb">`</span>model.forward<span class="sb">`</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>this<span class="w"> </span>file.
 </pre></div>
 </div>
 <section id="id2">
 <h3>HLG decoding<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/hlg_decode <span class="se">\</span>
-  --use_gpu <span class="nb">true</span> <span class="se">\</span>
-  --nn_model icefall_asr_aishell_conformer_ctc/exp/cpu_jit.pt <span class="se">\</span>
-  --hlg icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt <span class="se">\</span>
-  --word_table icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt <span class="se">\</span>
-  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav <span class="se">\</span>
-  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav <span class="se">\</span>
-  icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./bin/hlg_decode<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use_gpu<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--nn_model<span class="w"> </span>icefall_asr_aishell_conformer_ctc/exp/cpu_jit.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--hlg<span class="w"> </span>icefall_asr_aishell_conformer_ctc/data/lang_char/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--word_table<span class="w"> </span>icefall_asr_aishell_conformer_ctc/data/lang_char/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0121.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0122.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>icefall_asr_aishell_conformer_ctc/test_waves/BAC009S0764W0123.wav
 </pre></div>
 </div>
 <p>The output is:</p>

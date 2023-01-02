@@ -103,8 +103,8 @@ the environment for <code class="docutils literal notranslate"><span class="pre"
 </div>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ ./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
@@ -119,13 +119,13 @@ options:</p>
 </div></blockquote>
 <p>to control which stage(s) should be run. By default, all stages are executed.</p>
 <p>For example,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span>
 </pre></div>
 </div>
 <p>means to run only stage 0.</p>
 <p>To run stage 2 to stage 5, use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 </section>
@@ -139,9 +139,9 @@ folder.</p>
 <p>TIMIT is a very small dataset. So one GPU is enough.</p>
 </div>
 <p>The command to run the training part is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
-$ ./tdnn_ligru_ctc/train.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+$<span class="w"> </span>./tdnn_ligru_ctc/train.py
 </pre></div>
 </div>
 <p>By default, it will run <code class="docutils literal notranslate"><span class="pre">25</span></code> epochs. Training logs and checkpoints are saved
@@ -153,7 +153,7 @@ in <code class="docutils literal notranslate"><span class="pre">tdnn_ligru_ctc/e
 <p>These are checkpoint files, containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_ligru_ctc/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./tdnn_ligru_ctc/train.py<span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -162,8 +162,8 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains TensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> tdnn_ligru_ctc/exp/tensorboard
-$ tensorboard dev upload --logdir . --description <span class="s2">&quot;TDNN ligru training for timit with icefall&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tdnn_ligru_ctc/exp/tensorboard
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;TDNN ligru training for timit with icefall&quot;</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -175,7 +175,7 @@ you saw printed to the console during training.</p>
 </ul>
 </div></blockquote>
 <p>To see available training options, you can use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_ligru_ctc/train.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./tdnn_ligru_ctc/train.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>Other training options, e.g., learning rate, results dir, etc., are
@@ -189,13 +189,13 @@ you want.</p>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
 <p>The command for decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
-$ ./tdnn_ligru_ctc/decode.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+$<span class="w"> </span>./tdnn_ligru_ctc/decode.py
 </pre></div>
 </div>
 <p>You will see the WER in the output log.</p>
 <p>Decoded results are saved in <code class="docutils literal notranslate"><span class="pre">tdnn_ligru_ctc/exp</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_ligru_ctc/decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./tdnn_ligru_ctc/decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows you the available decoding options.</p>
@@ -212,7 +212,7 @@ For instance, <code class="docutils literal notranslate"><span class="pre">./tdn
 to be averaged. The averaged model is used for decoding.
 For example, the following command:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./tdnn_ligru_ctc/decode.py --epoch <span class="m">25</span> --avg <span class="m">17</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./tdnn_ligru_ctc/decode.py<span class="w"> </span>--epoch<span class="w"> </span><span class="m">25</span><span class="w"> </span>--avg<span class="w"> </span><span class="m">17</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -245,11 +245,11 @@ at the same time.</p>
 </section>
 <section id="download-the-pre-trained-model">
 <h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ mkdir tmp-ligru
-$ <span class="nb">cd</span> tmp-ligru
-$ git lfs install
-$ git clone https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ctc
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span>mkdir<span class="w"> </span>tmp-ligru
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tmp-ligru
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>install
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ctc
 </pre></div>
 </div>
 <div class="admonition caution">
@@ -261,29 +261,29 @@ $ git clone https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ct
 <p>In order to use this pre-trained model, your k2 version has to be v1.7 or later.</p>
 </div>
 <p>After downloading, you will have the following files:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ tree tmp-ligru
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span>tree<span class="w"> </span>tmp-ligru
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tmp-ligru/
-<span class="sb">`</span>-- icefall_asr_timit_tdnn_ligru_ctc
-    <span class="p">|</span>-- README.md
-    <span class="p">|</span>-- data
-    <span class="p">|</span>   <span class="p">|</span>-- lang_phone
-    <span class="p">|</span>   <span class="p">|</span>   <span class="p">|</span>-- HLG.pt
-    <span class="p">|</span>   <span class="p">|</span>   <span class="p">|</span>-- tokens.txt
-    <span class="p">|</span>   <span class="p">|</span>   <span class="sb">`</span>-- words.txt
-    <span class="p">|</span>   <span class="sb">`</span>-- lm
-    <span class="p">|</span>       <span class="sb">`</span>-- G_4_gram.pt
-    <span class="p">|</span>-- exp
-    <span class="p">|</span>   <span class="sb">`</span>-- pretrained_average_9_25.pt
-    <span class="sb">`</span>-- test_wavs
-        <span class="p">|</span>-- FDHC0_SI1559.WAV
-        <span class="p">|</span>-- FELC0_SI756.WAV
-        <span class="p">|</span>-- FMGD0_SI1564.WAV
-        <span class="sb">`</span>-- trans.txt
+<span class="sb">`</span>--<span class="w"> </span>icefall_asr_timit_tdnn_ligru_ctc
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>README.md
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>data
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>lang_phone
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>HLG.pt
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>tokens.txt
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>words.txt
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>lm
+<span class="w">    </span><span class="p">|</span><span class="w">       </span><span class="sb">`</span>--<span class="w"> </span>G_4_gram.pt
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>exp
+<span class="w">    </span><span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>pretrained_average_9_25.pt
+<span class="w">    </span><span class="sb">`</span>--<span class="w"> </span>test_wavs
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>FDHC0_SI1559.WAV
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>FELC0_SI756.WAV
+<span class="w">        </span><span class="p">|</span>--<span class="w"> </span>FMGD0_SI1564.WAV
+<span class="w">        </span><span class="sb">`</span>--<span class="w"> </span>trans.txt
 
-<span class="m">6</span> directories, <span class="m">10</span> files
+<span class="m">6</span><span class="w"> </span>directories,<span class="w"> </span><span class="m">10</span><span class="w"> </span>files
 </pre></div>
 </div>
 <p><strong>File descriptions</strong>:</p>
@@ -329,60 +329,60 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 </ul>
 </div></blockquote>
 <p>The information of the test sound files is listed below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ffprobe -show_format tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
 
-Input <span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV&#39;:</span>
 Metadata:
-  database_id     : TIMIT
-  database_version: <span class="m">1</span>.0
-  utterance_id    : dhc0_si1559
-  sample_min      : -4176
-  sample_max      : <span class="m">5984</span>
-Duration: <span class="m">00</span>:00:03.40, bitrate: <span class="m">258</span> kb/s
-  Stream <span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
+<span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
+<span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
+<span class="w">  </span>utterance_id<span class="w">    </span>:<span class="w"> </span>dhc0_si1559
+<span class="w">  </span>sample_min<span class="w">      </span>:<span class="w"> </span>-4176
+<span class="w">  </span>sample_max<span class="w">      </span>:<span class="w"> </span><span class="m">5984</span>
+Duration:<span class="w"> </span><span class="m">00</span>:00:03.40,<span class="w"> </span>bitrate:<span class="w"> </span><span class="m">258</span><span class="w"> </span>kb/s
+<span class="w">  </span>Stream<span class="w"> </span><span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
 
-$ ffprobe -show_format tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
+$<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
 
-Input <span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV&#39;:</span>
 Metadata:
-  database_id     : TIMIT
-  database_version: <span class="m">1</span>.0
-  utterance_id    : elc0_si756
-  sample_min      : -1546
-  sample_max      : <span class="m">1989</span>
-Duration: <span class="m">00</span>:00:04.19, bitrate: <span class="m">257</span> kb/s
-  Stream <span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
+<span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
+<span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
+<span class="w">  </span>utterance_id<span class="w">    </span>:<span class="w"> </span>elc0_si756
+<span class="w">  </span>sample_min<span class="w">      </span>:<span class="w"> </span>-1546
+<span class="w">  </span>sample_max<span class="w">      </span>:<span class="w"> </span><span class="m">1989</span>
+Duration:<span class="w"> </span><span class="m">00</span>:00:04.19,<span class="w"> </span>bitrate:<span class="w"> </span><span class="m">257</span><span class="w"> </span>kb/s
+<span class="w">  </span>Stream<span class="w"> </span><span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
 
-$ ffprobe -show_format tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
+$<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
 
-Input <span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV&#39;:</span>
 Metadata:
-  database_id     : TIMIT
-  database_version: <span class="m">1</span>.0
-  utterance_id    : mgd0_si1564
-  sample_min      : -7626
-  sample_max      : <span class="m">10573</span>
-Duration: <span class="m">00</span>:00:04.44, bitrate: <span class="m">257</span> kb/s
-  Stream <span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
+<span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
+<span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
+<span class="w">  </span>utterance_id<span class="w">    </span>:<span class="w"> </span>mgd0_si1564
+<span class="w">  </span>sample_min<span class="w">      </span>:<span class="w"> </span>-7626
+<span class="w">  </span>sample_max<span class="w">      </span>:<span class="w"> </span><span class="m">10573</span>
+Duration:<span class="w"> </span><span class="m">00</span>:00:04.44,<span class="w"> </span>bitrate:<span class="w"> </span><span class="m">257</span><span class="w"> </span>kb/s
+<span class="w">  </span>Stream<span class="w"> </span><span class="c1">#0:0: Audio: pcm_s16le, 16000 Hz, 1 channels, s16, 256 kb/s</span>
 </pre></div>
 </div>
 </section>
 <section id="inference-with-a-pre-trained-model">
 <h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/timit/ASR
-$ ./tdnn_ligru_ctc/pretrained.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
+$<span class="w"> </span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the usage information of <code class="docutils literal notranslate"><span class="pre">./tdnn_ligru_ctc/pretrained.py</span></code>.</p>
 <p>To decode with <code class="docutils literal notranslate"><span class="pre">1best</span></code> method, we can use:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn_ligru_ctc/pretrained.py
-  --method 1best
-  --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt
-  --words-file ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt
-  --HLG ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
+<span class="w">  </span>--method<span class="w"> </span>1best
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt
+<span class="w">  </span>--words-file<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt
+<span class="w">  </span>--HLG<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
 </pre></div>
 </div>
 <p>The output is:</p>
@@ -408,16 +408,16 @@ $ ./tdnn_ligru_ctc/pretrained.py --help
 </pre></div>
 </div>
 <p>To decode with <code class="docutils literal notranslate"><span class="pre">whole-lattice-rescoring</span></code> methond, you can use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn_ligru_ctc/pretrained.py <span class="se">\</span>
-  --method whole-lattice-rescoring <span class="se">\</span>
-  --checkpoint ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt <span class="se">\</span>
-  --words-file ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt <span class="se">\</span>
-  --HLG ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt <span class="se">\</span>
-  --G ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lm/G_4_gram.pt <span class="se">\</span>
-  --ngram-lm-scale <span class="m">0</span>.1 <span class="se">\</span>
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
-  ./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>whole-lattice-rescoring<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/exp/pretrained_average_9_25.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--G<span class="w"> </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/data/lm/G_4_gram.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--ngram-lm-scale<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
+<span class="w">  </span>./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
 </pre></div>
 </div>
 <p>The decoding output is:</p>

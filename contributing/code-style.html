@@ -140,22 +140,22 @@ it should succeed this time:</p>
 <p>If you want to check the style of your code before <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">commit</span></code>, you
 can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ pre-commit install
-$ pre-commit run
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pre-commit<span class="w"> </span>install
+$<span class="w"> </span>pre-commit<span class="w"> </span>run
 </pre></div>
 </div>
 </div></blockquote>
 <p>Or without installing the pre-commit hooks:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> icefall
-$ pip install <span class="nv">black</span><span class="o">==</span><span class="m">22</span>.3.0 <span class="nv">flake8</span><span class="o">==</span><span class="m">5</span>.0.4 <span class="nv">isort</span><span class="o">==</span><span class="m">5</span>.10.1
-$ black --check your_changed_file.py
-$ black your_changed_file.py  <span class="c1"># modify it in-place</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">black</span><span class="o">==</span><span class="m">22</span>.3.0<span class="w"> </span><span class="nv">flake8</span><span class="o">==</span><span class="m">5</span>.0.4<span class="w"> </span><span class="nv">isort</span><span class="o">==</span><span class="m">5</span>.10.1
+$<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>your_changed_file.py
+$<span class="w"> </span>black<span class="w"> </span>your_changed_file.py<span class="w">  </span><span class="c1"># modify it in-place</span>
 $
-$ flake8 your_changed_file.py
+$<span class="w"> </span>flake8<span class="w"> </span>your_changed_file.py
 $
-$ isort --check your_changed_file.py  <span class="c1"># modify it in-place</span>
-$ isort your_changed_file.py
+$<span class="w"> </span>isort<span class="w"> </span>--check<span class="w"> </span>your_changed_file.py<span class="w">  </span><span class="c1"># modify it in-place</span>
+$<span class="w"> </span>isort<span class="w"> </span>your_changed_file.py
 </pre></div>
 </div>
 </div></blockquote>

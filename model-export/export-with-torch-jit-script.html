@@ -108,16 +108,16 @@ if you want to use <code class="docutils literal notranslate"><span class="pre">
 <p>We use
 <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless3">https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless3</a>
 as an example in the following.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> egs/librispeech/ASR
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 <span class="nv">epoch</span><span class="o">=</span><span class="m">14</span>
 <span class="nv">avg</span><span class="o">=</span><span class="m">1</span>
 
-./pruned_transducer_stateless3/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless3/exp <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-  --avg <span class="nv">$avg</span> <span class="se">\</span>
-  --jit <span class="m">1</span>
+./pruned_transducer_stateless3/export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless3/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--jit<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 <p>It will generate a file <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code> in <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless3/exp</span></code>.</p>

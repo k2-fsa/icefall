@@ -141,8 +141,8 @@ That is, it has no recurrent connections.</p>
 <p>The data preparation is the same as other recipes on LibriSpeech dataset,
 if you have finished this step, you can skip to <code class="docutils literal notranslate"><span class="pre">Training</span></code> directly.</p>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
@@ -157,13 +157,13 @@ options:</p>
 </div></blockquote>
 <p>to control which stage(s) should be run. By default, all stages are executed.</p>
 <p>For example,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./prepare.sh --stage <span class="m">0</span> --stop-stage <span class="m">0</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span>
 </pre></div>
 </div>
 <p>means to run only stage 0.</p>
 <p>To run stage 2 to stage 5, use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./prepare.sh --stage <span class="m">2</span> --stop-stage <span class="m">5</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 <div class="admonition hint">
@@ -195,8 +195,8 @@ the following YouTube channel by <a class="reference external" href="https://www
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
 <section id="configurable-options">
 <h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless7_streaming/train.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows you the training options that can be passed from the commandline.
@@ -248,26 +248,26 @@ training from epoch 10, based on the state from epoch 9.</p>
 <div><p><strong>Use case 1</strong>: You have 4 GPUs, but you only want to use GPU 0 and
 GPU 2 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
-$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">2</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 2</strong>: You have 4 GPUs and you want to use all of them
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">4</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p><strong>Use case 3</strong>: You have 4 GPUs but you only want to use GPU 3
 for training. You can do the following:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ <span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
-$ ./pruned_transducer_stateless7_streaming/train.py --world-size <span class="m">1</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -334,7 +334,7 @@ You will find the following files in that directory:</p>
 <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">epoch-10.pt</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_streaming/train.py --start-epoch <span class="m">11</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--start-epoch<span class="w"> </span><span class="m">11</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -344,7 +344,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 containing model <code class="docutils literal notranslate"><span class="pre">state_dict</span></code> and optimizer <code class="docutils literal notranslate"><span class="pre">state_dict</span></code>.
 To resume training from some checkpoint, say <code class="docutils literal notranslate"><span class="pre">checkpoint-436000</span></code>, you can use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ ./pruned_transducer_stateless7_streaming/train.py --start-batch <span class="m">436000</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span>--start-batch<span class="w"> </span><span class="m">436000</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -353,8 +353,8 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 <p>This folder contains tensorBoard logs. Training loss, validation loss, learning
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp/tensorboard
-$ tensorboard dev upload --logdir . --description <span class="s2">&quot;pruned transducer training for LibriSpeech with icefall&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>pruned_transducer_stateless7_streaming/exp/tensorboard
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;pruned transducer training for LibriSpeech with icefall&quot;</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -365,8 +365,8 @@ $ tensorboard dev upload --logdir . --description <span class="s2">&quot;pruned 
 <p>If you don’t have access to google, you can use the following command
 to view the tensorboard log locally:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp/tensorboard
-tensorboard --logdir . --port <span class="m">6008</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>pruned_transducer_stateless7_streaming/exp/tensorboard
+tensorboard<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--port<span class="w"> </span><span class="m">6008</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -391,15 +391,15 @@ you saw printed to the console during training.</p>
 <section id="usage-example">
 <h3>Usage example<a class="headerlink" href="#usage-example" title="Permalink to this heading"></a></h3>
 <p>You can use the following command to start the training using 4 GPUs:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
-./pruned_transducer_stateless7_streaming/train.py <span class="se">\</span>
-  --world-size <span class="m">4</span> <span class="se">\</span>
-  --num-epochs <span class="m">30</span> <span class="se">\</span>
-  --start-epoch <span class="m">1</span> <span class="se">\</span>
-  --use-fp16 <span class="m">1</span> <span class="se">\</span>
-  --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-  --full-libri <span class="m">1</span> <span class="se">\</span>
-  --max-duration <span class="m">550</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
+./pruned_transducer_stateless7_streaming/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--num-epochs<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--full-libri<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-duration<span class="w"> </span><span class="m">550</span>
 </pre></div>
 </div>
 </section>
@@ -438,8 +438,8 @@ produce almost the same results given the same <code class="docutils literal not
 </div>
 <section id="simulate-streaming-decoding">
 <h3>Simulate streaming decoding<a class="headerlink" href="#simulate-streaming-decoding" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless7_streaming/decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.
@@ -452,41 +452,41 @@ The default value is 32 (i.e., 320ms).</p>
 </div></blockquote>
 </div></blockquote>
 <p>The following shows two examples (for the two types of checkpoints):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">30</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">12</span> <span class="m">11</span> <span class="m">10</span> <span class="m">9</span> <span class="m">8</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
-        --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-        --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-        --max-duration <span class="m">600</span> <span class="se">\</span>
-        --decoding-method <span class="nv">$m</span>
-    <span class="k">done</span>
-  <span class="k">done</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>greedy_search<span class="w"> </span>fast_beam_search<span class="w"> </span>modified_beam_search<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span>epoch<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">30</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span>avg<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">9</span><span class="w"> </span><span class="m">8</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">      </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decoding-method<span class="w"> </span><span class="nv">$m</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="w">  </span><span class="k">done</span>
 <span class="k">done</span>
 </pre></div>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> iter <span class="k">in</span> <span class="m">474000</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">8</span> <span class="m">10</span> <span class="m">12</span> <span class="m">14</span> <span class="m">16</span> <span class="m">18</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
-        --iter <span class="nv">$iter</span> <span class="se">\</span>
-        --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-        --max-duration <span class="m">600</span> <span class="se">\</span>
-        --decoding-method <span class="nv">$m</span>
-    <span class="k">done</span>
-  <span class="k">done</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>greedy_search<span class="w"> </span>fast_beam_search<span class="w"> </span>modified_beam_search<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span>iter<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">474000</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span>avg<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">14</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">18</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">      </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--iter<span class="w"> </span><span class="nv">$iter</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decoding-method<span class="w"> </span><span class="nv">$m</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="w">  </span><span class="k">done</span>
 <span class="k">done</span>
 </pre></div>
 </div>
 </section>
 <section id="real-streaming-decoding">
 <h3>Real streaming decoding<a class="headerlink" href="#real-streaming-decoding" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">cd</span> egs/librispeech/ASR
-$ ./pruned_transducer_stateless7_streaming/streaming_decode.py --help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/streaming_decode.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.
@@ -507,33 +507,33 @@ suppose sequence 1 and 2 are done, so, sequence 3 to 12 will be processed parall
 </div></blockquote>
 </div></blockquote>
 <p>The following shows two examples (for the two types of checkpoints):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> epoch <span class="k">in</span> <span class="m">30</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">12</span> <span class="m">11</span> <span class="m">10</span> <span class="m">9</span> <span class="m">8</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
-        --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-        --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-        --num-decode-streams <span class="m">100</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-        --decoding-method <span class="nv">$m</span>
-    <span class="k">done</span>
-  <span class="k">done</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>greedy_search<span class="w"> </span>fast_beam_search<span class="w"> </span>modified_beam_search<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span>epoch<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">30</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span>avg<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">9</span><span class="w"> </span><span class="m">8</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">      </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--num-decode-streams<span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decoding-method<span class="w"> </span><span class="nv">$m</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="w">  </span><span class="k">done</span>
 <span class="k">done</span>
 </pre></div>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> m <span class="k">in</span> greedy_search fast_beam_search modified_beam_search<span class="p">;</span> <span class="k">do</span>
-  <span class="k">for</span> iter <span class="k">in</span> <span class="m">474000</span><span class="p">;</span> <span class="k">do</span>
-    <span class="k">for</span> avg <span class="k">in</span> <span class="m">8</span> <span class="m">10</span> <span class="m">12</span> <span class="m">14</span> <span class="m">16</span> <span class="m">18</span><span class="p">;</span> <span class="k">do</span>
-      ./pruned_transducer_stateless7_streaming/decode.py <span class="se">\</span>
-        --iter <span class="nv">$iter</span> <span class="se">\</span>
-        --avg <span class="nv">$avg</span> <span class="se">\</span>
-        --decode-chunk-len <span class="m">16</span> <span class="se">\</span>
-        --num-decode-streams <span class="m">100</span> <span class="se">\</span>
-        --exp-dir pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-        --decoding-method <span class="nv">$m</span>
-    <span class="k">done</span>
-  <span class="k">done</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>greedy_search<span class="w"> </span>fast_beam_search<span class="w"> </span>modified_beam_search<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span>iter<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">474000</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span>avg<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">14</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">18</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">      </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--iter<span class="w"> </span><span class="nv">$iter</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decode-chunk-len<span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--num-decode-streams<span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--decoding-method<span class="w"> </span><span class="nv">$m</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="w">  </span><span class="k">done</span>
 <span class="k">done</span>
 </pre></div>
 </div>
@@ -608,13 +608,13 @@ command to extract <code class="docutils literal notranslate"><span class="pre">
 <span class="nv">epoch</span><span class="o">=</span><span class="m">30</span>
 <span class="nv">avg</span><span class="o">=</span><span class="m">9</span>
 
-./pruned_transducer_stateless7_streaming/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-  --avg  <span class="nv">$avg</span> <span class="se">\</span>
-  --use-averaged-model<span class="o">=</span>True <span class="se">\</span>
-  --decode-chunk-len <span class="m">32</span>
+./pruned_transducer_stateless7_streaming/export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w">  </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-averaged-model<span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span>
 </pre></div>
 </div>
 <p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/exp/pretrained.pt</span></code>.</p>
@@ -622,8 +622,8 @@ command to extract <code class="docutils literal notranslate"><span class="pre">
 <p class="admonition-title">Hint</p>
 <p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_streaming/decode.py</span></code>,
 you can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> pruned_transducer_stateless7_streaming/exp
-ln -s pretrained.pt epoch-999.pt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>pruned_transducer_stateless7_streaming/exp
+ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-999.pt
 </pre></div>
 </div>
 <p>And then pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">999</span> <span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code> to
@@ -631,25 +631,25 @@ ln -s pretrained.pt epoch-999.pt
 </div>
 <p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/pretrained.py</span></code>, you
 can run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/pretrained.py <span class="se">\</span>
-  --checkpoint ./pruned_transducer_stateless7_streaming/exp/pretrained.pt <span class="se">\</span>
-  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --method greedy_search <span class="se">\</span>
-  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-  /path/to/foo.wav <span class="se">\</span>
-  /path/to/bar.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--method<span class="w"> </span>greedy_search<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/foo.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/bar.wav
 </pre></div>
 </div>
 </section>
 <section id="export-model-using-torch-jit-script">
 <h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export.py <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --epoch <span class="m">30</span> <span class="se">\</span>
-  --avg <span class="m">9</span> <span class="se">\</span>
-  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-  --jit <span class="m">1</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">9</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--jit<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 <div class="admonition caution">
@@ -666,13 +666,13 @@ are on CPU. You can use <code class="docutils literal notranslate"><span class="
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">epoch</span><span class="o">=</span><span class="m">30</span>
 <span class="nv">avg</span><span class="o">=</span><span class="m">9</span>
 
-./pruned_transducer_stateless7_streaming/jit_trace_export.py <span class="se">\</span>
-  --bpe-model data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --use-averaged-model<span class="o">=</span>True <span class="se">\</span>
-  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp <span class="se">\</span>
-  --epoch <span class="nv">$epoch</span> <span class="se">\</span>
-  --avg <span class="nv">$avg</span>
+./pruned_transducer_stateless7_streaming/jit_trace_export.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-averaged-model<span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="nv">$avg</span>
 </pre></div>
 </div>
 <div class="admonition caution">
@@ -688,13 +688,13 @@ are on CPU. You can use <code class="docutils literal notranslate"><span class="
 </ul>
 </div></blockquote>
 <p>To use the generated files with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_streaming/jit_trace_pretrained.py</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/jit_trace_pretrained.py <span class="se">\</span>
-  --encoder-model-filename ./pruned_transducer_stateless7_streaming/exp/encoder_jit_trace.pt <span class="se">\</span>
-  --decoder-model-filename ./pruned_transducer_stateless7_streaming/exp/decoder_jit_trace.pt <span class="se">\</span>
-  --joiner-model-filename ./pruned_transducer_stateless7_streaming/exp/joiner_jit_trace.pt <span class="se">\</span>
-  --bpe-model ./data/lang_bpe_500/bpe.model <span class="se">\</span>
-  --decode-chunk-len <span class="m">32</span> <span class="se">\</span>
-  /path/to/foo.wav
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/jit_trace_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-model-filename<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp/encoder_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-model-filename<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp/decoder_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-model-filename<span class="w"> </span>./pruned_transducer_stateless7_streaming/exp/joiner_jit_trace.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/foo.wav
 </pre></div>
 </div>
 </section>

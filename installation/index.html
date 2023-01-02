@@ -166,11 +166,11 @@ to install <code class="docutils literal notranslate"><span class="pre">lhotse</
 and set the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to point to it.</p>
 <p>Assume you want to place <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
 following commands show you how to setup <code class="docutils literal notranslate"><span class="pre">icefall</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /tmp
-git clone https://github.com/k2-fsa/icefall
-<span class="nb">cd</span> icefall
-pip install -r requirements.txt
-<span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
+<span class="nb">cd</span><span class="w"> </span>icefall
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
 </pre></div>
 </div>
 <div class="admonition hint">
@@ -185,39 +185,39 @@ to point to the version you want.</p>
 <p>The following shows an example about setting up the environment.</p>
 <section id="create-a-virtual-environment">
 <h3>(1) Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ virtualenv -p python3.8  test-icefall
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3.8<span class="w">  </span>test-icefall
 
-created virtual environment CPython3.8.6.final.0-64 <span class="k">in</span> 1540ms
-  creator CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/ceph-fj/fangjun/test-icefall, <span class="nv">clear</span><span class="o">=</span>False, <span class="nv">no_vcs_ignore</span><span class="o">=</span>False, <span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
-  seeder FromAppData<span class="o">(</span><span class="nv">download</span><span class="o">=</span>False, <span class="nv">pip</span><span class="o">=</span>bundle, <span class="nv">setuptools</span><span class="o">=</span>bundle, <span class="nv">wheel</span><span class="o">=</span>bundle, <span class="nv">via</span><span class="o">=</span>copy, <span class="nv">app_data_dir</span><span class="o">=</span>/root/fangjun/.local/share/v
+created<span class="w"> </span>virtual<span class="w"> </span>environment<span class="w"> </span>CPython3.8.6.final.0-64<span class="w"> </span><span class="k">in</span><span class="w"> </span>1540ms
+<span class="w">  </span>creator<span class="w"> </span>CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/ceph-fj/fangjun/test-icefall,<span class="w"> </span><span class="nv">clear</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">no_vcs_ignore</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
+<span class="w">  </span>seeder<span class="w"> </span>FromAppData<span class="o">(</span><span class="nv">download</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">pip</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">setuptools</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">wheel</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">via</span><span class="o">=</span>copy,<span class="w"> </span><span class="nv">app_data_dir</span><span class="o">=</span>/root/fangjun/.local/share/v
 irtualenv<span class="o">)</span>
-    added seed packages: <span class="nv">pip</span><span class="o">==</span><span class="m">21</span>.1.3, <span class="nv">setuptools</span><span class="o">==</span><span class="m">57</span>.4.0, <span class="nv">wheel</span><span class="o">==</span><span class="m">0</span>.36.2
-  activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
+<span class="w">    </span>added<span class="w"> </span>seed<span class="w"> </span>packages:<span class="w"> </span><span class="nv">pip</span><span class="o">==</span><span class="m">21</span>.1.3,<span class="w"> </span><span class="nv">setuptools</span><span class="o">==</span><span class="m">57</span>.4.0,<span class="w"> </span><span class="nv">wheel</span><span class="o">==</span><span class="m">0</span>.36.2
+<span class="w">  </span>activators<span class="w"> </span>BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
 </pre></div>
 </div>
 </section>
 <section id="activate-your-virtual-environment">
 <h3>(2) Activate your virtual environment<a class="headerlink" href="#activate-your-virtual-environment" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">source</span> test-icefall/bin/activate
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>test-icefall/bin/activate
 </pre></div>
 </div>
 </section>
 <section id="id1">
 <h3>(3) Install k2<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ pip install <span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0 -f https://k2-fsa.org/nightly/index.html
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.org/nightly/index.html
 
-Looking <span class="k">in</span> links: https://k2-fsa.org/nightly/index.html
-Collecting <span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0
-  Downloading https://k2-fsa.org/nightly/whl/k2-1.4.dev20210822%2Bcpu.torch1.9.0-cp38-cp38-linux_x86_64.whl <span class="o">(</span><span class="m">1</span>.6 MB<span class="o">)</span>
-     <span class="p">|</span>________________________________<span class="p">|</span> <span class="m">1</span>.6 MB <span class="m">185</span> kB/s
-Collecting graphviz
-  Downloading graphviz-0.17-py3-none-any.whl <span class="o">(</span><span class="m">18</span> kB<span class="o">)</span>
-Collecting <span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.9.0
-  Using cached torch-1.9.0-cp38-cp38-manylinux1_x86_64.whl <span class="o">(</span><span class="m">831</span>.4 MB<span class="o">)</span>
-Collecting typing-extensions
-  Using cached typing_extensions-3.10.0.0-py3-none-any.whl <span class="o">(</span><span class="m">26</span> kB<span class="o">)</span>
-Installing collected packages: typing-extensions, torch, graphviz, k2
-Successfully installed graphviz-0.17 k2-1.4.dev20210822+cpu.torch1.9.0 torch-1.9.0 typing-extensions-3.10.0.0
+Looking<span class="w"> </span><span class="k">in</span><span class="w"> </span>links:<span class="w"> </span>https://k2-fsa.org/nightly/index.html
+Collecting<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0
+<span class="w">  </span>Downloading<span class="w"> </span>https://k2-fsa.org/nightly/whl/k2-1.4.dev20210822%2Bcpu.torch1.9.0-cp38-cp38-linux_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">1</span>.6<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span><span class="p">|</span>________________________________<span class="p">|</span><span class="w"> </span><span class="m">1</span>.6<span class="w"> </span>MB<span class="w"> </span><span class="m">185</span><span class="w"> </span>kB/s
+Collecting<span class="w"> </span>graphviz
+<span class="w">  </span>Downloading<span class="w"> </span>graphviz-0.17-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">18</span><span class="w"> </span>kB<span class="o">)</span>
+Collecting<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.9.0
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>torch-1.9.0-cp38-cp38-manylinux1_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">831</span>.4<span class="w"> </span>MB<span class="o">)</span>
+Collecting<span class="w"> </span>typing-extensions
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>typing_extensions-3.10.0.0-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">26</span><span class="w"> </span>kB<span class="o">)</span>
+Installing<span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>typing-extensions,<span class="w"> </span>torch,<span class="w"> </span>graphviz,<span class="w"> </span>k2
+Successfully<span class="w"> </span>installed<span class="w"> </span>graphviz-0.17<span class="w"> </span>k2-1.4.dev20210822+cpu.torch1.9.0<span class="w"> </span>torch-1.9.0<span class="w"> </span>typing-extensions-3.10.0.0
 </pre></div>
 </div>
 <div class="admonition warning">
@@ -393,10 +393,10 @@ the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/m
 on CPU.</p>
 <section id="data-preparation">
 <h3>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">export</span> <span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
-$ <span class="nb">cd</span> /tmp/icefall
-$ <span class="nb">cd</span> egs/yesno/ASR
-$ ./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The log of running <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> is:</p>
@@ -457,7 +457,7 @@ even if there are GPUs available.</p>
 <p class="admonition-title">Hint</p>
 <p>In case you get a <code class="docutils literal notranslate"><span class="pre">Segmentation</span> <span class="pre">fault</span> <span class="pre">(core</span> <span class="pre">dump)</span></code> error, please use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION</span><span class="o">=</span>python
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION</span><span class="o">=</span>python
 </pre></div>
 </div>
 </div></blockquote>
