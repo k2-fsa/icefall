@@ -1842,8 +1842,8 @@ class Conv2dSubsampling(nn.Module):
             SwooshR(),
         )
 
-        self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels, kernel_size=(5, 5)),
-                                       ConvNeXt(layer2_channels, kernel_size=(5, 5)),
+        self.convnext1 = nn.Sequential(ConvNeXt(layer2_channels, kernel_size=(5, 7)),
+                                       ConvNeXt(layer2_channels, kernel_size=(5, 7)),
                                        BasicNorm(layer2_channels,
                                                  channel_dim=1))
 
