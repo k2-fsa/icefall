@@ -1538,7 +1538,7 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
-        if 'adapters' in n or 'joiner' in n or 'simple' in n or 'ctc' in n:
+        if 'adapters' in n:# or 'joiner' in n or 'simple' in n or 'ctc' in n:
             adapter_names.append(n)
             adapter_param.append(p)
         else:
