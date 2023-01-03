@@ -197,8 +197,6 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        layer_output = [x.permute(1, 0, 2) for x in layer_output]
-
         return x, lengths
 
     @torch.jit.export
@@ -695,8 +693,6 @@ class ConformerEncoder(nn.Module):
 
         outputs = []
         
-        layer_output = []
-
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -707,8 +703,6 @@ class ConformerEncoder(nn.Module):
             )
             if i in self.aux_layers:
                 outputs.append(output)
-
-            layer_output.append(output)
 
         output = self.combiner(outputs)
 
