@@ -32,6 +32,8 @@ from fairseq.modules import (
 from fairseq.utils import index_put
 from utils import pad_to_multiple
 
+from convolution import ConvolutionModule
+
 logger = logging.getLogger().setLevel(logging.INFO)
 
 class TransformerEncoderAdapter(TransformerEncoder):
