@@ -5,9 +5,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--epoch 10 \
-	--avg 5 \
-	--use-averaged-model True \
+	--model-name epoch-10.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter \
     --max-duration 400 \
     --decoding-method $method \
@@ -17,6 +15,3 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --decoder-dim 768 \
     --joiner-dim 768 
 done
-
-#--model-name epoch-6.pt \
-
