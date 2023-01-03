@@ -772,7 +772,6 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
     
-    '''
     test_clean_cuts = librispeech.test_clean_cuts(option='male')
     test_other_cuts = librispeech.test_other_cuts(option='male')
 
@@ -826,7 +825,7 @@ def main():
                 test_set_name=test_set,
                 results_dict=results_dict,
             )
-
+    '''
     logging.info("Done!")
 
 
