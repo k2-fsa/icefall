@@ -77,5 +77,7 @@ class ConvolutionModule(nn.Module):
         x = self.activation(self.norm(x))
 
         x = self.pointwise_conv2(x)
+        x = x.transpose(1, 2)
+        x = self.layer_norm(x)
 
-        return x.transpose(1, 2)
+        return x
