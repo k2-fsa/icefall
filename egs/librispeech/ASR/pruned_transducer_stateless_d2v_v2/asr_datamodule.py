@@ -493,9 +493,10 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def test_other_cuts(self, option=None) -> CutSet:
         logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
-        )
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
+            )
         elif option == 'user':
             json_list = sorted(glob(self.args.manifest_dir / "/userlibri/test-other/*"))
             spk_list = [json.split('/')[-1][:-6] for json in json_list]
