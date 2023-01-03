@@ -146,7 +146,7 @@ class ResidualAdapterModule(nn.Module):
         
         super().__init__()
 
-        self.type = 'conv'
+        self.type = 'linear'
         
         def build_adapter(embedding_dim, proj_dim, type_=self.type):
             if type_ == 'conv':
