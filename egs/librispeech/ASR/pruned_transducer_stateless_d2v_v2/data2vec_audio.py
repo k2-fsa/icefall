@@ -158,7 +158,7 @@ class ResidualAdapterModule(nn.Module):
                 )
 
         self.adapter_layers = nn.ModuleList(
-            [build_adapter(embedding_dim, proj_dim) for _ in range(layer_num)]
+            [build_adapter(embedding_dim, proj_dim, type_='conv') for _ in range(layer_num)]
         )
     
     def forward(self, x, layer_id=-1):
