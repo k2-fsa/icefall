@@ -68,7 +68,10 @@ class CodebookIndexExtractor:
     def init_dirs(self):
         # vq_dir is the root dir for quantization, containing:
         # training data, trained quantizer, and extracted codebook indexes
-        self.vq_dir = self.params.exp_dir / f"vq/{self.params.teacher_model_id}/"
+        self.vq_dir = (
+            self.params.exp_dir
+            / f"vq/{self.params.teacher_model_id}_layer{self.params.embedding_layer}_cb{self.params.num_codebooks}/"
+        )
         self.vq_dir.mkdir(parents=True, exist_ok=True)
 
         # manifest_dir contains:
@@ -79,7 +82,10 @@ class CodebookIndexExtractor:
         # It's doesn't matter whether ori_manifest_dir is str or Path.
         # Set it to Path to be consistent.
         self.ori_manifest_dir = Path("./data/fbank/")
-        self.dst_manifest_dir = Path("./data/vq_fbank/")
+        self.dst_manifest_dir = Path(
+            f"./data/vq_fbank_layer"
+            + f"{self.params.embedding_layer}_cb{self.params.num_codebooks}/"
+        )
 
         self.dst_manifest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -284,7 +290,10 @@ class CodebookIndexExtractor:
         Merge generated vq included manfiests and storage to self.dst_manifest_dir.
         """
         for subset in self.params.subsets:
-            vq_manifests = f"{self.manifest_dir}/with_codebook_indexes-librispeech-cuts_train-{subset}*.jsonl.gz"
+            vq_manifests = (
+                f"{self.manifest_dir}/"
+                + f"with_codebook_indexes-librispeech-cuts_train-{subset}*.jsonl.gz"
+            )
             dst_vq_manifest = (
                 self.dst_manifest_dir / f"librispeech_cuts_train-{subset}-vq.jsonl.gz"
             )
