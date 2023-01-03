@@ -710,7 +710,7 @@ class ConformerEncoder(nn.Module):
 
         output = self.combiner(outputs)
 
-        return output
+        return output, layer_output
 
     @torch.jit.export
     def chunk_forward(
