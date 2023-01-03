@@ -471,13 +471,13 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_dev-other_{option}.jsonl"
             )
 
-
     @lru_cache()
     def test_clean_cuts(self, option=None) -> CutSet:
         logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / f"librispeech_cuts_test-clean_{option}.jsonl"
-        )
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
+            )
 
     @lru_cache()
     def test_other_cuts(self, option=None) -> CutSet:
