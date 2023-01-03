@@ -39,8 +39,8 @@ logger = logging.getLogger().setLevel(logging.INFO)
 class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
-        #self.adapters = ResidualAdapterModule()
-        self.adapters = ConvolutionModule(768, 31)
+        self.adapters = ResidualAdapterModule()
+        #self.adapters = ConvolutionModule(768, 31)
 
         for p in self.adapters.parameters():
             #p.data = nn.Parameter(torch.zeros(p.size()).to('cuda'))
