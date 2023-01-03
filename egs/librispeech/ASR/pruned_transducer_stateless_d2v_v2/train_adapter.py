@@ -1538,6 +1538,7 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
+        print(n)
         if 'adapters' in n:
             adapter_names.append(n)
             adapter_param.append(p)
