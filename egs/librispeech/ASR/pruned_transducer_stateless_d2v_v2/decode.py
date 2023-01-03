@@ -781,6 +781,24 @@ def main():
 
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
+    
+    for test_set, test_dl in zip(test_sets, test_dl):
+        for test_set, test_dl in zip(sets, dls):
+            results_dict = decode_dataset(
+                dl=test_dl,
+                params=params,
+                model=model,
+                sp=sp,
+                word_table=word_table,
+                decoding_graph=decoding_graph,
+            )
+
+            save_results(
+                params=params,
+                test_set_name=test_set,
+                results_dict=results_dict,
+            )
+
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
     test_other_cuts, test_other_sets = librispeech.test_other_cuts(option='user')
