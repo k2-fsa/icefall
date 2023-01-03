@@ -480,6 +480,7 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
             )
         elif option == 'user':
+            print(self.args.manifest_dir)
             json_list = sorted(glob(self.args.manifest_dir + "/userlibri/test-clean/*"))
             spk_list = [json.split('/')[-1][:-6] for json in json_list]
 
