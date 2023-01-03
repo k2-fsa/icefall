@@ -792,6 +792,7 @@ def main():
     test_dl = [test_clean_dl, test_other_dl]
     
     for sets, dls in zip(test_sets, test_dl):
+        print(len(sets), len(dls))
         for test_set, test_dl in zip(sets, dls):
             results_dict = decode_dataset(
                 dl=test_dl,
