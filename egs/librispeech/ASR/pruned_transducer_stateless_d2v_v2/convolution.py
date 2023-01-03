@@ -80,5 +80,7 @@ class ConvolutionModule(nn.Module):
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         x = self.layer_norm(x)
+        
+        x += residual
 
         return x
