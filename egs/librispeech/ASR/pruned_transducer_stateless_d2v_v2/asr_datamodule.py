@@ -480,10 +480,9 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
             )
         elif option == 'user':
+            json_list = sorted(glob(self.args.manifest_dir / "/userlibri/test-clean/*"))
 
-            return [load_manifest_lazy(
-                self.args.manifest_dir / f"/userlibri/test-clean/"
-            )
+            return [load_manifest_lazy(spkeaker) for speaker in json_list], 
 
 
     @lru_cache()
