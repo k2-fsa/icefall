@@ -772,10 +772,20 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
     
+    '''
     test_clean_cuts = librispeech.test_clean_cuts(option='male')
     test_other_cuts = librispeech.test_other_cuts(option='male')
 
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
+    '''
+    test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
+    test_other_cuts, test_other_sets = librispeech.test_other_cuts(option='user')
+
+    test_clean_dl = [librispeech.test_dataloaders(user) for user in 
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
     test_sets = ["test-clean", "test-other"]
