@@ -66,6 +66,7 @@ class ConvolutionModule(nn.Module):
 
         """
         # exchange the temporal dimension and the feature dimension
+        residual = x
         x = x.transpose(1, 2)
 
         # GLU mechanism
