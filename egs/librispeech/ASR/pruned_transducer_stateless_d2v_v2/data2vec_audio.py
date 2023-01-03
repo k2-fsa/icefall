@@ -222,7 +222,7 @@ def get_annealed_rate(start, end, curr_step, total_steps):
     return end - r * pct_remaining
 
 
-@register_model("data2vec_audio_icefall", dataclass=Data2VecAudioConfig)
+@register_model("data2vec_audio", dataclass=Data2VecAudioConfig)
 class Data2VecAudioModel(BaseFairseqModel):
     def __init__(self, cfg: Data2VecAudioConfig):
         super().__init__()
