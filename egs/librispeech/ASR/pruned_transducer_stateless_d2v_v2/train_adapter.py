@@ -1541,6 +1541,8 @@ def run_adapter(rank, world_size, args, wb=None):
         if 'adapters' in n:# or 'joiner' in n or 'simple' in n or 'ctc' in n:
             adapter_names.append(n)
             adapter_param.append(p)
+        elif 'joiner' in n or 'simple' in n or 'ctc' in n:
+            p.requires_grad = True
         else:
             p.requires_grad = False
     optimizer_adapter = ScaledAdam(
@@ -1549,7 +1551,7 @@ def run_adapter(rank, world_size, args, wb=None):
             clipping_scale=5.0,
             parameters_names=[adapter_names],
         )
-    scheduler_adapter = Eden(optimizer_adapter, 5000, 3.5) #params.lr_batche, params.lr_epochs)
+    scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
 
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
     
