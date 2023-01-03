@@ -480,8 +480,7 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
             )
         elif option == 'user':
-            print(self.args.manifest_dir)
-            json_list = sorted(glob(self.args.manifest_dir + "/userlibri/test-clean/*"))
+            json_list = sorted(glob(str(self.args.manifest_dir) + "/userlibri/test-clean/*"))
             spk_list = [json.split('/')[-1][:-6] for json in json_list]
 
             return [load_manifest_lazy(json) for json in json_list], spk_list 
@@ -498,7 +497,7 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
             )
         elif option == 'user':
-            json_list = sorted(glob(self.args.manifest_dir + "/userlibri/test-other/*"))
+            json_list = sorted(glob(str(self.args.manifest_dir) + "/userlibri/test-other/*"))
             spk_list = [json.split('/')[-1][:-6] for json in json_list]
 
             return [load_manifest_lazy(json) for json in json_list], spk_list 
