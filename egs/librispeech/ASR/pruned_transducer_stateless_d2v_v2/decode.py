@@ -791,21 +791,22 @@ def main():
     test_sets = [test_clean_sets, test_other_sets]
     test_dl = [test_clean_dl, test_other_dl]
     
-    for test_set, test_dl in zip(test_sets, test_dl):
-        results_dict = decode_dataset(
-            dl=test_dl,
-            params=params,
-            model=model,
-            sp=sp,
-            word_table=word_table,
-            decoding_graph=decoding_graph,
-        )
+    for sets, dls in zip(test_sets, test_dl):
+        for test_set, test_dl in zip(sets, dls):
+            results_dict = decode_dataset(
+                dl=test_dl,
+                params=params,
+                model=model,
+                sp=sp,
+                word_table=word_table,
+                decoding_graph=decoding_graph,
+            )
 
-        save_results(
-            params=params,
-            test_set_name=test_set,
-            results_dict=results_dict,
-        )
+            save_results(
+                params=params,
+                test_set_name=test_set,
+                results_dict=results_dict,
+            )
 
     logging.info("Done!")
 
