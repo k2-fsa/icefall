@@ -32,7 +32,7 @@ from fairseq.modules import (
 from fairseq.utils import index_put
 from utils import pad_to_multiple
 
-#logger = logging.getLogger().setLevel(logging.INFO)
+logger = logging.getLogger().setLevel(logging.INFO)
 
 class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
