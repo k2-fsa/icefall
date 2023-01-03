@@ -135,6 +135,10 @@ class Conformer(EncoderInterface):
         )
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
+        self.alpha = nn.Parameters(torch.rand(4))
+        self.sigmoid = nn.Sigmoid()
+        self.layer_norm = nn.LayerNorm(512)
+
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -198,7 +202,12 @@ class Conformer(EncoderInterface):
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         layer_output = [x.permute(1, 0, 2) for x in layer_output]
-
+        x = self.layer_norm(1/4*(self.sigmoid(self.alpha[0])*layer_output[2] + \
+                                 self.sigmoid(self.alpha[1])*layer_output[5] + \
+                                 self.sigmoid(self.alpha[2])*layer_output[8] + \
+                                 self.sigmoid(self.alpha[3])*layer_output[11]
+                                )
+                            )
         return x, lengths
 
     @torch.jit.export
