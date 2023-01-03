@@ -20,7 +20,6 @@
 
 import argparse
 import logging
-import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -183,7 +182,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--result-dir",
         type=str,
-        default="conformer_ctc2/exp",
+        default="conformer_ctc2/exp/results",
         help="Directory to store results.",
     )
 
@@ -635,9 +634,7 @@ def main() -> None:
     args.lm_path = Path(args.lm_path)
     args.result_dir = Path(args.result_dir)
 
-    if args.result_dir.is_dir():
-        shutil.rmtree(args.result_dir)
-    args.result_dir.mkdir()
+    args.result_dir.mkdir(exist_ok=True)
 
     params = get_params()
     params.update(vars(args))

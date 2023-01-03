@@ -907,7 +907,7 @@ class RelPositionalEncoding(torch.nn.Module):
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+        self.extend_pe(torch.tensor(0.0).expand(max_len))
 
     def extend_pe(self, x: Tensor) -> None:
         """Reset the positional encodings."""
