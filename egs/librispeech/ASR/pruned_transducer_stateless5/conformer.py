@@ -188,7 +188,7 @@ class Conformer(EncoderInterface):
                 warmup=warmup,
             )  # (T, N, C)
         else:
-            x = self.encoder(
+            x, layer_output = self.encoder(
                 x,
                 pos_emb,
                 src_key_padding_mask=src_key_padding_mask,
@@ -196,6 +196,8 @@ class Conformer(EncoderInterface):
             )  # (T, N, C)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+
+        layer_output = [x.permute(1, 0, 2) for x in layer_output]
 
         return x, lengths
 
@@ -693,6 +695,8 @@ class ConformerEncoder(nn.Module):
 
         outputs = []
         
+        layer_output = []
+
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -703,6 +707,8 @@ class ConformerEncoder(nn.Module):
             )
             if i in self.aux_layers:
                 outputs.append(output)
+
+            layer_output.append(output)
 
         output = self.combiner(outputs)
 
