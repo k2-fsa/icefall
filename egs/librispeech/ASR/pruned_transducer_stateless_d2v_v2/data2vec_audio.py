@@ -169,6 +169,7 @@ class ResidualAdapterModule(nn.Module):
         x = self.adapter_layers[layer_id](x)
         x = residual + x
         x = x.transpose(0, 1)
+
         return x
 
 
