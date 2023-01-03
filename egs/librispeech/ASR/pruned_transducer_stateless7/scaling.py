@@ -261,7 +261,7 @@ class RandomGrad(torch.nn.Module):
         self.min_abs = min_abs
 
     def forward(self, x: Tensor):
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or not self.training or torch.jit.is_tracing():
             return x
         else:
             return RandomGradFunction.apply(x, self.min_abs)
@@ -530,7 +530,7 @@ class ActivationBalancer(torch.nn.Module):
         self.register_buffer("count", torch.tensor(0, dtype=torch.int64))
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or not x.requires_grad:
+        if torch.jit.is_scripting() or not x.requires_grad or torch.jit.is_tracing():
             return _no_op(x)
 
         count = self.cpu_count
@@ -790,7 +790,7 @@ def with_loss(x, y):
 
 
 def _no_op(x: Tensor) -> Tensor:
-    if torch.jit.is_scripting():
+    if torch.jit.is_scripting() or torch.jit.is_tracing():
         return x
     else:
         # a no-op function that will have a node in the autograd graph,
@@ -862,6 +862,7 @@ class MaxEig(torch.nn.Module):
             torch.jit.is_scripting()
             or self.max_var_per_eig <= 0
             or random.random() > self.cur_prob
+            or torch.jit.is_tracing()
         ):
             return _no_op(x)
 
