@@ -40,7 +40,6 @@ class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
         self.adapters = ResidualAdapterModule()
-        #self.adapters = ConvolutionModule(768, 31)
 
         for p in self.adapters.parameters():
             #p.data = nn.Parameter(torch.zeros(p.size()).to('cuda'))
@@ -146,7 +145,8 @@ class ResidualAdapterModule(nn.Module):
         
         super().__init__()
         
-        def build_adapter(embedding_dim, proj_dim):
+        self.adapters = ConvolutionModule(768, 31)
+        def build_adapter(embedding_dim, proj_dim, type_='conv'):
             return nn.Sequential(
                     #nn.LayerNorm(embedding_dim),
                     nn.Linear(embedding_dim, proj_dim),
