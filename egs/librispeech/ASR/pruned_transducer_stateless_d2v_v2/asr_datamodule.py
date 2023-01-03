@@ -447,7 +447,6 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_train-all-shuf_{option}.jsonl"
             )
 
-    
     @lru_cache()
     def dev_clean_cuts(self, option=None) -> CutSet:
         logging.info("About to get dev-clean cuts")
