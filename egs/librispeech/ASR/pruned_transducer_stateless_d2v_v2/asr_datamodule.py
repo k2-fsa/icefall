@@ -19,6 +19,7 @@
 import argparse
 import inspect
 import logging
+from glob import glob
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -479,8 +480,9 @@ class LibriSpeechAsrDataModule:
                 self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
             )
         elif option == 'user':
-            return load_manifest_lazy(
-                self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
+
+            return [load_manifest_lazy(
+                self.args.manifest_dir / f"/userlibri/test-clean/"
             )
 
 
