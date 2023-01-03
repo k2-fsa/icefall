@@ -1024,9 +1024,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+            #logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            #)
             return False
 
         # In pruned RNN-T, we require that T >= S
