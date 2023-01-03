@@ -1067,7 +1067,8 @@ def run(rank, world_size, args):
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
-
+    
+    '''
     if params.start_batch <= 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
@@ -1077,6 +1078,7 @@ def run(rank, world_size, args):
             params=params,
             warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
+    '''
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
