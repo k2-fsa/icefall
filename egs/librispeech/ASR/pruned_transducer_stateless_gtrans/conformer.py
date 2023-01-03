@@ -135,7 +135,7 @@ class Conformer(EncoderInterface):
         )
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
-        self.alpha = nn.Parameters(torch.rand(4))
+        self.alpha = nn.Parameter(torch.rand(4))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(512)
 
