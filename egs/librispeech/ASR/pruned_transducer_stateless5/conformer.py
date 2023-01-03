@@ -692,6 +692,8 @@ class ConformerEncoder(nn.Module):
         output = src
 
         outputs = []
+        
+        layer_output = []
 
         for i, mod in enumerate(self.layers):
             output = mod(
@@ -703,6 +705,8 @@ class ConformerEncoder(nn.Module):
             )
             if i in self.aux_layers:
                 outputs.append(output)
+
+            layer_output.append(output)
 
         output = self.combiner(outputs)
 
