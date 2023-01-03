@@ -503,6 +503,6 @@ class LibriSpeechAsrDataModule:
             return [load_manifest_lazy(json) for json in json_list], spk_list 
         else:
             return load_manifest_lazy(
-                self.args.manifest_dir / f"librispeech_cuts_test-clean_{option}.jsonl"
+                self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
             )
 
