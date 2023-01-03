@@ -478,6 +478,11 @@ class LibriSpeechAsrDataModule:
             return load_manifest_lazy(
                 self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
             )
+        elif option == 'user':
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
+            )
+
 
     @lru_cache()
     def test_other_cuts(self, option=None) -> CutSet:
