@@ -396,28 +396,28 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_100_cuts(self, option='new') -> CutSet:
+    def train_clean_100_cuts(self, option=None) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_train-clean-100_{option}.jsonl"
         )
 
     @lru_cache()
-    def train_clean_360_cuts(self, option='new') -> CutSet:
+    def train_clean_360_cuts(self, option=None) -> CutSet:
         logging.info("About to get train-clean-360 cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_train-clean-360_{option}.jsonl"
         )
 
     @lru_cache()
-    def train_other_500_cuts(self, option='new') -> CutSet:
+    def train_other_500_cuts(self, option=None) -> CutSet:
         logging.info("About to get train-other-500 cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_train-other-500_{option}.jsonl"
         )
 
     @lru_cache()
-    def train_all_shuf_cuts(self, option='new') -> CutSet:
+    def train_all_shuf_cuts(self, option=None) -> CutSet:
         logging.info(
             "About to get the shuffled train-clean-100, \
             train-clean-360 and train-other-500 cuts"
@@ -427,28 +427,28 @@ class LibriSpeechAsrDataModule:
         )
     
     @lru_cache()
-    def dev_clean_cuts(self, option='new') -> CutSet:
+    def dev_clean_cuts(self, option=None) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_dev-clean_{option}.jsonl"
         )
 
     @lru_cache()
-    def dev_other_cuts(self, option='new') -> CutSet:
+    def dev_other_cuts(self, option=None) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_dev-other_{option}.jsonl"
         )
 
     @lru_cache()
-    def test_clean_cuts(self, option='new') -> CutSet:
+    def test_clean_cuts(self, option=None) -> CutSet:
         logging.info("About to get test-clean cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_test-clean_{option}.jsonl"
         )
 
     @lru_cache()
-    def test_other_cuts(self, option='new') -> CutSet:
+    def test_other_cuts(self, option=None) -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
