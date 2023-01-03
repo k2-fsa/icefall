@@ -7,7 +7,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--additional-block True \
 	--model-name epoch-3.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter \
-    --max-duration 700 \
+    --max-duration 100 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
 	--encoder-type d2v \
