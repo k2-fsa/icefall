@@ -160,6 +160,7 @@ class Conformer(EncoderInterface):
               of frames in `embeddings` before padding.
         """
         print(self.sigmoid(self.alpha))
+        exit()
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
