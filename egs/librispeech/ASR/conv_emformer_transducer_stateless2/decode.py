@@ -541,7 +541,6 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    import pdb; pdb.set_trace()
     params = get_params()
     params.update(vars(args))
 
