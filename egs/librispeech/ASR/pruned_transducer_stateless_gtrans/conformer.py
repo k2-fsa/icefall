@@ -159,6 +159,7 @@ class Conformer(EncoderInterface):
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
         """
+        print(self.sigmoid(self.alpha))
         x = self.encoder_embed(x)
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
