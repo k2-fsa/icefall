@@ -186,7 +186,7 @@ class Conformer(EncoderInterface):
                 num_left_chunks=self.num_left_chunks,
                 device=x.device,
             )
-            x = self.encoder(
+            x, layer_output = self.encoder(
                 x,
                 pos_emb,
                 mask=mask,
