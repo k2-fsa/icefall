@@ -695,8 +695,6 @@ class ConformerEncoder(nn.Module):
 
         outputs = []
         
-        layer_output = []
-
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -708,11 +706,9 @@ class ConformerEncoder(nn.Module):
             if i in self.aux_layers:
                 outputs.append(output)
 
-            layer_output.append(output)
-
         output = self.combiner(outputs)
 
-        return output, layer_output
+        return output
 
     @torch.jit.export
     def chunk_forward(
