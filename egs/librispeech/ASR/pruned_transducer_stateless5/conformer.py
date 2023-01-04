@@ -197,8 +197,6 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
-        layer_output = [x.permute(1, 0, 2) for x in layer_output]
-
         return x, lengths
 
     @torch.jit.export
