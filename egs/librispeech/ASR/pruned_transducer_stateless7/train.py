@@ -963,7 +963,7 @@ def train_one_epoch(
                 raise RuntimeError(f"grad_scale is too small, exiting: {cur_grad_scale}")
 
         if batch_idx % params.log_interval == 0:
-            cur_lr = scheduler.get_last_lr()[0]
+            cur_lr = max(scheduler.get_last_lr())
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
             logging.info(
