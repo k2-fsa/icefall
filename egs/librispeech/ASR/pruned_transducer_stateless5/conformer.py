@@ -188,7 +188,7 @@ class Conformer(EncoderInterface):
                 warmup=warmup,
             )  # (T, N, C)
         else:
-            x, layer_output = self.encoder(
+            x = self.encoder(
                 x,
                 pos_emb,
                 src_key_padding_mask=src_key_padding_mask,
