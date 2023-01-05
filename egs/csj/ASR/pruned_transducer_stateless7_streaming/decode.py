@@ -106,13 +106,14 @@ import logging
 import math
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TextIO
 
 import k2
-import sentencepiece as spm
+import kaldialign
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import CSJAsrDataModule
+from tokenizer import Tokenizer
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -137,11 +138,178 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     str2bool,
-    write_error_stats,
 )
 
 LOG_EPS = math.log(1e-10)
 
+def write_error_stats(
+    f: TextIO,
+    test_set_name: str,
+    results: List[Tuple[str, str]],
+    enable_log: bool = True,
+    # return_stats = False,
+) -> float:
+    """Write statistics based on predicted results and reference transcripts.
+
+    It will write the following to the given file:
+
+        - WER
+        - number of insertions, deletions, substitutions, corrects and total
+          reference words. For example::
+
+              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
+              reference words (2337 correct)
+
+        - The difference between the reference transcript and predicted result.
+          An instance is given below::
+
+            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
+
+          The above example shows that the reference word is `EDISON`,
+          but it is predicted to `ADDISON` (a substitution error).
+
+          Another example is::
+
+            FOR THE FIRST DAY (SIR->*) I THINK
+
+          The reference word `SIR` is missing in the predicted
+          results (a deletion error).
+      results:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+      enable_log:
+        If True, also print detailed WER to the console.
+        Otherwise, it is written only to the given file.
+    Returns:
+      Return None.
+    """
+    subs: Dict[Tuple[str, str], int] = defaultdict(int)
+    ins: Dict[str, int] = defaultdict(int)
+    dels: Dict[str, int] = defaultdict(int)
+
+    # `words` stores counts per word, as follows:
+    #   corr, ref_sub, hyp_sub, ins, dels
+    words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    num_corr = 0
+    ERR = "*"
+    for cut_id, ref, hyp in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        for ref_word, hyp_word in ali:
+            if ref_word == ERR:
+                ins[hyp_word] += 1
+                words[hyp_word][3] += 1
+            elif hyp_word == ERR:
+                dels[ref_word] += 1
+                words[ref_word][4] += 1
+            elif hyp_word != ref_word:
+                subs[(ref_word, hyp_word)] += 1
+                words[ref_word][1] += 1
+                words[hyp_word][2] += 1
+            else:
+                words[ref_word][0] += 1
+                num_corr += 1
+    ref_len = sum([len(r) for _, r, _ in results])
+    sub_errs = sum(subs.values())
+    ins_errs = sum(ins.values())
+    del_errs = sum(dels.values())
+    tot_errs = sub_errs + ins_errs + del_errs
+    tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+
+    if enable_log:
+        logging.info(
+            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
+            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
+            f"{del_errs} del, {sub_errs} sub ]"
+        )
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    print(
+        f"Errors: {ins_errs} insertions, {del_errs} deletions, "
+        f"{sub_errs} substitutions, over {ref_len} reference "
+        f"words ({num_corr} correct)",
+        file=f,
+    )
+    print(
+        "Search below for sections starting with PER-UTT DETAILS:, "
+        "SUBSTITUTIONS:, DELETIONS:, INSERTIONS:, PER-WORD STATS:",
+        file=f,
+    )
+
+    print("", file=f)
+    print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
+    for cut_id, ref, hyp in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        combine_successive_errors = True
+        if combine_successive_errors:
+            ali = [[[x], [y]] for x, y in ali]
+            for i in range(len(ali) - 1):
+                if ali[i][0] != ali[i][1] and ali[i + 1][0] != ali[i + 1][1]:
+                    ali[i + 1][0] = ali[i][0] + ali[i + 1][0]
+                    ali[i + 1][1] = ali[i][1] + ali[i + 1][1]
+                    ali[i] = [[], []]
+            ali = [
+                [
+                    list(filter(lambda a: a != ERR, x)),
+                    list(filter(lambda a: a != ERR, y)),
+                ]
+                for x, y in ali
+            ]
+            ali = list(filter(lambda x: x != [[], []], ali))
+            ali = [
+                [
+                    ERR if x == [] else " ".join(x),
+                    ERR if y == [] else " ".join(y),
+                ]
+                for x, y in ali
+            ]
+
+        print(
+            f"{cut_id}:\t"
+            + " ".join(
+                (
+                    ref_word
+                    if ref_word == hyp_word
+                    else f"({ref_word}->{hyp_word})"
+                    for ref_word, hyp_word in ali
+                )
+            ),
+            file=f,
+        )
+
+    print("", file=f)
+    print("SUBSTITUTIONS: count ref -> hyp", file=f)
+
+    for count, (ref, hyp) in sorted(
+        [(v, k) for k, v in subs.items()], reverse=True
+    ):
+        print(f"{count}   {ref} -> {hyp}", file=f)
+
+    print("", file=f)
+    print("DELETIONS: count ref", file=f)
+    for count, ref in sorted([(v, k) for k, v in dels.items()], reverse=True):
+        print(f"{count}   {ref}", file=f)
+
+    print("", file=f)
+    print("INSERTIONS: count hyp", file=f)
+    for count, hyp in sorted([(v, k) for k, v in ins.items()], reverse=True):
+        print(f"{count}   {hyp}", file=f)
+
+    print("", file=f)
+    print(
+        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
+    )
+    for _, word, counts in sorted(
+        [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
+    ):
+        (corr, ref_sub, hyp_sub, ins, dels) = counts
+        tot_errs = ref_sub + hyp_sub + ins + dels
+        ref_count = corr + ref_sub + dels
+        hyp_count = corr + hyp_sub + ins
+
+        print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
+    
+    # if return_stats:
+    return float(tot_err_rate)
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -165,6 +333,12 @@ def get_parser():
         will use the checkpoint exp_dir/checkpoint-iter.pt.
         You can specify --avg to use more checkpoints for model averaging.
         """,
+    )
+
+    parser.add_argument(
+        "--gpu",
+        type=int,
+        default=0,
     )
 
     parser.add_argument(
@@ -192,6 +366,13 @@ def get_parser():
         type=str,
         default="pruned_transducer_stateless7_streaming/exp",
         help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--res-dir",
+        type=Path,
+        default=None,
+        help="The path to save results.",
     )
 
     parser.add_argument(
@@ -223,6 +404,14 @@ def get_parser():
         If you use fast_beam_search_nbest_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
+    )
+
+    parser.add_argument(
+        "--decoding-graph",
+        type=str,
+        default="",
+        help="""Used only when --decoding-method is 
+        fast_beam_search"""
     )
 
     parser.add_argument(
@@ -315,7 +504,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -421,7 +610,8 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
+            ref_texts=sp.encode(
+                [' '.join(t.replace(" ","")) for t in supervisions["text"]]),
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -489,7 +679,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
@@ -547,7 +737,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = ref_text.split()
+                ref_words = list(ref_text.replace(" ",""))
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
@@ -603,12 +793,13 @@ def save_results(
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
-
+    return test_set_wers
 
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    CSJAsrDataModule.add_arguments(parser)
+    Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -624,7 +815,8 @@ def main():
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
-    params.res_dir = params.exp_dir / params.decoding_method
+    if not params.res_dir:
+        params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
@@ -656,17 +848,17 @@ def main():
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
+        device = torch.device("cuda", params.gpu)
 
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    sp = Tokenizer.load(params.word_table)
 
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    len_file = "tokens_len" if params.word_table.suffix == ".pretoken" else "words_len"
+    params.vocab_size = int((params.word_table.parent / len_file).read_text())
 
     logging.info(params)
 
@@ -757,7 +949,14 @@ def main():
     model.to(device)
     model.eval()
 
-    if "fast_beam_search" in params.decoding_method:
+    decoding_graph = None
+    word_table = None
+
+    if params.decoding_graph:
+        decoding_graph = k2.Fsa.from_dict(
+            torch.load(params.decoding_graph, map_location=device)
+        )
+    elif "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
             word_table = lexicon.word_table
@@ -770,41 +969,64 @@ def main():
         else:
             word_table = None
             decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
-    else:
-        decoding_graph = None
-        word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    csj_corpus = CSJAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
-
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for subdir in ["eval1", "eval2", "eval3", "excluded", "valid"]:
         results_dict = decode_dataset(
-            dl=test_dl,
+            dl=csj_corpus.test_dataloaders(
+                getattr(csj_corpus, f"{subdir}_cuts")()),
             params=params,
             model=model,
             sp=sp,
-            word_table=word_table,
             decoding_graph=decoding_graph,
         )
-
-        save_results(
+        tot_err : List[Tuple] = save_results(
             params=params,
-            test_set_name=test_set,
+            test_set_name=subdir+"-ori", 
             results_dict=results_dict,
         )
+        with (params.res_dir / (
+            f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
+            f"_{params.avg}_{params.epoch}.oricer")).open("w") as fout:
+            if len(tot_err) == 1:
+                fout.write(f"{tot_err[0][1]}")
+            else:
+                fout.write(
+                    '\n'.join(f"{k}\t{v}") for k,v in tot_err
+                )
+
+        results_dict = {
+            k: [(
+                vv[0], 
+                [i for i in vv[1] if i not in ['↵','。','、']],
+                [i for i in vv[2] if i not in ['↵','。','、']]
+            )
+                for vv in v
+                ]
+            
+            for k,v in results_dict.items()
+        }
+
+        tot_err = save_results(
+            params=params,
+            test_set_name=subdir + "-txt",
+            results_dict=results_dict,
+        )
+        with (params.res_dir / (
+            f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
+            f"_{params.avg}_{params.epoch}.txtcer")).open("w") as fout:
+            if len(tot_err) == 1:
+                fout.write(f"{tot_err[0][1]}")
+            else:
+                fout.write(
+                    '\n'.join(f"{k}\t{v}") for k,v in tot_err
+                )
 
     logging.info("Done!")
 
