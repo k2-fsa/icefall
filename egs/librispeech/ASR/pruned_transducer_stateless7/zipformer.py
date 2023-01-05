@@ -207,6 +207,9 @@ class Zipformer(EncoderInterface):
                     downsample=downsampling_factor[i],
                     dropout=dropout,
                 )
+                # we are adding a new attribute here.
+                # this will be interpreted by get_named_parameter_groups_with_lrs().
+                encoder.lr_scale = downsampling_factor[i] ** -0.5
             encoders.append(encoder)
         self.encoders = nn.ModuleList(encoders)
 

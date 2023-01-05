@@ -200,8 +200,8 @@ class ScaledAdam(BatchedOptimizer):
         # i.e when parameter names are not given,
         # this flag will be set to False in funciton _get_names_of_parameters.
         self.show_dominant_parameters = True
-        params, parameters_names = self._get_names_of_parameters(params)
-        super(ScaledAdam, self).__init__(params, defaults)
+        param_groups, parameters_names = self._get_names_of_parameters(params)
+        super(ScaledAdam, self).__init__(param_groups, defaults)
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
 
@@ -228,9 +228,9 @@ class ScaledAdam(BatchedOptimizer):
 
             case 4, a list of named_parameter groups with different config, e.g.:
               model_named_param_groups = [
-                      {'params': model.encoder.named_parameters(), 'lr': 0.05},
-                      {'params': model.decoder.named_parameters(), 'lr': 0.01},
-                      {'params': model.joiner.named_parameters(), 'lr': 0.03},
+                      {'named_params': model.encoder.named_parameters(), 'lr': 0.05},
+                      {'named_params': model.decoder.named_parameters(), 'lr': 0.01},
+                      {'named_params': model.joiner.named_parameters(), 'lr': 0.03},
                       ]
               optimizer = ScaledAdam(model_named_param_groups, lr=params.base_lr, clipping_scale=3.0)
 
@@ -267,7 +267,8 @@ class ScaledAdam(BatchedOptimizer):
         if len(iterable_or_groups) == 0:
             raise ValueError("optimizer got an empty parameter list")
 
-        # The first value of returned tuple.
+        # The first value of returned tuple.  A list of dicts containing at
+        # least 'params' as a key.
         param_groups = []
 
         # The second value of returned tuple,
@@ -297,33 +298,21 @@ class ScaledAdam(BatchedOptimizer):
         else:
             # case 2 or case 4
             # the input is groups of parameter or named parameter.
-            for p_or_np_cur_group in iterable_or_groups:
-                param_iterable_cur_group = []
-                param_names_cur_group = []
-                p_or_np_iterable = p_or_np_cur_group["params"]
-                for p_or_np in p_or_np_iterable:
-                    if isinstance(p_or_np, tuple):
-                        # case 4
-                        name, param = p_or_np
-                    else:
-                        # case 2
-                        assert isinstance(p_or_np, torch.Tensor)
-                        param = p_or_np
-                        # Assign a dummy name as a placeholder
-                        name = "foo"
-                        self.show_dominant_parameters = False
-                    param_iterable_cur_group.append(param)
-                    param_names_cur_group.append(name)
+            for cur_group in iterable_or_groups:
+                if "params" in cur_group:
+                    for p in cur_group["params"]:
+                        assert isinstance(p, torch.Tensor)
+                    param_groups.append(cur_group)
+                    param_groups_names.append(["foo"] * len(p_list))
+                else:
+                    assert "named_params" in cur_group
+                    p_list = [ x[0] for x in cur_group["named_params"] ]
+                    name_list = [ x[1] for x in cur_group["named_params"] ]
+                    del cur_group["named_params"]
+                    cur_group["params"] = p_list
+                    param_groups.append(cur_group)
+                    param_groups_names.append(name_list)
 
-                # The original `params` filed contains named_parameters.
-                # After following assignment,
-                # it will be changed to an iterable of parameter,
-                # and other fileds, if exist, are still original values.
-                # So param_groups could be used to initialize
-                # an underlying torch.Optimizer later.
-                p_or_np_cur_group["params"] = param_iterable_cur_group
-                param_groups.append(p_or_np_cur_group)
-                param_groups_names.append(param_names_cur_group)
         return param_groups, param_groups_names
 
     def __setstate__(self, state):
