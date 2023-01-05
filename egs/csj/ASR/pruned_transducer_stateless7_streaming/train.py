@@ -855,9 +855,10 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except:  # noqa
+        except Exception as e:  # noqa
+            logging.error(e, exc_info=True)
             display_and_save_batch(batch, params=params, sp=sp)
-            raise
+            raise e
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -1217,7 +1218,6 @@ def display_and_save_batch(
         The BPE model.
     """
     from lhotse.utils import uuid4
-
     filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)

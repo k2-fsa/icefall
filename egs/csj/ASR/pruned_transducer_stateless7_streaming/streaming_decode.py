@@ -331,7 +331,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=4.,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -673,7 +673,7 @@ def main():
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
+        device = torch.device("cuda", params.gpu)
 
     logging.info(f"Device: {device}")
 
@@ -785,7 +785,7 @@ def main():
     args.return_cuts = True
     csj_corpus = CSJAsrDataModule(args)
 
-    for subdir in ["eval1", "eval2", "eval3", "excluded", "valid"]:
+    for subdir in ["eval1", "eval2", "eval3", "excluded"] : #, "valid"]:
         results_dict = decode_dataset(
             cuts=getattr(csj_corpus, f"{subdir}_cuts")(),
             params=params,
@@ -800,7 +800,7 @@ def main():
         )
         with (params.res_dir / (
             f"{subdir}-{params.decode_chunk_len}"
-            f"_{params.avg}_{params.epoch}.txtcer")).open("w") as fout:
+            f"_{params.avg}_{params.epoch}.oricer")).open("w") as fout:
             if len(tot_err) == 1:
                 fout.write(f"{tot_err[0][1]}")
             else:
