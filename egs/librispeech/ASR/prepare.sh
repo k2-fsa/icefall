@@ -123,10 +123,12 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     touch data/fbank/.librispeech.done
   fi
 
-  cat <(gunzip -c data/fbank/librispeech_cuts_train-clean-100.jsonl.gz) \
-    <(gunzip -c data/fbank/librispeech_cuts_train-clean-360.jsonl.gz) \
-    <(gunzip -c data/fbank/librispeech_cuts_train-other-500.jsonl.gz) | \
-    shuf | gzip -c > data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz
+  if [ ! -f data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz ]; then
+    cat <(gunzip -c data/fbank/librispeech_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c data/fbank/librispeech_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c data/fbank/librispeech_cuts_train-other-500.jsonl.gz) | \
+      shuf | gzip -c > data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz
+  fi
 
   if [ ! -e data/fbank/.librispeech-validated.done ]; then
     log "Validating data/fbank for LibriSpeech"
@@ -244,7 +246,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Prepare bigram P"
+  log "Stage 7: Prepare bigram token-level P for MMI training"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
@@ -302,13 +304,20 @@ fi
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_phone
-  ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
+
+  # Note If ./local/compile_hlg.py throws OOM,
+  # please switch to the following command
+  #
+  # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir
 
-    ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
+    # Note If ./local/compile_hlg.py throws OOM,
+    # please switch to the following command
+    #
+    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
   done
 fi
 

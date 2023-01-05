@@ -24,10 +24,9 @@ from scaling import (
     ScaledConv2d,
     ScaledLinear,
 )
-from torch import nn
 
 
-class Conv2dSubsampling(nn.Module):
+class Conv2dSubsampling(torch.nn.Module):
     """Convolutional 2D subsampling (to 1/4 length).
 
     Convert an input of shape (N, T, idim) to an output
@@ -61,7 +60,7 @@ class Conv2dSubsampling(nn.Module):
         assert in_channels >= 7
         super().__init__()
 
-        self.conv = nn.Sequential(
+        self.conv = torch.nn.Sequential(
             ScaledConv2d(
                 in_channels=1,
                 out_channels=layer1_channels,

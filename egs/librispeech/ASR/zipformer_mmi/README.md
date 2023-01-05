@@ -1,6 +1,6 @@
 This recipe implements Zipformer-MMI model.
 
-See https://k2-fsa.github.io/icefall/recipes/librispeech/zipformer_mmi.html for detailed tutorials.
+See https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/zipformer_mmi.html for detailed tutorials.
 
 It uses **CTC loss for warm-up** and then switches to MMI loss during training.
 

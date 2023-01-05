@@ -13,7 +13,5 @@ We may add recipes for other tasks as well in the future.
    :maxdepth: 2
    :caption: Table of Contents
 
-   aishell/index
-   librispeech/index
-   timit/index
-   yesno/index
+   Non-streaming-ASR/index
+   Streaming-ASR/index
