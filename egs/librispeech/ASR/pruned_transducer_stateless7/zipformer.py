@@ -209,7 +209,7 @@ class Zipformer(EncoderInterface):
                 )
                 # we are adding a new attribute here.
                 # this will be interpreted by get_named_parameter_groups_with_lrs().
-                encoder.lr_scale = downsampling_factor[i] ** -0.333
+                encoder.lr_scale = downsampling_factor[i] ** -0.25
             encoders.append(encoder)
         self.encoders = nn.ModuleList(encoders)
 
@@ -1086,7 +1086,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                                                           (4000.0, 0.0))
     ) -> None:
         super().__init__()
-        self.lr_scale = 0.75
+        self.lr_scale = 0.9
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.query_head_dim = query_head_dim
@@ -1338,7 +1338,7 @@ class AttentionSqueeze(nn.Module):
                  bottleneck_dim: int = 16):
         super().__init__()
 
-        self.lr_scale = 0.5
+        self.lr_scale = 0.9
 
         self.bottleneck_dim = bottleneck_dim
 
@@ -1480,7 +1480,7 @@ class NonlinAttention(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.lr_scale = 0.75
+        self.lr_scale = 0.9
 
         self.hidden_channels = hidden_channels
 
@@ -1585,6 +1585,9 @@ class ConvolutionModule(nn.Module):
         self.in_proj = nn.Linear(
             channels, 2 * bottleneck_dim,
         )
+        # the gradients on in_proj are a little noisy, likely to do with the
+        # sigmoid in glu.
+        self.in_proj.lr_scale = 0.9
 
 
         # after in_proj we put x through a gated linear unit (nn.functional.glu).
