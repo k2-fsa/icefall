@@ -83,7 +83,13 @@ from icefall.checkpoint import (
 from icefall.hooks import register_inf_check_hooks
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    setup_logger,
+    str2bool,
+    get_parameter_groups_with_lrs
+)
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -1075,8 +1081,9 @@ def run(rank, world_size, args):
                     find_unused_parameters=True)
 
     optimizer = ScaledAdam(
-        model.named_parameters(),
-        lr=params.base_lr,
+        get_parameter_groups_with_lrs(
+            model, lr=params.base_lr, include_names=True),
+        lr=params.base_lr,   # should have no effect
         clipping_scale=2.0,
     )
 

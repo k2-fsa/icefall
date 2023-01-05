@@ -835,7 +835,7 @@ def measure_gradient_norms(
             norms[name] = val.item()
         return norms
 
-def get_named_parameter_groups_with_lrs(
+def get_parameter_groups_with_lrs(
         model: nn.Module,
         lr: float,
         include_names: bool = False) -> List[dict]:
@@ -861,7 +861,7 @@ def get_named_parameter_groups_with_lrs(
          ...   ]
 
     """
-    named_modules = list(model.named_modules)
+    named_modules = list(model.named_modules())
 
     # flat_lr_scale just contains the lr_scale explicitly specified
     # for each prefix of the name, e.g. 'encoder.layers.3', these need
@@ -879,7 +879,7 @@ def get_named_parameter_groups_with_lrs(
     # otherwise a list of parameters for that learning rate.
     lr_to_params = defaultdict(list)
 
-    for name, parameter in module.named_parameters():
+    for name, parameter in model.named_parameters():
         split_name = name.split('.')
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]

@@ -306,8 +306,8 @@ class ScaledAdam(BatchedOptimizer):
                     param_groups_names.append(["foo"] * len(p_list))
                 else:
                     assert "named_params" in cur_group
-                    p_list = [ x[0] for x in cur_group["named_params"] ]
-                    name_list = [ x[1] for x in cur_group["named_params"] ]
+                    name_list = [ x[0] for x in cur_group["named_params"] ]
+                    p_list = [ x[1] for x in cur_group["named_params"] ]
                     del cur_group["named_params"]
                     cur_group["params"] = p_list
                     param_groups.append(cur_group)
