@@ -68,8 +68,8 @@ class FrameReducer(nn.Module):
         """
 
         padding_mask = make_pad_mask(x_lens)
-        non_blank_mask = (
-            (ctc_output[:, :, blank_id] < math.log(threshold)) * (~padding_mask)
+        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(threshold)) * (
+            ~padding_mask
         )
 
         frames_list: List[torch.Tensor] = []
