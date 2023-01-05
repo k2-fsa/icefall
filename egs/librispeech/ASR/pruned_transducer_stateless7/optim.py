@@ -519,7 +519,7 @@ class ScaledAdam(BatchedOptimizer):
         self, tuples: List[Tuple[Tensor, dict, List[str]]], tot_sumsq: Tensor
     ):
         """
-        Show information of parameter wihch dominating tot_sumsq.
+        Show information of parameter which dominates tot_sumsq.
 
         Args:
            tuples: a list of tuples of (param, state, param_names)
@@ -678,12 +678,17 @@ class ScaledAdam(BatchedOptimizer):
         )
 
         is_too_small = param_rms < param_min_rms
-        is_too_large = param_rms > param_max_rms
 
         # when the param gets too small, just don't shrink it any further.
         scale_step.masked_fill_(is_too_small, 0.0)
-        # when it gets too large, stop it from getting any larger.
-        scale_step.masked_fill_(is_too_large, -size_lr * size_update_period)
+
+        # and ensure the parameter rms after update never exceeds param_max_rms.
+        # We have to look at the trained model for parameters at or around the
+        # param_max_rms, because sometimes they can indicate a problem with the
+        # topology or settings.
+        scale_step = torch.minimum(scale_step,
+                                   (param_max_rms - param_rms) / param_rms)
+
         delta = state["delta"]
         # the factor of (1-beta1) relates to momentum.
         delta.add_(p * scale_step, alpha=(1 - beta1))
