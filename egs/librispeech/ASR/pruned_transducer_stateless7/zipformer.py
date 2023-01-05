@@ -1086,6 +1086,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                                                           (4000.0, 0.0))
     ) -> None:
         super().__init__()
+        self.lr_scale = 0.75
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.query_head_dim = query_head_dim
@@ -1336,6 +1337,9 @@ class AttentionSqueeze(nn.Module):
                  hidden_dim: int,
                  bottleneck_dim: int = 16):
         super().__init__()
+
+        self.lr_scale = 0.5
+
         self.bottleneck_dim = bottleneck_dim
 
         self.in_proj = nn.Linear(embed_dim, hidden_dim,
@@ -1475,6 +1479,8 @@ class NonlinAttention(nn.Module):
             hidden_channels: int,
     ) -> None:
         super().__init__()
+
+        self.lr_scale = 0.75
 
         self.hidden_channels = hidden_channels
 
