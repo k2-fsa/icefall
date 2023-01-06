@@ -569,7 +569,7 @@ First, let us install a modified version of ``ncnn``:
    We assume that you have added the path to the binary ``pnnx`` to the
    environment variable ``PATH``.
 
-   We also assume that you have added `build/tools/quantize` to the environment
+   We also assume that you have added ``build/tools/quantize`` to the environment
    variable ``PATH`` so that you are able to use ``ncnn2int8`` later.
 
 Second, let us export the model using ``torch.jit.trace()`` that is suitable
