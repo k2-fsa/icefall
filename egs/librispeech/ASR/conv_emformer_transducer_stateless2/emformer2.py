@@ -1499,35 +1499,22 @@ class EmformerEncoder(nn.Module):
         # ...
         # last layer: attn cache, conv cache, 3 tensors + 1 tensor
         for i in range(self.num_encoder_layers):
+            # memory cache
             states.append(torch.zeros(self.memory_size, 1, self.d_model, device=device))
+            # key cache
             states.append(
                 torch.zeros(self.left_context_length, 1, self.d_model, device=device)
             )
+            # value cache
             states.append(
                 torch.zeros(self.left_context_length, 1, self.d_model, device=device)
             )
 
+            # conv  cache
             states.append(
                 torch.zeros(1, self.d_model, self.cnn_module_kernel - 1, device=device)
             )
-        return states
-
-        attn_caches = [
-            [
-                torch.zeros(self.memory_size, self.d_model, device=device),
-                torch.zeros(self.left_context_length, self.d_model, device=device),
-                torch.zeros(self.left_context_length, self.d_model, device=device),
-            ]
-            for _ in range(self.num_encoder_layers)
-        ]
-        conv_caches = [
-            torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
-            for _ in range(self.num_encoder_layers)
-        ]
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
-            attn_caches,
-            conv_caches,
-        )
+            
         return states
 
 
