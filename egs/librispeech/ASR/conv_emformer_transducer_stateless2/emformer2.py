@@ -1512,24 +1512,6 @@ class EmformerEncoder(nn.Module):
             )
         return states
 
-        attn_caches = [
-            [
-                torch.zeros(self.memory_size, self.d_model, device=device),
-                torch.zeros(self.left_context_length, self.d_model, device=device),
-                torch.zeros(self.left_context_length, self.d_model, device=device),
-            ]
-            for _ in range(self.num_encoder_layers)
-        ]
-        conv_caches = [
-            torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
-            for _ in range(self.num_encoder_layers)
-        ]
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
-            attn_caches,
-            conv_caches,
-        )
-        return states
-
 
 class Emformer(EncoderInterface):
     def __init__(
