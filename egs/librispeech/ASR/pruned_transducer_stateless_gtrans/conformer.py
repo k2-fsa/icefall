@@ -207,7 +207,7 @@ class Conformer(EncoderInterface):
         
         x = self.layer_norm(1/3*(self.sigmoid(self.alpha[0])*layer_output[3] + \
                                  self.sigmoid(self.alpha[1])*layer_output[7] + \
-                                 self.sigmoid(self.alpha[2])*layer_output[11] + \
+                                 self.sigmoid(self.alpha[2])*layer_output[11]
                                 )
                             )
 
