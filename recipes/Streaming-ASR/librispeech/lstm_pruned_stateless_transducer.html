@@ -592,16 +592,36 @@ for how to use the exported models in <code class="docutils literal notranslate"
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/csukuangfj/ncnn
 <span class="nb">cd</span><span class="w"> </span>ncnn
 git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--recursive<span class="w"> </span>--init
-python3<span class="w"> </span>setup.py<span class="w"> </span>bdist_wheel
-ls<span class="w"> </span>-lh<span class="w"> </span>dist/
-pip<span class="w"> </span>install<span class="w"> </span>./dist/*.whl
+
+<span class="c1"># Note: We don&#39;t use &quot;python setup.py install&quot; or &quot;pip install .&quot; here</span>
+
+mkdir<span class="w"> </span>-p<span class="w"> </span>build-wheel
+<span class="nb">cd</span><span class="w"> </span>build-wheel
+
+cmake<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_PYTHON<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_BENCHMARK<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>..
+
+make<span class="w"> </span>-j4
+
+<span class="nb">cd</span><span class="w"> </span>..
+
+<span class="c1"># Note: $PWD here is /path/to/ncnn</span>
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/python:<span class="nv">$PYTHONPATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/tools/pnnx/build/src:<span class="nv">$PATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build/tools/quantize:<span class="nv">$PATH</span>
 
 <span class="c1"># now build pnnx</span>
 <span class="nb">cd</span><span class="w"> </span>tools/pnnx
 mkdir<span class="w"> </span>build
 <span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
 make<span class="w"> </span>-j4
-<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/src:<span class="nv">$PATH</span>
 
 ./src/pnnx
 </pre></div>
@@ -610,6 +630,8 @@ make<span class="w"> </span>-j4
 <p class="admonition-title">Note</p>
 <p>We assume that you have added the path to the binary <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> to the
 environment variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
+<p>We also assume that you have added <code class="docutils literal notranslate"><span class="pre">build/tools/quantize</span></code> to the environment
+variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code> so that you are able to use <code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code> later.</p>
 </div>
 <p>Second, let us export the model using <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code> that is suitable
 for <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
