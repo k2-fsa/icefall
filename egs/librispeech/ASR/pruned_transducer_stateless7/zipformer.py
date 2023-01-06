@@ -209,7 +209,7 @@ class Zipformer(EncoderInterface):
                 )
                 # we are adding a new attribute here.
                 # this will be interpreted by get_named_parameter_groups_with_lrs().
-                encoder.lr_scale = downsampling_factor[i] ** -0.25
+                encoder.lr_scale = downsampling_factor[i] ** -0.2
             encoders.append(encoder)
         self.encoders = nn.ModuleList(encoders)
 
@@ -450,7 +450,7 @@ class ZipformerEncoderLayer(nn.Module):
                                                dropout)
 
         self.nonlin_attention = NonlinAttention(embed_dim,
-                                                             hidden_channels=embed_dim // 4)
+                                                hidden_channels=embed_dim // 4)
 
 
         self.conv_module = ConvolutionModule(embed_dim,
@@ -1480,7 +1480,7 @@ class NonlinAttention(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.lr_scale = 0.9
+        self.lr_scale = 0.95
 
         self.hidden_channels = hidden_channels
 
