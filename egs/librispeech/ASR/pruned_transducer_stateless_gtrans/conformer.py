@@ -135,7 +135,7 @@ class Conformer(EncoderInterface):
         )
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
-        self.alpha = nn.Parameter(torch.rand(6))
+        self.alpha = nn.Parameter(torch.rand(12))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(512)
 
@@ -205,11 +205,21 @@ class Conformer(EncoderInterface):
         
         layer_output = [x.permute(1, 0, 2) for x in layer_output]
         
-        x = self.layer_norm(1/3*(self.sigmoid(self.alpha[0])*layer_output[3] + \
+        '''
+        x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[3] + \
+                                 self.sigmoid(self.alpha[1])*layer_output[7] + \
+                                 self.sigmoid(self.alpha[1])*layer_output[7] + \
+                                 self.sigmoid(self.alpha[1])*layer_output[7] + \
                                  self.sigmoid(self.alpha[1])*layer_output[7] + \
                                  self.sigmoid(self.alpha[2])*layer_output[11]
                                 )
                             )
+        '''
+        x = 0
+        for enum, alpha in enumerate(self.alpha):
+            x += self.sigmoid(alpha)*layer_output[self.group_size*(enum+1)]
+        
+        x = self.layer_norm((1/self.group_size)*x)
 
         return x, lengths
 
