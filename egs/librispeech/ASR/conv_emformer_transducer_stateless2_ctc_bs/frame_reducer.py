@@ -44,7 +44,7 @@ class FrameReducer(nn.Module):
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
         blank_id: int = 0,
-        threshold: float = 0.9, 
+        threshold: float = 0.9,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
