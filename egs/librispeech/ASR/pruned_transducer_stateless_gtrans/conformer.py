@@ -216,9 +216,10 @@ class Conformer(EncoderInterface):
                                 )
                             )
         '''
+        
         x = 0
         for enum, alpha in enumerate(self.alpha):
-            x += self.sigmoid(alpha)*layer_output[self.group_size*(enum+1)-1]
+            x += self.sigmoid(alpha)*layer_output[enum]
         
         x = self.layer_norm((1/self.group_size)*x)
 
