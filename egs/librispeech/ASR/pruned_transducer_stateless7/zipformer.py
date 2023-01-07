@@ -1853,8 +1853,22 @@ class ConvNeXt(nn.Module):
                                  prob=(0.025, 0.25),
                                  grad_scale=0.01)
 
-
     def forward(self, x: Tensor) -> Tensor:
+        if torch.jit.is_scripting() or not self.training:
+            return self.forward_internal(x)
+        layerdrop_rate = float(self.layerdrop_rate)
+
+        if layerdrop_rate != 0.0:
+            batch_size = x.shape[0]
+            mask = torch.rand((batch_size, 1, 1, 1), dtype=x.dtype, device=x.device) > layerdrop_rate
+        else:
+            mask = None
+        return caching_eval(self.forward_internal, x, mask)
+
+
+    def forward_internal(self,
+                         x: Tensor,
+                         layer_skip_mask: Optional[Tensor]  = None) -> Tensor:
         """
         x layout: (N, C, H, W), i.e. (batch_size, num_channels, num_frames, num_freqs)
 
@@ -1867,11 +1881,8 @@ class ConvNeXt(nn.Module):
         x = self.activation(x)
         x = self.pointwise_conv2(x)
 
-        layerdrop_rate = float(self.layerdrop_rate)
-        if not torch.jit.is_scripting() and self.training and layerdrop_rate != 0.0:
-            batch_size = x.shape[0]
-            mask = torch.rand((batch_size, 1, 1, 1), dtype=x.dtype, device=x.device) > layerdrop_rate
-            x = x * mask
+        if layer_skip_mask is not None:
+            x = x * layer_skip_mask
 
         x = bypass + x
         x = self.out_balancer(x)
