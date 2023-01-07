@@ -122,7 +122,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="4,4,4,4,4,4",
+        default="4,4,6,4",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
@@ -130,7 +130,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4,8,4,2",
+        default="1,2,4,2",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -138,14 +138,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="1536,1536,1536,1536,1536,1536",
+        default="1536,1536,1536,1536",
         help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="8,8,8,16,8,8",
+        default="8,8,8,8",
         help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
     )
 
