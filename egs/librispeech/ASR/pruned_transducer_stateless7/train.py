@@ -100,8 +100,9 @@ def get_adjusted_batch_count(
         params: AttributeDict) -> float:
     # returns the number of batches we would have used so far if we had used the reference
     # duration.  This is for purposes of set_batch_count().
-    return (params.batch_idx_train * params.ref_duration /
-            (params.max_duration * params.world_size))
+    return (params.batch_idx_train * (params.max_duration * params.world_size) /
+            params.ref_duration)
+
 
 
 
