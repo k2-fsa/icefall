@@ -100,8 +100,9 @@ def get_adjusted_batch_count(
         params: AttributeDict) -> float:
     # returns the number of batches we would have used so far if we had used the reference
     # duration.  This is for purposes of set_batch_count().
-    return (params.batch_idx_train * params.ref_duration /
-            (params.max_duration * params.world_size))
+    return (params.batch_idx_train * (params.max_duration * params.world_size) /
+            params.ref_duration)
+
 
 
 
@@ -122,7 +123,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="4,4,4,4,4,4",
+        default="4,4,6,4",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
@@ -130,7 +131,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4,8,4,2",
+        default="1,2,4,2",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -138,14 +139,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="1536,1536,1536,1536,1536,1536",
+        default="1536,1536,1536,1536",
         help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="8,8,8,16,8,8",
+        default="8,8,8,8",
         help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
     )
 
