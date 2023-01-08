@@ -128,7 +128,7 @@ class Conformer(EncoderInterface):
         self.group_size = group_size
         self.alpha = nn.Parameter(torch.rand(self.group_size))
         self.sigmoid = nn.Sigmoid()
-        self.layer_norm = nn.LayerNorm(512)
+        self.layer_norm = nn.LayerNorm(d_model)
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
