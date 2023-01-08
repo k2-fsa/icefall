@@ -980,7 +980,8 @@ def run(rank, world_size, args):
                 old_name = '.'.join(layer_name_splited)
                 try: p.data = pre_trained_model[old_name]
                 except: print(f'pre-trained model has no parameter named {n}.')
-                print('.'.join(layer_name_splited))
+            else:
+                print(f'skipping param load {n}')
 
     exit()
 
