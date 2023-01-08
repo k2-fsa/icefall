@@ -462,7 +462,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         short_chunk_size=params.short_chunk_size,
         num_left_chunks=params.num_left_chunks,
         causal=params.causal_convolution,
-        group_size=params.group_size,
+        group_num=params.group_num,
     )
     return encoder
 
