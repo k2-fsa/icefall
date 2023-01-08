@@ -183,7 +183,7 @@ class Conformer(EncoderInterface):
                 num_left_chunks=self.num_left_chunks,
                 device=x.device,
             )
-            x = self.encoder(
+            x, layer_outputs = self.encoder(
                 x,
                 pos_emb,
                 mask=mask,
@@ -200,6 +200,9 @@ class Conformer(EncoderInterface):
             )  # (T, N, C)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        layer_output = [x.permute(1, 0, 2) for x in layer_output]
+
+
         return x, lengths
 
     @torch.jit.export
