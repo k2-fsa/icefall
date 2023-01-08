@@ -977,7 +977,7 @@ def run(rank, world_size, args):
             layer_name_splited = n.split('.')
             if int(layer_name_splited[3]) % 2 == 0:
                 layer_name_splited[3] = str(int(layer_name_splited[3])//2)
-                print(''.join(layer_name_splited))
+                print('.'.join(layer_name_splited))
 
     exit()
 
