@@ -1,6 +1,6 @@
 git pull
 
-for group_num in 2 3 4 6 12
+for group_num in 12 6 4 3 2
 do
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	./pruned_transducer_stateless_gtrans/train.py \
