@@ -442,7 +442,7 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             # parameters for Noam
-            "model_warm_step": 3000,  # arg given to model, not for lrate
+            "model_warm_step": 2000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
