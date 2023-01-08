@@ -974,8 +974,11 @@ def run(rank, world_size, args):
             try: p.data = pre_trained_model[n]
             except: print(f'pre-trained model has no parameterd named {n}.')
         else:
-            
-            print(n[23:25])
+            layer_name_splited = n.split('.')
+            if int(layer_name_splited[3]) % 2 == 0:
+                layer_name_splited[3] = str(int(layer_name_splited[3])//2)
+                print(''.join(layer_name_splited))
+
     exit()
 
     num_param = sum([p.numel() for p in model.parameters()])
