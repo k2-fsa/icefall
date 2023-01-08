@@ -180,7 +180,7 @@ class Zipformer(EncoderInterface):
             # the model from relying too much on them at the end.  (They tend to train
             # slowly, so don't increase their skip-rate at the beginning.)
             layer_skip_rate = (ScheduledFloat((0.0, 0.5), (4000.0, 0.0), default=0,) +
-                               (0.025 * (downsampling_factor[i] ** 0.5)))
+                               (0.03 * (downsampling_factor[i] ** 0.5)))
 
             encoder_layer = ZipformerEncoderLayer(
                 embed_dim=encoder_dim[i],
@@ -217,7 +217,7 @@ class Zipformer(EncoderInterface):
                 )
                 # we are adding a new attribute here.
                 # this will be interpreted by get_named_parameter_groups_with_lrs().
-                encoder.lr_scale = downsampling_factor[i] ** -0.25
+                encoder.lr_scale = downsampling_factor[i] ** -0.33
 
             encoders.append(encoder)
         self.encoders = nn.ModuleList(encoders)
