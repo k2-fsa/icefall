@@ -971,8 +971,10 @@ def run(rank, world_size, args):
 
     for n, p in model.named_parameters():
         if 'layer' not in n:
-            p.data = pre_trained_model[n]
+            try: p.data = pre_trained_model[n]
+            except: print(f'pre-trained model has no parameterd named {n}.')
         else:
+            
             print(n)
     exit()
 
