@@ -207,6 +207,15 @@ class Zipformer(EncoderInterface):
                 attention_share_layers=attention_share_layers[i],
             )
 
+            # modify the layerdrop schedule with an extra schedule that takes longer
+            # to warm up for the less-downsampled layers; this encourages the more
+            # heavily downsampled layers to learn something.
+
+            extra_layerdrop = ScheduledFloat((0.0, 0.2), (20000.0 / downsampling_factor[i], 0.0))
+            for layer in encoder.layers:
+                # we can add objects of type ScheduledFloat.
+                layer.layer_skip_rate = layer.layer_skip_rate + extra_layerdrop
+
             if downsampling_factor[i] != 1:
                 encoder = DownsampledZipformerEncoder(
                     encoder,
@@ -220,6 +229,9 @@ class Zipformer(EncoderInterface):
                 encoder.lr_scale = downsampling_factor[i] ** -0.25
 
             encoders.append(encoder)
+
+
+
         self.encoders = nn.ModuleList(encoders)
 
         # initializes self.skip_layers and self.skip_modules
