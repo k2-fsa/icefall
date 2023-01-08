@@ -967,6 +967,8 @@ def run(rank, world_size, args):
     model = get_transducer_model(params)
 
     print(model)
+    for n, p in model.named_parameters():
+        print(n)
     exit()
 
     num_param = sum([p.numel() for p in model.parameters()])
