@@ -9,7 +9,7 @@ do
 				--start-epoch 1 \
 				--full-libri 1 \
 				--exp-dir pruned_transducer_stateless_gtrans/nocombine_layer12_group$group_num	\
-				--max-duration 700 \
+				--max-duration 750 \
 				--use-fp16 1 \
 				--num-encoder-layers 12 \
 				--group-num $group_num \
