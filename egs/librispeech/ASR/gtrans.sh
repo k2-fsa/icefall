@@ -12,7 +12,7 @@ do
 				--max-duration 600 \
 				--use-fp16 1 \
 				--num-encoder-layers 12 \
-				--group-num 12 \
+				--group-num $group_num \
 				--dim-feedforward 2048 \
 				--nhead 8 \
 				--encoder-dim 512 \
