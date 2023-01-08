@@ -125,7 +125,7 @@ class Conformer(EncoderInterface):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
-        self.group_size = 
+        self.group_size = group_size
         self.alpha = nn.Parameter(torch.rand(self.group_size))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(512)
