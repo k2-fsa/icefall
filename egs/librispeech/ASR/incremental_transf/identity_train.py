@@ -965,6 +965,15 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
     model = get_transducer_model(params)
+    
+    pre_trained_model = torch.load('/home/work/workspace/icefall/egs/librispeech/pruned_transducer_stateless5/exp-B/epoch-30.pt')
+    pre_trained_model = pre_trained_mdoel['model']
+
+    for n, p in model.named_parameters():
+        if 'layer' not in n:
+            p.data = pre_trained_model[n]
+        else:
+            print(n)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
