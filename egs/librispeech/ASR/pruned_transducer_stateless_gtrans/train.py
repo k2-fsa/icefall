@@ -172,7 +172,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="How many left context can be seen in chunks when calculating attention.",
     )
     parser.add_argument(
-        "--group-size",
+        "--group-num",
         type=int,
         default=12,
     )
