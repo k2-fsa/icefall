@@ -127,7 +127,7 @@ class Conformer(EncoderInterface):
 
         self.group_num = group_num
         self.group_layer_num = int(self.encoder_layers // self.group_num)
-        self.alpha = nn.Parameter(torch.rand(self.group_size))
+        self.alpha = nn.Parameter(torch.rand(self.group_num))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(d_model)
 
