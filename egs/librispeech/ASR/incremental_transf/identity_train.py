@@ -975,7 +975,7 @@ def run(rank, world_size, args):
             except: print(f'pre-trained model has no parameterd named {n}.')
         else:
             
-            print(n)
+            print(n[23:25])
     exit()
 
     num_param = sum([p.numel() for p in model.parameters()])
