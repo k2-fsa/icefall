@@ -86,6 +86,7 @@ class Conformer(EncoderInterface):
         short_chunk_size: int = 25,
         num_left_chunks: int = -1,
         causal: bool = False,
+        group_size: int = 12,
     ) -> None:
         super(Conformer, self).__init__()
 
@@ -124,7 +125,7 @@ class Conformer(EncoderInterface):
         self.encoder = ConformerEncoder(encoder_layer, num_encoder_layers)
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
-        self.group_size = 6
+        self.group_size = 
         self.alpha = nn.Parameter(torch.rand(self.group_size))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(512)
