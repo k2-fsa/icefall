@@ -8,6 +8,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 			--max-duration 600 \
 			--use-fp16 1 \
 			--num-encoder-layers 12 \
+			--group-num 12 \
 			--dim-feedforward 2048 \
 			--nhead 8 \
 			--encoder-dim 512 \
