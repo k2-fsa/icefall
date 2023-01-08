@@ -677,6 +677,7 @@ class ConformerEncoder(nn.Module):
 
         """
         output = src
+        layer_outputs = []
 
         for layer_index, mod in enumerate(self.layers):
             output = mod(
@@ -686,6 +687,7 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
+            layer_outputs.append(output)
 
         return output
 
