@@ -234,7 +234,8 @@ class Interformer(nn.Module):
         super().__init__()
         assert isinstance(pt_encoder, EncoderInterface), type(pt_encoder)
         assert isinstance(inter_encoder, EncoderInterface), type(inter_encoder)
-
+        self.pt_encoder = pt_encoder
+        self.inter_encoder = inter_encoder
 
     def forward(
         self,
