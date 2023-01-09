@@ -214,7 +214,8 @@ class Interformer(nn.Module):
 
     def __init__(
         self,
-        encoder: EncoderInterface,
+        pt_encoder: EncoderInterface,
+        inter_encoder: EncoderInterface,
     ):
         """
         Args:
