@@ -499,16 +499,12 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
 
 def get_interformer_model(pt_encoder, params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-        encoder_dim=params.encoder_dim,
-        decoder_dim=params.decoder_dim,
-        joiner_dim=params.joiner_dim,
-        vocab_size=params.vocab_size,
+    
+    model = Interformer(
+        pt_encoder = pt_encoder,
+        inter_encoder = encoder,
     )
+
     return model
 
 
