@@ -444,6 +444,23 @@ def get_params() -> AttributeDict:
     return params
 
 
+def get_tempencoder_model(params: AttributeDict) -> nn.Module:
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Tempformer(
+        num_features=params.feature_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.encoder_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
+    )
+    return encoder
+
+
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Conformer and Transformer
     encoder = Conformer(
