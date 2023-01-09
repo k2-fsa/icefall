@@ -603,7 +603,7 @@ cmake<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-DNCNN_PYTHON<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-DNCNN_BUILD_BENCHMARK<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-DNCNN_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>..
 
 make<span class="w"> </span>-j4
@@ -614,7 +614,7 @@ make<span class="w"> </span>-j4
 
 <span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/python:<span class="nv">$PYTHONPATH</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/tools/pnnx/build/src:<span class="nv">$PATH</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build/tools/quantize:<span class="nv">$PATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build-wheel/tools/quantize:<span class="nv">$PATH</span>
 
 <span class="c1"># now build pnnx</span>
 <span class="nb">cd</span><span class="w"> </span>tools/pnnx
