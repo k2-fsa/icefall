@@ -976,7 +976,24 @@ def run(rank, world_size, args):
 
     for n, p in model.named_parameters():
         if 'layer' not in n:
+            try: p.data = pre_trained_model2[n]
+            except: print(f'pre-trained model has no parameter named {n}.')
+        else:
             layer_name_splited = n.split('.')
+            if int(layer_name_splited[3]) % 2 == 0:
+                layer_name_splited[0] = 'pt_encoder'
+                layer_name_splited[3] = str(int(layer_name_splited[3])//2)
+                old_name = '.'.join(layer_name_splited)
+                try: p.data = pre_trained_model[old_name]
+                except: print(f'pre-trained model has no parameter named {n}.')
+            else:
+                layer_name_splited[0] = 'inter_encoder'
+                layer_name_splited[3] = str(int(layer_name_splited[3])//2)
+                old_name = '.'.join(layer_name_splited)
+                try: p.data = pre_trained_model[old_name]
+                except: print(f'pre-trained model has no parameter named {n}.')
+
+
             
 
     num_param = sum([p.numel() for p in model.parameters()])
