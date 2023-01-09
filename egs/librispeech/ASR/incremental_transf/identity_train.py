@@ -508,7 +508,6 @@ def get_interformer_model(pt_encoder, params: AttributeDict) -> nn.Module:
     return model
 
 
-
 def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
