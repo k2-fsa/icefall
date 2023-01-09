@@ -979,9 +979,8 @@ def run(rank, world_size, args):
     except: pre_trained_model = torch.load('/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt')
     pre_trained_model = pre_trained_model['model']
     transducer_model.load_state_dict(pre_trained_model, strict=True)
+    transducer_model.to(device)
     model = get_interformer_model(transducer_model.encoder, params)
-
-    del pre_trained_model
 
     for n, p in model.named_parameters():
         if 'pt_encoder' in n:
