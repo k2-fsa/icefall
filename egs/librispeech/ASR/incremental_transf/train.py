@@ -992,6 +992,7 @@ def run(rank, world_size, args):
                 old_name = '.'.join(layer_name_splited)
                 try: p.data = pre_trained_model2[old_name]
                 except: print(f'pre-trained model has no parameter named {n}.')
+    
     del pre_trained1
     del pre_trained2
     del pre_trained_model1
