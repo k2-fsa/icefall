@@ -52,7 +52,7 @@ else
 		--add-adapter True \
 		--adapter-lr 0.001 \
 		--gender male \
-		--wandb False \
+		--wandb True \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
