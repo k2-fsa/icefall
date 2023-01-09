@@ -215,7 +215,6 @@ class Interformer(nn.Module):
     def __init__(
         self,
         encoder: EncoderInterface,
-        encoder_dim: int,
     ):
         """
         Args:
