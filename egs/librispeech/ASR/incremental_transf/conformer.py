@@ -455,7 +455,7 @@ class Tempformer(EncoderInterface):
         num_left_chunks: int = -1,
         causal: bool = False,
     ) -> None:
-        super(Conformer, self).__init__()
+        super(Tempformer, self).__init__()
 
         self.num_features = num_features
         self.subsampling_factor = subsampling_factor
