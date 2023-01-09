@@ -212,11 +212,11 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         
-        layer_output = [x.permute(1, 0, 2) for x in layer_output]
-        x = self.layer_norm(1/4*(self.sigmoid(self.alpha[0])*layer_output[2] + \
-                                 self.sigmoid(self.alpha[1])*layer_output[5] + \
-                                 self.sigmoid(self.alpha[2])*layer_output[8] + \
-                                 self.sigmoid(self.alpha[3])*layer_output[11]
+        layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
+        x = self.layer_norm(1/4*(self.sigmoid(self.alpha[0])*layer_outputs[2] + \
+                                 self.sigmoid(self.alpha[1])*layer_outputs[5] + \
+                                 self.sigmoid(self.alpha[2])*layer_outputs[8] + \
+                                 self.sigmoid(self.alpha[3])*layer_outputs[11]
                                 )
                             )
 
