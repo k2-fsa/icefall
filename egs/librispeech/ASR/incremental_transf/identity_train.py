@@ -714,8 +714,6 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["simple_loss"] = simple_loss.detach().cpu().item()
-    info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
     return loss, info
 
