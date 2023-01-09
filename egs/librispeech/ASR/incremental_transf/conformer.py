@@ -503,6 +503,7 @@ class Tempformer(EncoderInterface):
         self, x
     ):
         layer_outputs = []
+        pos_emb = x[-1]
         for enum, encoder in enumerate(self.encoder_layers):
             x_ = x[enum].permute(1, 0, 2)
             encoder_output = encoder(x_)
