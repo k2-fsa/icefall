@@ -1115,11 +1115,11 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
 
-        if params.batch_idx_train > 4000 and loss > 300 and params.wandb:
-            wb.log({"valid/loss": 10000})
-            raise RuntimeError(
-                    f"divergence... exiting: loss={loss}"
-                )
+        #if params.batch_idx_train > 4000 and loss > 300 and params.wandb:
+        #    wb.log({"valid/loss": 10000})
+        #    raise RuntimeError(
+        #            f"divergence... exiting: loss={loss}"
+        #        )
 
         if batch_idx % (params.log_interval*params.accum_grads) == 0:
             #for n, p in model.named_parameters():
