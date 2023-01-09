@@ -505,7 +505,7 @@ class Tempformer(EncoderInterface):
 
     def forward(
         self, x: torch.Tensor
-        ):
+    ):
         """
         Args:
           x:
