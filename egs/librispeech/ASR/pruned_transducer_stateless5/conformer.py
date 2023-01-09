@@ -701,10 +701,10 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
-            if i in self.aux_layers:
-                outputs.append(output)
+            #if i in self.aux_layers:
+            #    outputs.append(output)
 
-        output = self.combiner(outputs)
+        #output = self.combiner(outputs)
 
         return output
 
