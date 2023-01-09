@@ -513,10 +513,6 @@ class Tempformer(EncoderInterface):
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
-          warmup:
-            A floating point value that gradually increases from 0 throughout
-            training; when it is >= 1.0 we are "fully warmed up".  It is used
-            to turn modules on sequentially.
         Returns:
           Return a tuple containing 2 tensors:
             - embeddings: its shape is (batch_size, output_seq_len, d_model)
