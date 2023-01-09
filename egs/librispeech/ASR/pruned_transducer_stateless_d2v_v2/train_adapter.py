@@ -1117,7 +1117,7 @@ def train_one_epoch(
 
         if params.batch_idx_train > 4000 and loss > 300 and params.wandb:
             wb.log({"valid/loss": 10000})
-            raise RunteimError(
+            raise RuntimeError(
                     f"divergence... exiting: loss={loss}"
                 )
 
