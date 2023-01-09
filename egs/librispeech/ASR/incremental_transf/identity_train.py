@@ -987,7 +987,6 @@ def run(rank, world_size, args):
             p.requires_grad = False
         else:
             print(n)
-    exit()
     '''
     for n, p in model.named_parameters():
         if 'layer' not in n:
