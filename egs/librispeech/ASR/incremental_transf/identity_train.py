@@ -497,6 +497,23 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     )
     return model
 
+def get_interformer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+        encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
+    )
+    return model
+
+
 
 def load_checkpoint_if_available(
     params: AttributeDict,
