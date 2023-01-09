@@ -195,7 +195,7 @@ class Conformer(EncoderInterface):
                 num_left_chunks=self.num_left_chunks,
                 device=x.device,
             )
-            x, layer_output = self.encoder(
+            x, layer_outputs = self.encoder(
                 x,
                 pos_emb,
                 mask=mask,
@@ -203,7 +203,7 @@ class Conformer(EncoderInterface):
                 warmup=warmup,
             )  # (T, N, C)
         else:
-            x, layer_output = self.encoder(
+            x, layer_outputs = self.encoder(
                 x,
                 pos_emb,
                 src_key_padding_mask=src_key_padding_mask,
