@@ -403,6 +403,176 @@ class Conformer(EncoderInterface):
         return x, lengths, states
 
 
+class Tempformer(EncoderInterface):
+    """
+    Args:
+        num_features (int): Number of input features
+        subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
+        d_model (int): attention dimension, also the output dimension
+        nhead (int): number of head
+        dim_feedforward (int): feedforward dimention
+        num_encoder_layers (int): number of encoder layers
+        dropout (float): dropout rate
+        layer_dropout (float): layer-dropout rate.
+        cnn_module_kernel (int): Kernel size of convolution module.
+        dynamic_chunk_training (bool): whether to use dynamic chunk training, if
+            you want to train a streaming model, this is expected to be True.
+            When setting True, it will use a masking strategy to make the attention
+            see only limited left and right context.
+        short_chunk_threshold (float): a threshold to determinize the chunk size
+            to be used in masking training, if the randomly generated chunk size
+            is greater than ``max_len * short_chunk_threshold`` (max_len is the
+            max sequence length of current batch) then it will use
+            full context in training (i.e. with chunk size equals to max_len).
+            This will be used only when dynamic_chunk_training is True.
+        short_chunk_size (int): see docs above, if the randomly generated chunk
+            size equals to or less than ``max_len * short_chunk_threshold``, the
+            chunk size will be sampled uniformly from 1 to short_chunk_size.
+            This also will be used only when dynamic_chunk_training is True.
+        num_left_chunks (int): the left context (in chunks) attention can see, the
+            chunk size is decided by short_chunk_threshold and short_chunk_size.
+            A minus value means seeing full left context.
+            This also will be used only when dynamic_chunk_training is True.
+        causal (bool): Whether to use causal convolution in conformer encoder
+            layer. This MUST be True when using dynamic_chunk_training.
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        subsampling_factor: int = 4,
+        d_model: int = 256,
+        nhead: int = 4,
+        dim_feedforward: int = 2048,
+        num_encoder_layers: int = 12,
+        dropout: float = 0.1,
+        layer_dropout: float = 0.075,
+        cnn_module_kernel: int = 31,
+        aux_layer_period: int = 3,
+        dynamic_chunk_training: bool = False,
+        short_chunk_threshold: float = 0.75,
+        short_chunk_size: int = 25,
+        num_left_chunks: int = -1,
+        causal: bool = False,
+    ) -> None:
+        super(Conformer, self).__init__()
+
+        self.num_features = num_features
+        self.subsampling_factor = subsampling_factor
+        if subsampling_factor != 4:
+            raise NotImplementedError("Support only 'subsampling_factor=4'.")
+
+        # self.encoder_embed converts the input of shape (N, T, num_features)
+        # to the shape (N, T//subsampling_factor, d_model).
+        # That is, it does two things simultaneously:
+        #   (1) subsampling: T -> T//subsampling_factor
+        #   (2) embedding: num_features -> d_model
+        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
+
+        self.encoder_pos = RelPositionalEncoding(d_model, dropout)
+
+        self.encoder_layers = num_encoder_layers
+        self.d_model = d_model
+        self.cnn_module_kernel = cnn_module_kernel
+        self.causal = causal
+        self.dynamic_chunk_training = dynamic_chunk_training
+        self.short_chunk_threshold = short_chunk_threshold
+        self.short_chunk_size = short_chunk_size
+        self.num_left_chunks = num_left_chunks
+
+        encoder_layer = ConformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            layer_dropout=layer_dropout,
+            cnn_module_kernel=cnn_module_kernel,
+            causal=causal,
+        )
+        # aux_layers from 1/3
+        self.encoder = ConformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=num_encoder_layers,
+            aux_layers=list(
+                range(
+                    num_encoder_layers // 3,
+                    num_encoder_layers - 1,
+                    aux_layer_period,
+                )
+            ),
+        )
+        self._init_state: List[torch.Tensor] = [torch.empty(0)]
+
+    def forward(
+        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0, get_layer_output = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[List[torch.Tensor]]]:
+        """
+        Args:
+          x:
+            The input tensor. Its shape is (batch_size, seq_len, feature_dim).
+          x_lens:
+            A tensor of shape (batch_size,) containing the number of frames in
+            `x` before padding.
+          warmup:
+            A floating point value that gradually increases from 0 throughout
+            training; when it is >= 1.0 we are "fully warmed up".  It is used
+            to turn modules on sequentially.
+        Returns:
+          Return a tuple containing 2 tensors:
+            - embeddings: its shape is (batch_size, output_seq_len, d_model)
+            - lengths, a tensor of shape (batch_size,) containing the number
+              of frames in `embeddings` before padding.
+        """
+        x = self.encoder_embed(x)
+        x, pos_emb = self.encoder_pos(x)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+
+        lengths = (((x_lens - 1) >> 1) - 1) >> 1
+        assert x.size(0) == lengths.max().item()
+        src_key_padding_mask = make_pad_mask(lengths)
+
+        if self.dynamic_chunk_training:
+            assert (
+                self.causal
+            ), "Causal convolution is required for streaming conformer."
+            max_len = x.size(0)
+            chunk_size = torch.randint(1, max_len, (1,)).item()
+            if chunk_size > (max_len * self.short_chunk_threshold):
+                chunk_size = max_len
+            else:
+                chunk_size = chunk_size % self.short_chunk_size + 1
+
+            mask = ~subsequent_chunk_mask(
+                size=x.size(0),
+                chunk_size=chunk_size,
+                num_left_chunks=self.num_left_chunks,
+                device=x.device,
+            )
+            x = self.encoder(
+                x,
+                pos_emb,
+                mask=mask,
+                src_key_padding_mask=src_key_padding_mask,
+                warmup=warmup,
+            )  # (T, N, C)
+        else:
+            x, layer_outputs = self.encoder(
+                x,
+                pos_emb,
+                src_key_padding_mask=src_key_padding_mask,
+                warmup=warmup,
+            )  # (T, N, C)
+
+        x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
+
+        if get_layer_output:
+            return x, lengths, layer_outputs
+        else:
+            return x, lengths
+
+
+
 class ConformerEncoderLayer(nn.Module):
     """
     ConformerEncoderLayer is made up of self-attn, feedforward and convolution networks.
