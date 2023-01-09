@@ -244,11 +244,12 @@ class Interformer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
     ):
-        encoder_out, x_lens, pt_layer_outputs = self.pt_encoder(x, 
-                                                             x_lens, 
-                                                             warmup=warmup, 
-                                                             get_layer_output=True
-                                            )
+        with torch.no_grad():
+            encoder_out, x_lens, pt_layer_outputs = self.pt_encoder(x, 
+                                                                 x_lens, 
+                                                                 warmup=warmup, 
+                                                                 get_layer_output=True
+                                                )
 
         inter_layer_outputs = self.inter_encoder(pt_layer_outputs)
         loss = 0
