@@ -1202,7 +1202,11 @@ def train_one_epoch(
     
     if wb is not None and rank == 0:
         numel = 1 / (params.accum_grads * valid_info["utterances"])
-        wb.log({"valid/loss": valid_info["loss"]*numel})
+        #wb.log({"valid/loss": valid_info["loss"]*numel})
+        wb.log({"valid/loss": numel*(valid_info["simple_loss"]
+                                     +valid_info["pruned_loss"]
+                                     +valid_info["ctc_loss"]
+                                    )})
         wb.log({"valid/simple_loss": valid_info["simple_loss"]*numel})
         wb.log({"valid/pruned_loss": valid_info["pruned_loss"]*numel})
         wb.log({"valid/ctc_loss": valid_info["ctc_loss"]*numel})
