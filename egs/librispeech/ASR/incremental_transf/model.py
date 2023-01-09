@@ -247,7 +247,6 @@ class Interformer(nn.Module):
         with torch.no_grad():
             encoder_out, x_lens, pt_layer_outputs = self.pt_encoder(x, 
                                                                  x_lens, 
-                                                                 warmup=warmup, 
                                                                  get_layer_output=True
                                                 )
 
