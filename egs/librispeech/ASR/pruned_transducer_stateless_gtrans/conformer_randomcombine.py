@@ -136,10 +136,17 @@ class Conformer(EncoderInterface):
         )
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
         
+        '''
         self.group_size = 12
         self.alpha = nn.Parameter(torch.rand(self.group_size))
         self.sigmoid = nn.Sigmoid()
         self.layer_norm = nn.LayerNorm(512)
+        '''
+        self.group_num = group_num
+        self.group_layer_num = int(self.encoder_layers // self.group_num)
+        self.alpha = nn.Parameter(torch.rand(self.group_num))
+        self.sigmoid = nn.Sigmoid()
+        self.layer_norm = nn.LayerNorm(d_model)
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
