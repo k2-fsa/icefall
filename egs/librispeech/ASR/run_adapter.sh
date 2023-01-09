@@ -50,7 +50,7 @@ else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
-		--adapter-lr 0.001 \
+		--adapter-lr 0.02472 \
 		--gender male \
 		--wandb True \
 		--input-strategy AudioSamples \
@@ -68,5 +68,8 @@ else
 		--accum-grads 4 \
 		--encoder-type d2v \
 		--additional-block True \
-		--prune-range 10 
+		--prune-range 10 \
+		--ctc-loss-scale 0.1924 \
+		--lm-scale 0.1254 \
+		--simple-loss-scale 0.2869
 fi
