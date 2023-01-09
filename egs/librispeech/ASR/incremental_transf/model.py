@@ -242,14 +242,7 @@ class Interformer(nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        y: k2.RaggedTensor,
-        prune_range: int = 5,
-        am_scale: float = 0.0,
-        lm_scale: float = 0.0,
-        warmup: float = 1.0,
-        reduction: str = "sum",
-        delay_penalty: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ):
         """
         Args:
           x:
