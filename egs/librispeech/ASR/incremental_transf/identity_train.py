@@ -516,7 +516,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
 
 
 def get_interformer_model(pt_encoder, params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
+    encoder = get_tempencoder_model(params)
     
     model = Interformer(
         pt_encoder = pt_encoder,
