@@ -272,4 +272,4 @@ class Interformer(nn.Module):
             )
             '''
 
-        return (simple_loss, pruned_loss)
+        return loss
