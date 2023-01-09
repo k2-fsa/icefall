@@ -462,15 +462,6 @@ class Tempformer(EncoderInterface):
         if subsampling_factor != 4:
             raise NotImplementedError("Support only 'subsampling_factor=4'.")
 
-        # self.encoder_embed converts the input of shape (N, T, num_features)
-        # to the shape (N, T//subsampling_factor, d_model).
-        # That is, it does two things simultaneously:
-        #   (1) subsampling: T -> T//subsampling_factor
-        #   (2) embedding: num_features -> d_model
-        self.encoder_embed = Conv2dSubsampling(num_features, d_model)
-
-        self.encoder_pos = RelPositionalEncoding(d_model, dropout)
-
         self.encoder_layers = num_encoder_layers
         self.d_model = d_model
         self.cnn_module_kernel = cnn_module_kernel
