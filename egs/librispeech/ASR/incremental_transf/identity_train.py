@@ -982,7 +982,6 @@ def run(rank, world_size, args):
     transducer_model.load_state_dict(pre_trained_model, strict=True)
 
     model = get_interformer_model(transducer_model.encoder, params)
-    print(model)
     '''
     for n, p in model.named_parameters():
         if 'layer' not in n:
@@ -998,7 +997,6 @@ def run(rank, world_size, args):
             else:
                 print(f'skipping param load {n}')
     '''
-    exit()
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
