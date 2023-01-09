@@ -974,6 +974,10 @@ def run(rank, world_size, args):
     pre_trained2 = torch.load(path2)
     pre_trained_model2 = pre_trained2["model"]
 
+    for n, p in pre_trained_model2.items():
+        if rank == 0:
+            print(n)
+
     for n, p in model.named_parameters():
         if 'layer' not in n:
             try: p.data = pre_trained_model1[n]
