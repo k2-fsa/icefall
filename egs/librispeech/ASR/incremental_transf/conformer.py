@@ -136,8 +136,8 @@ class Conformer(EncoderInterface):
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0, layer_output = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0, get_layer_output = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[List[torch.Tensor]]]:
         """
         Args:
           x:
