@@ -197,6 +197,7 @@ class Conformer(EncoderInterface):
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
+        layer_outputs.append(pos_emb)
 
         if get_layer_output:
             return x, lengths, layer_outputs
