@@ -980,9 +980,10 @@ def run(rank, world_size, args):
         load_checkpoint(path, transducer_model)
     except:
         path = '/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt'
-    pre_trained_model = pre_trained_model['model']
-    transducer_model.load_state_dict(pre_trained_model, strict=True)
-    transducer_model.to(device)
+        load_checkpoint(path, transducer_model)
+    #pre_trained_model = pre_trained_model['model']
+    #transducer_model.load_state_dict(pre_trained_model, strict=True)
+    #transducer_model.to(device)
     model = get_interformer_model(transducer_model.encoder, params)
 
     for n, p in model.named_parameters():
