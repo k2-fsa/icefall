@@ -211,7 +211,6 @@ class Conformer(EncoderInterface):
             )  # (T, N, C)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        ''' 
         layer_output = [x.permute(1, 0, 2) for x in layer_output]
         
         x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[0] + \
@@ -236,7 +235,7 @@ class Conformer(EncoderInterface):
             x += self.sigmoid(alpha*layer_outputs[(enum+1)*self.group_layer_num-1])
 
         x = self.layer_norm(x/self.group_num)
-
+        '''
         return x, lengths
 
     @torch.jit.export
