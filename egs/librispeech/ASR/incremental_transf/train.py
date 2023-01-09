@@ -976,7 +976,6 @@ def run(rank, world_size, args):
 
     for n, p in model.named_parameters():
         if 'layer' not in n:
-
             layer_name_splited = n.split('.')
             
 
