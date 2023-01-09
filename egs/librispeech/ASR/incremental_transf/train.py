@@ -977,6 +977,7 @@ def run(rank, world_size, args):
     for n, p in pre_trained_model2.items():
         if rank == 0:
             print(n)
+    exit()
 
     for n, p in model.named_parameters():
         if 'layer' not in n:
