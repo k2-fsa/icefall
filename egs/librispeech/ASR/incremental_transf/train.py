@@ -535,7 +535,8 @@ def load_checkpoint_if_available(
     elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
-        return None
+        filename = params.exp_dir / f"../conformer_24layer.pt"
+        #return None
 
     assert filename.is_file(), f"{filename} does not exist!"
 
