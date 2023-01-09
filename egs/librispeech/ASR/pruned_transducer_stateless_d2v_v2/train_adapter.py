@@ -161,7 +161,6 @@ def add_adapter_arguments(parser: argparse.ArgumentParser):
     )
 
 
-
 def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--wandb",
@@ -169,6 +168,13 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
         default=True,
         help="Use wandb for MLOps",
     )
+    parser.add_argument(
+        "--hpo",
+        type=str2bool,
+        default=False,
+        help="Use small db for HPO",
+    )
+
     parser.add_argument(
         "--accum-grads",
         type=int,
