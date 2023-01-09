@@ -86,6 +86,7 @@ class Conformer(EncoderInterface):
         short_chunk_size: int = 25,
         num_left_chunks: int = -1,
         causal: bool = False,
+        group_num: int = 12,
     ) -> None:
         super(Conformer, self).__init__()
 
