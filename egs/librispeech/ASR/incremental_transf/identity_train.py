@@ -975,7 +975,8 @@ def run(rank, world_size, args):
     logging.info("About to create model")
     transducer_model = get_transducer_model(params)
     
-    pre_trained_model = torch.load('/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt')
+    try: pre_trained_model = torch.load('/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt')
+    except: pre_trained_model = torch.load('/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt')
     pre_trained_model = pre_trained_model['model']
     transducer_model.load_state_dict(pre_trained_model, strict=True)
 
