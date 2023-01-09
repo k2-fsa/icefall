@@ -206,12 +206,18 @@ class Conformer(EncoderInterface):
         
         layer_output = [x.permute(1, 0, 2) for x in layer_output]
         
-        x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[1] + \
-                                 self.sigmoid(self.alpha[1])*layer_output[3] + \
-                                 self.sigmoid(self.alpha[2])*layer_output[5] + \
-                                 self.sigmoid(self.alpha[3])*layer_output[7] + \
-                                 self.sigmoid(self.alpha[4])*layer_output[9] + \
-                                 self.sigmoid(self.alpha[5])*layer_output[11]
+        x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[0] + \
+                                 self.sigmoid(self.alpha[1])*layer_output[1] + \
+                                 self.sigmoid(self.alpha[2])*layer_output[2] + \
+                                 self.sigmoid(self.alpha[3])*layer_output[3] + \
+                                 self.sigmoid(self.alpha[4])*layer_output[4] + \
+                                 self.sigmoid(self.alpha[5])*layer_output[5] + \
+                                 self.sigmoid(self.alpha[6])*layer_output[6] + \
+                                 self.sigmoid(self.alpha[7])*layer_output[7] + \
+                                 self.sigmoid(self.alpha[8])*layer_output[8] + \
+                                 self.sigmoid(self.alpha[9])*layer_output[9] + \
+                                 self.sigmoid(self.alpha[10])*layer_output[10] + \
+                                 self.sigmoid(self.alpha[11])*layer_output[11]
                                 )
                             )
         
