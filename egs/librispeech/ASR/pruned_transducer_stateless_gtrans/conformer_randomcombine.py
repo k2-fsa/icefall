@@ -231,18 +231,18 @@ class Conformer(EncoderInterface):
                                 )
 
         elif self.group_num == 12:
-            x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[0] + \
-                                     self.sigmoid(self.alpha[1])*layer_output[1] + \
-                                     self.sigmoid(self.alpha[2])*layer_output[2] + \
-                                     self.sigmoid(self.alpha[3])*layer_output[3] + \
-                                     self.sigmoid(self.alpha[4])*layer_output[4] + \
-                                     self.sigmoid(self.alpha[5])*layer_output[5] + \
-                                     self.sigmoid(self.alpha[6])*layer_output[6] + \
-                                     self.sigmoid(self.alpha[7])*layer_output[7] + \
-                                     self.sigmoid(self.alpha[8])*layer_output[8] + \
-                                     self.sigmoid(self.alpha[9])*layer_output[9] + \
-                                     self.sigmoid(self.alpha[10])*layer_output[10] + \
-                                     self.sigmoid(self.alpha[11])*layer_output[11]
+            x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_outputs[0] + \
+                                     self.sigmoid(self.alpha[1])*layer_outputs[1] + \
+                                     self.sigmoid(self.alpha[2])*layer_outputs[2] + \
+                                     self.sigmoid(self.alpha[3])*layer_outputs[3] + \
+                                     self.sigmoid(self.alpha[4])*layer_outputs[4] + \
+                                     self.sigmoid(self.alpha[5])*layer_outputs[5] + \
+                                     self.sigmoid(self.alpha[6])*layer_outputs[6] + \
+                                     self.sigmoid(self.alpha[7])*layer_outputs[7] + \
+                                     self.sigmoid(self.alpha[8])*layer_outputs[8] + \
+                                     self.sigmoid(self.alpha[9])*layer_outputs[9] + \
+                                     self.sigmoid(self.alpha[10])*layer_outputs[10] + \
+                                     self.sigmoid(self.alpha[11])*layer_outputs[11]
                                     )
                                 )
         '''
