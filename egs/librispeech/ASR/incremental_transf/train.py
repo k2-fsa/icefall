@@ -967,11 +967,11 @@ def run(rank, world_size, args):
     model = get_transducer_model(params)
     
     path1 = '/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt'
-    pre_trained1 = torch.load(path1)
+    pre_trained1 = torch.load(path1, map_location="cpu")
     pre_trained_model1 = pre_trained1["model"]
     
     path2 = '/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_24layers.pt'
-    pre_trained2 = torch.load(path2)
+    pre_trained2 = torch.load(path2, map_location="cpu")
     pre_trained_model2 = pre_trained2["model"]
 
     #for n, p in pre_trained_model2.items():
