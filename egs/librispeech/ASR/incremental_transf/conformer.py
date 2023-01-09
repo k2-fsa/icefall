@@ -493,7 +493,17 @@ class Tempformer(EncoderInterface):
             return encoder_layer
 
 
-        self.encoder_layers = nn.ModuleList(
+        self.encoder_layers = nn.ModuleList([
+                                                build_conformer(d_model,
+                                                                nhead,
+                                                                dim_feedforward,
+                                                                dropout,
+                                                                layer_dropout,
+                                                                cnn_module_kernel,
+                                                                causal
+                                                )
+                                                for i in range(12)
+                                            ])
 
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
