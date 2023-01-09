@@ -1710,7 +1710,6 @@ def main():
     logging.info("save arguments to config.yaml...")
     save_args(args)
     
-    wandb.init(project="d2v-adapter", entity="dohe0342")
     if args.wandb: wb = wandb.init(project="d2v-adapter", entity="dohe0342", config=vars(args))
     else: wb = None
 
