@@ -271,5 +271,4 @@ class Interformer(nn.Module):
                 return_grad=True,
             )
             '''
-        print(loss)
         return loss
