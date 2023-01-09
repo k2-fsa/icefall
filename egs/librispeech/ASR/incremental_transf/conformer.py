@@ -703,12 +703,13 @@ class ConformerEncoder(nn.Module):
                 warmup=warmup,
             )
             layer_outputs.append(output)
+
             if i in self.aux_layers:
                 outputs.append(output)
 
         output = self.combiner(outputs)
 
-        return output
+        return output, layer_outputs
 
     @torch.jit.export
     def chunk_forward(
