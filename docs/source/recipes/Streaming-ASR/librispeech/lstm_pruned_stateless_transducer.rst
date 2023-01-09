@@ -542,7 +542,7 @@ First, let us install a modified version of ``ncnn``:
     -DNCNN_PYTHON=ON \
     -DNCNN_BUILD_BENCHMARK=OFF \
     -DNCNN_BUILD_EXAMPLES=OFF \
-    -DNCNN_BUILD_TOOLS=OFF \
+    -DNCNN_BUILD_TOOLS=ON \
     ..
 
   make -j4
@@ -553,7 +553,7 @@ First, let us install a modified version of ``ncnn``:
 
   export PYTHONPATH=$PWD/python:$PYTHONPATH
   export PATH=$PWD/tools/pnnx/build/src:$PATH
-  export PATH=$PWD/build/tools/quantize:$PATH
+  export PATH=$PWD/build-wheel/tools/quantize:$PATH
 
   # now build pnnx
   cd tools/pnnx
