@@ -211,7 +211,7 @@ class Conformer(EncoderInterface):
             )  # (T, N, C)
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        
+        ''' 
         layer_output = [x.permute(1, 0, 2) for x in layer_output]
         
         x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_output[0] + \
@@ -228,12 +228,14 @@ class Conformer(EncoderInterface):
                                  self.sigmoid(self.alpha[11])*layer_output[11]
                                 )
                             )
-        
-        #x = 0
-        #for enum, alpha in enumerate(self.alpha):
-        #    x += self.sigmoid(alpha)*layer_output[enum]
-        
-        #x = self.layer_norm((1/self.group_size)*x)
+        '''
+        layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
+
+        x = 0
+        for enum, alpha in enumerate(self.alpha):
+            x += self.sigmoid(alpha*layer_outputs[(enum+1)*self.group_layer_num-1])
+
+        x = self.layer_norm(x/self.group_num)
 
         return x, lengths
 
