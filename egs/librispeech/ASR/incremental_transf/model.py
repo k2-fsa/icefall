@@ -255,7 +255,7 @@ class Interformer(nn.Module):
         
         with torch.cuda.amp.autocast(enabled=False):
             for inter_output, pt_output in zip(inter_layer_outputs, pt_layer_outputs):
-                mse_loss = self.mse(
+                mse_loss = self.mse(inter_output, pt_output)
             '''
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
