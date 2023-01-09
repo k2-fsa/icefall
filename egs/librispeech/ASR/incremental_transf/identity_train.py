@@ -969,7 +969,7 @@ def run(rank, world_size, args):
     pre_trained_model = torch.load('/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt')
     pre_trained_model = pre_trained_model['model']
     model.load_state_dict(pre_trained_model, strict=True)
-    
+    print(model) 
     '''
     for n, p in model.named_parameters():
         if 'layer' not in n:
