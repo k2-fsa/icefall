@@ -965,6 +965,16 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
     model = get_transducer_model(params)
+    
+    path = '/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_24layers.pt'
+    pre_trained = torch.load(path)
+    pre_trained_model = pre_trained["model"]
+    #for n, p in model.named_parameters():
+    #    if 'layer' not in n:
+    for n, p in pre_trained_model.items():
+        print(n)
+
+
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
