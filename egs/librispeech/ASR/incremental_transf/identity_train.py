@@ -682,7 +682,7 @@ def compute_loss(
         '''
         mse_loss = model(
                 x=feature,
-                x_lens=feautre_lens,
+                x_lens=feature_lens,
         )
 
         # after the main warmup step, we keep pruned_loss_scale small
