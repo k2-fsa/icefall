@@ -480,27 +480,21 @@ class Tempformer(EncoderInterface):
         self.short_chunk_size = short_chunk_size
         self.num_left_chunks = num_left_chunks
 
-        encoder_layer = ConformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            layer_dropout=layer_dropout,
-            cnn_module_kernel=cnn_module_kernel,
-            causal=causal,
-        )
-        # aux_layers from 1/3
-        self.encoder = ConformerEncoder(
-            encoder_layer=encoder_layer,
-            num_layers=num_encoder_layers,
-            aux_layers=list(
-                range(
-                    num_encoder_layers // 3,
-                    num_encoder_layers - 1,
-                    aux_layer_period,
-                )
-            ),
-        )
+        def build_conformer(d_model, nhead, dim_feedforward, dropout, layer_dropout, cnn_module_kernel, causal):
+            encoder_layer = ConformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                layer_dropout=layer_dropout,
+                cnn_module_kernel=cnn_module_kernel,
+                causal=causal,
+            )
+            return encoder_layer
+
+
+        self.encoder_layers = nn.ModuleList(
+
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
 
     def forward(
