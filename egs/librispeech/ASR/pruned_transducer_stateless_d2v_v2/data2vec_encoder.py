@@ -65,7 +65,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         )
         model = models[0]
         model.feature_grad_mult = 0.0 ## for conv network freeze
-        model.mask_prob = 0.5 ## for conv network freeze
+        model.mask_prob = 0.0 ## for conv network freeze
         
         self.encoders = model
         self.pretrained_params = copy.deepcopy(model.state_dict())
