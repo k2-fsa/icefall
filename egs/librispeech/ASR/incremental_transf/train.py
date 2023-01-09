@@ -988,7 +988,7 @@ def run(rank, world_size, args):
                 except: print(f'pre-trained model has no parameter named {n}.')
             else:
                 layer_name_splited[0] = 'inter_encoder'
-                layer_name_splited[3] = str(int(layer_name_splited[3])//2)
+                layer_name_splited[3] = str(int(layer_name_splited[3])//2+1)
                 old_name = '.'.join(layer_name_splited)
                 try: p.data = pre_trained_model[old_name]
                 except: print(f'pre-trained model has no parameter named {n}.')
