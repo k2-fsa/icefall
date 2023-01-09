@@ -215,12 +215,7 @@ class Interformer(nn.Module):
     def __init__(
         self,
         encoder: EncoderInterface,
-        decoder: nn.Module,
-        joiner: nn.Module,
         encoder_dim: int,
-        decoder_dim: int,
-        joiner_dim: int,
-        vocab_size: int,
     ):
         """
         Args:
