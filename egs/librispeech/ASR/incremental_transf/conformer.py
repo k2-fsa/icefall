@@ -493,7 +493,7 @@ class Tempformer(EncoderInterface):
                                                                 cnn_module_kernel,
                                                                 causal
                                                 )
-                                                for i in range(12)
+                                                for i in range(num_encoder_layers)
                                             ])
 
         self._init_state: List[torch.Tensor] = [torch.empty(0)]
