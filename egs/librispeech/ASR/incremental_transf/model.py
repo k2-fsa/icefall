@@ -235,14 +235,8 @@ class Interformer(nn.Module):
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
-        assert hasattr(decoder, "blank_id")
 
         self.encoder = encoder
-        self.decoder = decoder
-        self.joiner = joiner
-
-        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
-        self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
     def forward(
         self,
