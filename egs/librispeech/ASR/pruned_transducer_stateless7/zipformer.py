@@ -176,12 +176,6 @@ class Zipformer(EncoderInterface):
         num_encoders = len(downsampling_factor)
         for i in range(num_encoders):
 
-            # give more-downsampled layers a higher final layer_skip_rate, to discourage
-            # the model from relying too much on them at the end.  (They tend to train
-            # slowly, so don't increase their skip-rate at the beginning.)
-            layer_skip_rate = (ScheduledFloat((0.0, 0.5), (4000.0, 0.0), default=0,) +
-                               (0.03 * (downsampling_factor[i] ** 0.5)))
-
             encoder_layer = ZipformerEncoderLayer(
                 embed_dim=encoder_dim[i],
                 pos_dim=pos_dim,
@@ -192,7 +186,6 @@ class Zipformer(EncoderInterface):
                 feedforward_dim=feedforward_dim[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
-                layer_skip_rate=layer_skip_rate,
             )
 
             # For the segment of the warmup period, we let the Conv2dSubsampling
@@ -204,6 +197,7 @@ class Zipformer(EncoderInterface):
                 dropout=dropout,
                 warmup_begin=warmup_batches * (i + 1) / (num_encoders + 1),
                 warmup_end=warmup_batches * (i + 2) / (num_encoders + 1),
+                final_layerdrop_rate=0.035 * (downsampling_factor[i] ** 0.5),
                 attention_share_layers=attention_share_layers[i],
             )
 
