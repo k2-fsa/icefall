@@ -977,7 +977,7 @@ def run(rank, world_size, args):
     
     try: 
         path = '/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt'
-        load_checkpoint(transducer_model)
+        load_checkpoint(path, transducer_model)
     except:
         path = '/home/work/workspace/icefall/egs/librispeech/ASR/incremental_transf/conformer_12layers.pt'
     pre_trained_model = pre_trained_model['model']
