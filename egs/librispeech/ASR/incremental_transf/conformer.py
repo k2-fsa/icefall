@@ -512,7 +512,10 @@ class Tempformer(EncoderInterface):
     ):
         layer_outputs = []
         for enum, encoder in enumerate(self.encoder_layers):
-            layer_outputs.append(encoder(x[enum]))
+            x_ = x[enum].permute(1, 0, 2)
+            encoder_output = encoder(x_)
+            encoder_output = encoder_output.permute(1, 0, 2)
+            layer_outputs.append(encoder(x_))
 
         return layer_outputs
 
