@@ -1873,6 +1873,24 @@ class Dropout2(nn.Module):
                                            p=float(self.p),
                                            training=self.training)
 
+# Dropout3 is just like normal dropout, except it supports schedules on the dropout rates,
+# and it lets you choose one dimension to share the dropout mask over
+class Dropout3(nn.Module):
+    def __init__(self, p: FloatLike, shared_dim: int):
+        super().__init__()
+        self.p = p
+        self.shared_dim = shared_dim
+    def forward(self, x: Tensor) -> Tensor:
+        p = float(self.p)
+        if not self.training or p == 0:
+            return _no_op(x)
+        scale = 1.0 / (1 - self.p)
+        rand_shape = list(x.shape)
+        rand_shape[self.shared_dim] = 1
+        mask = torch.rand(*rand_shape, device=x.device) > p
+        return (x * mask) * scale
+
+
 class SwooshLFunction(torch.autograd.Function):
     """
       swoosh(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035

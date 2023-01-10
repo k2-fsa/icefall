@@ -31,6 +31,7 @@ from scaling import (
     ConvNorm1d,
     ConvNorm2d,
     Dropout2,
+    Dropout3,
     MaxEig,
     DoubleSwish,
     SwooshL,
@@ -1544,7 +1545,8 @@ class FeedforwardModule(nn.Module):
                                         min_abs=0.75,
                                         max_abs=5.0)
         self.activation = SwooshL()
-        self.dropout = Dropout2(dropout)
+        # shared_dim=0 means we share the dropout mask along the time axis
+        self.dropout = Dropout3(dropout, shared_dim=0)
         self.out_proj = ScaledLinear(feedforward_dim, embed_dim,
                                      initial_scale=0.1)
 
