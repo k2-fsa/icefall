@@ -6,7 +6,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
 	--enable-spec-aug False \
 	--additional-block True \
 	--model-name epoch-4.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/fc_adapter \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/male_hpo6 \
     --max-duration 400 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
