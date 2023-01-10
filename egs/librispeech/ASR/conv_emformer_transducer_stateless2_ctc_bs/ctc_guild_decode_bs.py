@@ -23,83 +23,51 @@ Usage:
 (1) greedy search
 ./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
     --epoch 30 \
-    --avg 13 \
+    --avg 11 \
     --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
     --max-duration 300 \
+    --num-encoder-layers 12 \
+    --chunk-length 32 \
+    --cnn-module-kernel 31 \
+    --left-context-length 32 \
+    --right-context-length 8 \
+    --memory-size 32 \
     --decoding-method greedy_search \
-    --simulate-streaming True
+    --use-averaged-model True
 
-(2) beam search (not recommended)
+(2) modified beam search
 ./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
     --epoch 30 \
-    --avg 13 \
+    --avg 12 \
     --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
     --max-duration 300 \
-    --decoding-method beam_search \
-    --beam-size 4 \
-    --simulate-streaming True
-
-(3) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
-    --epoch 30 \
-    --avg 13 \
-    --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
-    --max-duration 300 \
+    --num-encoder-layers 12 \
+    --chunk-length 32 \
+    --cnn-module-kernel 31 \
+    --left-context-length 32 \
+    --right-context-length 8 \
+    --memory-size 32 \
     --decoding-method modified_beam_search \
     --beam-size 4 \
-    --simulate-streaming True
+    --use-averaged-model True
 
-(4) fast beam search (one best)
+(3) fast beam search (one best)
 ./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
     --epoch 30 \
     --avg 10 \
-    --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
+    --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
     --max-duration 300 \
+    --num-encoder-layers 12 \
+    --chunk-length 32 \
+    --cnn-module-kernel 31 \
+    --left-context-length 32 \
+    --right-context-length 8 \
+    --memory-size 32 \
     --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --simulate-streaming True
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless7_ctc/ctc_guild_decode_bs.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-    --max-duration 300 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5 \
-    --simulate-streaming True
-
-(6) fast beam search (nbest oracle WER)
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
-    --max-duration 300 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5 \
-    --simulate-streaming True
-
-(7) fast beam search (with LG)
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_decode_bs.py \
-    --epoch 30 \
-    --avg 15 \
-    --exp-dir ./conv_emformer_transducer_stateless2_ctc_bs/exp \
-    --max-duration 300 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --simulate-streaming True
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8 \
+    --use-averaged-model True
 """
 
 
@@ -312,14 +280,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--simulate-streaming",
-        type=str2bool,
-        default=False,
-        help="""Whether to simulate streaming in decoding, this is a good way to
-        test a streaming model.""",
-    )
-
-    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -387,22 +347,14 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    if params.simulate_streaming:
-        feature_lens += params.left_context
-        feature = torch.nn.functional.pad(
-            feature,
-            pad=(0, 0, 0, params.left_context),
-            value=LOG_EPS,
-        )
-        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
-            x=feature,
-            x_lens=feature_lens,
-            chunk_size=params.decode_chunk_size,
-            left_context=params.left_context,
-            simulate_streaming=True,
-        )
-    else:
-        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    feature_lens += params.chunk_length
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.chunk_length),
+        value=LOG_EPS,
+    )
+
+    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     # filter out blank frames using ctc outputs
     ctc_output = model.ctc_output(encoder_out)
@@ -416,16 +368,6 @@ def decode_one_batch(
         ctc_output=ctc_output,
         blank_id=0,
     )
-
-    if False:
-        # tail padding here to alleviate the tail problem
-        num_tail_padded_frames = 1
-        encoder_out = torch.nn.functional.pad(
-            encoder_out,
-            (0, 0, 0, num_tail_padded_frames),
-            value=0,
-        )
-        encoder_out_lens += num_tail_padded_frames
 
     hyps = []
 
@@ -688,10 +630,6 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    if params.simulate_streaming:
-        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
-        params.suffix += f"-left-context-{params.left_context}"
-
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -726,11 +664,6 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
