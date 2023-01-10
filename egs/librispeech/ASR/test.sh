@@ -1,7 +1,6 @@
 git pull
 
-#for method in greedy_search modified_beam_search fast_beam_search; do
-for i in {1..6}
+for method in greedy_search modified_beam_search fast_beam_search; do
 do
   ./pruned_transducer_stateless_d2v_v2/decode.py \
 	--input-strategy AudioSamples \
@@ -15,5 +14,7 @@ do
 	--encoder-type d2v \
     --encoder-dim 768 \
     --decoder-dim 768 \
-    --joiner-dim 768 
+    --joiner-dim 768 \
+	--avg 2 \
+	--use-averaged-model True
 done
