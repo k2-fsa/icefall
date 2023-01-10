@@ -10,7 +10,7 @@ do
 	--model-name epoch-$i.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/male_hpo6 \
     --max-duration 600 \
-    --decoding-method $method \
+    --decoding-method greedy_search \
     --max-sym-per-frame 1 \
 	--encoder-type d2v \
     --encoder-dim 768 \
