@@ -1868,7 +1868,9 @@ class ConvNeXt(nn.Module):
             mask = torch.rand((batch_size, 1, 1, 1), dtype=x.dtype, device=x.device) > layerdrop_rate
         else:
             mask = None
-        return caching_eval(self.forward_internal, x, mask)
+        # turns out this caching idea does not work with --world-size > 1
+        #return caching_eval(self.forward_internal, x, mask)
+        return self.forward_internal(x, mask)
 
 
     def forward_internal(self,

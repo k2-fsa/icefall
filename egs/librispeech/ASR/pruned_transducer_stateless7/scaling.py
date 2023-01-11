@@ -1908,7 +1908,7 @@ class Dropout3(nn.Module):
         rand_shape[self.shared_dim] = 1
         mask = torch.rand(*rand_shape, device=x.device) > p
         ans = MulForDropout3.apply(x, mask, scale)
-        return mask
+        return ans
 
 
 class SwooshLFunction(torch.autograd.Function):
