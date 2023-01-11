@@ -48,7 +48,20 @@
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ncnn</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ncnn</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#export-lstm-transducer-models">Export LSTM transducer models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#export-convemformer-transducer-models">Export ConvEmformer transducer models</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#download-the-pre-trained-model">1. Download the pre-trained model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#install-ncnn-and-pnnx">2. Install ncnn and pnnx</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-the-model-via-torch-jit-trace">3. Export the model via torch.jit.trace()</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-torchscript-model-via-pnnx">3. Export torchscript model via pnnx</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#test-the-exported-models-in-icefall">4. Test the exported models in icefall</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#modify-the-exported-encoder-for-sherpa-ncnn">5. Modify the exported encoder for sherpa-ncnn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#optional-int8-quantization-with-sherpa-ncnn">6. (Optional) int8 quantization with sherpa-ncnn</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -87,13 +100,525 @@
              
   <section id="export-to-ncnn">
 <h1>Export to ncnn<a class="headerlink" href="#export-to-ncnn" title="Permalink to this heading"></a></h1>
-<p>We support exporting LSTM transducer models to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
-<p>Please refer to <a class="reference internal" href="../recipes/Streaming-ASR/librispeech/lstm_pruned_stateless_transducer.html#export-model-for-ncnn"><span class="std std-ref">Export model for ncnn</span></a> for details.</p>
+<p>We support exporting both
+<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/lstm_transducer_stateless2">LSTM transducer models</a>
+and
+<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/conv_emformer_transducer_stateless2">ConvEmformer transducer models</a>
+to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
 <p>We also provide <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">https://github.com/k2-fsa/sherpa-ncnn</a>
 performing speech recognition using <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> with exported models.
-It has been tested on Linux, macOS, Windows, and Raspberry Pi. The project is
-self-contained and can be statically linked to produce a binary containing
-everything needed.</p>
+It has been tested on Linux, macOS, Windows, <code class="docutils literal notranslate"><span class="pre">Android</span></code>, and <code class="docutils literal notranslate"><span class="pre">Raspberry</span> <span class="pre">Pi</span></code>.</p>
+<p><a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> is self-contained and can be statically linked to produce
+a binary containing everything needed. Please refer
+to its documentation for details:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/index.html">https://k2-fsa.github.io/sherpa/ncnn/index.html</a></p></li>
+</ul>
+</div></blockquote>
+<section id="export-lstm-transducer-models">
+<h2>Export LSTM transducer models<a class="headerlink" href="#export-lstm-transducer-models" title="Permalink to this heading"></a></h2>
+<p>Please refer to <a class="reference internal" href="../recipes/Streaming-ASR/librispeech/lstm_pruned_stateless_transducer.html#export-lstm-transducer-model-for-ncnn"><span class="std std-ref">Export LSTM transducer models for ncnn</span></a> for details.</p>
+</section>
+<section id="export-convemformer-transducer-models">
+<h2>Export ConvEmformer transducer models<a class="headerlink" href="#export-convemformer-transducer-models" title="Permalink to this heading"></a></h2>
+<p>We use the pre-trained model from the following repository as an example:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a></p></li>
+</ul>
+</div></blockquote>
+<p>We will show you step by step how to export it to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> and run it with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We use <code class="docutils literal notranslate"><span class="pre">Ubuntu</span> <span class="pre">18.04</span></code>, <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.10</span></code>, and <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.8</span></code> for testing.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please use a more recent version of PyTorch. For instance, <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.8</span></code>
+may <code class="docutils literal notranslate"><span class="pre">not</span></code> work.</p>
+</div>
+<section id="download-the-pre-trained-model">
+<h3>1. Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can also refer to <a class="reference external" href="https://k2-fsa.github.io/sherpa/cpp/pretrained_models/online_transducer.html#icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://k2-fsa.github.io/sherpa/cpp/pretrained_models/online_transducer.html#icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a> to download the pre-trained model.</p>
+<p>You have to install <a class="reference external" href="https://git-lfs.com/">git-lfs</a> before you continue.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+
+<span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;exp/pretrained-epoch-30-avg-10-averaged.pt&quot;</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;data/lang_bpe_500/bpe.model&quot;</span>
+
+<span class="nb">cd</span><span class="w"> </span>..
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We download <code class="docutils literal notranslate"><span class="pre">exp/pretrained-xxx.pt</span></code>, not <code class="docutils literal notranslate"><span class="pre">exp/cpu-jit_xxx.pt</span></code>.</p>
+</div>
+<p>In the above code, we download the pre-trained model into the directory
+<code class="docutils literal notranslate"><span class="pre">egs/librispeech/ASR/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</span></code>.</p>
+</section>
+<section id="install-ncnn-and-pnnx">
+<h3>2. Install ncnn and pnnx<a class="headerlink" href="#install-ncnn-and-pnnx" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># We put ncnn into $HOME/open-source/ncnn</span>
+<span class="c1"># You can change it to anywhere you like</span>
+
+<span class="nb">cd</span><span class="w"> </span><span class="nv">$HOME</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>open-source
+<span class="nb">cd</span><span class="w"> </span>open-source
+
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/csukuangfj/ncnn
+<span class="nb">cd</span><span class="w"> </span>ncnn
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--recursive<span class="w"> </span>--init
+
+<span class="c1"># Note: We don&#39;t use &quot;python setup.py install&quot; or &quot;pip install .&quot; here</span>
+
+mkdir<span class="w"> </span>-p<span class="w"> </span>build-wheel
+<span class="nb">cd</span><span class="w"> </span>build-wheel
+
+cmake<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_PYTHON<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_BENCHMARK<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+..
+
+make<span class="w"> </span>-j4
+
+<span class="nb">cd</span><span class="w"> </span>..
+
+<span class="c1"># Note: $PWD here is $HOME/open-source/ncnn</span>
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/python:<span class="nv">$PYTHONPATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/tools/pnnx/build/src:<span class="nv">$PATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build-wheel/tools/quantize:<span class="nv">$PATH</span>
+
+<span class="c1"># Now build pnnx</span>
+<span class="nb">cd</span><span class="w"> </span>tools/pnnx
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>-j4
+
+./src/pnnx
+</pre></div>
+</div>
+<p>Congratulations! You have successfully installed the following components:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">pnxx</span></code>, which is an executable located in
+<code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/tools/pnnx/build/src</span></code>. We will use
+it to convert models exported by <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code>, which is an executable located in
+<code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/build-wheel/tools/quantize</span></code>. We will use
+it to quantize our models to <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ncnn.cpython-38-x86_64-linux-gnu.so</span></code>, which is a Python module located
+in <code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/python/ncnn</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>I am using <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.8</span></code>, so it
+is <code class="docutils literal notranslate"><span class="pre">ncnn.cpython-38-x86_64-linux-gnu.so</span></code>. If you use a different
+version, say, <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.9</span></code>, the name would be
+<code class="docutils literal notranslate"><span class="pre">ncnn.cpython-39-x86_64-linux-gnu.so</span></code>.</p>
+<p>Also, if you are not using Linux, the file name would also be different.
+But that does not matter. As long as you can compile it, it should work.</p>
+</div>
+</li>
+</ul>
+</div></blockquote>
+<p>We have set up <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> so that you can use <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">ncnn</span></code> in your
+Python code. We have also set up <code class="docutils literal notranslate"><span class="pre">PATH</span></code> so that you can use
+<code class="docutils literal notranslate"><span class="pre">pnnx</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code> later in your terminal.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please don’t use <a class="reference external" href="https://github.com/tencent/ncnn">https://github.com/tencent/ncnn</a>.
+We have made some modifications to the offical <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
+<p>We will synchronize <a class="reference external" href="https://github.com/csukuangfj/ncnn">https://github.com/csukuangfj/ncnn</a> periodically
+with the official one.</p>
+</div>
+</section>
+<section id="export-the-model-via-torch-jit-trace">
+<h3>3. Export the model via torch.jit.trace()<a class="headerlink" href="#export-the-model-via-torch-jit-trace" title="Permalink to this heading"></a></h3>
+<p>First, let us rename our pre-trained model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">egs</span><span class="o">/</span><span class="n">librispeech</span><span class="o">/</span><span class="n">ASR</span>
+
+<span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span>
+
+<span class="n">ln</span> <span class="o">-</span><span class="n">s</span> <span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span> <span class="n">epoch</span><span class="o">-</span><span class="mf">30.</span><span class="n">pt</span>
+
+<span class="n">cd</span> <span class="o">../..</span>
+</pre></div>
+</div>
+<p>Next, we use the following code to export our model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">dir</span><span class="o">=</span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/
+
+./conv_emformer_transducer_stateless2/export-for-ncnn.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$dir</span>/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span><span class="nv">$dir</span>/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="se">\</span>
+<span class="w">  </span>--num-encoder-layers<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--chunk-length<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cnn-module-kernel<span class="w"> </span><span class="m">31</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--left-context-length<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--right-context-length<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--memory-size<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-dim<span class="w"> </span><span class="m">512</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We have renamed our model to <code class="docutils literal notranslate"><span class="pre">epoch-30.pt</span></code> so that we can use <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">30</span></code>.
+There is only one pre-trained model, so we use <code class="docutils literal notranslate"><span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code>.</p>
+<p>If you have trained a model by yourself and if you have all checkpoints
+available, please first use <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> to tune <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">--avg</span></code>
+and select the best combination with with <code class="docutils literal notranslate"><span class="pre">--use-averaged-model</span> <span class="pre">1</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You will see the following log output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">677</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">220</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">229</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;best_train_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_valid_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_train_epoch&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;best_v</span>
+<span class="n">alid_epoch</span><span class="s1">&#39;: -1, &#39;</span><span class="n">batch_idx_train</span><span class="s1">&#39;: 0, &#39;</span><span class="n">log_interval</span><span class="s1">&#39;: 50, &#39;</span><span class="n">reset_interval</span><span class="s1">&#39;: 200, &#39;</span><span class="n">valid_interval</span><span class="s1">&#39;: 3000, &#39;</span><span class="n">feature_dim</span><span class="s1">&#39;: 80, &#39;</span><span class="n">subsampl</span>
+<span class="n">ing_factor</span><span class="s1">&#39;: 4, &#39;</span><span class="n">decoder_dim</span><span class="s1">&#39;: 512, &#39;</span><span class="n">joiner_dim</span><span class="s1">&#39;: 512, &#39;</span><span class="n">model_warm_step</span><span class="s1">&#39;: 3000, &#39;</span><span class="n">env_info</span><span class="s1">&#39;: {&#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">version</span><span class="s1">&#39;: &#39;</span><span class="mf">1.23.2</span><span class="s1">&#39;, &#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">build</span><span class="o">-</span><span class="nb">type</span><span class="s1">&#39;:</span>
+<span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;a34171ed85605b0926eebbd0463d059431f4f74a&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Wed Dec 14 00:06:38 2022&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.12.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.10.0+cu102&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-vers</span>
+<span class="n">ion</span><span class="s1">&#39;: &#39;</span><span class="mf">10.2</span><span class="s1">&#39;, &#39;</span><span class="n">python</span><span class="o">-</span><span class="n">version</span><span class="s1">&#39;: &#39;</span><span class="mf">3.8</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">branch</span><span class="s1">&#39;: &#39;</span><span class="n">fix</span><span class="o">-</span><span class="n">stateless3</span><span class="o">-</span><span class="n">train</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">27</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">sha1</span><span class="s1">&#39;: &#39;</span><span class="mf">530e8</span><span class="n">a1</span><span class="o">-</span><span class="n">dirty</span><span class="s1">&#39;, &#39;</span>
+<span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">date</span><span class="s1">&#39;: &#39;</span><span class="n">Tue</span> <span class="n">Dec</span> <span class="mi">27</span> <span class="mi">13</span><span class="p">:</span><span class="mi">59</span><span class="p">:</span><span class="mi">18</span> <span class="mi">2022</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">icefall</span><span class="s1">&#39;, &#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="n">op</span>
+<span class="n">en</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="s1">&#39;, &#39;</span><span class="n">lhotse</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">lhotse</span><span class="o">/</span><span class="n">lhotse</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="s1">&#39;, &#39;</span><span class="n">hostname</span><span class="s1">&#39;: &#39;</span><span class="n">de</span><span class="o">-</span><span class="mi">74279</span>
+<span class="o">-</span><span class="n">k2</span><span class="o">-</span><span class="n">train</span><span class="o">-</span><span class="mi">3</span><span class="o">-</span><span class="mi">1220120619</span><span class="o">-</span><span class="mi">7695</span><span class="n">ff496b</span><span class="o">-</span><span class="n">s9n4w</span><span class="s1">&#39;, &#39;</span><span class="n">IP</span> <span class="n">address</span><span class="s1">&#39;: &#39;</span><span class="mf">127.0.0.1</span><span class="s1">&#39;}, &#39;</span><span class="n">epoch</span><span class="s1">&#39;: 30, &#39;</span><span class="nb">iter</span><span class="s1">&#39;: 0, &#39;</span><span class="n">avg</span><span class="s1">&#39;: 1, &#39;</span><span class="n">exp_dir</span><span class="s1">&#39;: PosixPath(&#39;</span><span class="n">icefa</span>
+<span class="n">ll</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="s1">&#39;), &#39;</span><span class="n">bpe_model</span><span class="s1">&#39;: &#39;</span><span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transdu</span>
+<span class="n">cer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">//</span><span class="n">data</span><span class="o">/</span><span class="n">lang_bpe_500</span><span class="o">/</span><span class="n">bpe</span><span class="o">.</span><span class="n">model</span><span class="s1">&#39;, &#39;</span><span class="n">jit</span><span class="s1">&#39;: False, &#39;</span><span class="n">context_size</span><span class="s1">&#39;: 2, &#39;</span><span class="n">use_averaged_model</span><span class="s1">&#39;: False, &#39;</span><span class="n">encoder_dim</span><span class="s1">&#39;:</span>
+<span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;cnn_module_kernel&#39;</span><span class="p">:</span> <span class="mi">31</span><span class="p">,</span> <span class="s1">&#39;left_context_length&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;chunk_length&#39;</span>
+<span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;right_context_length&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;memory_size&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">500</span><span class="p">}</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">231</span><span class="p">]</span> <span class="n">About</span> <span class="n">to</span> <span class="n">create</span> <span class="n">model</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">40</span><span class="p">,</span><span class="mi">053</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">checkpoint</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">112</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">checkpoint</span> <span class="kn">from</span> <span class="nn">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2</span>
+<span class="mi">022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">epoch</span><span class="o">-</span><span class="mf">30.</span><span class="n">pt</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">40</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">315</span><span class="p">]</span> <span class="n">Number</span> <span class="n">of</span> <span class="n">model</span> <span class="n">parameters</span><span class="p">:</span> <span class="mi">75490012</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">318</span><span class="p">]</span> <span class="n">Using</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">trace</span><span class="p">()</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span> <span class="n">Exporting</span> <span class="n">encoder</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">682</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">149</span><span class="p">]</span> <span class="n">chunk_length</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="n">right_context_length</span><span class="p">:</span> <span class="mi">8</span>
+</pre></div>
+</div>
+<p>The log shows the model has <code class="docutils literal notranslate"><span class="pre">75490012</span></code> number of parameters, i.e., <code class="docutils literal notranslate"><span class="pre">~75</span> <span class="pre">M</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ls</span> <span class="o">-</span><span class="n">lh</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
+
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="o">--</span><span class="n">r</span><span class="o">--</span> <span class="mi">1</span> <span class="n">kuangfangjun</span> <span class="n">root</span> <span class="mi">289</span><span class="n">M</span> <span class="n">Jan</span> <span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">05</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
+</pre></div>
+</div>
+<p>You can see that the file size of the pre-trained model is <code class="docutils literal notranslate"><span class="pre">289</span> <span class="pre">MB</span></code>, which
+is roughly <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">x</span> <span class="pre">75</span> <span class="pre">M</span></code>.</p>
+</div>
+<p>After running <code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>,
+we will get the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*pnnx*
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>1010K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.pt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>283M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.pt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">3</span>.0M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.pt
+</pre></div>
+</div>
+</section>
+<section id="export-torchscript-model-via-pnnx">
+<span id="conv-emformer-step-3-export-torchscript-model-via-pnnx"></span><h3>3. Export torchscript model via pnnx<a class="headerlink" href="#export-torchscript-model-via-pnnx" title="Permalink to this heading"></a></h3>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Make sure you have set up the <code class="docutils literal notranslate"><span class="pre">PATH</span></code> environment variable. Otherwise,
+it will throw an error saying that <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> could not be found.</p>
+</div>
+<p>Now, it’s time to export our models to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> via <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+</pre></div>
+</div>
+<p>It will generate the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w">  </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*ncnn*<span class="o">{</span>bin,param<span class="o">}</span>
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>503K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">437</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>142M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:36<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>79K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:36<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span><span class="m">1</span>.5M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">488</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param
+</pre></div>
+</div>
+<p>There are two types of files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">param</span></code>: It is a text file containing the model architectures. You can
+use a text editor to view its content.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bin</span></code>: It is a binary file containing the model parameters.</p></li>
+</ul>
+<p>We compare the file sizes of the models below before and after converting via <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 74%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>File name</p></th>
+<th class="head"><p>File size</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file size of the models after converting is about one half
+of the models before converting:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>encoder: 283 MB vs 142 MB</p></li>
+<li><p>decoder: 1010 KB vs 503 KB</p></li>
+<li><p>joiner: 3.0 MB vs 1.5 MB</p></li>
+</ul>
+</div></blockquote>
+<p>The reason is that by default <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> converts <code class="docutils literal notranslate"><span class="pre">float32</span></code> parameters
+to <code class="docutils literal notranslate"><span class="pre">float16</span></code>. A <code class="docutils literal notranslate"><span class="pre">float32</span></code> parameter occupies 4 bytes, while it is 2 bytes
+for <code class="docutils literal notranslate"><span class="pre">float16</span></code>. Thus, it is <code class="docutils literal notranslate"><span class="pre">twice</span> <span class="pre">smaller</span></code> after conversion.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you use <code class="docutils literal notranslate"><span class="pre">pnnx</span> <span class="pre">./encoder_jit_trace-pnnx.pt</span> <span class="pre">fp16=0</span></code>, then <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>
+won’t convert <code class="docutils literal notranslate"><span class="pre">float32</span></code> to <code class="docutils literal notranslate"><span class="pre">float16</span></code>.</p>
+</div>
+</section>
+<section id="test-the-exported-models-in-icefall">
+<h3>4. Test the exported models in icefall<a class="headerlink" href="#test-the-exported-models-in-icefall" title="Permalink to this heading"></a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We assume you have set up the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> when
+building <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
+</div>
+<p>Now we have successfully converted our pre-trained model to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> format.
+The generated 6 files are what we need. You can use the following code to
+test the converted models:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/test_wavs/1089-134686-0001.wav
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> supports only <code class="docutils literal notranslate"><span class="pre">batch</span> <span class="pre">size</span> <span class="pre">==</span> <span class="pre">1</span></code>, so <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> accepts
+only 1 wave file as input.</p>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="mi">216</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;tokens&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/data/lang_bpe_500/tokens.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;encoder_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;encoder_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;decoder_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;decoder_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;joiner_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;joiner_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/test_wavs/1089-134686-0001.wav&#39;</span><span class="p">}</span>
+<span class="n">T</span> <span class="mi">51</span> <span class="mi">32</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">141</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">328</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">151</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">331</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">176</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">336</span><span class="p">]</span> <span class="n">torch</span><span class="o">.</span><span class="n">Size</span><span class="p">([</span><span class="mi">106000</span><span class="p">])</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="mi">581</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">380</span><span class="p">]</span> <span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="mi">581</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">381</span><span class="p">]</span> <span class="n">AFTER</span> <span class="n">EARLY</span> <span class="n">NIGHTFALL</span> <span class="n">THE</span> <span class="n">YELLOW</span> <span class="n">LAMPS</span> <span class="n">WOULD</span> <span class="n">LIGHT</span> <span class="n">UP</span> <span class="n">HERE</span> <span class="n">AND</span> <span class="n">THERE</span> <span class="n">THE</span> <span class="n">SQUALID</span> <span class="n">QUARTER</span> <span class="n">OF</span> <span class="n">THE</span> <span class="n">BROTHELS</span>
+</pre></div>
+</div>
+<p>Congratulations! You have successfully exported a model from PyTorch to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>!</p>
+</section>
+<section id="modify-the-exported-encoder-for-sherpa-ncnn">
+<h3>5. Modify the exported encoder for sherpa-ncnn<a class="headerlink" href="#modify-the-exported-encoder-for-sherpa-ncnn" title="Permalink to this heading"></a></h3>
+<p>In order to use the exported models in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>, we have to modify
+<code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>.</p>
+<p>Let us have a look at the first few lines of <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">7767517</span>
+<span class="mi">1060</span> <span class="mi">1342</span>
+<span class="n">Input</span>                    <span class="n">in0</span>                      <span class="mi">0</span> <span class="mi">1</span> <span class="n">in0</span>
+</pre></div>
+</div>
+<p><strong>Explanation</strong> of the above three lines:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is a magic number and should not be changed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1060</span> <span class="pre">1342</span></code>, the first number <code class="docutils literal notranslate"><span class="pre">1060</span></code> specifies the number of layers
+in this file, while <code class="docutils literal notranslate"><span class="pre">1342</span></code> specifies the number intermediate outputs of
+this file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Input</span> <span class="pre">in0</span> <span class="pre">0</span> <span class="pre">1</span> <span class="pre">in0</span></code>, <code class="docutils literal notranslate"><span class="pre">Input</span></code> is the layer type of this layer; <code class="docutils literal notranslate"><span class="pre">in0</span></code>
+is the layer name of this layer; <code class="docutils literal notranslate"><span class="pre">0</span></code> means this layer has no input;
+<code class="docutils literal notranslate"><span class="pre">1</span></code> means this layer has one output. <code class="docutils literal notranslate"><span class="pre">in0</span></code> is the output name of
+this layer.</p></li>
+</ol>
+</div></blockquote>
+<p>We need to add 1 extra line and the result looks like below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1061</span><span class="w"> </span><span class="m">1342</span>
+SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">12</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">31</span><span class="w"> </span><span class="nv">4</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">5</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">6</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">7</span><span class="o">=</span><span class="m">512</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<p><strong>Explanation</strong></p>
+<blockquote>
+<div><ol class="arabic">
+<li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is still the same</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1061</span> <span class="pre">1342</span></code>, we have added an extra layer, so we need to update <code class="docutils literal notranslate"><span class="pre">1060</span></code> to <code class="docutils literal notranslate"><span class="pre">1061</span></code>.
+We don’t need to change <code class="docutils literal notranslate"><span class="pre">1342</span></code> since the newly added layer has no inputs and outputs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span>&#160; <span class="pre">sherpa_meta_data1</span>&#160; <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0=1</span> <span class="pre">1=12</span> <span class="pre">2=32</span> <span class="pre">3=31</span> <span class="pre">4=8</span> <span class="pre">5=32</span> <span class="pre">6=8</span> <span class="pre">7=512</span></code>
+This line is newly added. Its explanation is given below:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> is the type of this layer. Must be <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code> is the name of this layer. Must be <code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> means this layer has no inputs and output. Must be <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0=1</span></code>, 0 is the key and 1 is the value. MUST be <code class="docutils literal notranslate"><span class="pre">0=1</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1=12</span></code>, 1 is the key and 12 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2=32</span></code>, 2 is the key and 32 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--memory-size</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">3=31</span></code>, 3 is the key and 31 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--cnn-module-kernel</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">4=8</span></code>, 4 is the key and 8 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--left-context-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">5=32</span></code>, 5 is the key and 32 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--chunk-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">6=8</span></code>, 6 is the key and 8 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--right-context-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">7=512</span></code>, 7 is the key and 512 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--encoder-dim</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+</ul>
+<p>For ease of reference, we list the key-value pairs that you need to add
+in the following table. If your model has a different setting, please
+change the values for <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> accordingly. Otherwise, you
+will be <code class="docutils literal notranslate"><span class="pre">SAD</span></code>.</p>
+<blockquote>
+<div><table class="docutils align-default">
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 83%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>key</p></th>
+<th class="head"><p>value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>1 (fixed)</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--memory-size</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--cnn-module-kernel</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--left-context-length</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--chunk-length</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--right-context-length</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--encoder-dim</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div></blockquote>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Input</span> <span class="pre">in0</span> <span class="pre">0</span> <span class="pre">1</span> <span class="pre">in0</span></code>. No need to change it.</p></li>
+</ol>
+</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>When you add a new layer <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>, please remember to update the
+number of layers. In our case, update  <code class="docutils literal notranslate"><span class="pre">1060</span></code> to <code class="docutils literal notranslate"><span class="pre">1061</span></code>. Otherwise,
+you will be SAD later.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>After adding the new layer <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>, you cannot use this model
+with <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> anymore since <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> is
+supported only in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> is very flexible. You can add new layers to it just by text-editing
+the <code class="docutils literal notranslate"><span class="pre">param</span></code> file! You don’t need to change the <code class="docutils literal notranslate"><span class="pre">bin</span></code> file.</p>
+</div>
+<p>Now you can use this model in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.
+Please refer to the following documentation:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Linux/macOS/Windows/arm/aarch64: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/install/index.html">https://k2-fsa.github.io/sherpa/ncnn/install/index.html</a></p></li>
+<li><p>Android: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/android/index.html">https://k2-fsa.github.io/sherpa/ncnn/android/index.html</a></p></li>
+<li><p>Python: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/python/index.html">https://k2-fsa.github.io/sherpa/ncnn/python/index.html</a></p></li>
+</ul>
+</div></blockquote>
+<p>We have a list of pre-trained models that have been exported for <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>:</p>
+<blockquote>
+<div><ul>
+<li><p><a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/pretrained_models/index.html">https://k2-fsa.github.io/sherpa/ncnn/pretrained_models/index.html</a></p>
+<p>You can find more usages there.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="optional-int8-quantization-with-sherpa-ncnn">
+<h3>6. (Optional) int8 quantization with sherpa-ncnn<a class="headerlink" href="#optional-int8-quantization-with-sherpa-ncnn" title="Permalink to this heading"></a></h3>
+<p>This step is optional.</p>
+<p>In this step, we describe how to quantize our model with <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<p>Change <a class="reference internal" href="#conv-emformer-step-3-export-torchscript-model-via-pnnx"><span class="std std-ref">3. Export torchscript model via pnnx</span></a> to
+disable <code class="docutils literal notranslate"><span class="pre">fp16</span></code> when using <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span> <span class="n">fp16</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span> <span class="n">fp16</span><span class="o">=</span><span class="mi">0</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We add <code class="docutils literal notranslate"><span class="pre">fp16=0</span></code> when exporting the encoder and joiner. <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> does not
+support quantizing the decoder model yet. We will update this documentation
+once <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> supports it. (Maybe in this year, 2023).</p>
+</div>
+<p>TODO(fangjun): Finish it.</p>
+<p>Have fun with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>!</p>
+</section>
+</section>
 </section>
 
 
