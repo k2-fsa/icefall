@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distillation with HuBERT &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="TIMIT" href="../timit/index.html" />
+    <link rel="prev" title="Zipformer CTC Blank Skip" href="zipformer_ctc_blankskip.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Non Streaming ASR</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../aishell/index.html">aishell</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Distillation with HuBERT</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Non Streaming ASR</a></li>
+          <li class="breadcrumb-item"><a href="index.html">LibriSpeech</a></li>
+      <li class="breadcrumb-item active">Distillation with HuBERT</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/librispeech/distillation.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="distillation-with-hubert">
+<h1>Distillation with HuBERT<a class="headerlink" href="#distillation-with-hubert" title="Permalink to this heading"></a></h1>
+<p>This totorial shows you how to perform knowledge distillation in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>
+with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset. The distillation method
+used here is called “Multi Vector Quantization Knowledge Distillation” (MVQ-KD).
+Please have a look at our paper <a class="reference external" href="https://arxiv.org/abs/2211.00508">Predicting Multi-Codebook Vector Quantization Indexes for Knowledge Distillation</a>
+for more details about MVQ-KD.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<dl class="simple">
+<dt>This tutorial is based on recipe</dt><dd><p><a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless4">pruned_transducer_stateless4</a>.</p>
+</dd>
+</dl>
+<p>Currently, we only implement MVQ-KD in this recipe. However, MVQ-KD is theoretically applicable to all recipes
+with only minor changes needed. Feel free to try out MVQ-KD in different recipes. If you
+encounter any problems, please open an issue here <a class="reference external" href="https://github.com/k2-fsa/icefall/issues">icefall</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We assume you have read the page <a class="reference internal" href="../../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We recommend you to use a GPU or several GPUs to run this recipe.</p>
+</div>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<p>We first prepare necessary training data for <code class="docutils literal notranslate"><span class="pre">LibriSpeech</span></code>.
+This is the same as in <a class="reference external" href="./pruned_transducer_stateless.rst">Pruned_transducer_statelessX</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>The data preparation is the same as other recipes on LibriSpeech dataset,
+if you have finished this step, you can skip to <code class="docutils literal notranslate"><span class="pre">Codebook</span> <span class="pre">index</span> <span class="pre">preparation</span></code> directly.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./prepare.sh
+</pre></div>
+</div>
+<p>The script <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> handles the data preparation for you, <strong>automagically</strong>.
+All you need to do is to run it.</p>
+<p>The data preparation contains several stages, you can use the following two
+options:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>to control which stage(s) should be run. By default, all stages are executed.</p>
+<p>For example,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you have pre-downloaded the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>
+dataset and the <a class="reference external" href="http://www.openslr.org/17/">musan</a> dataset, say,
+they are saved in <code class="docutils literal notranslate"><span class="pre">/tmp/LibriSpeech</span></code> and <code class="docutils literal notranslate"><span class="pre">/tmp/musan</span></code>, you can modify
+the <code class="docutils literal notranslate"><span class="pre">dl_dir</span></code> variable in <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> to point to <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> so that
+<code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> won’t re-download them.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All generated files by <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code>, e.g., features, lexicon, etc,
+are saved in <code class="docutils literal notranslate"><span class="pre">./data</span></code> directory.</p>
+</div>
+<p>We provide the following YouTube video showing how to run <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To get the latest news of <a class="reference external" href="https://github.com/k2-fsa">next-gen Kaldi</a>, please subscribe
+the following YouTube channel by <a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">Nadira Povey</a>:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw">https://www.youtube.com/channel/UC_VaumpkmINz1pNkFXAN9mw</a></p>
+</div></blockquote>
+</div>
+<div class="video_wrapper" style="">
+<iframe allowfullscreen="true" src="https://www.youtube.com/embed/ofEIoJL-mGM" style="border: 0; height: 345px; width: 560px">
+</iframe></div></section>
+<section id="codebook-index-preparation">
+<h2>Codebook index preparation<a class="headerlink" href="#codebook-index-preparation" title="Permalink to this heading"></a></h2>
+<p>Here, we prepare necessary data for MVQ-KD. This requires the generation
+of codebook indexes (please read our <a class="reference external" href="https://arxiv.org/abs/2211.00508">paper</a>.
+if you are interested in details). In this tutorial, we use the pre-computed
+codebook indexes for convenience. The only thing you need to do is to
+run <code class="docutils literal notranslate"><span class="pre">./distillation_with_hubert.sh</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>There are 5 stages in total, the first and second stage will be automatically skipped
+when choosing to downloaded codebook indexes prepared by <a class="reference external" href="https://github.com/k2-fsa/icefall/issues">icefall</a>.
+Of course, you can extract and compute the codebook indexes by yourself. This
+will require you downloading a HuBERT-XL model and it can take a while for
+the extraction of codebook indexes.</p>
+</div>
+<p>As usual, you can control the stages you want to run by specifying the following
+two options:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+</ul>
+</div></blockquote>
+<p>For example,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
+$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
+</pre></div>
+</div>
+<p>Here are a few options in <code class="docutils literal notranslate"><span class="pre">./distillation_with_hubert.sh</span></code>
+you need to know before you proceed.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--full_libri</span></code> If True, use full 960h data. Otherwise only <code class="docutils literal notranslate"><span class="pre">train-clean-100</span></code> will be used</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--use_extracted_codebook</span></code> If True, the first two stages will be skipped and the codebook
+indexes uploaded by us will be downloaded.</p></li>
+</ul>
+<p>Since we are using the pre-computed codebook indexes, we set
+<code class="docutils literal notranslate"><span class="pre">use_extracted_codebook=True</span></code>. If you want to do full <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>
+experiments, please set <code class="docutils literal notranslate"><span class="pre">full_libri=True</span></code>.</p>
+<p>The following command downloads the pre-computed codebook indexes
+and prepares MVQ-augmented training manifests.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="c1"># run only stage 2</span>
+</pre></div>
+</div>
+<p>Please see the
+following screenshot for the output of an example execution.</p>
+<figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="../../../_images/distillation_codebook.png"><img alt="Downloading codebook indexes and preparing training manifest." src="../../../_images/distillation_codebook.png" style="width: 800px;" /></a>
+<figcaption>
+<p><span class="caption-number">Fig. 6 </span><span class="caption-text">Downloading codebook indexes and preparing training manifest.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>The codebook indexes we prepared for you in this tutorial
+are extracted from the 36-th layer of a fine-tuned HuBERT-XL model
+with 8 codebooks. If you want to try other configurations, please
+set <code class="docutils literal notranslate"><span class="pre">use_extracted_codebook=False</span></code> and set <code class="docutils literal notranslate"><span class="pre">embedding_layer</span></code> and
+<code class="docutils literal notranslate"><span class="pre">num_codebooks</span></code> by yourself.</p>
+</div>
+<p>Now, you should see the following files under the direcory <code class="docutils literal notranslate"><span class="pre">./data/vq_fbank_layer36_cb8</span></code>.</p>
+<figure class="align-center" id="id4">
+<a class="reference internal image-reference" href="../../../_images/distillation_directory.png"><img alt="MVQ-augmented training manifests" src="../../../_images/distillation_directory.png" style="width: 800px;" /></a>
+<figcaption>
+<p><span class="caption-number">Fig. 7 </span><span class="caption-text">MVQ-augmented training manifests.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<p>Whola! You are ready to perform knowledge distillation training now!</p>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<p>To perform training, please run stage 3 by executing the following command.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">3</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="c1"># run MVQ training</span>
+</pre></div>
+</div>
+<p>Here is the code snippet for training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">WORLD_SIZE</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="si">${</span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="si">}</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{n=split($1, _, &quot;,&quot;); print n}&#39;</span><span class="k">)</span>
+
+./pruned_transducer_stateless6/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--manifest-dir<span class="w"> </span>./data/vq_fbank_layer36_cb8<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--master-port<span class="w"> </span><span class="m">12359</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--full-libri<span class="w"> </span><span class="nv">$full_libri</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--spec-aug-time-warp-factor<span class="w"> </span>-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-duration<span class="w"> </span><span class="m">300</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--world-size<span class="w"> </span><span class="si">${</span><span class="nv">WORLD_SIZE</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--num-epochs<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--enable-distillation<span class="w"> </span>True<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--codebook-loss-scale<span class="w"> </span><span class="m">0</span>.01
+</pre></div>
+</div>
+<p>There are a few training arguments in the following
+training commands that should be paid attention to.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--enable-distillation</span></code> If True, knowledge distillation training is enabled.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--codebook-loss-scale</span></code> The scale of the knowledge distillation loss.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--manifest-dir</span></code> The path to the MVQ-augmented manifest.</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>After training finished, you can test the performance on using
+the following command.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="m">0</span>
+./pruned_transducer_stateless6/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoding-method<span class="w"> </span><span class="s2">&quot;modified_beam_search&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-duration<span class="w"> </span><span class="m">200</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--enable-distillation<span class="w"> </span>True
+</pre></div>
+</div>
+<p>You should get similar results as <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS-100hours.md#distillation-with-hubert">here</a>.</p>
+<p>That’s all! Feel free to experiment with your own setups and report your results.
+If you encounter any problems during training, please open up an issue <a class="reference external" href="https://github.com/k2-fsa/icefall/issues">here</a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="zipformer_ctc_blankskip.html" class="btn btn-neutral float-left" title="Zipformer CTC Blank Skip" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../timit/index.html" class="btn btn-neutral float-right" title="TIMIT" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
