@@ -74,7 +74,6 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from emformer import Emformer
 from joiner import Joiner
-from lconv import LConv
 from frame_reducer import FrameReducer
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
@@ -464,6 +463,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         left_context_length=params.left_context_length,
         right_context_length=params.right_context_length,
         memory_size=params.memory_size,
+        vocab_size=params.vocab_size,
     )
     return encoder
 
@@ -488,13 +488,6 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_lconv(params: AttributeDict) -> nn.Module:
-    lconv = LConv(
-        channels=int(params.encoder_dim),
-    )
-    return lconv
-
-
 def get_frame_reducer(params: AttributeDict) -> nn.Module:
     frame_reducer = FrameReducer()
     return frame_reducer
@@ -504,14 +497,12 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
-    lconv = get_lconv(params)
     frame_reducer = get_frame_reducer(params)
 
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        lconv=lconv,
         frame_reducer=frame_reducer,
         encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,

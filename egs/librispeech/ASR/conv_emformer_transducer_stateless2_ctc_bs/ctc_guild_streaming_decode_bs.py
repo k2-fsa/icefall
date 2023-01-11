@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+#                                                 Zengwei Yao,
+#                                                 Yifan   Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,9 +20,9 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless2_ctc_bs/streaming_decode.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
-      --avg 10 \
+      --avg 11 \
       --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
@@ -30,13 +31,13 @@ Usage:
       --left-context-length 32 \
       --right-context-length 8 \
       --memory-size 32 \
-      --decoding-method greedy_search \
-      --use-averaged-model True
+      --use-averaged-model True \
+      --decoding-method greedy_search
 
 (2) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs/streaming_decode.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
-      --avg 10 \
+      --avg 12 \
       --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
@@ -50,7 +51,7 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless2_ctc_bs/streaming_decode.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 10 \
       --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
@@ -67,6 +68,8 @@ Usage:
       --max-contexts 4 \
       --max-states 8
 """
+
+
 import argparse
 import logging
 import warnings
@@ -96,6 +99,7 @@ from icefall.checkpoint import (
 from icefall.decode import one_best_decoding
 from icefall.utils import (
     AttributeDict,
+    make_pad_mask,
     get_texts,
     setup_logger,
     store_transcripts,
@@ -563,11 +567,18 @@ def decode_one_chunk(
     # Stack states of all streams
     states = stack_states(state_list)
 
-    encoder_out, encoder_out_lens, states = model.encoder.infer(
+    encoder_out, encoder_out_lens, states, ctc_output = model.encoder.infer(
         x=features,
         x_lens=feature_lens,
         states=states,
         num_processed_frames=num_processed_frames,
+    )
+
+    encoder_out, encoder_out_lens = model.frame_reducer(
+        x=encoder_out,
+        x_lens=encoder_out_lens,
+        ctc_output=ctc_output,
+        blank_id=0,
     )
 
     if params.decoding_method == "greedy_search":
@@ -965,5 +976,5 @@ def main():
 
 
 if __name__ == "__main__":
-    torch.manual_seed(20220410)
+    torch.manual_seed(42)
     main()

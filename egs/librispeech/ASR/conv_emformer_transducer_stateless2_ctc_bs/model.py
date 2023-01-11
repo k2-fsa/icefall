@@ -37,7 +37,6 @@ class Transducer(nn.Module):
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
-        lconv: nn.Module,
         frame_reducer: nn.Module,
         encoder_dim: int,
         decoder_dim: int,
@@ -68,17 +67,10 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
-        self.lconv = lconv
         self.frame_reducer = frame_reducer
 
         self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
-
-        self.ctc_output = nn.Sequential(
-            nn.Dropout(p=0.1),
-            nn.Linear(encoder_dim, vocab_size),
-            nn.LogSoftmax(dim=-1),
-        )
 
     def forward(
         self,
@@ -139,20 +131,11 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out, x_lens, ctc_output = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(x_lens > 0)
-
-        # compute ctc log-probs
-        ctc_output = self.ctc_output(encoder_out)
 
         # blank skip
         blank_id = self.decoder.blank_id
-
-        # lconv
-        encoder_out = self.lconv(
-            x=encoder_out,
-            src_key_padding_mask=make_pad_mask(x_lens),
-        )
 
         # frame reduce
         encoder_out_fr, x_lens_fr = self.frame_reducer(
@@ -160,7 +143,9 @@ class Transducer(nn.Module):
             x_lens,
             ctc_output,
             blank_id,
-            1.0 - math.exp(warmup - 4.3025) if warmup < 2.0 else 0.9,
+            1.0 if warmup < 1.0 else (
+                1.0 - math.exp(2 * warmup - 6.9954) if warmup < 2.0 else 0.95
+            ),
         )
 
         # Now for the decoder, i.e., the prediction network
@@ -176,7 +161,7 @@ class Transducer(nn.Module):
         decoder_out = self.decoder(sos_y_padded)
 
         # Note: y does not start with SOS
-        # y_padded : [B, S]
+        # y_padded: [B, S]
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
