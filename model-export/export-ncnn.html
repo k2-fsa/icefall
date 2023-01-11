@@ -308,14 +308,14 @@ and select the best combination with with <code class="docutils literal notransl
 <span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">682</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">149</span><span class="p">]</span> <span class="n">chunk_length</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="n">right_context_length</span><span class="p">:</span> <span class="mi">8</span>
 </pre></div>
 </div>
-<p>The log shows the model has <code class="docutils literal notranslate"><span class="pre">75490012</span></code> number of parameters, i.e., <code class="docutils literal notranslate"><span class="pre">~75</span> <span class="pre">M</span></code>.</p>
+<p>The log shows the model has <code class="docutils literal notranslate"><span class="pre">75490012</span></code> parameters, i.e., <code class="docutils literal notranslate"><span class="pre">~75</span> <span class="pre">M</span></code>.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ls</span> <span class="o">-</span><span class="n">lh</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
 
 <span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="o">--</span><span class="n">r</span><span class="o">--</span> <span class="mi">1</span> <span class="n">kuangfangjun</span> <span class="n">root</span> <span class="mi">289</span><span class="n">M</span> <span class="n">Jan</span> <span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">05</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
 </pre></div>
 </div>
 <p>You can see that the file size of the pre-trained model is <code class="docutils literal notranslate"><span class="pre">289</span> <span class="pre">MB</span></code>, which
-is roughly <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">x</span> <span class="pre">75</span> <span class="pre">M</span></code>.</p>
+is roughly <code class="docutils literal notranslate"><span class="pre">75490012*4/1024/1024</span> <span class="pre">=</span> <span class="pre">287.97</span> <span class="pre">MB</span></code>.</p>
 </div>
 <p>After running <code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>,
 we will get the following files:</p>
@@ -391,8 +391,8 @@ use a text editor to view its content.</p></li>
 </tr>
 </tbody>
 </table>
-<p>You can see that the file size of the models after converting is about one half
-of the models before converting:</p>
+<p>You can see that the file sizes of the models after conversion are about one half
+of the models before conversion:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p>encoder: 283 MB vs 142 MB</p></li>
@@ -448,7 +448,7 @@ only 1 wave file as input.</p>
 <p>Congratulations! You have successfully exported a model from PyTorch to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>!</p>
 </section>
 <section id="modify-the-exported-encoder-for-sherpa-ncnn">
-<h3>5. Modify the exported encoder for sherpa-ncnn<a class="headerlink" href="#modify-the-exported-encoder-for-sherpa-ncnn" title="Permalink to this heading"></a></h3>
+<span id="conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"></span><h3>5. Modify the exported encoder for sherpa-ncnn<a class="headerlink" href="#modify-the-exported-encoder-for-sherpa-ncnn" title="Permalink to this heading"></a></h3>
 <p>In order to use the exported models in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>, we have to modify
 <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>.</p>
 <p>Let us have a look at the first few lines of <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>:</p>
@@ -462,15 +462,16 @@ only 1 wave file as input.</p>
 <div><ol class="arabic simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is a magic number and should not be changed.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">1060</span> <span class="pre">1342</span></code>, the first number <code class="docutils literal notranslate"><span class="pre">1060</span></code> specifies the number of layers
-in this file, while <code class="docutils literal notranslate"><span class="pre">1342</span></code> specifies the number intermediate outputs of
-this file</p></li>
+in this file, while <code class="docutils literal notranslate"><span class="pre">1342</span></code> specifies the number of intermediate outputs
+of this file</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Input</span> <span class="pre">in0</span> <span class="pre">0</span> <span class="pre">1</span> <span class="pre">in0</span></code>, <code class="docutils literal notranslate"><span class="pre">Input</span></code> is the layer type of this layer; <code class="docutils literal notranslate"><span class="pre">in0</span></code>
 is the layer name of this layer; <code class="docutils literal notranslate"><span class="pre">0</span></code> means this layer has no input;
-<code class="docutils literal notranslate"><span class="pre">1</span></code> means this layer has one output. <code class="docutils literal notranslate"><span class="pre">in0</span></code> is the output name of
+<code class="docutils literal notranslate"><span class="pre">1</span></code> means this layer has one output; <code class="docutils literal notranslate"><span class="pre">in0</span></code> is the output name of
 this layer.</p></li>
 </ol>
 </div></blockquote>
-<p>We need to add 1 extra line and the result looks like below:</p>
+<p>We need to add 1 extra line and also increment the number of layers.
+The result looks like below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
 <span class="m">1061</span><span class="w"> </span><span class="m">1342</span>
 SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">12</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">31</span><span class="w"> </span><span class="nv">4</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">5</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">6</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">7</span><span class="o">=</span><span class="m">512</span>
@@ -482,14 +483,14 @@ Input<span class="w">                    </span>in0<span class="w">             
 <div><ol class="arabic">
 <li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is still the same</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">1061</span> <span class="pre">1342</span></code>, we have added an extra layer, so we need to update <code class="docutils literal notranslate"><span class="pre">1060</span></code> to <code class="docutils literal notranslate"><span class="pre">1061</span></code>.
-We don’t need to change <code class="docutils literal notranslate"><span class="pre">1342</span></code> since the newly added layer has no inputs and outputs.</p></li>
+We don’t need to change <code class="docutils literal notranslate"><span class="pre">1342</span></code> since the newly added layer has no inputs or outputs.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span>&#160; <span class="pre">sherpa_meta_data1</span>&#160; <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0=1</span> <span class="pre">1=12</span> <span class="pre">2=32</span> <span class="pre">3=31</span> <span class="pre">4=8</span> <span class="pre">5=32</span> <span class="pre">6=8</span> <span class="pre">7=512</span></code>
 This line is newly added. Its explanation is given below:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> is the type of this layer. Must be <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code> is the name of this layer. Must be <code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> means this layer has no inputs and output. Must be <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> means this layer has no inputs or output. Must be <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">0=1</span></code>, 0 is the key and 1 is the value. MUST be <code class="docutils literal notranslate"><span class="pre">0=1</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">1=12</span></code>, 1 is the key and 12 is the value of the
 parameter <code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code> that you provided when running
@@ -611,12 +612,388 @@ disable <code class="docutils literal notranslate"><span class="pre">fp16</span>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>We add <code class="docutils literal notranslate"><span class="pre">fp16=0</span></code> when exporting the encoder and joiner. <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> does not
+<p>We add <code class="docutils literal notranslate"><span class="pre">fp16=0</span></code> when exporting the encoder and joiner. <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> does not
 support quantizing the decoder model yet. We will update this documentation
-once <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> supports it. (Maybe in this year, 2023).</p>
+once <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> supports it. (Maybe in this year, 2023).</p>
 </div>
-<p>TODO(fangjun): Finish it.</p>
-<p>Have fun with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>!</p>
+<p>It will generate the following files</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*_jit_trace-pnnx.ncnn.<span class="o">{</span>param,bin<span class="o">}</span>
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>503K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">437</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>283M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>79K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span><span class="m">3</span>.0M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">488</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param
+</pre></div>
+</div>
+<p>Let us compare again the file sizes:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 77%" />
+<col style="width: 23%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>File name</p></td>
+<td><p>File size</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp16)</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp32)</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp32)</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file sizes are doubled when we disable <code class="docutils literal notranslate"><span class="pre">fp16</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can again use <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> to test the exported models.</p>
+</div>
+<p>Next, follow <a class="reference internal" href="#conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"><span class="std std-ref">5. Modify the exported encoder for sherpa-ncnn</span></a>
+to modify <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>.</p>
+<p>Change</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1060</span><span class="w"> </span><span class="m">1342</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<p>to</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1061</span><span class="w"> </span><span class="m">1342</span>
+SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">12</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">31</span><span class="w"> </span><span class="nv">4</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">5</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">6</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">7</span><span class="o">=</span><span class="m">512</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please follow <a class="reference internal" href="#conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"><span class="std std-ref">5. Modify the exported encoder for sherpa-ncnn</span></a>
+to change the values for <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> if your model uses a different setting.</p>
+</div>
+<p>Next, let us compile <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> since we will quantize our models within
+<a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># We will download sherpa-ncnn to $HOME/open-source/</span>
+<span class="c1"># You can change it to anywhere you like.</span>
+<span class="nb">cd</span><span class="w"> </span><span class="nv">$HOME</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>open-source
+
+<span class="nb">cd</span><span class="w"> </span>open-source
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/sherpa-ncnn
+<span class="nb">cd</span><span class="w"> </span>sherpa-ncnn
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span>
+
+./bin/generate-int8-scale-table
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$HOME</span>/open-source/sherpa-ncnn/build/bin:<span class="nv">$PATH</span>
+</pre></div>
+</div>
+<p>The output of the above commands are:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>py38<span class="o">)</span><span class="w"> </span>kuangfangjun:build$<span class="w"> </span>generate-int8-scale-table
+Please<span class="w"> </span>provide<span class="w"> </span><span class="m">10</span><span class="w"> </span>arg.<span class="w"> </span>Currently<span class="w"> </span>given:<span class="w"> </span><span class="m">1</span>
+Usage:
+generate-int8-scale-table<span class="w"> </span>encoder.param<span class="w"> </span>encoder.bin<span class="w"> </span>decoder.param<span class="w"> </span>decoder.bin<span class="w"> </span>joiner.param<span class="w"> </span>joiner.bin<span class="w"> </span>encoder-scale-table.txt<span class="w"> </span>joiner-scale-table.txt<span class="w"> </span>wave_filenames.txt
+
+Each<span class="w"> </span>line<span class="w"> </span><span class="k">in</span><span class="w"> </span>wave_filenames.txt<span class="w"> </span>is<span class="w"> </span>a<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>some<span class="w"> </span>16k<span class="w"> </span>Hz<span class="w"> </span>mono<span class="w"> </span>wave<span class="w"> </span>file.
+</pre></div>
+</div>
+<p>We need to create a file <code class="docutils literal notranslate"><span class="pre">wave_filenames.txt</span></code>, in which we need to put
+some calibration wave files. For testing purpose, we put the <code class="docutils literal notranslate"><span class="pre">test_wavs</span></code>
+from the pre-trained model repository <a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+cat<span class="w"> </span><span class="s">&lt;&lt;EOF &gt; wave_filenames.txt</span>
+<span class="s">../test_wavs/1089-134686-0001.wav</span>
+<span class="s">../test_wavs/1221-135766-0001.wav</span>
+<span class="s">../test_wavs/1221-135766-0002.wav</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+<p>Now we can calculate the scales needed for quantization with the calibration data:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+generate-int8-scale-table<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder-scale-table.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner-scale-table.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./wave_filenames.txt
+</pre></div>
+</div>
+<p>The output logs are in the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Don</span><span class="s1">&#39;t Use GPU. has_gpu: 0, config.use_vulkan_compute: 1</span>
+<span class="n">num</span> <span class="n">encoder</span> <span class="n">conv</span> <span class="n">layers</span><span class="p">:</span> <span class="mi">88</span>
+<span class="n">num</span> <span class="n">joiner</span> <span class="n">conv</span> <span class="n">layers</span><span class="p">:</span> <span class="mi">3</span>
+<span class="n">num</span> <span class="n">files</span><span class="p">:</span> <span class="mi">3</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0002.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0002.</span><span class="n">wav</span>
+<span class="o">----------</span><span class="n">encoder</span><span class="o">----------</span>
+<span class="n">conv_87</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">15.942385</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">15.938493</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">7.968131</span>
+<span class="n">conv_88</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">35.442448</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">15.549335</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">8.167552</span>
+<span class="n">conv_89</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">23.228289</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.001738</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">15.871552</span>
+<span class="n">linear_90</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.976146</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.101789</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">115.267128</span>
+<span class="n">linear_91</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.962030</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.162033</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.602713</span>
+<span class="n">linear_92</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.323041</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.853959</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.953129</span>
+<span class="n">linear_94</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.905416</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.648006</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.323545</span>
+<span class="n">linear_93</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.905416</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.474093</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.200188</span>
+<span class="n">linear_95</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">1.888012</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.403563</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">90.483986</span>
+<span class="n">linear_96</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.856741</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.398679</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.524273</span>
+<span class="n">linear_97</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.635942</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.613655</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">48.590950</span>
+<span class="n">linear_98</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.460340</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.670146</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.398010</span>
+<span class="n">linear_99</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.532276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.585537</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">49.119396</span>
+<span class="n">linear_101</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.585871</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.719224</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.205809</span>
+<span class="n">linear_100</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.585871</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.751382</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.081648</span>
+<span class="n">linear_102</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">1.593344</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.450581</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">87.551147</span>
+<span class="n">linear_103</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.592681</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.705824</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.257959</span>
+<span class="n">linear_104</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.752957</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.980955</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">64.110489</span>
+<span class="n">linear_105</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.696240</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.877193</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.608953</span>
+<span class="n">linear_106</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.059659</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.643138</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">48.048950</span>
+<span class="n">linear_108</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.975461</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.589567</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.671457</span>
+<span class="n">linear_107</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.975461</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.190381</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.515701</span>
+<span class="n">linear_109</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.710759</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.305635</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">55.082436</span>
+<span class="n">linear_110</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">7.531228</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.731162</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.159557</span>
+<span class="n">linear_111</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.528083</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.259322</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">56.211544</span>
+<span class="n">linear_112</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.148807</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.500842</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.087374</span>
+<span class="n">linear_113</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.592566</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.948851</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">65.166611</span>
+<span class="n">linear_115</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.437109</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.608947</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.642395</span>
+<span class="n">linear_114</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.437109</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.193942</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.503904</span>
+<span class="n">linear_116</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.966980</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.200896</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">39.676392</span>
+<span class="n">linear_117</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.451303</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.061664</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.951344</span>
+<span class="n">linear_118</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.077262</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.965800</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.023804</span>
+<span class="n">linear_119</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.671615</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.847613</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.198460</span>
+<span class="n">linear_120</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.625638</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.131427</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.556595</span>
+<span class="n">linear_122</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.274080</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.888716</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.978189</span>
+<span class="n">linear_121</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.274080</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.420480</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.429659</span>
+<span class="n">linear_123</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.826197</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.599617</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">35.281532</span>
+<span class="n">linear_124</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.396383</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.325849</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.335875</span>
+<span class="n">linear_125</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.337198</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.941410</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.221970</span>
+<span class="n">linear_126</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.699965</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.842878</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.224073</span>
+<span class="n">linear_127</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.775370</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.884215</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.696438</span>
+<span class="n">linear_129</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.872276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.837319</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.254213</span>
+<span class="n">linear_128</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.872276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.180057</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.687883</span>
+<span class="n">linear_130</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.150427</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.454298</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">36.765789</span>
+<span class="n">linear_131</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.112692</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.924847</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">16.025545</span>
+<span class="n">linear_132</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.852893</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.116593</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.749626</span>
+<span class="n">linear_133</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.517084</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.024665</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.275314</span>
+<span class="n">linear_134</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.683807</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.878618</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.743618</span>
+<span class="n">linear_136</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.421055</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.322729</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.086264</span>
+<span class="n">linear_135</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.421055</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.309880</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.917679</span>
+<span class="n">linear_137</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.827781</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.744595</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">33.915554</span>
+<span class="n">linear_138</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">14.422395</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.742882</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">16.402161</span>
+<span class="n">linear_139</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.527538</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.866123</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.849449</span>
+<span class="n">linear_140</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.128619</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.657793</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.266134</span>
+<span class="n">linear_141</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.839593</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.845993</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">33.021378</span>
+<span class="n">linear_143</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.442304</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.099039</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.889746</span>
+<span class="n">linear_142</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.442304</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.325038</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.849592</span>
+<span class="n">linear_144</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">5.929444</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.618206</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.605080</span>
+<span class="n">linear_145</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">13.382126</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">9.321095</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">13.625010</span>
+<span class="n">linear_146</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.894987</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.867645</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.836517</span>
+<span class="n">linear_147</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.915313</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.906028</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.886522</span>
+<span class="n">linear_148</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.614287</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.908151</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.496181</span>
+<span class="n">linear_150</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.724932</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.485588</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">28.312899</span>
+<span class="n">linear_149</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.724932</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.161146</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.606939</span>
+<span class="n">linear_151</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">7.164453</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.847355</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.719223</span>
+<span class="n">linear_152</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">13.086471</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.984121</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.222834</span>
+<span class="n">linear_153</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.099524</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.991601</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">31.816805</span>
+<span class="n">linear_154</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.054585</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.489706</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">28.286930</span>
+<span class="n">linear_155</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.389185</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.100321</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.963501</span>
+<span class="n">linear_157</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.982999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.154796</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.637253</span>
+<span class="n">linear_156</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.982999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.537706</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">14.875190</span>
+<span class="n">linear_158</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.420287</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.502287</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">19.531588</span>
+<span class="n">linear_159</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">25.014746</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">9.423280</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">13.477261</span>
+<span class="n">linear_160</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">45.633553</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.715335</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.220921</span>
+<span class="n">linear_161</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.371849</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.117830</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.815203</span>
+<span class="n">linear_162</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.492933</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.126283</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.623318</span>
+<span class="n">linear_164</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.697504</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.825712</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.317358</span>
+<span class="n">linear_163</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.697504</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.078367</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.008038</span>
+<span class="n">linear_165</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.023975</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.836278</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">18.577358</span>
+<span class="n">linear_166</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">34.860619</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.259792</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.493614</span>
+<span class="n">linear_167</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">30.380934</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.496160</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.107042</span>
+<span class="n">linear_168</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.691216</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.733317</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.831076</span>
+<span class="n">linear_169</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.723948</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.952728</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.129707</span>
+<span class="n">linear_171</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">21.034811</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.366547</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.665123</span>
+<span class="n">linear_170</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">21.034811</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.356277</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.710501</span>
+<span class="n">linear_172</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.556884</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.729481</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.166058</span>
+<span class="n">linear_173</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.033039</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">10.207264</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">12.442120</span>
+<span class="n">linear_174</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.597379</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.658676</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">47.768131</span>
+<span class="o">----------</span><span class="n">joiner</span><span class="o">----------</span>
+<span class="n">linear_2</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">19.293503</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">14.305265</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">8.877850</span>
+<span class="n">linear_1</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.812222</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.766452</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">14.487047</span>
+<span class="n">linear_3</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">0.999999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.999755</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">127.031174</span>
+<span class="n">ncnn</span> <span class="n">int8</span> <span class="n">calibration</span> <span class="n">table</span> <span class="n">create</span> <span class="n">success</span><span class="p">,</span> <span class="n">best</span> <span class="n">wish</span> <span class="k">for</span> <span class="n">your</span> <span class="n">int8</span> <span class="n">inference</span> <span class="n">has</span> <span class="n">a</span> <span class="n">low</span> <span class="n">accuracy</span> <span class="n">loss</span><span class="o">...</span>\<span class="p">(</span><span class="o">^</span><span class="mi">0</span><span class="o">^</span><span class="p">)</span><span class="o">/..</span><span class="mf">.233</span><span class="o">...</span>
+</pre></div>
+</div>
+<p>It generates the following two files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>-lh<span class="w"> </span>encoder-scale-table.txt<span class="w"> </span>joiner-scale-table.txt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>955K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:28<span class="w"> </span>encoder-scale-table.txt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>18K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:28<span class="w"> </span>joiner-scale-table.txt
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Definitely, you need more calibration data to compute the scale table.</p>
+</div>
+<p>Finally, let us use the scale table to quantize our models into <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ncnn2int8
+
+usage:<span class="w"> </span>ncnn2int8<span class="w"> </span><span class="o">[</span>inparam<span class="o">]</span><span class="w"> </span><span class="o">[</span>inbin<span class="o">]</span><span class="w"> </span><span class="o">[</span>outparam<span class="o">]</span><span class="w"> </span><span class="o">[</span>outbin<span class="o">]</span><span class="w"> </span><span class="o">[</span>calibration<span class="w"> </span>table<span class="o">]</span>
+</pre></div>
+</div>
+<p>First, we quantize the encoder model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+ncnn2int8<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.int8.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.int8.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder-scale-table.txt
+</pre></div>
+</div>
+<p>Next, we quantize the joiner model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ncnn2int8<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.int8.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.int8.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner-scale-table.txt
+</pre></div>
+</div>
+<p>The above two commands generate the following 4 files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>99M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:34<span class="w"> </span>encoder_jit_trace-pnnx.ncnn.int8.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>78K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:34<span class="w"> </span>encoder_jit_trace-pnnx.ncnn.int8.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>774K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:35<span class="w"> </span>joiner_jit_trace-pnnx.ncnn.int8.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">496</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:35<span class="w"> </span>joiner_jit_trace-pnnx.ncnn.int8.param
+</pre></div>
+</div>
+<p>Congratulations! You have successfully quantized your model from <code class="docutils literal notranslate"><span class="pre">float32</span></code> to <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><code class="docutils literal notranslate"><span class="pre">ncnn.int8.param</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn.int8.bin</span></code> must be used in pairs.</p>
+<p>You can replace <code class="docutils literal notranslate"><span class="pre">ncnn.param</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn.bin</span></code> with <code class="docutils literal notranslate"><span class="pre">ncnn.int8.param</span></code>
+and <code class="docutils literal notranslate"><span class="pre">ncnn.int8.bin</span></code> in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> if you like.</p>
+<p>For instance, to use only the <code class="docutils literal notranslate"><span class="pre">int8</span></code> encoder in <code class="docutils literal notranslate"><span class="pre">sherpa-ncnn</span></code>, you can
+replace the following invocation:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">egs</span><span class="o">/</span><span class="n">librispeech</span><span class="o">/</span><span class="n">ASR</span>
+<span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">sherpa</span><span class="o">-</span><span class="n">ncnn</span> \
+  <span class="o">../</span><span class="n">data</span><span class="o">/</span><span class="n">lang_bpe_500</span><span class="o">/</span><span class="n">tokens</span><span class="o">.</span><span class="n">txt</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>with</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">egs</span><span class="o">/</span><span class="n">librispeech</span><span class="o">/</span><span class="n">ASR</span>
+<span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">sherpa</span><span class="o">-</span><span class="n">ncnn</span> \
+  <span class="o">../</span><span class="n">data</span><span class="o">/</span><span class="n">lang_bpe_500</span><span class="o">/</span><span class="n">tokens</span><span class="o">.</span><span class="n">txt</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">int8</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">int8</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<p>The following table compares again the file sizes:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 77%" />
+<col style="width: 23%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>File name</p></td>
+<td><p>File size</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp16)</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp32)</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp32)</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.int8.bin</p></td>
+<td><p>99 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.int8.bin</p></td>
+<td><p>774 KB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file sizes of the model after <code class="docutils literal notranslate"><span class="pre">int8</span></code> quantization
+are much smaller.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Currently, only linear layers and convolutional layers are quantized
+with <code class="docutils literal notranslate"><span class="pre">int8</span></code>, so you don’t see an exact <code class="docutils literal notranslate"><span class="pre">4x</span></code> reduction in file sizes.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You need to test the recognition accuracy after <code class="docutils literal notranslate"><span class="pre">int8</span></code> quantization.</p>
+</div>
+<p>You can find the speed comparison at <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn/issues/44">https://github.com/k2-fsa/sherpa-ncnn/issues/44</a>.</p>
+<p>That’s it! Have fun with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>!</p>
 </section>
 </section>
 </section>
