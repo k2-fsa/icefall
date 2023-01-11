@@ -1,5 +1,5 @@
 Distillation with HuBERT
-============================
+========================
 
 This totorial shows you how to perform knowledge distillation in ``icefall`` 
 with the `LibriSpeech <https://www.openslr.org/12>`_ dataset. The distillation method
