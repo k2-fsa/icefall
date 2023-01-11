@@ -11,7 +11,7 @@ for more details about MVQ-KD.
 
     This tutorial is based on recipe
      `pruned_transducer_stateless4 <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless4>`_.
-    Currently, we only implemented MVQ-KD in this recipe. However, MVQ-KD is theoretically applicable to all recipes
+    Currently, we only implement MVQ-KD in this recipe. However, MVQ-KD is theoretically applicable to all recipes
     with only minor changes needed. Feel free to try out MVQ-KD in different recipes. If you
     encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
 
