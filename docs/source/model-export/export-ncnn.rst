@@ -338,6 +338,8 @@ The output is given below:
 Congratulations! You have successfully exported a model from PyTorch to `ncnn`_!
 
 
+.. _conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn:
+
 5. Modify the exported encoder for sherpa-ncnn
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -487,6 +489,280 @@ disable ``fp16`` when using ``pnnx``:
   support quantizing the decoder model yet. We will update this documentation
   once ``ncnn`` supports it. (Maybe in this year, 2023).
 
-TODO(fangjun): Finish it.
+It will generate the following files
 
-Have fun with `sherpa-ncnn`_!
+.. code-block:: bash
+
+  ls -lh icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*_jit_trace-pnnx.ncnn.{param,bin}
+
+  -rw-r--r-- 1 kuangfangjun root 503K Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin
+  -rw-r--r-- 1 kuangfangjun root  437 Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param
+  -rw-r--r-- 1 kuangfangjun root 283M Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin
+  -rw-r--r-- 1 kuangfangjun root  79K Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param
+  -rw-r--r-- 1 kuangfangjun root 3.0M Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin
+  -rw-r--r-- 1 kuangfangjun root  488 Jan 11 15:56 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param
+
+Let us compare again the file sizes:
+
++----------------------------------------+------------+
+| File name                              | File size  |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.pt              | 283 MB     |
++----------------------------------------+------------+
+| decoder_jit_trace-pnnx.pt              | 1010 KB    |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.pt               | 3.0 MB     |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.ncnn.bin (fp16) | 142 MB     |
++----------------------------------------+------------+
+| decoder_jit_trace-pnnx.ncnn.bin (fp16) | 503 KB     |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.ncnn.bin  (fp16) | 1.5 MB     |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.ncnn.bin (fp32) | 283 MB     |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.ncnn.bin  (fp32) | 3.0 MB     |
++----------------------------------------+------------+
+
+You can see that the file sizes are doubled when we disable ``fp16``.
+
+.. note::
+
+  You can again use ``streaming-ncnn-decode.py`` to test the exported models.
+
+Next, follow :ref:`conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn`
+to modify ``encoder_jit_trace-pnnx.ncnn.bin``. Change
+
+.. code-block:: bash
+
+  7767517
+  1060 1342
+  Input                    in0                      0 1 in0
+
+to
+
+.. code-block:: bash
+
+  7767517
+  1061 1342
+  SherpaMetaData           sherpa_meta_data1        0 0 0=1 1=12 2=32 3=31 4=8 5=32 6=8 7=512
+  Input                    in0                      0 1 in0
+
+.. caution::
+
+  Please follow :ref:`conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn`
+  to change the values for ``SherpaMetaData`` if your model uses a different setting.
+
+
+Next, let us compile `sherpa-ncnn`_ since we will quantize our models within
+`sherpa-ncnn`.
+
+.. code-block:: bash
+
+  # We will download sherpa-ncnn to $HOME/open-source/
+  # You can change it to anywhere you like.
+  cd $HOME
+  mkdir -p open-source
+
+  cd open-source
+  git clone https://github.com/k2-fsa/sherpa-ncnn
+  cd sherpa-ncnn
+  mkdir build
+  cd build
+  cmake ..
+  make -j 4
+
+  ./bin/generate-int8-scale-table
+
+  export PATH=$HOME/open-source/sherpa-ncnn/build/bin:$PATH
+
+The output of the above commands are:
+
+.. code-block:: bash
+
+  (py38) kuangfangjun:build$ generate-int8-scale-table
+  Please provide 10 arg. Currently given: 1
+  Usage:
+  generate-int8-scale-table encoder.param encoder.bin decoder.param decoder.bin joiner.param joiner.bin encoder-scale-table.txt joiner-scale-table.txt wave_filenames.txt
+
+  Each line in wave_filenames.txt is a path to some 16k Hz mono wave file.
+
+We need to create a file ``wave_filenames.txt``, in which we need to put
+some calibration wave files. For testing purpose, we put the ``test_wavs``
+from the pre-trained model repository `<https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05>`_
+
+.. code-block:: bash
+
+  cd egs/librispeech/ASR
+  cd icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+  cat <<EOF > wave_filenames.txt
+  ../test_wavs/1089-134686-0001.wav
+  ../test_wavs/1221-135766-0001.wav
+  ../test_wavs/1221-135766-0002.wav
+  EOF
+
+Now we can calculate the scales needed for quantization with the calibration data:
+
+.. code-block:: bash
+
+  cd egs/librispeech/ASR
+  cd icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+  generate-int8-scale-table \
+    ./encoder_jit_trace-pnnx.ncnn.param \
+    ./encoder_jit_trace-pnnx.ncnn.bin \
+    ./decoder_jit_trace-pnnx.ncnn.param \
+    ./decoder_jit_trace-pnnx.ncnn.bin \
+    ./joiner_jit_trace-pnnx.ncnn.param \
+    ./joiner_jit_trace-pnnx.ncnn.bin \
+    ./encoder-scale-table.txt \
+    ./joiner-scale-table.txt \
+    ./wave_filenames.txt
+
+The output logs are in the following:
+
+.. literalinclude:: ./code/generate-int-8-scale-table-for-conv-emformer.txt
+
+It generates the following two files:
+
+.. code-block:: bash
+
+  $ ls -lh encoder-scale-table.txt joiner-scale-table.txt
+  -rw-r--r-- 1 kuangfangjun root 955K Jan 11 17:28 encoder-scale-table.txt
+  -rw-r--r-- 1 kuangfangjun root  18K Jan 11 17:28 joiner-scale-table.txt
+
+.. caution::
+
+  Definitely, You need more calibration data to compute the scale table.
+
+Finally, let us use the scale table to quantize our models into ``int8``.
+
+.. code-block:: bash
+
+  ncnn2int8
+
+  usage: ncnn2int8 [inparam] [inbin] [outparam] [outbin] [calibration table]
+
+First, we quantize the encoder model:
+
+.. code-block:: bash
+
+  cd egs/librispeech/ASR
+  cd icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+  ncnn2int8 \
+    ./encoder_jit_trace-pnnx.ncnn.param \
+    ./encoder_jit_trace-pnnx.ncnn.bin \
+    ./encoder_jit_trace-pnnx.ncnn.int8.param \
+    ./encoder_jit_trace-pnnx.ncnn.int8.bin \
+    ./encoder-scale-table.txt
+
+Next, we quantize the joiner model:
+
+.. code-block:: bash
+
+  ncnn2int8 \
+    ./joiner_jit_trace-pnnx.ncnn.param \
+    ./joiner_jit_trace-pnnx.ncnn.bin \
+    ./joiner_jit_trace-pnnx.ncnn.int8.param \
+    ./joiner_jit_trace-pnnx.ncnn.int8.bin \
+    ./joiner-scale-table.txt
+
+The above two commands generate the following 4 files:
+
+.. code-block:: bash
+
+  -rw-r--r-- 1 kuangfangjun root  99M Jan 11 17:34 encoder_jit_trace-pnnx.ncnn.int8.bin
+  -rw-r--r-- 1 kuangfangjun root  78K Jan 11 17:34 encoder_jit_trace-pnnx.ncnn.int8.param
+  -rw-r--r-- 1 kuangfangjun root 774K Jan 11 17:35 joiner_jit_trace-pnnx.ncnn.int8.bin
+  -rw-r--r-- 1 kuangfangjun root  496 Jan 11 17:35 joiner_jit_trace-pnnx.ncnn.int8.param
+
+Congratulations! You have successfully quantized your model from ``float32`` to ``int8``.
+
+.. caution::
+
+  ``ncnn.int8.param`` and ``ncnn.int8.bin`` must be used in pairs.
+
+  You can replace ``ncnn.param`` and ``ncnn.bin`` with ``ncnn.int8.param``
+  and ``ncnn.int8.bin`` in `sherpa-ncnn`_ if you like.
+
+  For instance, to use only the ``int8`` encoder in ``sherpa-ncnn``, you can
+  replace the following invocation:
+
+    .. code-block::
+
+      cd egs/librispeech/ASR
+      cd icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+      sherpa-ncnn \
+        ../data/lang_bpe_500/tokens.txt \
+        ./encoder_jit_trace-pnnx.ncnn.param \
+        ./encoder_jit_trace-pnnx.ncnn.bin \
+        ./decoder_jit_trace-pnnx.ncnn.param \
+        ./decoder_jit_trace-pnnx.ncnn.bin \
+        ./joiner_jit_trace-pnnx.ncnn.param \
+        ./joiner_jit_trace-pnnx.ncnn.bin \
+        ../test_wavs/1089-134686-0001.wav
+
+  with
+
+    .. code-block::
+
+      cd egs/librispeech/ASR
+      cd icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+      sherpa-ncnn \
+        ../data/lang_bpe_500/tokens.txt \
+        ./encoder_jit_trace-pnnx.ncnn.int8.param \
+        ./encoder_jit_trace-pnnx.ncnn.int8.bin \
+        ./decoder_jit_trace-pnnx.ncnn.param \
+        ./decoder_jit_trace-pnnx.ncnn.bin \
+        ./joiner_jit_trace-pnnx.ncnn.param \
+        ./joiner_jit_trace-pnnx.ncnn.bin \
+        ../test_wavs/1089-134686-0001.wav
+
+
+The following table compares again the file sizes:
+
+
++----------------------------------------+------------+
+| File name                              | File size  |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.pt              | 283 MB     |
++----------------------------------------+------------+
+| decoder_jit_trace-pnnx.pt              | 1010 KB    |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.pt               | 3.0 MB     |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.ncnn.bin (fp16) | 142 MB     |
++----------------------------------------+------------+
+| decoder_jit_trace-pnnx.ncnn.bin (fp16) | 503 KB     |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.ncnn.bin  (fp16) | 1.5 MB     |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.ncnn.bin (fp32) | 283 MB     |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.ncnn.bin  (fp32) | 3.0 MB     |
++----------------------------------------+------------+
+| encoder_jit_trace-pnnx.ncnn.int8.bin   | 99 MB      |
++----------------------------------------+------------+
+| joiner_jit_trace-pnnx.ncnn.int8.bin    | 774 KB     |
++----------------------------------------+------------+
+
+You can see that the file sizes of the model after ``int8`` quantization
+is much smaller.
+
+.. hint::
+
+    Currently, only linear layers and convolutional layers are quantized
+    with ``int8``, so you don't see an exact ``4x`` reduction in file sizes.
+
+.. note::
+
+  You need to test the recognition accuracy after ``int8`` quantization.
+
+You can find the speed comparison at `<https://github.com/k2-fsa/sherpa-ncnn/issues/44>`_.
+
+
+That's it! Have fun with `sherpa-ncnn`_!
