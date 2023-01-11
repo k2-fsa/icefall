@@ -323,8 +323,10 @@ def export_encoder_model_onnx(
     len_cache = torch.cat(states[:encoder_model.num_encoders]).transpose(0,1) # B,15
     avg_cache = torch.cat(states[encoder_model.num_encoders:2*encoder_model.num_encoders]).transpose(0,1) # [B,15,384]
     cnn_cache = torch.cat(states[5*encoder_model.num_encoders:]).transpose(0,1) # [B,2*15,384,cnn_kernel-1]
-    # pad_tensors = [tensor.expand(-1,left_context_len,-1,encoder_attention_dim) for tensor in states[2*encoder_model.num_encoders:5*encoder_model.num_encoders]]
-    pad_tensors = [torch.nn.functional.pad(tensor,(0,encoder_attention_dim-tensor.shape[-1],0,0,0,left_context_len-tensor.shape[1],0,0)) for tensor in states[2*encoder_model.num_encoders:5*encoder_model.num_encoders]]
+    pad_tensors = [torch.nn.functional.pad(tensor,(0,encoder_attention_dim-tensor.shape[-1],
+                                                   0,0,
+                                                   0,left_context_len-tensor.shape[1],
+                                                   0,0)) for tensor in states[2*encoder_model.num_encoders:5*encoder_model.num_encoders]]
     attn_cache = torch.cat(pad_tensors).transpose(0,2) # [B,64,15*3,192]
 
     encoder_model_wrapper = OnnxStreamingEncoder(encoder_model)
