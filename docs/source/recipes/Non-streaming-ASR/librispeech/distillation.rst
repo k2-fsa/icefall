@@ -15,7 +15,7 @@ for more details about MVQ-KD.
     with only minor changes needed. Feel free to try out MVQ-KD in different recipes. If you
     encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
 
-.. HINT::
+.. note::
 
   We assume you have read the page :ref:`install icefall` and have setup
   the environment for ``icefall``.
