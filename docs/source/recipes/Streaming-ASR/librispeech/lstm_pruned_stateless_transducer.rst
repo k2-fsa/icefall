@@ -515,10 +515,10 @@ To use the generated files with ``./lstm_transducer_stateless2/jit_pretrained``:
    Please see `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html>`_
    for how to use the exported models in ``sherpa``.
 
-.. _export-model-for-ncnn:
+.. _export-lstm-transducer-model-for-ncnn:
 
-Export model for ncnn
-~~~~~~~~~~~~~~~~~~~~~
+Export LSTM transducer models for ncnn
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We support exporting pretrained LSTM transducer models to
 `ncnn <https://github.com/tencent/ncnn>`_ using
@@ -531,16 +531,36 @@ First, let us install a modified version of ``ncnn``:
   git clone https://github.com/csukuangfj/ncnn
   cd ncnn
   git submodule update --recursive --init
-  python3 setup.py bdist_wheel
-  ls -lh dist/
-  pip install ./dist/*.whl
+
+  # Note: We don't use "python setup.py install" or "pip install ." here
+
+  mkdir -p build-wheel
+  cd build-wheel
+
+  cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DNCNN_PYTHON=ON \
+    -DNCNN_BUILD_BENCHMARK=OFF \
+    -DNCNN_BUILD_EXAMPLES=OFF \
+    -DNCNN_BUILD_TOOLS=ON \
+    ..
+
+  make -j4
+
+  cd ..
+
+  # Note: $PWD here is /path/to/ncnn
+
+  export PYTHONPATH=$PWD/python:$PYTHONPATH
+  export PATH=$PWD/tools/pnnx/build/src:$PATH
+  export PATH=$PWD/build-wheel/tools/quantize:$PATH
 
   # now build pnnx
   cd tools/pnnx
   mkdir build
   cd build
+  cmake ..
   make -j4
-  export PATH=$PWD/src:$PATH
 
   ./src/pnnx
 
@@ -548,6 +568,9 @@ First, let us install a modified version of ``ncnn``:
 
    We assume that you have added the path to the binary ``pnnx`` to the
    environment variable ``PATH``.
+
+   We also assume that you have added ``build/tools/quantize`` to the environment
+   variable ``PATH`` so that you are able to use ``ncnn2int8`` later.
 
 Second, let us export the model using ``torch.jit.trace()`` that is suitable
 for ``pnnx``:
@@ -634,3 +657,6 @@ by visiting the following links:
 
 You can find more usages of the pretrained models in
 `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html>`_
+
+Export ConvEmformer transducer models for ncnn
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

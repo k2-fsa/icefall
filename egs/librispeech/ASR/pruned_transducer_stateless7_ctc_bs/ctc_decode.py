@@ -42,7 +42,7 @@ Usage:
     --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
     --max-duration 600 \
     --hlg-scale 0.8 \
-    --decoding-method 1best
+    --decoding-method nbest
 (4) nbest-rescoring
 ./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
     --epoch 30 \
