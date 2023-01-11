@@ -7,7 +7,7 @@ used here is called "Multi Vector Quantization Knowledge Distillation" (MVQ-KD).
 Please have a look at our paper `Predicting Multi-Codebook Vector Quantization Indexes for Knowledge Distillation <https://arxiv.org/abs/2211.00508>`_
 for more details about MVQ-KD.
 
-.. Note::
+.. note::
 
     This tutorial is based on recipe
      `pruned_transducer_stateless4 <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless4>`_.
