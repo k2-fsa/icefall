@@ -20,51 +20,69 @@
 # This script converts several saved checkpoints
 # to a single one using model averaging.
 """
+
 Usage:
+
 (1) Export to torchscript model using torch.jit.script()
+
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9 \
   --jit 1
+
 It will generate a file `cpu_jit.pt` in the given `exp_dir`. You can later
 load it by `torch.jit.load("cpu_jit.pt")`.
+
 Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
 are on CPU. You can use `to("cuda")` to move them to a CUDA device.
+
 Check
 https://github.com/k2-fsa/sherpa
 for how to use the exported models outside of icefall.
+
 (2) Export to ONNX format
+
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10 \
   --onnx 1
+
 It will generate the following files in the given `exp_dir`.
 Check `onnx_check.py` for how to use them.
+
     - encoder.onnx
     - decoder.onnx
     - joiner.onnx
     - joiner_encoder_proj.onnx
     - joiner_decoder_proj.onnx
+
 Please see ./onnx_pretrained.py for usage of the generated files
+
 Check
 https://github.com/k2-fsa/sherpa-onnx
 for how to use the exported models outside of icefall.
+
 (3) Export `model.state_dict()`
+
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
+
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
+
 To use the generated file with `pruned_transducer_stateless7/decode.py`,
 you can do:
+
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
+
     cd /path/to/egs/librispeech/ASR
     ./pruned_transducer_stateless7/decode.py \
         --exp-dir ./pruned_transducer_stateless7/exp \
@@ -73,7 +91,9 @@ you can do:
         --max-duration 600 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
+
 Check ./pretrained.py for its usage.
+
 (4) Export to ONNX format which can be used in Triton server
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
@@ -82,10 +102,14 @@ Check ./pretrained.py for its usage.
   --avg 1 \
   --use-averaged-model False \
   --onnx-triton 1
+
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
+
 https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+
 with the following commands:
+
     sudo apt-get install git-lfs
     git lfs install
     git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
@@ -178,6 +202,7 @@ def get_parser():
         default=False,
         help="""True to save a model after applying torch.jit.script.
         It will generate a file named cpu_jit.pt
+
         Check ./jit_pretrained.py for how to use it.
         """,
     )
@@ -188,11 +213,13 @@ def get_parser():
         default=False,
         help="""If True, --jit is ignored and it exports the model
         to onnx format. It will generate the following files:
+
             - encoder.onnx
             - decoder.onnx
             - joiner.onnx
             - joiner_encoder_proj.onnx
             - joiner_decoder_proj.onnx
+
         Refer to ./onnx_check.py and ./onnx_pretrained.py for how to use them.
         """,
     )
@@ -231,12 +258,17 @@ def export_encoder_model_onnx(
 ) -> None:
     """Export the given encoder model to ONNX format.
     The exported model has two inputs:
+
         - x, a tensor of shape (N, T, C); dtype is torch.float32
         - x_lens, a tensor of shape (N,); dtype is torch.int64
+
     and it has two outputs:
+
         - encoder_out, a tensor of shape (N, T, C)
         - encoder_out_lens, a tensor of shape (N,)
+
     Note: The warmup argument is fixed to 1.
+
     Args:
       encoder_model:
         The input encoder model
@@ -282,11 +314,17 @@ def export_decoder_model_onnx(
     opset_version: int = 11,
 ) -> None:
     """Export the decoder model to ONNX format.
+
     The exported model has one input:
+
         - y: a torch.int64 tensor of shape (N, decoder_model.context_size)
+
     and has one output:
+
         - decoder_out: a torch.float32 tensor of shape (N, 1, C)
+
     Note: The argument need_pad is fixed to False.
+
     Args:
       decoder_model:
         The decoder model to be exported.
@@ -322,17 +360,28 @@ def export_joiner_model_onnx(
 ) -> None:
     """Export the joiner model to ONNX format.
     The exported joiner model has two inputs:
+
         - projected_encoder_out: a tensor of shape (N, joiner_dim)
         - projected_decoder_out: a tensor of shape (N, joiner_dim)
+
     and produces one output:
+
         - logit: a tensor of shape (N, vocab_size)
+
     The exported encoder_proj model has one input:
+
         - encoder_out: a tensor of shape (N, encoder_out_dim)
+
     and produces one output:
+
         - projected_encoder_out: a tensor of shape (N, joiner_dim)
+
     The exported decoder_proj model has one input:
+
         - decoder_out: a tensor of shape (N, decoder_out_dim)
+
     and produces one output:
+
         - projected_decoder_out: a tensor of shape (N, joiner_dim)
     """
     encoder_proj_filename = str(joiner_filename).replace(".onnx", "_encoder_proj.onnx")
@@ -521,8 +570,6 @@ def export_joiner_model_onnx_triton(
         },
     )
     logging.info(f"Saved to {decoder_proj_filename}")
-
-
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
