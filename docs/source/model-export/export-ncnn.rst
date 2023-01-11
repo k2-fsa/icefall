@@ -204,7 +204,7 @@ Next, we use the following code to export our model:
 
   .. literalinclude:: ./code/export-conv-emformer-transducer-for-ncnn-output.txt
 
-  The log shows the model has ``75490012`` number of parameters, i.e., ``~75 M``.
+  The log shows the model has ``75490012`` parameters, i.e., ``~75 M``.
 
   .. code-block::
 
@@ -213,7 +213,7 @@ Next, we use the following code to export our model:
     -rw-r--r-- 1 kuangfangjun root 289M Jan 11 12:05 icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/pretrained-epoch-30-avg-10-averaged.pt
 
   You can see that the file size of the pre-trained model is ``289 MB``, which
-  is roughly ``4 x 75 M``.
+  is roughly ``75490012*4/1024/1024 = 287.97 MB``.
 
 After running ``conv_emformer_transducer_stateless2/export-for-ncnn.py``,
 we will get the following files:
@@ -286,8 +286,8 @@ We compare the file sizes of the models below before and after converting via ``
 | joiner_jit_trace-pnnx.ncnn.bin   | 1.5 MB     |
 +----------------------------------+------------+
 
-You can see that the file size of the models after converting is about one half
-of the models before converting:
+You can see that the file sizes of the models after conversion are about one half
+of the models before conversion:
 
   - encoder: 283 MB vs 142 MB
   - decoder: 1010 KB vs 503 KB
@@ -358,14 +358,15 @@ Let us have a look at the first few lines of ``encoder_jit_trace-pnnx.ncnn.param
 
   1. ``7767517``, it is a magic number and should not be changed.
   2. ``1060 1342``, the first number ``1060`` specifies the number of layers
-     in this file, while ``1342`` specifies the number intermediate outputs of
-     this file
+     in this file, while ``1342`` specifies the number of intermediate outputs
+     of this file
   3. ``Input in0 0 1 in0``, ``Input`` is the layer type of this layer; ``in0``
      is the layer name of this layer; ``0`` means this layer has no input;
-     ``1`` means this layer has one output. ``in0`` is the output name of
+     ``1`` means this layer has one output; ``in0`` is the output name of
      this layer.
 
-We need to add 1 extra line and the result looks like below:
+We need to add 1 extra line and also increment the number of layers.
+The result looks like below:
 
 .. code-block:: bash
 
@@ -378,13 +379,13 @@ We need to add 1 extra line and the result looks like below:
 
   1. ``7767517``, it is still the same
   2. ``1061 1342``, we have added an extra layer, so we need to update ``1060`` to ``1061``.
-     We don't need to change ``1342`` since the newly added layer has no inputs and outputs.
+     We don't need to change ``1342`` since the newly added layer has no inputs or outputs.
   3. ``SherpaMetaData  sherpa_meta_data1  0 0 0=1 1=12 2=32 3=31 4=8 5=32 6=8 7=512``
      This line is newly added. Its explanation is given below:
 
       - ``SherpaMetaData`` is the type of this layer. Must be ``SherpaMetaData``.
       - ``sherpa_meta_data1`` is the name of this layer. Must be ``sherpa_meta_data1``.
-      - ``0 0`` means this layer has no inputs and output. Must be ``0 0``
+      - ``0 0`` means this layer has no inputs or output. Must be ``0 0``
       - ``0=1``, 0 is the key and 1 is the value. MUST be ``0=1``
       - ``1=12``, 1 is the key and 12 is the value of the
         parameter ``--num-encoder-layers`` that you provided when running
@@ -485,9 +486,9 @@ disable ``fp16`` when using ``pnnx``:
 
 .. note::
 
-  We add ``fp16=0`` when exporting the encoder and joiner. ``ncnn`` does not
+  We add ``fp16=0`` when exporting the encoder and joiner. `ncnn`_ does not
   support quantizing the decoder model yet. We will update this documentation
-  once ``ncnn`` supports it. (Maybe in this year, 2023).
+  once `ncnn`_ supports it. (Maybe in this year, 2023).
 
 It will generate the following files
 
@@ -531,7 +532,9 @@ You can see that the file sizes are doubled when we disable ``fp16``.
   You can again use ``streaming-ncnn-decode.py`` to test the exported models.
 
 Next, follow :ref:`conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn`
-to modify ``encoder_jit_trace-pnnx.ncnn.bin``. Change
+to modify ``encoder_jit_trace-pnnx.ncnn.param``.
+
+Change
 
 .. code-block:: bash
 
@@ -555,7 +558,7 @@ to
 
 
 Next, let us compile `sherpa-ncnn`_ since we will quantize our models within
-`sherpa-ncnn`.
+`sherpa-ncnn`_.
 
 .. code-block:: bash
 
@@ -634,7 +637,7 @@ It generates the following two files:
 
 .. caution::
 
-  Definitely, You need more calibration data to compute the scale table.
+  Definitely, you need more calibration data to compute the scale table.
 
 Finally, let us use the scale table to quantize our models into ``int8``.
 
@@ -751,7 +754,7 @@ The following table compares again the file sizes:
 +----------------------------------------+------------+
 
 You can see that the file sizes of the model after ``int8`` quantization
-is much smaller.
+are much smaller.
 
 .. hint::
 
