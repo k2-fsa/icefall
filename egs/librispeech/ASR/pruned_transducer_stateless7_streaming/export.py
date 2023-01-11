@@ -88,8 +88,10 @@ ln -s pretrained.pt epoch-999.pt
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
+  --use-averaged-model False \
   --epoch 999 \
   --avg 1 \
+  --fp16 \
   --onnx 1
 
 It will generate the following files in the given `exp_dir`.
@@ -104,7 +106,35 @@ Check `onnx_check.py` for how to use them.
 Check
 https://github.com/k2-fsa/sherpa-onnx
 for how to use the exported models outside of icefall.
+
+(4) Export to ONNX format for triton server
+
+cd ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+ln -s pretrained.pt epoch-999.pt
+./pruned_transducer_stateless7_streaming/export.py \
+  --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --use-averaged-model False \
+  --epoch 999 \
+  --avg 1 \
+  --fp16 \
+  --onnx-triton 1 \
+  --onnx 1
+
+It will generate the following files in the given `exp_dir`.
+Check `onnx_check.py` for how to use them.
+
+    - encoder.onnx
+    - decoder.onnx
+    - joiner.onnx
+
+Check
+https://github.com/k2-fsa/sherpa/tree/master/triton
+for how to use the exported models outside of icefall.
+
 """
+
+
 
 import argparse
 import logging
@@ -116,7 +146,7 @@ import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 from zipformer import stack_states 
-from onnx_model_wrapper import OnnxStreamingEncoder
+from onnx_model_wrapper import OnnxStreamingEncoder, TritonOnnxDecoder, TritonOnnxJoiner
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -216,12 +246,29 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--onnx-triton",
+        type=str2bool,
+        default=False,
+        help="""If True, --onnx would export model into the following files:
+
+            - encoder.onnx
+            - decoder.onnx
+            - joiner.onnx
+        These files would be used for https://github.com/k2-fsa/sherpa/tree/master/triton.
+        """,
+    )
+
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        help='whether to export fp16 onnx model, default false')
+
+    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
-    
+
     add_model_arguments(parser)
 
     return parser
@@ -352,6 +399,51 @@ def export_decoder_model_onnx(
     )
     logging.info(f"Saved to {decoder_filename}")
 
+def export_decoder_model_onnx_triton(
+    decoder_model: nn.Module,
+    decoder_filename: str,
+    opset_version: int = 11,
+) -> None:
+    """Export the decoder model to ONNX format.
+
+    The exported model has one input:
+
+        - y: a torch.int64 tensor of shape (N, decoder_model.context_size)
+
+    and has one output:
+
+        - decoder_out: a torch.float32 tensor of shape (N, 1, C)
+
+    Note: The argument need_pad is fixed to False.
+
+    Args:
+      decoder_model:
+        The decoder model to be exported.
+      decoder_filename:
+        Filename to save the exported ONNX model.
+      opset_version:
+        The opset version to use.
+    """
+    y = torch.zeros(10, decoder_model.context_size, dtype=torch.int64)
+
+    decoder_model=TritonOnnxDecoder(decoder_model)
+
+    torch.onnx.export(
+        decoder_model,
+        (y,),
+        decoder_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["y"],
+        output_names=["decoder_out"],
+        dynamic_axes={
+            "y": {0: "N"},
+            "decoder_out": {0: "N"},
+        },
+    )
+    logging.info(f"Saved to {decoder_filename}")
+
+
 
 def export_joiner_model_onnx(
     joiner_model: nn.Module,
@@ -447,6 +539,44 @@ def export_joiner_model_onnx(
         },
     )
     logging.info(f"Saved to {decoder_proj_filename}")
+
+def export_joiner_model_onnx_triton(
+    joiner_model: nn.Module,
+    joiner_filename: str,
+    opset_version: int = 11,
+) -> None:
+    """Export the joiner model to ONNX format.
+    The exported model has two inputs:
+        - encoder_out: a tensor of shape (N, encoder_out_dim)
+        - decoder_out: a tensor of shape (N, decoder_out_dim)
+    and has one output:
+        - joiner_out: a tensor of shape (N, vocab_size)
+    Note: The argument project_input is fixed to True. A user should not
+    project the encoder_out/decoder_out by himself/herself. The exported joiner
+    will do that for the user.
+    """
+    encoder_out_dim = joiner_model.encoder_proj.weight.shape[1]
+    decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
+    encoder_out = torch.rand(1, encoder_out_dim, dtype=torch.float32)
+    decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
+
+    joiner_model = TritonOnnxJoiner(joiner_model)
+    # Note: It uses torch.jit.trace() internally
+    torch.onnx.export(
+        joiner_model,
+        (encoder_out, decoder_out),
+        joiner_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["encoder_out", "decoder_out"],
+        output_names=["logit"],
+        dynamic_axes={
+            "encoder_out": {0: "N"},
+            "decoder_out": {0: "N"},
+            "logit": {0: "N"},
+        },
+    )
+    logging.info(f"Saved to {joiner_filename}")
 
 @torch.no_grad()
 def main():
@@ -566,20 +696,66 @@ def main():
             encoder_filename,
             opset_version=opset_version,
         )
+        if not params.onnx_triton:
+            decoder_filename = params.exp_dir / "decoder.onnx"
+            export_decoder_model_onnx(
+                model.decoder,
+                decoder_filename,
+                opset_version=opset_version,
+            )
 
-        decoder_filename = params.exp_dir / "decoder.onnx"
-        export_decoder_model_onnx(
-            model.decoder,
-            decoder_filename,
-            opset_version=opset_version,
-        )
+            joiner_filename = params.exp_dir / "joiner.onnx"
+            export_joiner_model_onnx(
+                model.joiner,
+                joiner_filename,
+                opset_version=opset_version,
+            )
+        else:
+            decoder_filename = params.exp_dir / "decoder.onnx"
+            export_decoder_model_onnx_triton(
+                model.decoder,
+                decoder_filename,
+                opset_version=opset_version,
+            )
 
-        joiner_filename = params.exp_dir / "joiner.onnx"
-        export_joiner_model_onnx(
-            model.joiner,
-            joiner_filename,
-            opset_version=opset_version,
-        )
+            joiner_filename = params.exp_dir / "joiner.onnx"
+            export_joiner_model_onnx_triton(
+                model.joiner,
+                joiner_filename,
+                opset_version=opset_version,
+            )           
+
+        if params.fp16:
+            try:
+                import onnxmltools
+                from onnxmltools.utils.float16_converter import convert_float_to_float16
+            except ImportError:
+                print('Please install onnxmltools!')
+                import sys
+                sys.exit(1)
+            def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
+                onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
+                onnx_fp16_model = convert_float_to_float16(onnx_fp32_model)
+                onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
+    
+            encoder_fp16_filename = params.exp_dir / "encoder_fp16.onnx"
+            export_onnx_fp16(encoder_filename, encoder_fp16_filename)
+
+            decoder_fp16_filename = params.exp_dir / "decoder_fp16.onnx"
+            export_onnx_fp16(decoder_filename, decoder_fp16_filename)
+
+            joiner_fp16_filename = params.exp_dir / "joiner_fp16.onnx"
+            export_onnx_fp16(joiner_filename, joiner_fp16_filename)
+
+            if not params.onnx_triton:
+                encoder_proj_filename = str(joiner_filename).replace(".onnx", "_encoder_proj.onnx")
+                encoder_proj_fp16_filename = params.exp_dir / "joiner_encoder_proj_fp16.onnx"
+                export_onnx_fp16(encoder_proj_filename, encoder_proj_fp16_filename)
+
+                decoder_proj_filename = str(joiner_filename).replace(".onnx", "_decoder_proj.onnx")
+                decoder_proj_fp16_filename = params.exp_dir / "joiner_decoder_proj_fp16.onnx"
+                export_onnx_fp16(decoder_proj_filename, decoder_proj_fp16_filename)           
+
     elif params.jit:
         convert_scaled_to_non_scaled(model, inplace=True)
         # We won't use the forward() method of the model in C++, so just ignore

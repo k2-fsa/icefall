@@ -1,28 +1,28 @@
-import argparse
-import logging
-import os
+#import argparse
+#import logging
+#import os
 from typing import Optional, Tuple
 
-import sentencepiece as spm
+#import sentencepiece as spm
 import torch
 from torch import nn
 
-import torch.nn.functional as F
-from scaling import ScaledConv1d, ScaledEmbedding, ScaledLinear
+# import torch.nn.functional as F
+# from scaling import ScaledConv1d, ScaledEmbedding, ScaledLinear
 
 
-from model import Transducer
+# from model import Transducer
 
-from icefall.dist import cleanup_dist, setup_dist
-from icefall.env import get_env_info
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    display_and_save_batch,
-    setup_logger,
-    str2bool,
-)
-from icefall.utils import is_jit_tracing, make_pad_mask
+# from icefall.dist import cleanup_dist, setup_dist
+# from icefall.env import get_env_info
+# from icefall.utils import (
+#     AttributeDict,
+#     MetricsTracker,
+#     display_and_save_batch,
+#     setup_logger,
+#     str2bool,
+# )
+# from icefall.utils import is_jit_tracing, make_pad_mask
 
 class OnnxStreamingEncoder(torch.nn.Module):
     """
@@ -145,7 +145,7 @@ class OnnxStreamingEncoder(torch.nn.Module):
 
         return encoder_out, encoder_out_lens, new_len_cache, new_avg_cache, new_attn_cache, new_cnn_cache
 
-class OnnxDecoder(nn.Module):
+class TritonOnnxDecoder(nn.Module):
     """This class modifies the stateless decoder from the following paper:
 
         RNN-transducer with stateless prediction network
@@ -160,10 +160,7 @@ class OnnxDecoder(nn.Module):
 
     def __init__(
         self,
-        vocab_size: int,
-        decoder_dim: int,
-        blank_id: int,
-        context_size: int,
+        model
     ):
         """
         Args:
@@ -179,25 +176,7 @@ class OnnxDecoder(nn.Module):
         """
         super().__init__()
 
-        self.embedding = ScaledEmbedding(
-            num_embeddings=vocab_size,
-            embedding_dim=decoder_dim,
-            padding_idx=blank_id,
-        )
-        self.blank_id = blank_id
-
-        assert context_size >= 1, context_size
-        self.context_size = context_size
-        self.vocab_size = vocab_size
-        if context_size > 1:
-            self.conv = ScaledConv1d(
-                in_channels=decoder_dim,
-                out_channels=decoder_dim,
-                kernel_size=context_size,
-                padding=0,
-                groups=decoder_dim,
-                bias=False,
-            )
+        self.model=model
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
         """
@@ -210,32 +189,17 @@ class OnnxDecoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, decoder_dim).
         """
-        y = y.to(torch.int64)
-        embedding_out = self.embedding(y)
-        if self.context_size > 1:
-            embedding_out = embedding_out.permute(0, 2, 1)
+        need_pad=False
+        return self.model(y, need_pad)
 
-                # During inference time, there is no need to do extra padding
-                # as we only need one output
-            assert embedding_out.size(-1) == self.context_size
-            embedding_out = self.conv(embedding_out)
-            embedding_out = embedding_out.permute(0, 2, 1)
-        embedding_out = F.relu(embedding_out)
-        return embedding_out
-
-class OnnxJoiner(nn.Module):
+class TritonOnnxJoiner(nn.Module):
     def __init__(
         self,
-        encoder_dim: int,
-        decoder_dim: int,
-        joiner_dim: int,
-        vocab_size: int,
+        model,
     ):
         super().__init__()
 
-        self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim)
-        self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim)
-        self.output_linear = ScaledLinear(joiner_dim, vocab_size)
+        self.model = model
 
     def forward(
         self,
@@ -255,16 +219,5 @@ class OnnxJoiner(nn.Module):
         Returns:
           Return a tensor of shape (N, T, s_range, C).
         """
-        if not is_jit_tracing():
-            assert encoder_out.ndim == decoder_out.ndim
-            assert encoder_out.ndim in (2, 4)
-            assert encoder_out.shape == decoder_out.shape
-
-        
-        logit = self.encoder_proj(encoder_out) + self.decoder_proj(
-                decoder_out
-            )
-            
-        logit = self.output_linear(torch.tanh(logit))
-
-        return logit
+        project_input=True
+        return self.model(encoder_out, decoder_out, project_input)
