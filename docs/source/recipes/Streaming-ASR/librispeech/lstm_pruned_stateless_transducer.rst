@@ -515,10 +515,10 @@ To use the generated files with ``./lstm_transducer_stateless2/jit_pretrained``:
    Please see `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html>`_
    for how to use the exported models in ``sherpa``.
 
-.. _export-model-for-ncnn:
+.. _export-lstm-transducer-model-for-ncnn:
 
-Export model for ncnn
-~~~~~~~~~~~~~~~~~~~~~
+Export LSTM transducer models for ncnn
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We support exporting pretrained LSTM transducer models to
 `ncnn <https://github.com/tencent/ncnn>`_ using
@@ -657,3 +657,6 @@ by visiting the following links:
 
 You can find more usages of the pretrained models in
 `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html>`_
+
+Export ConvEmformer transducer models for ncnn
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
