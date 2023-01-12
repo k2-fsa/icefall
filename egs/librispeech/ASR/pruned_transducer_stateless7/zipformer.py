@@ -328,11 +328,11 @@ class Zipformer(EncoderInterface):
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
         """
-        logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
 
         x = self.encoder_embed(x)
 
-        logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
+        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
@@ -363,7 +363,7 @@ class Zipformer(EncoderInterface):
                        feature_mask=feature_masks[i],
                        src_key_padding_mask=None if mask is None else mask[...,::ds])
             outputs.append(x)
-            logging.info(f"Memory allocated after stack {i}: {torch.cuda.memory_allocated() // 1000000}M")
+            # logging.info(f"Memory allocated after stack {i}: {torch.cuda.memory_allocated() // 1000000}M")
 
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
