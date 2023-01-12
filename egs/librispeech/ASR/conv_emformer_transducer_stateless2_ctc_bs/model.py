@@ -145,7 +145,7 @@ class Transducer(nn.Module):
             blank_id,
             1.0
             if warmup < 1.0
-            else (1.0 - math.exp(2 * warmup - 6.3026) if warmup < 2.0 else 0.95),
+            else (1.0 - math.exp(2 * warmup - 6.3026) if warmup < 2.0 else 0.90),
         )
 
         # Now for the decoder, i.e., the prediction network
