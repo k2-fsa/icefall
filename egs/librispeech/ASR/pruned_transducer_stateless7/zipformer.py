@@ -215,6 +215,7 @@ class Zipformer(EncoderInterface):
                 encoder.lr_scale = downsampling_factor[i] ** -0.33
 
             encoders.append(encoder)
+
         self.encoders = nn.ModuleList(encoders)
 
         # initializes self.skip_layers and self.skip_modules
@@ -327,7 +328,11 @@ class Zipformer(EncoderInterface):
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
         """
+        logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+
         x = self.encoder_embed(x)
+
+        logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
@@ -358,6 +363,7 @@ class Zipformer(EncoderInterface):
                        feature_mask=feature_masks[i],
                        src_key_padding_mask=None if mask is None else mask[...,::ds])
             outputs.append(x)
+            logging.info(f"Memory allocated after stack {i}: {torch.cuda.memory_allocated() // 1000000}M")
 
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
@@ -834,6 +840,7 @@ class SimpleDownsample(torch.nn.Module):
         else:
             self.extra_proj = None
         self.downsample = downsample
+        self.out_channels = out_channels
 
     def forward(self,
                 src: Tensor) -> Tensor:
@@ -867,6 +874,8 @@ class SimpleDownsample(torch.nn.Module):
         if self.extra_proj is not None:
             ans2 = self.extra_proj(src)
             ans = torch.cat((ans, ans2), dim=2)
+
+        ans = ans[..., :self.out_channels]
         return ans
 
 
@@ -941,7 +950,7 @@ class SimpleCombiner(torch.nn.Module):
                                                     dtype=src1.dtype)),
                                  dim=-1)
             else:
-                src1 = src1[:src2_dim]
+                src1 = src1[...,:src2_dim]
 
         src1 = src1 * weight1
         src2 = src2 * (1.0 - weight1)
@@ -1917,7 +1926,7 @@ class Conv2dSubsampling(nn.Module):
         out_channels: int,
         layer1_channels: int = 8,
         layer2_channels: int = 32,
-        layer3_channels: int = 96,
+        layer3_channels: int = 64,
         dropout: FloatLike = 0.1,
     ) -> None:
         """
