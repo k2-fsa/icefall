@@ -600,7 +600,7 @@ class LConv(nn.Module):
         x = x.permute(1, 2, 0)  # (B, D, R + U)
         x = self.pointwise_conv1(x)  # (B, 2 * D, R + U)
         x = self.deriv_balancer1(x)
-  
+
         utterance = x[:, :, R:]  # (B, D, U)
         right_context = x[:, :, :R]  # (B, D, R)
 
@@ -1176,7 +1176,7 @@ class EmformerEncoderLayer(nn.Module):
         )
         right_context_utterance = torch.cat([right_context, utterance])
         return right_context_utterance, lconv_cache
-  
+
     def _apply_attention_module_forward(
         self,
         right_context_utterance: torch.Tensor,
@@ -1768,7 +1768,7 @@ class EmformerEncoder(nn.Module):
                 self.d_model,
                 self.cnn_module_kernel - 1,
             ), conv_caches[i].shape
-        
+
         lconv_cache = states[2]
         assert len(lconv_cache) == 1, len(lconv_cache)
 
@@ -1821,7 +1821,7 @@ class EmformerEncoder(nn.Module):
                 padding_mask=padding_mask,
                 attn_cache=attn_caches[layer_idx],
                 conv_cache=conv_caches[layer_idx],
-                lconv_cache=lconv_cache if layer_idx == 12 else None
+                lconv_cache=lconv_cache if layer_idx == 12 else None,
             )
             output_attn_caches.append(output_attn_cache)
             output_conv_caches.append(output_conv_cache)
@@ -1848,9 +1848,7 @@ class EmformerEncoder(nn.Module):
             torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
             for _ in range(self.num_encoder_layers)
         ]
-        lconv_cache = [
-            torch.zeros(self.d_model, 7 - 1, device=device)
-        ]
+        lconv_cache = [torch.zeros(self.d_model, 6, device=device)]
         states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
             attn_caches,
             conv_caches,
