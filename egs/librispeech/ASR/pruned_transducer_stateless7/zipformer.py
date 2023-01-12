@@ -198,7 +198,7 @@ class Zipformer(EncoderInterface):
                 dropout=dropout,
                 warmup_begin=warmup_batches * (i + 1) / (num_encoders + 1),
                 warmup_end=warmup_batches * (i + 2) / (num_encoders + 1),
-                final_layerdrop_rate=0.05 * (downsampling_factor[i] ** 0.5),
+                final_layerdrop_rate=0.035 * (downsampling_factor[i] ** 0.5),
                 attention_share_layers=attention_share_layers[i],
             )
 
