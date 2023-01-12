@@ -17,6 +17,7 @@
 
 from typing import Tuple
 
+import math
 import k2
 import torch
 import torch.nn as nn
@@ -134,23 +135,21 @@ class Transducer(nn.Module):
         # blank skip
         blank_id = self.decoder.blank_id
 
-        if warmup >= 2.0:
-            # lconv
-            encoder_out = self.lconv(
-                x=encoder_out,
-                src_key_padding_mask=make_pad_mask(x_lens),
-            )
+        # lconv
+        encoder_out = self.lconv(
+            x=encoder_out,
+            src_key_padding_mask=make_pad_mask(x_lens),
+        )
 
-            # frame reduce
-            encoder_out_fr, x_lens_fr = self.frame_reducer(
-                encoder_out,
-                x_lens,
-                ctc_output,
-                blank_id,
-            )
-        else:
-            encoder_out_fr = encoder_out
-            x_lens_fr = x_lens
+        # frame reduce
+        encoder_out_fr, x_lens_fr = self.frame_reducer(
+            encoder_out,
+            x_lens,
+            ctc_output,
+            1.0
+            if warmup < 1.0
+            else (1.0 - math.exp(2 * warmup - 6.3026) if warmup < 2.0 else 0.90),
+        )
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
