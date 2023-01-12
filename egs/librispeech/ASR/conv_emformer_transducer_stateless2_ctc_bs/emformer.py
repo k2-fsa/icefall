@@ -47,20 +47,23 @@ def unstack_states(
 
     Args:
       states:
-        A tuple of 2 elements.
+        A tuple of 3 elements.
         ``states[0]`` is the attention caches of a batch of utterance.
         ``states[1]`` is the convolution caches of a batch of utterance.
+        ``states[2]`` is the lconv caches of a batch of utterance.
         ``len(states[0])`` and ``len(states[1])`` both eqaul to number of layers.  # noqa
 
     Returns:
       A list of states.
-      ``states[i]`` is a tuple of 2 elements of i-th utterance.
+      ``states[i]`` is a tuple of 3 elements of i-th utterance.
       ``states[i][0]`` is the attention caches of i-th utterance.
       ``states[i][1]`` is the convolution caches of i-th utterance.
+      ``states[i][2]`` is the lconv caches of i-th utterance.
       ``len(states[i][0])`` and ``len(states[i][1])`` both eqaul to number of layers.  # noqa
     """
 
-    attn_caches, conv_caches, lconv_cache = states
+    attn_caches, conv_caches, lconv_cache = states # list of 12 elements
+
     batch_size = conv_caches[0].size(0)
     num_layers = len(attn_caches)
 
@@ -83,10 +86,10 @@ def unstack_states(
 
     ans = [None] * batch_size
     for i in range(batch_size):
-        if i == 12:
-            ans[i] = [list_attn_caches[i], list_conv_caches[i], lconv_cache]
+        if lconv_cache == None:
+            ans[i] = [list_attn_caches[i], list_conv_caches[i], None]
         else:
-            ans[i] = [list_attn_caches[i], list_conv_caches[i]]
+            ans[i] = [list_attn_caches[i], list_conv_caches[i], lconv_cache[i]]
 
     return ans
 
@@ -144,17 +147,7 @@ def stack_states(
             if b == batch_size - 1:
                 conv_caches[li] = torch.stack(conv_caches[li], dim=0)
 
-    lconv_cache = None
-    layer = state_list[0][2]
-    if batch_size > 1:
-        lconv_cache = layer
-    else:
-        lconv_cache = layer.unsqueeze(0)
-    for b, states in enumerate(state_list[1:], 1):
-        for li, layer in enumerate(states[2]):
-            lconv_cache = layer
-            if b == batch_size - 1:
-                lconv_cache = torch.stack(lconv_cache, dim=0)
+    lconv_cache = state_list[0][2]
 
     return [attn_caches, conv_caches, lconv_cache]
 
@@ -568,10 +561,10 @@ class LConv(nn.Module):
           R = num_segs * right_context_length.
         """
         right_context = right_context.reshape(
-            -1, B, self.channels, self.right_context_length
+            -1, B, self.channels * 2, self.right_context_length
         )
         right_context = right_context.permute(1, 2, 0, 3)
-        right_context = right_context.reshape(B, self.channels, -1)
+        right_context = right_context.reshape(B, self.channels * 2, -1)
         return right_context
 
     def forward(
@@ -601,27 +594,27 @@ class LConv(nn.Module):
         x = self.pointwise_conv1(x)  # (B, 2 * D, R + U)
         x = self.deriv_balancer1(x)
 
-        utterance = x[:, :, R:]  # (B, D, U)
-        right_context = x[:, :, :R]  # (B, D, R)
+        utterance = x[:, :, R:]  # (B, 2 * D, U)
+        right_context = x[:, :, :R]  # (B, 2 * D, R)
 
         # make causal convolution
-        cache = torch.zeros(B, D, self.cache_size, device=x.device, dtype=x.dtype)
-        pad_utterance = torch.cat([cache, utterance], dim=2)  # (B, D, cache + U)
+        cache = torch.zeros(B, D * 2, self.cache_size, device=x.device, dtype=x.dtype)
+        pad_utterance = torch.cat([cache, utterance], dim=2)  # (B, 2 * D, cache + U)
 
         # depth-wise conv on utterance
-        utterance = self.depthwise_conv(pad_utterance)  # (B, D, U)
+        utterance = self.depthwise_conv(pad_utterance)  # (B, 2 * D, U)
 
         if self.right_context_length > 0:
             # depth-wise conv on right_context
             pad_right_context = self._split_right_context(
                 pad_utterance.permute(2, 0, 1), right_context.permute(2, 0, 1)
-            )  # (num_segs * B, D, cache_size + right_context_length)
+            )  # (num_segs * B, 2 * D, cache_size + right_context_length)
             right_context = self.depthwise_conv(
                 pad_right_context
-            )  # (num_segs * B, D, right_context_length)
-            right_context = self._merge_right_context(right_context, B)  # (B, D, R)
+            )  # (num_segs * B, 2 * D, right_context_length)
+            right_context = self._merge_right_context(right_context, B)  # (B, 2 * D, R)
 
-        x = torch.cat([right_context, utterance], dim=2)  # (B, D, R + U)
+        x = torch.cat([right_context, utterance], dim=2)  # (B, 2 * D, R + U)
         x = self.deriv_balancer2(x)
 
         # point-wise conv
@@ -1078,7 +1071,7 @@ class EmformerEncoderLayer(nn.Module):
             cnn_module_kernel,
         )
 
-        if layer_idx == 12:
+        if layer_idx == 11:
             self.lconv = LConv(
                 chunk_length,
                 right_context_length,
@@ -1315,7 +1308,7 @@ class EmformerEncoderLayer(nn.Module):
         if alpha != 1.0:
             src = alpha * src + (1 - alpha) * src_orig
 
-        if self.layer_idx == 12:
+        if self.layer_idx == 11:
             src = self._apply_lconv_forward(src, R)
 
         output_utterance = src[R:]
@@ -1383,7 +1376,7 @@ class EmformerEncoderLayer(nn.Module):
 
         src = self.norm_final(self.balancer(src))
 
-        if self.layer_idx == 12:
+        if self.layer_idx == 11:
             src, lconv_cache = self._apply_lconv_infer(src, R, lconv_cache)
         else:
             lconv_cache = None
@@ -1770,7 +1763,8 @@ class EmformerEncoder(nn.Module):
             ), conv_caches[i].shape
 
         lconv_cache = states[2]
-        assert len(lconv_cache) == 1, len(lconv_cache)
+        if lconv_cache is not None:
+            assert len(lconv_cache) == 1, len(lconv_cache)
 
         right_context = x[-self.right_context_length :]
         utterance = x[: -self.right_context_length]
@@ -1821,7 +1815,7 @@ class EmformerEncoder(nn.Module):
                 padding_mask=padding_mask,
                 attn_cache=attn_caches[layer_idx],
                 conv_cache=conv_caches[layer_idx],
-                lconv_cache=lconv_cache if layer_idx == 12 else None,
+                lconv_cache=lconv_cache if layer_idx == 11 else None,
             )
             output_attn_caches.append(output_attn_cache)
             output_conv_caches.append(output_conv_cache)

@@ -2,7 +2,7 @@
 #
 # Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
-#                                                 Yifan   Yang,)
+#                                                 Yifan   Yang)
 #
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -354,19 +354,14 @@ def decode_one_batch(
         value=LOG_EPS,
     )
 
-    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    encoder_out, encoder_out_lens, ctc_output = model.encoder(x=feature, x_lens=feature_lens)
 
-    # filter out blank frames using ctc outputs
-    ctc_output = model.ctc_output(encoder_out)
-    encoder_out = model.lconv(
-        x=encoder_out,
-        src_key_padding_mask=make_pad_mask(encoder_out_lens),
-    )
     encoder_out, encoder_out_lens = model.frame_reducer(
         x=encoder_out,
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
+        threshold=0.90,
     )
 
     hyps = []
