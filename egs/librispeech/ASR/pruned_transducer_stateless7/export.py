@@ -469,11 +469,11 @@ def export_decoder_model_onnx_triton(
     """
     y = torch.zeros(10, decoder_model.context_size, dtype=torch.int64)
 
-    decoder_model=TritonOnnxDecoder(decoder_model)
+    decoder_model = TritonOnnxDecoder(decoder_model)
 
     torch.onnx.export(
         decoder_model,
-        (y, ),
+        (y,),
         decoder_filename,
         verbose=False,
         opset_version=opset_version,
@@ -515,8 +515,8 @@ def export_joiner_model_onnx_triton(
     decoder_out_dim = joiner_model.decoder_proj.weight.shape[1]
     joiner_dim = joiner_model.decoder_proj.weight.shape[0]
 
-    projected_encoder_out = torch.rand(1, 1, 1, joiner_dim, dtype=torch.float32)
-    projected_decoder_out = torch.rand(1, 1, 1, joiner_dim, dtype=torch.float32)
+    projected_encoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+    projected_decoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
 
     joiner_model = TritonOnnxJoiner(joiner_model)
 
@@ -527,13 +527,13 @@ def export_joiner_model_onnx_triton(
         verbose=False,
         opset_version=opset_version,
         input_names=[
-            "encoder_out",
-            "decoder_out",
+            "projected_encoder_out",
+            "projected_decoder_out",
         ],
         output_names=["logit"],
         dynamic_axes={
-            "encoder_out": {0: "N"},
-            "decoder_out": {0: "N"},
+            "projected_encoder_out": {0: "N"},
+            "projected_decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
     )
@@ -570,6 +570,8 @@ def export_joiner_model_onnx_triton(
         },
     )
     logging.info(f"Saved to {decoder_proj_filename}")
+
+
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
@@ -737,7 +739,7 @@ def main():
             model.joiner,
             joiner_filename,
             opset_version=opset_version,
-        )        
+        )
     else:
         logging.info("Not using torchscript. Export model.state_dict()")
         # Save it using a format so that it can be loaded

@@ -15,6 +15,7 @@
 import torch
 from torch import nn
 
+
 class TritonOnnxDecoder(nn.Module):
     """This class modifies the stateless decoder from the following paper:
         RNN-transducer with stateless prediction network
@@ -25,21 +26,10 @@ class TritonOnnxDecoder(nn.Module):
     TODO: Implement https://arxiv.org/pdf/2109.07513.pdf
     """
 
-    def __init__(
-        self,
-        model
-    ):
+    def __init__(self, model):
         """
         Args:
-          vocab_size:
-            Number of tokens of the modeling unit including blank.
-          decoder_dim:
-            Dimension of the input embedding, and of the decoder output.
-          blank_id:
-            The ID of the blank symbol.
-          context_size:
-            Number of previous words to use to predict the next word.
-            1 means bigram; 2 means trigram. n means (n+1)-gram.
+           model: zipformer decoder model
         """
         super().__init__()
 
@@ -50,14 +40,12 @@ class TritonOnnxDecoder(nn.Module):
         Args:
           y:
             A 2-D tensor of shape (N, U).
-          need_pad:
-            True to left pad the input. Should be True during training.
-            False to not pad the input. Should be False during inference.
         Returns:
           Return a tensor of shape (N, U, decoder_dim).
         """
         need_pad = False
         return self.model(y, need_pad)
+
 
 class TritonOnnxJoiner(nn.Module):
     def __init__(
@@ -81,10 +69,6 @@ class TritonOnnxJoiner(nn.Module):
             Output from the encoder. Its shape is (N, T, s_range, C).
           decoder_out:
             Output from the decoder. Its shape is (N, T, s_range, C).
-           project_input:
-            If true, apply input projections encoder_proj and decoder_proj.
-            If this is false, it is the user's responsibility to do this
-            manually.
         Returns:
           Return a tensor of shape (N, T, s_range, C).
         """
