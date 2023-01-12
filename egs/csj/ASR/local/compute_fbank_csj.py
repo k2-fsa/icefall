@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2022  The University of Electro-Communications  (Author: Teo Wen Shen)  # noqa
+# Copyright    2023  The University of Electro-Communications  (Author: Teo Wen Shen)  # noqa
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,9 +19,7 @@
 import argparse
 import logging
 import os
-from itertools import islice
 from pathlib import Path
-from random import Random
 from typing import List, Tuple
 
 import torch
@@ -35,19 +33,9 @@ from lhotse import (  # See the following for why LilcomChunkyWriter is preferre
     RecordingSet,
     SupervisionSet,
 )
+from lhotse.recipes.csj import concat_csj_supervisions
 
 # fmt: on
-
-ARGPARSE_DESCRIPTION = """
-This script follows the espnet method of splitting the remaining core+noncore
-utterances into valid and train cutsets at an index which is by default 4000.
-
-In other words, the core+noncore utterances are shuffled, where 4000 utterances
-of the shuffled set go to the `valid` cutset and are not subject to speed
-perturbation. The remaining utterances become the `train` cutset and are speed-
-perturbed (0.9x, 1.0x, 1.1x).
-
-"""
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -57,66 +45,101 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 RNG_SEED = 42
+# concat_params_train = [
+#     {"gap": 1.0, "maxlen": 10.0},
+#     {"gap": 1.5, "maxlen": 8.0},
+#     {"gap": 1.0, "maxlen": 18.0},
+# ]
+
+concat_params = {"gap": 1.0, "maxlen": 10.0}
 
 
 def make_cutset_blueprints(
     manifest_dir: Path,
-    split: int,
 ) -> List[Tuple[str, CutSet]]:
 
     cut_sets = []
+    logging.info("Creating non-train cuts.")
+
     # Create eval datasets
-    logging.info("Creating eval cuts.")
     for i in range(1, 4):
+        sps = sorted(
+            SupervisionSet.from_file(
+                manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz"
+            ),
+            key=lambda x: x.id,
+        )
+
         cut_set = CutSet.from_manifests(
             recordings=RecordingSet.from_file(
                 manifest_dir / f"csj_recordings_eval{i}.jsonl.gz"
             ),
-            supervisions=SupervisionSet.from_file(
-                manifest_dir / f"csj_supervisions_eval{i}.jsonl.gz"
-            ),
+            supervisions=concat_csj_supervisions(sps, **concat_params),
         )
         cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
         cut_sets.append((f"eval{i}", cut_set))
 
-    # Create train and valid cuts
-    logging.info("Loading, trimming, and shuffling the remaining core+noncore cuts.")
-    recording_set = RecordingSet.from_file(
-        manifest_dir / "csj_recordings_core.jsonl.gz"
-    ) + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
-    supervision_set = SupervisionSet.from_file(
-        manifest_dir / "csj_supervisions_core.jsonl.gz"
-    ) + SupervisionSet.from_file(manifest_dir / "csj_supervisions_noncore.jsonl.gz")
-
+    # Create excluded dataset
+    sps = sorted(
+        SupervisionSet.from_file(manifest_dir / "csj_supervisions_excluded.jsonl.gz"),
+        key=lambda x: x.id,
+    )
     cut_set = CutSet.from_manifests(
-        recordings=recording_set,
-        supervisions=supervision_set,
+        recordings=RecordingSet.from_file(
+            manifest_dir / "csj_recordings_excluded.jsonl.gz"
+        ),
+        supervisions=concat_csj_supervisions(sps, **concat_params),
     )
     cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
-    cut_set = cut_set.shuffle(Random(RNG_SEED))
+    cut_sets.append(("excluded", cut_set))
 
-    logging.info(
-        "Creating valid and train cuts from core and noncore, split at {split}."
+    # Create valid dataset
+    sps = sorted(
+        SupervisionSet.from_file(manifest_dir / "csj_supervisions_valid.jsonl.gz"),
+        key=lambda x: x.id,
     )
-    valid_set = CutSet.from_cuts(islice(cut_set, 0, split))
+    cut_set = CutSet.from_manifests(
+        recordings=RecordingSet.from_file(
+            manifest_dir / "csj_recordings_valid.jsonl.gz"
+        ),
+        supervisions=concat_csj_supervisions(sps, **concat_params),
+    )
+    cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
+    cut_sets.append(("valid", cut_set))
 
-    train_set = CutSet.from_cuts(islice(cut_set, split, None))
+    logging.info("Creating train cuts.")
+
+    # Create train dataset
+    sps = sorted(
+        SupervisionSet.from_file(manifest_dir / "csj_supervisions_core.jsonl.gz")
+        + SupervisionSet.from_file(manifest_dir / "csj_supervisions_noncore.jsonl.gz"),
+        key=lambda x: x.id,
+    )
+
+    recording = RecordingSet.from_file(
+        manifest_dir / "csj_recordings_core.jsonl.gz"
+    ) + RecordingSet.from_file(manifest_dir / "csj_recordings_noncore.jsonl.gz")
+
+    train_set = CutSet.from_manifests(
+        recordings=recording, supervisions=concat_csj_supervisions(sps, **concat_params)
+    ).trim_to_supervisions(keep_overlapping=False)
     train_set = train_set + train_set.perturb_speed(0.9) + train_set.perturb_speed(1.1)
 
-    cut_sets.extend([("valid", valid_set), ("train", train_set)])
+    cut_sets.append(("train", train_set))
 
     return cut_sets
 
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description=ARGPARSE_DESCRIPTION,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-
-    parser.add_argument("--manifest-dir", type=Path, help="Path to save manifests")
-    parser.add_argument("--fbank-dir", type=Path, help="Path to save fbank features")
-    parser.add_argument("--split", type=int, default=4000, help="Split at this index")
+    parser.add_argument(
+        "-m", "--manifest-dir", type=Path, help="Path to save manifests"
+    )
+    parser.add_argument(
+        "-f", "--fbank-dir", type=Path, help="Path to save fbank features"
+    )
 
     return parser.parse_args()
 
@@ -138,7 +161,7 @@ def main():
         )
         return
     else:
-        cut_sets = make_cutset_blueprints(args.manifest_dir, args.split)
+        cut_sets = make_cutset_blueprints(args.manifest_dir)
         for part, cut_set in cut_sets:
             logging.info(f"Processing {part}")
             cut_set = cut_set.compute_and_store_features(
@@ -147,7 +170,7 @@ def main():
                 storage_path=(args.fbank_dir / f"feats_{part}").as_posix(),
                 storage_type=LilcomChunkyWriter,
             )
-            cut_set.to_file(args.manifest_dir / f"csj_cuts_{part}.jsonl.gz")
+            cut_set.to_file(args.fbank_dir / f"csj_cuts_{part}.jsonl.gz")
 
         logging.info("All fbank computed for CSJ.")
         (args.fbank_dir / ".done").touch()
