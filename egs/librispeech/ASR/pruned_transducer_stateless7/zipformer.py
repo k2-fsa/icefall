@@ -1946,7 +1946,7 @@ class Conv2dSubsampling(nn.Module):
         assert in_channels >= 7
         super().__init__()
 
-        # The ScalarMultiply modules are there to prevent the gradients
+        # The ScaleGrad module is there to prevent the gradients
         # w.r.t. the weight or bias of the first Conv2d module in self.conv from
         # exceeding the range of fp16 when using automatic mixed precision (amp)
         # training.  (The second one is necessary to stop its bias from getting
