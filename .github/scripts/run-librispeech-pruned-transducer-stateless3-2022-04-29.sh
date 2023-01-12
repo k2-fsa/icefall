@@ -82,4 +82,5 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   done
 
   rm pruned_transducer_stateless3/exp/*.pt
+  rm -r data/lang_bpe_500
 fi

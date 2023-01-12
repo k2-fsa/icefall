@@ -52,18 +52,14 @@ class GigaSpeech:
         )
 
         pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
-        idx_filenames = [
-            (int(pattern.search(f).group(1)), f) for f in filenames
-        ]
+        idx_filenames = [(int(pattern.search(f).group(1)), f) for f in filenames]
         idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
 
         sorted_filenames = [f[1] for f in idx_filenames]
 
         logging.info(f"Loading {len(sorted_filenames)} splits")
 
-        return lhotse.combine(
-            lhotse.load_manifest_lazy(p) for p in sorted_filenames
-        )
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
 
     def train_L_cuts(self) -> CutSet:
         f = self.manifest_dir / "gigaspeech_cuts_L_raw.jsonl.gz"

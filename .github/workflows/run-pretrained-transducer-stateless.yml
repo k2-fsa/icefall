@@ -32,6 +32,10 @@ on:
     # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
+concurrency:
+  group: run_pre_trained_transducer_stateless-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run_pre_trained_transducer_stateless:
     if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'

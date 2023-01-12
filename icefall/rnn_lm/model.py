@@ -19,7 +19,7 @@ import logging
 import torch
 import torch.nn.functional as F
 
-from icefall.utils import make_pad_mask
+from icefall.utils import add_eos, add_sos, make_pad_mask
 
 
 class RnnLmModel(torch.nn.Module):
@@ -72,6 +72,8 @@ class RnnLmModel(torch.nn.Module):
         else:
             logging.info("Not tying weights")
 
+        self.cache = {}
+
     def forward(
         self, x: torch.Tensor, y: torch.Tensor, lengths: torch.Tensor
     ) -> torch.Tensor:
@@ -118,3 +120,102 @@ class RnnLmModel(torch.nn.Module):
         nll_loss = nll_loss.reshape(batch_size, -1)
 
         return nll_loss
+
+    def predict_batch(self, tokens, token_lens, sos_id, eos_id, blank_id):
+        device = next(self.parameters()).device
+        batch_size = len(token_lens)
+
+        sos_tokens = add_sos(tokens, sos_id)
+        tokens_eos = add_eos(tokens, eos_id)
+        sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
+
+        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+
+        x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
+        y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)
+
+        x_tokens = x_tokens.to(torch.int64).to(device)
+        y_tokens = y_tokens.to(torch.int64).to(device)
+        sentence_lengths = sentence_lengths.to(torch.int64).to(device)
+
+        embedding = self.input_embedding(x_tokens)
+
+        # Note: We use batch_first==True
+        rnn_out, states = self.rnn(embedding)
+        logits = self.output_linear(rnn_out)
+        mask = torch.zeros(logits.shape).bool().to(device)
+        for i in range(batch_size):
+            mask[i, token_lens[i], :] = True
+        logits = logits[mask].reshape(batch_size, -1)
+
+        return logits[:, :].log_softmax(-1), states
+
+    def clean_cache(self):
+        self.cache = {}
+
+    def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
+        """Score a batch of tokens
+
+        Args:
+            x (torch.Tensor):
+                A batch of tokens
+            x_lens (torch.Tensor):
+                The length of tokens in the batch before padding
+            state (_type_, optional):
+                Either None or a tuple of two torch.Tensor. Each tensor has
+                the shape of (hidden_dim)
+
+
+        Returns:
+            _type_: _description_
+        """
+        device = next(self.parameters()).device
+        batch_size = x.size(0)
+        if state:
+            h, c = state
+        else:
+            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(
+                device
+            )
+            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(
+                device
+            )
+
+        embedding = self.input_embedding(x)
+        rnn_out, states = self.rnn(embedding, (h, c))
+        logits = self.output_linear(rnn_out)
+
+        return logits[:, 0].log_softmax(-1), states
+
+    def forward_with_state(
+        self, tokens, token_lens, sos_id, eos_id, blank_id, state=None
+    ):
+        batch_size = len(token_lens)
+        if state:
+            h, c = state
+        else:
+            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size)
+            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size)
+
+        device = next(self.parameters()).device
+
+        sos_tokens = add_sos(tokens, sos_id)
+        tokens_eos = add_eos(tokens, eos_id)
+        sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
+
+        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
+
+        x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
+        y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)
+
+        x_tokens = x_tokens.to(torch.int64).to(device)
+        y_tokens = y_tokens.to(torch.int64).to(device)
+        sentence_lengths = sentence_lengths.to(torch.int64).to(device)
+
+        embedding = self.input_embedding(x_tokens)
+
+        # Note: We use batch_first==True
+        rnn_out, states = self.rnn(embedding, (h, c))
+        logits = self.output_linear(rnn_out)
+
+        return logits, states

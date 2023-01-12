@@ -20,12 +20,7 @@ import logging
 from pathlib import Path
 
 import torch
-from lhotse import (
-    CutSet,
-    KaldifeatFbank,
-    KaldifeatFbankConfig,
-    LilcomHdf5Writer,
-)
+from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomHdf5Writer
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -83,9 +78,7 @@ def compute_fbank_wenetspeech_dev_test():
 
 
 def main():
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     compute_fbank_wenetspeech_dev_test()
