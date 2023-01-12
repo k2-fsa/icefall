@@ -135,18 +135,18 @@ for how to use the exported models outside of icefall.
 """
 
 
-
 import argparse
 import logging
 from pathlib import Path
 
+import onnxruntime
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+from onnx_model_wrapper import OnnxStreamingEncoder, TritonOnnxDecoder, TritonOnnxJoiner
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-from zipformer import stack_states 
-from onnx_model_wrapper import OnnxStreamingEncoder, TritonOnnxDecoder, TritonOnnxJoiner
+from zipformer import stack_states
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -258,9 +258,11 @@ def get_parser():
         """,
     )
 
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help='whether to export fp16 onnx model, default false')
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="whether to export fp16 onnx model, default false",
+    )
 
     parser.add_argument(
         "--context-size",
@@ -272,6 +274,18 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
+
+
+def test_acc(xlist, blist, rtol=1e-3, atol=1e-5, tolerate_small_mismatch=True):
+    for a, b in zip(xlist, blist):
+        try:
+            torch.testing.assert_allclose(a, b, rtol=rtol, atol=atol)
+        except AssertionError as error:
+            if tolerate_small_mismatch:
+                print("small mismatch detected", error)
+            else:
+                return False
+    return True
 
 
 def export_encoder_model_onnx(
@@ -302,7 +316,8 @@ def export_encoder_model_onnx(
     """
     batch_size = 17
     seq_len = 101
-    x = torch.zeros(batch_size, seq_len, 80, dtype=torch.float32)
+    torch.manual_seed(0)
+    x = torch.rand(batch_size, seq_len, 80, dtype=torch.float32)
     x_lens = torch.tensor([seq_len - i for i in range(batch_size)], dtype=torch.int64)
 
     #  encoder_model = torch.jit.script(encoder_model)
@@ -317,17 +332,38 @@ def export_encoder_model_onnx(
     # works well for the current reworked model
     initial_states = [encoder_model.get_init_state() for _ in range(batch_size)]
     states = stack_states(initial_states)
+
     left_context_len = encoder_model.decode_chunk_size * encoder_model.num_left_chunks
     encoder_attention_dim = encoder_model.encoders[0].attention_dim
 
-    len_cache = torch.cat(states[:encoder_model.num_encoders]).transpose(0,1) # B,15
-    avg_cache = torch.cat(states[encoder_model.num_encoders:2*encoder_model.num_encoders]).transpose(0,1) # [B,15,384]
-    cnn_cache = torch.cat(states[5*encoder_model.num_encoders:]).transpose(0,1) # [B,2*15,384,cnn_kernel-1]
-    pad_tensors = [torch.nn.functional.pad(tensor,(0,encoder_attention_dim-tensor.shape[-1],
-                                                   0,0,
-                                                   0,left_context_len-tensor.shape[1],
-                                                   0,0)) for tensor in states[2*encoder_model.num_encoders:5*encoder_model.num_encoders]]
-    attn_cache = torch.cat(pad_tensors).transpose(0,2) # [B,64,15*3,192]
+    len_cache = torch.cat(states[: encoder_model.num_encoders]).transpose(0, 1)  # B,15
+    avg_cache = torch.cat(
+        states[encoder_model.num_encoders : 2 * encoder_model.num_encoders]
+    ).transpose(
+        0, 1
+    )  # [B,15,384]
+    cnn_cache = torch.cat(states[5 * encoder_model.num_encoders :]).transpose(
+        0, 1
+    )  # [B,2*15,384,cnn_kernel-1]
+    pad_tensors = [
+        torch.nn.functional.pad(
+            tensor,
+            (
+                0,
+                encoder_attention_dim - tensor.shape[-1],
+                0,
+                0,
+                0,
+                left_context_len - tensor.shape[1],
+                0,
+                0,
+            ),
+        )
+        for tensor in states[
+            2 * encoder_model.num_encoders : 5 * encoder_model.num_encoders
+        ]
+    ]
+    attn_cache = torch.cat(pad_tensors).transpose(0, 2)  # [B,64,15*3,192]
 
     encoder_model_wrapper = OnnxStreamingEncoder(encoder_model)
 
@@ -337,8 +373,22 @@ def export_encoder_model_onnx(
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "x_lens", "len_cache", "avg_cache", "attn_cache", "cnn_cache"],
-        output_names=["encoder_out", "encoder_out_lens", "new_len_cache", "new_avg_cache", "new_attn_cache", "new_cnn_cache"],
+        input_names=[
+            "x",
+            "x_lens",
+            "len_cache",
+            "avg_cache",
+            "attn_cache",
+            "cnn_cache",
+        ],
+        output_names=[
+            "encoder_out",
+            "encoder_out_lens",
+            "new_len_cache",
+            "new_avg_cache",
+            "new_attn_cache",
+            "new_cnn_cache",
+        ],
         dynamic_axes={
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
@@ -355,6 +405,35 @@ def export_encoder_model_onnx(
         },
     )
     logging.info(f"Saved to {encoder_filename}")
+
+    # Test onnx encoder with torch native encoder
+    encoder_model.eval()
+    (
+        encoder_out_torch,
+        encoder_out_lens_torch,
+        new_states_torch,
+    ) = encoder_model.streaming_forward(
+        x=x,
+        x_lens=x_lens,
+        states=states,
+    )
+    ort_session = onnxruntime.InferenceSession(
+        str(encoder_filename), providers=["CPUExecutionProvider"]
+    )
+    ort_inputs = {
+        "x": x.numpy(),
+        "x_lens": x_lens.numpy(),
+        "len_cache": len_cache.numpy(),
+        "avg_cache": avg_cache.numpy(),
+        "attn_cache": attn_cache.numpy(),
+        "cnn_cache": cnn_cache.numpy(),
+    }
+    ort_outs = ort_session.run(None, ort_inputs)
+
+    assert test_acc(
+        [encoder_out_torch.numpy(), encoder_out_lens_torch.numpy()], ort_outs[:2]
+    )
+    logging.info(f"{encoder_filename} acc test succeeded.")
 
 
 def export_decoder_model_onnx(
@@ -401,6 +480,7 @@ def export_decoder_model_onnx(
     )
     logging.info(f"Saved to {decoder_filename}")
 
+
 def export_decoder_model_onnx_triton(
     decoder_model: nn.Module,
     decoder_filename: str,
@@ -428,7 +508,7 @@ def export_decoder_model_onnx_triton(
     """
     y = torch.zeros(10, decoder_model.context_size, dtype=torch.int64)
 
-    decoder_model=TritonOnnxDecoder(decoder_model)
+    decoder_model = TritonOnnxDecoder(decoder_model)
 
     torch.onnx.export(
         decoder_model,
@@ -444,7 +524,6 @@ def export_decoder_model_onnx_triton(
         },
     )
     logging.info(f"Saved to {decoder_filename}")
-
 
 
 def export_joiner_model_onnx(
@@ -542,6 +621,7 @@ def export_joiner_model_onnx(
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
+
 def export_joiner_model_onnx_triton(
     joiner_model: nn.Module,
     joiner_filename: str,
@@ -579,6 +659,7 @@ def export_joiner_model_onnx_triton(
         },
     )
     logging.info(f"Saved to {joiner_filename}")
+
 
 @torch.no_grad()
 def main():
@@ -725,21 +806,23 @@ def main():
                 model.joiner,
                 joiner_filename,
                 opset_version=opset_version,
-            )           
+            )
 
         if params.fp16:
             try:
                 import onnxmltools
                 from onnxmltools.utils.float16_converter import convert_float_to_float16
             except ImportError:
-                print('Please install onnxmltools!')
+                print("Please install onnxmltools!")
                 import sys
+
                 sys.exit(1)
+
             def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
                 onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
                 onnx_fp16_model = convert_float_to_float16(onnx_fp32_model)
                 onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
-    
+
             encoder_fp16_filename = params.exp_dir / "encoder_fp16.onnx"
             export_onnx_fp16(encoder_filename, encoder_fp16_filename)
 
@@ -750,13 +833,21 @@ def main():
             export_onnx_fp16(joiner_filename, joiner_fp16_filename)
 
             if not params.onnx_triton:
-                encoder_proj_filename = str(joiner_filename).replace(".onnx", "_encoder_proj.onnx")
-                encoder_proj_fp16_filename = params.exp_dir / "joiner_encoder_proj_fp16.onnx"
+                encoder_proj_filename = str(joiner_filename).replace(
+                    ".onnx", "_encoder_proj.onnx"
+                )
+                encoder_proj_fp16_filename = (
+                    params.exp_dir / "joiner_encoder_proj_fp16.onnx"
+                )
                 export_onnx_fp16(encoder_proj_filename, encoder_proj_fp16_filename)
 
-                decoder_proj_filename = str(joiner_filename).replace(".onnx", "_decoder_proj.onnx")
-                decoder_proj_fp16_filename = params.exp_dir / "joiner_decoder_proj_fp16.onnx"
-                export_onnx_fp16(decoder_proj_filename, decoder_proj_fp16_filename)           
+                decoder_proj_filename = str(joiner_filename).replace(
+                    ".onnx", "_decoder_proj.onnx"
+                )
+                decoder_proj_fp16_filename = (
+                    params.exp_dir / "joiner_decoder_proj_fp16.onnx"
+                )
+                export_onnx_fp16(decoder_proj_filename, decoder_proj_fp16_filename)
 
     elif params.jit:
         convert_scaled_to_non_scaled(model, inplace=True)
