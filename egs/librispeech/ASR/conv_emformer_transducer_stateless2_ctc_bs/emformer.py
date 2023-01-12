@@ -62,7 +62,7 @@ def unstack_states(
       ``len(states[i][0])`` and ``len(states[i][1])`` both eqaul to number of layers.  # noqa
     """
 
-    attn_caches, conv_caches, lconv_cache = states # list of 12 elements
+    attn_caches, conv_caches, lconv_cache = states
 
     batch_size = conv_caches[0].size(0)
     num_layers = len(attn_caches)
