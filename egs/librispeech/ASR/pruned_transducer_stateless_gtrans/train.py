@@ -450,14 +450,14 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            #"valid_interval": 3000,  # For the 100h subset, use 800
-            "valid_interval": 50,  # For the 100h subset, use 800
+            "valid_interval": 3000,  # For the 100h subset, use 800
+            #"valid_interval": 50,  # For the 100h subset, use 800
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             # parameters for Noam
-            #"model_warm_step": 3000,  # arg given to model, not for lrate
-            "model_warm_step": 100,  # arg given to model, not for lrate
+            "model_warm_step": 3000,  # arg given to model, not for lrate
+            #"model_warm_step": 100,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
