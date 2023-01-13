@@ -195,7 +195,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-unmasked-dim",
         type=str,
-        default="192,192,224,224,224,192",
+        default="192,192,256,256,256,192",
         help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
         "A single int or comma-separated list.  Must be <= each corresponding encoder_dim."
     )
