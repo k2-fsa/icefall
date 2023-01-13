@@ -99,7 +99,6 @@ from icefall.checkpoint import (
 from icefall.decode import one_best_decoding
 from icefall.utils import (
     AttributeDict,
-    make_pad_mask,
     get_texts,
     setup_logger,
     store_transcripts,

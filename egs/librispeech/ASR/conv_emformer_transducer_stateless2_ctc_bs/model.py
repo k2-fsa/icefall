@@ -143,9 +143,7 @@ class Transducer(nn.Module):
             x_lens,
             ctc_output,
             blank_id,
-            1.0
-            if warmup < 1.0
-            else (1.0 - math.exp(2 * warmup - 6.3026) if warmup < 2.0 else 0.90),
+	          1.0 - math.exp(warmup - 4.3025) if warmup < 2.0 else 0.9,
         )
 
         # Now for the decoder, i.e., the prediction network

@@ -39,8 +39,8 @@ LOG_EPSILON = math.log(1e-10)
 
 
 def unstack_states(
-    states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]]
-) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]:
+    states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]
+) -> List[Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]]:
     """Unstack the emformer state corresponding to a batch of utterances
     into a list of states, where the i-th entry is the state from the i-th
     utterance in the batch.
@@ -62,7 +62,7 @@ def unstack_states(
       ``len(states[i][0])`` and ``len(states[i][1])`` both eqaul to number of layers.  # noqa
     """
 
-    attn_caches, conv_caches, lconv_cache = states
+    attn_caches, conv_caches, lconv_caches = states
 
     batch_size = conv_caches[0].size(0)
     num_layers = len(attn_caches)
@@ -84,19 +84,28 @@ def unstack_states(
         for bi, b in enumerate(list_conv_caches):
             b[li] = c_list[bi]
 
+    list_lconv_caches = [None] * batch_size
+    for i in range(batch_size):
+        list_lconv_caches[i] = [None] * num_layers
+    for li, layer in enumerate(lconv_caches):
+        if layer is not None:
+            l_list = layer.unbind(dim=0)
+            for bi, b in enumerate(list_lconv_caches):
+                b[li] = l_list[bi]
+        else:
+            for bi, b in enumerate(list_lconv_caches):
+                b[li] = None
+
     ans = [None] * batch_size
     for i in range(batch_size):
-        if lconv_cache == None:
-            ans[i] = [list_attn_caches[i], list_conv_caches[i], None]
-        else:
-            ans[i] = [list_attn_caches[i], list_conv_caches[i], lconv_cache[i]]
+        ans[i] = [list_attn_caches[i], list_conv_caches[i], list_lconv_caches[i]]
 
     return ans
 
 
 def stack_states(
-    state_list: List[Tuple[List[List[torch.Tensor]], List[torch.Tensor]]]
-) -> Tuple[List[List[torch.Tensor]], List[torch.Tensor]]:
+    state_list: List[Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]]
+) -> Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]:
     """Stack list of emformer states that correspond to separate utterances
     into a single emformer state so that it can be used as an input for
     emformer when those utterances are formed into a batch.
@@ -111,7 +120,7 @@ def stack_states(
         ``states[i]`` is a tuple of 2 elements of i-th utterance.
         ``states[i][0]`` is the attention caches of i-th utterance.
         ``states[i][1]`` is the convolution caches of i-th utterance.
-        ``len(states[i][0])`` and ``len(states[i][1])`` both eqaul to number of layers.  # noqa
+        ``len(states[i][0])`` and ``len(states[i][1])`` both equal to number of layers.  # noqa
 
     Returns:
       A new state corresponding to a batch of utterances.
@@ -147,9 +156,23 @@ def stack_states(
             if b == batch_size - 1:
                 conv_caches[li] = torch.stack(conv_caches[li], dim=0)
 
-    lconv_cache = state_list[0][2]
+    lconv_caches = []
+    for layer in state_list[0][2]:
+        if layer is not None:
+            if batch_size > 1:
+                lconv_caches.append([layer])
+            else:
+                lconv_caches.append(layer.unsqueeze(0))
+        else:
+            lconv_caches.append(None)
+    for b, states in enumerate(state_list[1:], 1):
+        for li, layer in enumerate(states[2]):
+            if lconv_caches[li] is not None:
+                lconv_caches[li].append(layer)
+                if b == batch_size - 1:
+                    lconv_caches[li] = torch.stack(lconv_caches[li], dim=0)
 
-    return [attn_caches, conv_caches, lconv_cache]
+    return [attn_caches, conv_caches, lconv_caches]
 
 
 class ConvolutionModule(nn.Module):
@@ -490,6 +513,7 @@ class LConv(nn.Module):
             channel_dim=1,
             min_positive=0.05,
             max_positive=1.0,
+            max_abs=20.0,
         )
 
         self.pointwise_conv2 = ScaledConv1d(
@@ -499,7 +523,7 @@ class LConv(nn.Module):
             stride=1,
             padding=0,
             bias=bias,
-            initial_scale=0.25,
+            initial_scale=0.05,
         )
 
     def _split_right_context(
@@ -660,13 +684,13 @@ class LConv(nn.Module):
         x = self.deriv_balancer1(x)
 
         # make causal convolution
-        assert cache.shape == (B, D, self.cache_size), cache.shape
-        x = torch.cat([cache, x], dim=2)  # (B, D, cache_size + U + R)
+        assert cache.shape == (B, 2 * D, self.cache_size), cache.shape
+        x = torch.cat([cache, x], dim=2)  # (B, 2 * D, cache_size + U + R)
         # update cache
         new_cache = x[:, :, -R - self.cache_size : -R]
 
         # 1-D depth-wise conv
-        x = self.depthwise_conv(x)  # (B, D, U + R)
+        x = self.depthwise_conv(x)  # (B, 2 * D, U + R)
 
         x = self.deriv_balancer2(x)
 
@@ -1324,7 +1348,7 @@ class EmformerEncoderLayer(nn.Module):
         conv_cache: torch.Tensor,
         lconv_cache: torch.Tensor = None,
         padding_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor, torch.Tensor]:
         """Forward pass for inference.
 
          B: batch size;
@@ -1697,11 +1721,11 @@ class EmformerEncoder(nn.Module):
         x: torch.Tensor,
         lengths: torch.Tensor,
         num_processed_frames: torch.Tensor,
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]],
     ]:
         """Forward pass for streaming inference.
 
@@ -1717,7 +1741,7 @@ class EmformerEncoder(nn.Module):
             With shape (B,) and i-th element representing number of valid
             utterance frames for i-th batch element in x, which contains the
             right_context at the end.
-          states (List[torch.Tensor, List[List[torch.Tensor]], List[torch.Tensor]]: # noqa
+          states (List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]): # noqa
             Cached states containing:
             - attn_caches: attention states from preceding chunk's computation,
               where each element corresponds to each emformer layer
@@ -1726,11 +1750,13 @@ class EmformerEncoder(nn.Module):
             - lconv_caches: left context for causal convolution.
 
         Returns:
-          (Tensor, Tensor, List[List[torch.Tensor]], List[torch.Tensor]):
-            - output utterance frames, with shape (U, B, D).
-            - output lengths, with shape (B,), without containing the
-              right_context at the end.
-            - updated states from current chunk's computation.
+          output (torch.Tensor):
+            output utterance frames, with shape (U, B, D).
+          output_lengths (torch.Tensor):
+            output lengths, with shape (B,), without containing the
+            right_context at the end.
+          output_states (Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]])
+            updated states from current chunk's computation.
         """
         assert num_processed_frames.shape == (x.size(1),)
 
@@ -1762,9 +1788,17 @@ class EmformerEncoder(nn.Module):
                 self.cnn_module_kernel - 1,
             ), conv_caches[i].shape
 
-        lconv_cache = states[2]
-        if lconv_cache is not None:
-            assert len(lconv_cache) == 1, len(lconv_cache)
+        lconv_caches = states[2]
+        assert len(lconv_caches) == self.num_encoder_layers, len(lconv_caches)
+        for i in range(len(lconv_caches)):
+            if i == 11:
+                assert lconv_caches[i].shape == (
+                    x.size(1),
+                    self.d_model * 2,
+                    6,
+                ), lconv_caches[i].shape
+            else:
+                assert lconv_caches[i] == None, lconv_caches[i]
 
         right_context = x[-self.right_context_length :]
         utterance = x[: -self.right_context_length]
@@ -1802,6 +1836,7 @@ class EmformerEncoder(nn.Module):
         output = utterance
         output_attn_caches: List[List[torch.Tensor]] = []
         output_conv_caches: List[torch.Tensor] = []
+        output_lconv_caches: List[torch.Tensor] = []
         for layer_idx, layer in enumerate(self.emformer_layers):
             (
                 output,
@@ -1815,15 +1850,16 @@ class EmformerEncoder(nn.Module):
                 padding_mask=padding_mask,
                 attn_cache=attn_caches[layer_idx],
                 conv_cache=conv_caches[layer_idx],
-                lconv_cache=lconv_cache if layer_idx == 11 else None,
+                lconv_cache=lconv_caches[layer_idx],
             )
             output_attn_caches.append(output_attn_cache)
             output_conv_caches.append(output_conv_cache)
+            output_lconv_caches.append(output_lconv_cache)
 
-        output_states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
+        output_states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]] = (
             output_attn_caches,
             output_conv_caches,
-            output_lconv_cache,
+            output_lconv_caches,
         )
         return output, output_lengths, output_states
 
@@ -1842,11 +1878,11 @@ class EmformerEncoder(nn.Module):
             torch.zeros(self.d_model, self.cnn_module_kernel - 1, device=device)
             for _ in range(self.num_encoder_layers)
         ]
-        lconv_cache = [torch.zeros(self.d_model, 6, device=device)]
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]] = (
+        lconv_caches = [None] * 11 + [torch.zeros(self.d_model * 2, 6, device=device)]
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]] = (
             attn_caches,
             conv_caches,
-            lconv_cache,
+            lconv_caches,
         )
         return states
 
@@ -1922,7 +1958,7 @@ class Emformer(EncoderInterface):
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, warmup: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass for training and non-streaming inference.
 
         B: batch size;
@@ -1943,11 +1979,12 @@ class Emformer(EncoderInterface):
             to turn modules on sequentially.
 
         Returns:
-          (Tensor, Tensor):
+          (Tensor, Tensor, Tensor):
             - output embedding, with shape (B, T', D), where
               T' = ((T - 1) // 2 - 1) // 2 - self.right_context_length // 4.
             - output lengths, with shape (B,), without containing the
               right_context at the end.
+            - ctc output
         """
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
@@ -1969,11 +2006,11 @@ class Emformer(EncoderInterface):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         num_processed_frames: torch.Tensor,
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]],
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
-        Tuple[List[List[torch.Tensor]], List[torch.Tensor]],
+        Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]],
     ]:
         """Forward pass for streaming inference.
 
@@ -1996,14 +2033,15 @@ class Emformer(EncoderInterface):
               where each element corresponds to each emformer layer
             - conv_caches: left context for causal convolution, where each
               element corresponds to each layer.
-            - lconv_cache: left context for causal convolution.
+            - lconv_caches: left context for causal convolution.
         Returns:
-          (Tensor, Tensor):
+          (Tensor, Tensor, Tensor, Tensor):
             - output embedding, with shape (B, T', D), where
               T' = ((T - 1) // 2 - 1) // 2 - self.right_context_length // 4.
             - output lengths, with shape (B,), without containing the
               right_context at the end.
             - updated states from current chunk's computation.
+            - ctc output.
         """
         x = self.encoder_embed(x)
         # drop the first and last frames
