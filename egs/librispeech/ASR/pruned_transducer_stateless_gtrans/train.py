@@ -1032,11 +1032,11 @@ def run(rank, world_size, args, wb=None):
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     librispeech = LibriSpeechAsrDataModule(args)
-
+    
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
     else:
-        train_cuts = librispeech.train_clean_100_cuts()
+        train_cuts = librispeech.train_clean_10_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
