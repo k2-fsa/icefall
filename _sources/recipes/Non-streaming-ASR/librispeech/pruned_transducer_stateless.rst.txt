@@ -1,3 +1,5 @@
+.. _non_streaming_librispeech_pruned_transducer_stateless:
+
 Pruned transducer statelessX
 ============================
 

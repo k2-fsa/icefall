@@ -45,6 +45,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Frequently Asked Questions (FAQs)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#oserror-libtorch-hip-so-cannot-open-shared-object-file-no-such-file-or-directory">OSError: libtorch_hip.so: cannot open shared object file: no such file or directory</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#attributeerror-module-distutils-has-no-attribute-version">AttributeError: module ‘distutils’ has no attribute ‘version’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory">ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="model-export/index.html">Model export</a></li>
@@ -133,6 +134,39 @@ the correct command is:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>uninstall<span class="w"> </span>setuptools
 
 pip<span class="w"> </span>install<span class="w"> </span><span class="nv">setuptools</span><span class="o">==</span><span class="m">58</span>.0.4
+</pre></div>
+</div>
+</section>
+<section id="importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory">
+<h2>ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory<a class="headerlink" href="#importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory" title="Permalink to this heading"></a></h2>
+<p>If you are using <code class="docutils literal notranslate"><span class="pre">conda</span></code> and encounter the following issue:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Traceback (most recent call last):
+  File &quot;/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py&quot;, line 24, in &lt;module&gt;
+    from _k2 import DeterminizeWeightPushingType
+ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/k2-dev/yangyifan/icefall/egs/librispeech/ASR/./pruned_transducer_stateless7_ctc_bs/decode.py&quot;, line 104, in &lt;module&gt;
+    import k2
+  File &quot;/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py&quot;, line 30, in &lt;module&gt;
+    raise ImportError(
+ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+Note: If you&#39;re using anaconda and importing k2 on MacOS,
+      you can probably fix this by setting the environment variable:
+  export DYLD_LIBRARY_PATH=$CONDA_PREFIX/lib/python3.10/site-packages:$DYLD_LIBRARY_PATH
+</pre></div>
+</div>
+<p>Please first try to find where <code class="docutils literal notranslate"><span class="pre">libpython3.10.so.1.0</span></code> locates.</p>
+<p>For instance,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="nv">$CONDA_PREFIX</span>/lib
+find<span class="w"> </span>.<span class="w"> </span>-name<span class="w"> </span><span class="s2">&quot;libpython*&quot;</span>
+</pre></div>
+</div>
+<p>If you are able to find it inside <code class="docutils literal notranslate"><span class="pre">$CODNA_PREFIX/lib</span></code>, please set the
+following environment variable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="nv">$CONDA_PREFIX</span>/lib:<span class="nv">$LD_LIBRARY_PATH</span>
 </pre></div>
 </div>
 </section>
