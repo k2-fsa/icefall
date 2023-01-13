@@ -92,6 +92,8 @@ from icefall.utils import (
     save_args,
 )
 
+import wandb
+
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
