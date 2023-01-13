@@ -12,95 +12,89 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from typing import List
-
 import k2
 import kaldifst
-import sentencepiece as spm
+from kaldifst import StdVectorFst
+from kaldifst.utils import k2_to_openfst
 
 
-class NgramLMContext:
+class ContextLmStateCost:
     def __init__(
-        self,
-        context_words: List[str],
-        sp: spm.SentencePieceProcessor,
-        symbol_table: k2.SymbolTable,
-        incremental_score: float = 0.0,
-        context_score: float = 3.0,
+        self, context_graph: StdVectorFst, current_state=0, sum_score=0, next_state={}
     ):
-        """
-        Args:
-          context_words:
-            List of context words
-          sp:
-            The BPE model.
-          symbol_table:
-            The token symbol table.
-          incremental_score:
-            Incremental score added for each token
-          context_score:
-            Context score
-        """
+        assert context_graph.start == 0, context_graph.start
+        self.context_graph = context_graph
+        self.current_state = current_state
+        self.next_state = next_state
+        self.sum_score = sum_score
+        self.scores_per_tokens = None
 
-        # from https://github.com/wenet-e2e/wenet/blob/main/runtime/core/decoder/context_graph.cc
-        contextual_fst = kaldifst.StdVectorFst()
-        start_state = contextual_fst.add_state()
+    def is_final_state(self):
+        arcs = kaldifst.ArcIterator(self.context_graph, self.current_state)
+        return len(list(arcs)) == 0
 
-        contextual_fst.start = start_state
-        contextual_fst.set_final(state=start_state, weight=1.0)
+    def cost_next_step(self, number_token=500, backoff_id=500):
+        if self.is_final_state():
+            self.sum_score = 0
+            self.current_state = 0
+            self.next_state = {}
 
-        for context_word in context_words:
-            context_tokens = sp.encode(context_word, out_type=str)
-            prev_state = start_state
-            escape_score = 0.0
+        scores_per_tokens = number_token * [0.0]
 
-            for i, token in enumerate(context_tokens):
-                token_id = symbol_table[token]
-                score = (i * incremental_score + context_score) * len(token)
+        for arc in kaldifst.ArcIterator(self.context_graph, self.current_state):
+            if arc.ilabel == backoff_id:
+                continue
 
-                next_state = start_state
-                if i < len(context_tokens) - 1:
-                    # TODO : Check implementation,
-                    #  should it be i < len(context_tokens) ?
-                    next_state = contextual_fst.add_state()
+            self.next_state[arc.ilabel] = arc.nextstate
+            scores_per_tokens[arc.ilabel] = -arc.weight.value
 
-                contextual_fst.add_arc(
-                    prev_state,
-                    kaldifst.StdArc(token_id, token_id, score, next_state),
-                )
+        self.scores_per_tokens = scores_per_tokens
+        return scores_per_tokens
 
-                if i > 0:
-                    # Adding escape arc
-                    contextual_fst.add_arc(
-                        prev_state,
-                        kaldifst.StdArc(0, 0, -escape_score, start_state),
-                    )
+    def move_one_step(self, label: int) -> "ContextLmStateCost":
+        return ContextLmStateCost(
+            context_graph=self.context_graph,
+            sum_score=self.sum_score + self.scores_per_tokens[label],
+            current_state=self.next_state.get(label, 0),  # if no state back to start
+        )
 
-                prev_state = next_state
-                escape_score += score
 
-        self.contextual_fst = kaldifst.determinize(contextual_fst)
+def get_context_fst(words, sp, context_score=10, backoff_id=500):
+    loop_state = 0  # words enter and leave from here
+    next_state = 1  # the next un-allocated state, will be incremented as we go
 
-        self.start_state = start_state
-        self.state_cost = {}
+    arcs = []
+    arcs_final_state = []
 
-    def get_next_state_and_cost_context_graph(
-        self, cur_state: int, token_id: int
-    ):
-        next_states, next_costs = [], []
-        next_state = 0
+    for word in words:
+        cur_state = loop_state
+        pieces = sp.encode(word, out_type=int)
+        sum_score = 0
+        context_score_word = context_score / len(pieces)
+        for i in range(len(pieces)):
+            arcs.append(
+                [cur_state, next_state, pieces[i], pieces[i], context_score_word]
+            )
 
-        for arc in kaldifst.ArcIterator(self.contextual_fst, cur_state):
-            if arc.ilabel == 0:
-                # escape score, will be overwritten
-                # when ilabel equals to word id.
-                cost = arc.weight
-            elif arc.ilabel == token_id:
-                next_state = arc.next_state
-                cost = arc.weight
+            sum_score += context_score_word
+            arcs.append([next_state, loop_state, backoff_id, backoff_id, -sum_score])
 
-            next_costs.append(cost)
-            next_states.append(next_state)
+            cur_state = next_state
+            next_state += 1
 
-        return next_states, next_costs
+        arcs_final_state.append([cur_state, -1, -1, context_score_word])
+
+    final_state = next_state
+    for final_arc in arcs_final_state:
+        arcs.append([final_arc[0], final_state, final_arc[1], final_arc[2]])
+
+    arcs.append([final_state])
+
+    arcs = sorted(arcs, key=lambda arc: arc[0])
+    arcs = [[str(i) for i in arc] for arc in arcs]
+    arcs = [" ".join(arc) for arc in arcs]
+    arcs = "\n".join(arcs)
+    G_context = k2.Fsa.from_str(arcs, acceptor=False)
+
+    context_fst = k2_to_openfst(G_context, olabels="aux_labels")
+    return kaldifst.determinize(context_fst)
