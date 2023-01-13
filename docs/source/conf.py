@@ -81,6 +81,9 @@ todo_include_todos = True
 
 rst_epilog = """
 .. _sherpa-ncnn: https://github.com/k2-fsa/sherpa-ncnn
+.. _icefall: https://github.com/k2-fsa/icefall
 .. _git-lfs: https://git-lfs.com/
 .. _ncnn: https://github.com/tencent/ncnn
+.. _LibriSpeech: https://www.openslr.org/12
+.. _musan: http://www.openslr.org/17/
 """

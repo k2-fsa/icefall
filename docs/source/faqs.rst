@@ -65,3 +65,43 @@ The fix is:
   pip uninstall setuptools
 
   pip install setuptools==58.0.4
+
+ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+--------------------------------------------------------------------------------------------
+
+If you are using ``conda`` and encounter the following issue:
+
+.. code-block::
+
+  Traceback (most recent call last):
+    File "/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py", line 24, in <module>
+      from _k2 import DeterminizeWeightPushingType
+  ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+
+  During handling of the above exception, another exception occurred:
+
+  Traceback (most recent call last):
+    File "/k2-dev/yangyifan/icefall/egs/librispeech/ASR/./pruned_transducer_stateless7_ctc_bs/decode.py", line 104, in <module>
+      import k2
+    File "/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py", line 30, in <module>
+      raise ImportError(
+  ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
+  Note: If you're using anaconda and importing k2 on MacOS,
+        you can probably fix this by setting the environment variable:
+    export DYLD_LIBRARY_PATH=$CONDA_PREFIX/lib/python3.10/site-packages:$DYLD_LIBRARY_PATH
+
+Please first try to find where ``libpython3.10.so.1.0`` locates.
+
+For instance,
+
+.. code-block:: bash
+
+  cd $CONDA_PREFIX/lib
+  find . -name "libpython*"
+
+If you are able to find it inside ``$CODNA_PREFIX/lib``, please set the
+following environment variable:
+
+.. code-block:: bash
+
+  export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
