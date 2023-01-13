@@ -922,6 +922,14 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
+            if wb is not None:
+                wb.log({"valid/loss": valid_info["simple_loss"]
+                                             +valid_info["pruned_loss"]
+                                             +valid_info["ctc_loss"]
+                                            })  
+                wb.log({"valid/simple_loss": valid_info["simple_loss"]})
+                wb.log({"valid/pruned_loss": valid_info["pruned_loss"]})
+                wb.log({"valid/ctc_loss": valid_info["ctc_loss"]})
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
