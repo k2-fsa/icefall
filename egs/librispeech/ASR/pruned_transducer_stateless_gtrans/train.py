@@ -901,6 +901,12 @@ def train_one_epoch(
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
+            if wb is not None:
+                wb.log({"train/loss": loss_info["loss"]})
+                wb.log({"train/simple_loss": loss_info["simple_loss"]})
+                wb.log({"train/pruned_loss": loss_info["pruned_loss"]})
+                wb.log({"train/ctc_loss": loss_info["ctc_loss"]})
+
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
