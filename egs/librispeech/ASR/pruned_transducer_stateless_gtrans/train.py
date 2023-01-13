@@ -923,7 +923,7 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
-def run(rank, world_size, args):
+def run(rank, world_size, args, wb=None):
     """
     Args:
       rank:
