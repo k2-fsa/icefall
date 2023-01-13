@@ -104,7 +104,9 @@ def unstack_states(
 
 
 def stack_states(
-    state_list: List[Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]]
+    state_list: List[
+      Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]
+    ]
 ) -> Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]:
     """Stack list of emformer states that correspond to separate utterances
     into a single emformer state so that it can be used as an input for
@@ -1348,7 +1350,9 @@ class EmformerEncoderLayer(nn.Module):
         conv_cache: torch.Tensor,
         lconv_cache: torch.Tensor = None,
         padding_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor, torch.Tensor]:
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor, torch.Tensor
+    ]:
         """Forward pass for inference.
 
          B: batch size;
@@ -1856,7 +1860,9 @@ class EmformerEncoder(nn.Module):
             output_conv_caches.append(output_conv_cache)
             output_lconv_caches.append(output_lconv_cache)
 
-        output_states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]] = (
+        output_states: Tuple[
+            List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]
+        ] = (
             output_attn_caches,
             output_conv_caches,
             output_lconv_caches,
@@ -1879,7 +1885,9 @@ class EmformerEncoder(nn.Module):
             for _ in range(self.num_encoder_layers)
         ]
         lconv_caches = [None] * 11 + [torch.zeros(self.d_model * 2, 6, device=device)]
-        states: Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]] = (
+        states: Tuple[
+            List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]
+        ] = (
             attn_caches,
             conv_caches,
             lconv_caches,

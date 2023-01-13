@@ -578,6 +578,7 @@ def decode_one_chunk(
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
+        threshold=0.95,
     )
 
     if params.decoding_method == "greedy_search":

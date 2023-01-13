@@ -354,14 +354,16 @@ def decode_one_batch(
         value=LOG_EPS,
     )
 
-    encoder_out, encoder_out_lens, ctc_output = model.encoder(x=feature, x_lens=feature_lens)
+    encoder_out, encoder_out_lens, ctc_output = model.encoder(
+        x=feature, x_lens=feature_lens
+    )
 
     encoder_out, encoder_out_lens = model.frame_reducer(
         x=encoder_out,
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
-        threshold=0.90,
+        threshold=0.95,
     )
 
     hyps = []
