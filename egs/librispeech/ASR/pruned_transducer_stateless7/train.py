@@ -160,7 +160,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=str,
-        default="192,192,256,384,256,192",
+        default="192,256,384,512,384,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list."
     )
 
