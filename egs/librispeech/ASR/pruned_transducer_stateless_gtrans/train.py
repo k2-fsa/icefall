@@ -923,6 +923,7 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
             if wb is not None:
+                valid_info.reduce(loss.device)
                 wb.log({"valid/loss": valid_info["simple_loss"]
                                              +valid_info["pruned_loss"]
                                              +valid_info["ctc_loss"]
