@@ -1,7 +1,7 @@
 git pull
 
 #for group_num in 12 6 4 3 2
-for group_num in 4
+for group_num in 8
 do
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	./pruned_transducer_stateless_gtrans/train.py \
@@ -11,9 +11,9 @@ do
 				--start-epoch 1 \
 				--full-libri 1 \
 				--exp-dir pruned_transducer_stateless_gtrans/layer24_group$group_num	\
-				--max-duration 600 \
+				--max-duration 450 \
 				--use-fp16 1 \
-				--num-encoder-layers 12 \
+				--num-encoder-layers 24 \
 				--group-num $group_num \
 				--dim-feedforward 2048 \
 				--nhead 8 \
