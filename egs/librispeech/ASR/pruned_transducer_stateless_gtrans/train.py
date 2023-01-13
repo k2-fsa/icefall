@@ -922,7 +922,7 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
-            if wb is not None:
+            if wb is not None and rank == 0:
                 valid_info.reduce(loss.device)
                 wb.log({"valid/loss": valid_info["simple_loss"]
                                              +valid_info["pruned_loss"]
