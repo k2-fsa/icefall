@@ -389,6 +389,7 @@ def get_parser():
     )
 
     add_model_arguments(parser)
+    add_custom_arguments(parser)
 
     return parser
 
