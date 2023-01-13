@@ -105,7 +105,7 @@ def unstack_states(
 
 def stack_states(
     state_list: List[
-      Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]
+        Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]
     ]
 ) -> Tuple[List[List[torch.Tensor]], List[torch.Tensor], List[torch.Tensor]]:
     """Stack list of emformer states that correspond to separate utterances
