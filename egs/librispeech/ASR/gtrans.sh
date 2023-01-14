@@ -5,7 +5,7 @@ for group_num in 8
 do
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 	./pruned_transducer_stateless_gtrans/train.py \
-				--wandb true \
+				--wandb false \
 				--world-size 8 \
 				--num-epochs 30 \
 				--start-epoch 1 \
