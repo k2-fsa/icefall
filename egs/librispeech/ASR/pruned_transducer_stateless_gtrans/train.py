@@ -1153,7 +1153,6 @@ def run(rank, world_size, args, wb=None):
             diagnostic.print_diagnostics()
             break
         
-        '''
         save_checkpoint(
             params=params,
             model=model,
@@ -1164,7 +1163,6 @@ def run(rank, world_size, args, wb=None):
             scaler=scaler,
             rank=rank,
         )
-        '''
 
     logging.info("Done!")
 
