@@ -489,7 +489,7 @@ class ZipformerEncoderLayer(nn.Module):
                                                dropout)
 
         self.nonlin_attention = NonlinAttention(embed_dim,
-                                                hidden_channels=embed_dim // 4)
+                                                hidden_channels=embed_dim // 2)
 
         self.small_conv_module = SmallConvolutionModule(embed_dim)
 
