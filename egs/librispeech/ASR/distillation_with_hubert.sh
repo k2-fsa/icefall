@@ -150,7 +150,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     num_codebooks=8
 
     mkdir -p $exp_dir/vq
-    codebook_dir=$exp_dir/vq/${teacher_model_id}_layer${embedding_layer}_cb${num_codebooks}
+    codebook_dir=$exp_dir/vq/${teacher_model_id}
     mkdir -p codebook_dir
     codebook_download_dir=$exp_dir/download_codebook
     if [ -d $codebook_download_dir ]; then
@@ -180,9 +180,9 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   ./pruned_transducer_stateless6/extract_codebook_index.py \
     --full-libri $full_libri \
     --exp-dir $exp_dir \
-    --embedding-layer 36 \
+    --embedding-layer $embedding_layer \
     --num-utts 1000 \
-    --num-codebooks 8 \
+    --num-codebooks $num_codebooks \
     --max-duration 100 \
     --teacher-model-id $teacher_model_id \
     --use-extracted-codebook $use_extracted_codebook

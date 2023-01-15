@@ -9,3 +9,4 @@ LibriSpeech
    pruned_transducer_stateless
    zipformer_mmi
    zipformer_ctc_blankskip
+   distillation
