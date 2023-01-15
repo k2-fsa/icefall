@@ -1,5 +1,140 @@
 ## Results
 
+### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
+
+#### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
+
+See <https://github.com/k2-fsa/icefall/pull/787> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+##### training on full librispeech
+
+The WERs are:
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 3.15       | 8.09       | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 320ms      | 3.17       | 8.24       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 320ms      | 3.2        | 8.04       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 320ms      | 3.36       | 8.19       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 320ms      | 3.12       | 8.11       | --epoch 30 --avg 9  | chunk-size           |
+| greedy search        | 640ms      | 2.97       | 7.5        | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 640ms      | 2.98       | 7.67       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 640ms      | 3.02       | 7.47       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 640ms      | 2.96       | 7.61       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 640ms      | 2.94       | 7.36       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 640ms      | 2.95       | 7.53       | --epoch 30 --avg 9  | chunk-size           |
+
+Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless7_streaming/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --full-libri 1 \
+  --max-duration 750 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/A46UpqEWQWS7oDi5VcQ8rg/>
+
+The simulated streaming decoding command (e.g., chunk-size=320ms) is:
+```bash
+for $m in greedy_search fast_beam_search modified_beam_search; do
+  ./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --decoding-method $m
+done
+```
+
+The streaming chunk-size decoding command (e.g., chunk-size=320ms) is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless7_streaming/streaming_decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --decoding-method $m \
+    --decode-chunk-len 32 \
+    --num-decode-streams 2000
+done
+```
+
+
+### zipformer_mmi (zipformer with mmi loss)
+
+See <https://github.com/k2-fsa/icefall/pull/746> for more details.
+
+[zipformer_mmi](./zipformer_mmi)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/xyOZUKpEQm62HBIlUD4uPA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08>
+
+Number of model parameters: 69136519, i.e., 69.14 M
+
+|                          | test-clean | test-other  | comment             |
+|--------------------------|------------|-------------|---------------------|
+| 1best                    | 2.54       | 5.65        | --epoch 30 --avg 10 |
+| nbest                    | 2.54       | 5.66        | --epoch 30 --avg 10 |
+| nbest-rescoring-LG       | 2.49       | 5.42        | --epoch 30 --avg 10 |
+| nbest-rescoring-3-gram   | 2.52       | 5.62        | --epoch 30 --avg 10 |
+| nbest-rescoring-4-gram   | 2.5        | 5.51        | --epoch 30 --avg 10 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./zipformer_mmi/train.py \
+  --world-size 4 \
+  --master-port 12345 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --lang-dir data/lang_bpe_500 \
+  --max-duration 500 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_mmi/exp
+```
+
+The decoding commands for the transducer branch are:
+```bash
+export CUDA_VISIBLE_DEVICES="5"
+
+for m in nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescoring-4-gram; do
+  ./zipformer_mmi/decode.py \
+    --epoch 30 \
+    --avg 10 \
+    --exp-dir ./zipformer_mmi/exp/ \
+    --max-duration 100 \
+    --lang-dir data/lang_bpe_500 \
+    --nbest-scale 1.2 \
+    --hp-scale 1.0 \
+    --decoding-method $m
+done
+```
+
+
 ### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
 
 See <https://github.com/k2-fsa/icefall/pull/683> for more details.
@@ -261,9 +396,13 @@ Number of model parameters: 70369391, i.e., 70.37 M
 
 |                      | test-clean | test-other  | comment                                |
 |----------------------|------------|-------------|----------------------------------------|
-| greedy search        | 2.17       | 5.23        | --epoch 39 --avg 6 --max-duration 600  |
-| modified beam search | 2.15       | 5.20        | --epoch 39 --avg 6 --max-duration 600  |
-| fast beam search     | 2.15       | 5.22        | --epoch 39 --avg 6 --max-duration 600  |
+| greedy search        | 2.17       | 5.23        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search | 2.15       | 5.20        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM shallow fusion | 1.99       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM shallow fusion | 1.94       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM + LODR | 1.91       | 4.57        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM + LODR | 1.91       | 4.51        | --epoch 30 --avg 9 --max-duration 600  |
+| fast beam search     | 2.15       | 5.22        | --epoch 30 --avg 9 --max-duration 600  |
 
 The training commands are:
 ```bash
@@ -401,7 +540,9 @@ The WERs are:
 | greedy search (max sym per frame 1) | 2.78       | 7.36       | --iter 468000 --avg 16  |
 | modified_beam_search                | 2.73       | 7.15       | --iter 468000 --avg 16  |
 | modified_beam_search + RNNLM shallow fusion   | 2.42     |  6.46      | --iter 468000 --avg 16  |
-| modified_beam_search + RNNLM shallow fusion   | 2.28     |  5.94      | --iter 468000 --avg 16  |
+| modified_beam_search + TransformerLM shallow fusion   | 2.37     |  6.48      | --iter 468000 --avg 16  |
+| modified_beam_search + RNNLM + LODR   | 2.24     |  5.89      | --iter 468000 --avg 16  |
+| modified_beam_search + TransformerLM + LODR   | 2.19     |  5.90      | --iter 468000 --avg 16  |
 | fast_beam_search                    | 2.76       | 7.31       | --iter 468000 --avg 16  |
 | greedy search (max sym per frame 1) | 2.77       | 7.35       | --iter 472000 --avg 18  |
 | modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
@@ -456,9 +597,12 @@ for m in greedy_search fast_beam_search modified_beam_search; do
 done
 ```
 
-To decode with RNNLM shallow fusion, use the following decoding command. A well-trained RNNLM
-can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
+```bash
 for iter in 472000; do
     for avg in 8 10 12 14 16 18; do
         ./lstm_transducer_stateless2/decode.py \
@@ -466,23 +610,24 @@ for iter in 472000; do
                 --avg $avg \
                 --exp-dir ./lstm_transducer_stateless2/exp \
                 --max-duration 600 \
-                --decoding-method modified_beam_search_rnnlm_shallow_fusion \
-                --beam 4 \
-                --rnn-lm-scale 0.3 \
-                --rnn-lm-exp-dir /path/to/RNNLM \
-                --rnn-lm-epoch 99 \
-                --rnn-lm-avg 1 \
-                --rnn-lm-num-layers 3 \
-                --rnn-lm-tie-weights 1
+                --decoding-method modified_beam_search_lm_shallow_fusion \
+                --use-shallow-fusion 1 \
+                --lm-type rnn \
+                --lm-exp-dir /ceph-data4/yangxiaoyu/pretrained_models/LM/icefall-librispeech-rnn-lm/exp \
+                --lm-epoch 99 \
+                --lm-scale $lm_scale \
+                --lm-avg 1 \
     done
 done
+```
 
-You may also decode using LODR + RNNLM shallow fusion. This decoding method is proposed in <https://arxiv.org/pdf/2203.16776.pdf>.
+You may also decode using LODR + LM shallow fusion. This decoding method is proposed in <https://arxiv.org/pdf/2203.16776.pdf>.
 It subtracts the internal language model score during shallow fusion, which is approximated by a bi-gram model. The bi-gram can be
 generated by `generate-lm.sh`, or you may download it from <https://huggingface.co/marcoyang/librispeech_bigram>.
 
 The decoding command is as follows:
 
+```bash
 for iter in 472000; do
     for avg in 8 10 12 14 16 18; do
         ./lstm_transducer_stateless2/decode.py \
@@ -490,18 +635,22 @@ for iter in 472000; do
                 --avg $avg \
                 --exp-dir ./lstm_transducer_stateless2/exp \
                 --max-duration 600 \
-                --decoding-method modified_beam_search_rnnlm_LODR \
+                --decoding-method modified_beam_search_LODR \
                 --beam 4 \
-                --rnn-lm-scale 0.4 \
-                --rnn-lm-exp-dir /path/to/RNNLM \
-                --rnn-lm-epoch 99 \
-                --rnn-lm-avg 1 \
-                --rnn-lm-num-layers 3 \
-                --rnn-lm-tie-weights 1 \
-                --token-ngram 2 \
+                --max-contexts 4 \
+                --use-shallow-fusion 1 \
+                --lm-type rnn \
+                --lm-exp-dir /ceph-data4/yangxiaoyu/pretrained_models/LM/icefall-librispeech-rnn-lm/exp \
+                --lm-epoch 99 \
+                --lm-scale 0.4 \
+                --lm-avg 1 \
+                --tokens-ngram 2 \
                 --ngram-lm-scale -0.16
     done
 done
+```
+Note that you can also set `--lm-type transformer` to use transformer LM during LODR. But it will be slower
+because it has not been optimized. The pre-trained transformer LM is available at <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
@@ -1660,6 +1809,9 @@ layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder di
 | greedy search (max sym per frame 1) | 2.54       | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search                | 2.47       | 5.71       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search + RNNLM shallow fusion     | 2.27       | 5.24      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + RNNLM + LODR     | 2.23       | 5.17      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM shallow fusion     | 2.27       | 5.26      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM + LODR     | 2.22       | 5.11      | --epoch 30 --avg 10  --max-duration 600 |
 | fast beam search                    | 2.5        | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 
 ```bash
@@ -2023,7 +2175,8 @@ subset so that the gigaspeech dataloader never exhausts.
 | greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search + rnnlm shallow fusion  | 1.94     |  4.2    | --iter 1224000 --avg 14  --max-duration 600 |
-| modified beam search + LODR         | 1.83       | 4.03       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + rnnlm + LODR         | 1.77       | 3.99       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + TransformerLM + LODR    | 1.75       | 3.94       | --iter 1224000 --avg 14  --max-duration 600 |
 | fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
 
 The training commands are:
@@ -2069,8 +2222,10 @@ for iter in 1224000; do
   done
 done
 ```
-You may also decode using shallow fusion with external RNNLM. To do so you need to
-download a well-trained RNNLM from this link <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 ```bash
 rnn_lm_scale=0.3

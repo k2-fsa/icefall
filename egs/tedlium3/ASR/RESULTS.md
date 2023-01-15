@@ -1,5 +1,88 @@
 ## Results
 
+### TedLium3 BPE training results (Conformer-CTC 2)
+
+#### [conformer_ctc2](./conformer_ctc2)
+
+See <https://github.com/k2-fsa/icefall/pull/696> for more details.
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/5NQQiqOqSqazfn4w2yeWEQ/>
+
+You can find a pretrained model and decoding results at:
+<https://huggingface.co/videodanchik/icefall-asr-tedlium3-conformer-ctc2>
+
+Number of model parameters: 101141699, i.e., 101.14 M
+
+The WERs are
+
+|                          | dev        | test        | comment             |
+|--------------------------|------------|-------------|---------------------|
+| ctc decoding             | 6.45       | 5.96        | --epoch 38 --avg 26 |
+| 1best                    | 5.92       | 5.51        | --epoch 38 --avg 26 |
+| whole lattice rescoring  | 5.96       | 5.47        | --epoch 38 --avg 26 |
+| attention decoder        | 5.60       | 5.33        | --epoch 38 --avg 26 |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./conformer_ctc2/train.py \
+    --world-size 4 \
+    --num-epochs 40 \
+    --exp-dir conformer_ctc2/exp \
+    --max-duration 350 \
+    --use-fp16 true
+```
+
+The decoding command is:
+```
+epoch=38
+avg=26
+
+## ctc decoding
+./conformer_ctc2/decode.py \
+  --method ctc-decoding \
+  --exp-dir conformer_ctc2/exp \
+  --lang-dir data/lang_bpe_500 \
+  --result-dir conformer_ctc2/exp \
+  --max-duration 500 \
+  --epoch $epoch \
+  --avg $avg
+
+## 1best
+./conformer_ctc2/decode.py \
+  --method 1best \
+  --exp-dir conformer_ctc2/exp \
+  --lang-dir data/lang_bpe_500 \
+  --result-dir conformer_ctc2/exp \
+  --max-duration 500 \
+  --epoch $epoch \
+  --avg $avg
+
+## whole lattice rescoring
+./conformer_ctc2/decode.py \
+  --method whole-lattice-rescoring \
+  --exp-dir conformer_ctc2/exp \
+  --lm-path data/lm/G_4_gram_big.pt \
+  --lang-dir data/lang_bpe_500 \
+  --result-dir conformer_ctc2/exp \
+  --max-duration 500 \
+  --epoch $epoch \
+  --avg $avg
+
+## attention decoder
+./conformer_ctc2/decode.py \
+  --method attention-decoder \
+  --exp-dir conformer_ctc2/exp \
+  --lang-dir data/lang_bpe_500 \
+  --result-dir conformer_ctc2/exp \
+  --max-duration 500 \
+  --epoch $epoch \
+  --avg $avg
+```
+
 ### TedLium3 BPE training results (Pruned Transducer)
 
 #### 2022-03-21

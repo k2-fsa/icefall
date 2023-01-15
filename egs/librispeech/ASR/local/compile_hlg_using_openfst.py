@@ -24,7 +24,7 @@ This script takes as input lang_dir and generates HLG from
 
         Caution: We use a lexicon that contains disambiguation symbols
 
-    - G, the LM, built from data/lm/G_3_gram.fst.txt
+    - G, the LM, built from data/lm/G_n_gram.fst.txt
 
 The generated HLG is saved in $lang_dir/HLG_fst.pt
 
@@ -47,6 +47,13 @@ from icefall.lexicon import Lexicon
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--lm",
+        type=str,
+        default="G_3_gram",
+        help="""Stem name for LM used in HLG compiling.
+        """,
+    )
+    parser.add_argument(
         "--lang-dir",
         type=str,
         help="""Input and output directory.
@@ -56,11 +63,13 @@ def get_args():
     return parser.parse_args()
 
 
-def compile_HLG(lang_dir: str) -> kaldifst.StdVectorFst:
+def compile_HLG(lang_dir: str, lm: str = "G_3_gram") -> kaldifst.StdVectorFst:
     """
     Args:
       lang_dir:
         The language directory, e.g., data/lang_phone or data/lang_bpe_5000.
+      lm:
+        The language stem base name.
 
     Return:
       An FST representing HLG.
@@ -71,8 +80,8 @@ def compile_HLG(lang_dir: str) -> kaldifst.StdVectorFst:
     kaldifst.arcsort(L, sort_type="olabel")
     logging.info(f"L: #states {L.num_states}")
 
-    G_filename_txt = "data/lm/G_3_gram.fst.txt"
-    G_filename_binary = "data/lm/G_3_gram.fst"
+    G_filename_txt = f"data/lm/{lm}.fst.txt"
+    G_filename_binary = f"data/lm/{lm}.fst"
     if Path(G_filename_binary).is_file():
         logging.info(f"Loading {G_filename_binary}")
         G = kaldifst.StdVectorFst.read(G_filename_binary)
@@ -171,7 +180,7 @@ def main():
         logging.info(f"{filename} already exists - skipping")
         return
 
-    HLG = compile_HLG(lang_dir)
+    HLG = compile_HLG(lang_dir, args.lm)
     logging.info(f"Saving HLG to {filename}")
     torch.save(HLG.as_dict(), filename)
 
