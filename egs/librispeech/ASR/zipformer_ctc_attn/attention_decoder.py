@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2022  Xiaomi Corp.        (authors: Zengwei Yao)
+# Copyright    2022  Xiaomi Corp.        (authors: Daniel Povey, Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -47,8 +47,7 @@ class AttentionDecoderModel(nn.Module):
     """
     Args:
         vocab_size (int): Number of classes.
-        encoder_dim (int):
-        d_model: (int,int): embedding dimension of 2 encoder stacks
+        decoder_dim: (int,int): embedding dimension of 2 encoder stacks
         attention_dim: (int,int): attention dimension of 2 encoder stacks
         nhead (int, int): number of heads
         dim_feedforward (int, int): feedforward dimension in 2 encoder stacks
@@ -62,15 +61,15 @@ class AttentionDecoderModel(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        d_model: int,
+        decoder_dim: int,
         unmasked_dim: int,
         num_decoder_layers: int,
         attention_dim: int,
         nhead: int,
         feedforward_dim: int,
-        dropout: float,
         sos_id: int,
         eos_id: int,
+        dropout: float = 0.1,
         ignore_id: int = -1,
         warmup_batches: float = 4000.0,
         label_smoothing: float = 0.1,
@@ -84,7 +83,7 @@ class AttentionDecoderModel(nn.Module):
         # layer learn something.  Then we start to warm up the other encoders.
         self.decoder = TransformerDecoder(
             vocab_size,
-            d_model,
+            decoder_dim,
             unmasked_dim,
             num_decoder_layers,
             attention_dim,
@@ -103,7 +102,6 @@ class AttentionDecoderModel(nn.Module):
     def _pre_ys_in_out(self, token_ids: List[List[int]], device: torch.device):
         """Prepare ys_in_pad and ys_out_pad."""
         ys = k2.RaggedTensor(token_ids).to(device=device)
-
         row_splits = ys.shape.row_splits(1)
         ys_lens = row_splits[1:] - row_splits[:-1]
 
@@ -168,10 +166,9 @@ class AttentionDecoderModel(nn.Module):
             decoder_out.view(-1, num_classes),
             ys_out_pad.view(-1),
             ignore_index=self.ignore_id,
-            reduction="None",
+            reduction="none",
         )
-        nll = nll.view(batch_size, -1)
-        nll = nll.sum(1)
+        nll = nll.view(batch_size, -1).sum(1)
         return nll
 
 
@@ -181,7 +178,7 @@ class TransformerDecoder(nn.Module):
 
     Args:
         vocab_size: output dim
-        d_model: equal to encoder_dim
+        d_model: decoder dimension
         num_decoder_layers: number of decoder layers
         attention_dim: total dimension of multi head attention
         n_head: number of attention heads
@@ -715,7 +712,7 @@ def subsequent_mask(size, device="cpu", dtype=torch.bool):
 def _test_attention_decoder_model():
     m = AttentionDecoderModel(
         vocab_size=500,
-        d_model=384,
+        decoder_dim=384,
         unmasked_dim=256,
         num_decoder_layers=6,
         attention_dim=192,
@@ -732,6 +729,9 @@ def _test_attention_decoder_model():
     token_ids = [[1, 2, 3, 4], [2, 3, 10]]
     loss = m.calc_att_loss(encoder_out, encoder_out_lens, token_ids)
     print(loss)
+
+    nll = m.nll(encoder_out, encoder_out_lens, token_ids)
+    print(nll)
 
 
 if __name__ == "__main__":
