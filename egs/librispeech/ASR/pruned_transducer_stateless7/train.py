@@ -382,10 +382,10 @@ def get_parser():
         For the uneven-sized batch, the total duration after padding would possibly
         cause OOM. Hence, for each batch, which is sorted descendingly by length,
         we simply drop the last few shortest samples, so that the retained total frames
-        (after padding) would not exceed `allow_max_frames`:
-        `allow_max_frames = int(max_frames * (1.0 + allow_excess_duration_ratio))`,
+        (after padding) would not exceed `allowed_max_frames`:
+        `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
         where `max_frames = max_duration * 1000 // frame_shift_ms`.
-        We set allow_excess_duration_ratio=0.1.
+        We set allowed_excess_duration_ratio=0.1.
         """,
     )
 
@@ -443,7 +443,7 @@ def get_params() -> AttributeDict:
         {
             "frame_shift_ms": 10.0,
             # only used when params.filter_uneven_sized_batch is True
-            "allow_excess_duration_ratio": 0.1,
+            "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -668,8 +668,10 @@ def compute_loss(
     """
     if params.filter_uneven_sized_batch:
         max_frames = params.max_duration * 1000 // params.frame_shift_ms
-        allow_max_frames = int(max_frames * (1.0 + params.allow_excess_duration_ratio))
-        batch = filter_uneven_sized_batch(batch, allow_max_frames)
+        allowed_max_frames = int(
+            max_frames * (1.0 + params.allowed_excess_duration_ratio)
+        )
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]

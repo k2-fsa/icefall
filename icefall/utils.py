@@ -1397,7 +1397,7 @@ def is_module_available(*modules: str) -> bool:
     return all(importlib.util.find_spec(m) is not None for m in modules)
 
 
-def filter_uneven_sized_batch(batch: dict, allow_max_frames: int):
+def filter_uneven_sized_batch(batch: dict, allowed_max_frames: int):
     """For the uneven-sized batch, the total duration after padding would possibly
     cause OOM. Hence, for each batch, which is sorted descendingly by length,
     we simply drop the last few shortest samples, so that the retained total frames
@@ -1407,7 +1407,7 @@ def filter_uneven_sized_batch(batch: dict, allow_max_frames: int):
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
-      allow_max_frames:
+      allowed_max_frames:
         The allowed max number of frames in batch.
     """
     features = batch["inputs"]
@@ -1415,7 +1415,7 @@ def filter_uneven_sized_batch(batch: dict, allow_max_frames: int):
 
     N, T, _ = features.size()
     assert T == supervisions["num_frames"].max(), (T, supervisions["num_frames"].max())
-    keep_num_utt = allow_max_frames // T
+    keep_num_utt = allowed_max_frames // T
 
     if keep_num_utt >= N:
         return batch
