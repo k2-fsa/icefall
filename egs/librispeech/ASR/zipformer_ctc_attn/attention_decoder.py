@@ -152,7 +152,7 @@ class AttentionDecoderModel(nn.Module):
           encoder_out_lens: (batch,)
           token_ids: A list of token id list.
 
-        Return: A tensor of shape (batch,).
+        Return: A tensor of shape (batch, num_tokens).
         """
         ys_in_pad, ys_in_lens, ys_out_pad = self._pre_ys_in_out(
             token_ids, encoder_out.device
@@ -168,7 +168,7 @@ class AttentionDecoderModel(nn.Module):
             ignore_index=self.ignore_id,
             reduction="none",
         )
-        nll = nll.view(batch_size, -1).sum(1)
+        nll = nll.view(batch_size, -1)
         return nll
 
 
