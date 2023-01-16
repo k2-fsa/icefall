@@ -82,7 +82,13 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    filter_uneven_sized_batch,
+    setup_logger,
+    str2bool,
+)
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -368,6 +374,21 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--filter-uneven-sized-batch",
+        type=str2bool,
+        default=False,
+        help="""Whether to filter uneven-sized minibatch.
+        For the uneven-sized batch, the total duration after padding would possibly
+        cause OOM. Hence, for each batch, which is sorted descendingly by length,
+        we simply drop the last few shortest samples, so that the retained total frames
+        (after padding) would not exceed `allow_max_frames`:
+        `allow_max_frames = int(max_frames * (1.0 + allow_excess_duration_ratio))`,
+        where `max_frames = max_duration * 1000 // frame_shift_ms`.
+        We set allow_excess_duration_ratio=0.1.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -420,6 +441,9 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
+            "frame_shift_ms": 10.0,
+            # only used when params.filter_uneven_sized_batch is True
+            "allow_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -642,6 +666,11 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
+    if params.filter_uneven_sized_batch:
+        max_frames = params.max_duration * 1000 // params.frame_shift_ms
+        allow_max_frames = int(max_frames * (1.0 + params.allow_excess_duration_ratio))
+        batch = filter_uneven_sized_batch(batch, allow_max_frames)
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
