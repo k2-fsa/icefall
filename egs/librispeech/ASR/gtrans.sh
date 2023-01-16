@@ -10,10 +10,10 @@ do
 				--num-epochs 30 \
 				--start-epoch 1 \
 				--full-libri 1 \
-				--exp-dir pruned_transducer_stateless_gtrans/layer24_group$group_num	\
-				--max-duration 450 \
+				--exp-dir pruned_transducer_stateless_gtrans/layer36_group$group_num	\
+				--max-duration 300 \
 				--use-fp16 1 \
-				--num-encoder-layers 24 \
+				--num-encoder-layers 36 \
 				--group-num $group_num \
 				--dim-feedforward 2048 \
 				--nhead 8 \
