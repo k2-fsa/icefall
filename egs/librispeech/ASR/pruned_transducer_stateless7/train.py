@@ -377,7 +377,7 @@ def get_parser():
     parser.add_argument(
         "--filter-uneven-sized-batch",
         type=str2bool,
-        default=False,
+        default=True,
         help="""Whether to filter uneven-sized minibatch.
         For the uneven-sized batch, the total duration after padding would possibly
         cause OOM. Hence, for each batch, which is sorted descendingly by length,
