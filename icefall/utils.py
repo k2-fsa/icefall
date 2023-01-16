@@ -1414,7 +1414,7 @@ def filter_uneven_sized_batch(batch: dict, allow_max_frames: int):
     supervisions = batch["supervisions"]
 
     N, T, _ = features.size()
-    assert T == supervisions["num_frames"].max()
+    assert T == supervisions["num_frames"].max(), (T, supervisions["num_frames"].max())
     keep_num_utt = allow_max_frames // T
 
     if keep_num_utt >= N:
