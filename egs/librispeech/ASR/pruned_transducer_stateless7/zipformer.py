@@ -497,7 +497,7 @@ class ZipformerEncoderLayer(nn.Module):
                                              cnn_module_kernel)
 
 
-        self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
+        #self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
         self.norm = BasicNorm(embed_dim)
 
@@ -642,10 +642,10 @@ class ZipformerEncoderLayer(nn.Module):
 
         src = src + self.feed_forward1(src)
 
-        # pooling module
-        if torch.jit.is_scripting() or use_self_attn:
-            src = src + self.balancer_as(
-                self.attention_squeeze(src, selected_attn_weights[1:2]))
+        ## pooling module
+        #if torch.jit.is_scripting() or use_self_attn:
+        #    src = src + self.balancer_as(
+        #        self.attention_squeeze(src, selected_attn_weights[1:2]))
 
         if torch.jit.is_scripting() or use_self_attn:
             src = src + self.self_attn(
