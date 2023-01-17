@@ -185,7 +185,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--spec-aug-time-warp-factor",
             type=int,
-            default=80,
+            default=0,
             help="Used only when --enable-spec-aug is True. "
             "It specifies the factor for time warping in SpecAugment. "
             "Larger values mean more warping. "
@@ -260,12 +260,7 @@ class LibriSpeechAsrDataModule:
             logging.info(f"Num frame mask: {num_frame_masks}")
             input_transforms.append(
                 SpecAugment(
-                    # time_warp_factor=self.args.spec_aug_time_warp_factor,
-                    # num_frame_masks=num_frame_masks,
-                    # features_mask_size=27,
-                    # num_feature_masks=2,
-                    # frames_mask_size=100,
-                    time_warp_factor=0,
+                    time_warp_factor=self.args.spec_aug_time_warp_factor,
                     num_feature_masks=2,
                     features_mask_size=5,
                     num_frame_masks=10,
