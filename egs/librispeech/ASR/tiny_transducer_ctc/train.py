@@ -135,7 +135,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
 
     parser.add_argument(
         "--skip-add",
-        type=bool,
+        type=str2bool,
         default=False,
         help="""Use skip connection in the encoder.
         """,
