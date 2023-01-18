@@ -1,8 +1,8 @@
-# Introduction
+## Introduction
 
-This recipe is intended for streaming ASR on very low cost devices, with model parameters in the range of 1-2M. It uses a small convolutional net as the encoder. It is trained with combined transducer and CTC losses, and supports both phone and BPE lexicons. For transducer model with phone lexicon, the encoder output can be decoded by a method with LG, but the results were bad. 
+This recipe is intended for streaming ASR on very low cost devices, with model parameters in the range of 1-2M. It uses a small convolutional net as the encoder. It is trained with combined transducer and CTC losses, and supports both phone and BPE lexicons. For phone lexicon, you can do transducer decoding using a method with LG, but the results were bad. 
 
-The encoder consists of 2 subsampling layers followed by a stack of Conv1d-batchnorm-activation-causal_squeeze_excite blocks, with optional skip add. To reduce latency (at the cost of slightly higher WER), half of the blocks use causal convolution.
+The encoder consists of 2 subsampling layers followed by a stack of Conv1d-batchnorm-activation-causal_squeeze_excite blocks, with optional skip connections. To reduce latency (at the cost of slightly higher WER), half of the blocks use causal convolution.
 
 A few remarks & observations:
 
@@ -12,20 +12,20 @@ A few remarks & observations:
 
 3. Squeeze-and-excitation worked like a charm! It reduces WER quite a bit with marginal increase of parameters and MAC ops. To make it causal I changed the global average pooling layer to a moving average filter, so only historical context is used.
 
-# Pretrained models
+## Pretrained models
 
 You can find pretrained models, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/wangtiance/tiny_transducer_ctc/tree/main>
 
-# Results on full libri
+## Results on full libri
 
 I tried 3 different sizes of the encoder. The parameters are around 1M, 2M and 4M, respectively. For CTC decoding, whole-lattice-rescoring frequently causes OOM error so the result is not shown.
 
-## Small encoder
+### Small encoder
 
-The small encoder uses 10 layers of 1D convolution block with 256 channels, without skip connections. The encoder, decoder and joiner dim is 256. Algorithmic latency is 280ms. Multiply-add ops for the encoder is 22.0Mops. It is probably more applicable for ASR products with a limited vocabulary (like a fixed set of phrases or short sentences). 
+The small encoder uses 10 layers of 1D convolution block with 256 channels, without skip connections. The encoder, decoder and joiner dim is 256. Algorithmic latency is 280ms. Multiply-add ops for the encoder is 22.0Mops. It is more applicable for ASR products with limited vocabulary (like a fixed set of phrases or short sentences). 
 
-### CTC decoding with phone lexicon
+#### CTC decoding with phone lexicon
 Total parameters: 1073392
 
 Parameters for CTC decoding: 865816
@@ -54,7 +54,7 @@ The training commands are:
   --skip-add 0 \
 ```
 
-### Transducer decoding with BPE 500 lexicon
+#### Transducer decoding with BPE 500 lexicon
 Total parameters: 1623264
 
 Parameters for transducer decoding: 1237764
@@ -84,11 +84,11 @@ The training commands are:
   --skip-add 0 \
 ```
 
-## Middle encoder
+### Middle encoder
 
 The middle encoder uses 18 layers of 1D convolution block with 300 channels, with skip connections. The encoder, decoder and joiner dim is 256. Algorithmic latency is 440ms. Multiply-add ops for the encoder is 50.1Mops. Note that the nbest-rescoring result is better than the tdnn_lstm_ctc recipe with whole-lattice-rescoring.
 
-### CTC decoding with phone lexicon
+#### CTC decoding with phone lexicon
 Total parameters: 2186242
 
 Parameters for CTC decoding: 1978666
@@ -117,7 +117,7 @@ The training commands are:
   --skip-add 1 \
 ```
 
-### Transducer decoding with BPE 500 lexicon
+#### Transducer decoding with BPE 500 lexicon
 Total parameters: 2735794
 
 Parameters for transducer decoding: 2350294
@@ -147,12 +147,12 @@ The training commands are:
   --skip-add 1 \
 ```
 
-## Large encoder
+### Large encoder
 
 The large encoder uses 18 layers of 1D convolution block with 400 channels, with skip connections. The encoder, decoder and joiner dim is 400. Algorithmic latency is 440ms. Multiply-add ops for the encoder is 88.8Mops. It is interesting to see how much the gap is if we simply scale down more complicated models like Zipformer or emformer.
 
 
-### Transducer decoding with BPE 500 lexicon
+#### Transducer decoding with BPE 500 lexicon
 Total parameters: 4821330
 
 Parameters for transducer decoding: 4219830
