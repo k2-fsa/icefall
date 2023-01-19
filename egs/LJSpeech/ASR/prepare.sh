@@ -109,7 +109,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
       log "Resampling $dset done"
     done
     python local/prepare_LJSpeech_text.py $dl_dir/LJSpeech/metadata.csv
-    sudo touch $dl_dir/LJSpeech/.LJSpeech.done
+    touch $dl_dir/LJSpeech/.LJSpeech.done
   fi
 
   mkdir -p data/manifests
