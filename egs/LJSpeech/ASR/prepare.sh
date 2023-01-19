@@ -37,7 +37,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=/DB
+dl_dir=/DB/LibriSpeech_tar
 
 . shared/parse_options.sh || exit 1
 
