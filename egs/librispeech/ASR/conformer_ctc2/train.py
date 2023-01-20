@@ -684,6 +684,7 @@ def train_one_epoch(
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+        print(batch["supervisions"])
         batch_name = batch["supervisions"]["uttid"]
 
         with torch.cuda.amp.autocast(enabled=params.use_fp16):
