@@ -892,6 +892,7 @@ def run(rank, world_size, args):
         subsampling_factor=params.subsampling_factor,
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
+        group_num=params.group_num,
     )
 
     print(model)
