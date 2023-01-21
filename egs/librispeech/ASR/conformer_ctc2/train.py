@@ -96,6 +96,12 @@ def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument(
+        "--group-num",
+        type=int,
+        default=0,
+        help="Number of groups",
+    )
 
     parser.add_argument(
         "--world-size",
