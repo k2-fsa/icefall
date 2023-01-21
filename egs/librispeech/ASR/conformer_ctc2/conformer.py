@@ -137,7 +137,7 @@ class Conformer(Transformer):
 
         # Caution: We assume the subsampling factor is 4!
 
-        x = self.encoder(
+        x, layer_outputs = self.encoder(
             x, pos_emb, src_key_padding_mask=mask, warmup=warmup
         )  # (T, N, C)
 
