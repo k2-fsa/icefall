@@ -341,7 +341,7 @@ class ConformerEncoder(nn.Module):
 
             layer_outputs.append(output)
 
-        return output
+        return output, layer_outputs
 
 
 class RelPositionalEncoding(torch.nn.Module):
