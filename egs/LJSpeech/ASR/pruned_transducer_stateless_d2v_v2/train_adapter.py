@@ -165,7 +165,7 @@ def add_rep_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--wandb",
         type=str2bool,
-        default=True,
+        default=False,
         help="Use wandb for MLOps",
     )
     parser.add_argument(
