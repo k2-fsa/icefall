@@ -70,7 +70,7 @@ def get_parser():
     parser.add_argument(
         "--group-num",
         type=int,
-        default=77,
+        default=0,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
