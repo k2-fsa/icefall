@@ -71,9 +71,6 @@ def get_parser():
         "--group-num",
         type=int,
         default=0,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 1.
-        You can specify --avg to use more checkpoints for model averaging.""",
     )
 
     parser.add_argument(
@@ -851,6 +848,7 @@ def main():
         subsampling_factor=params.subsampling_factor,
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
+        group_num=params.group_num,
     )
 
     if not params.use_averaged_model:
