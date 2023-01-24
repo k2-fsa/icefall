@@ -1592,12 +1592,15 @@ def run_adapter(rank, world_size, args, wb=None):
     train_dl = ljspeech.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-
-
+    '''
     valid_cuts = librispeech.dev_clean_cuts(option=params.gender)
     valid_cuts += librispeech.dev_other_cuts(option=params.gender)
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
-    
+    '''
+    valid_cuts = ljspeech.dev_clean_cuts(option=params.gender)
+    valid_cuts += ljspeech.dev_other_cuts(option=params.gender)
+    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
