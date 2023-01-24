@@ -1583,10 +1583,16 @@ def run_adapter(rank, world_size, args, wb=None):
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     sampler_state_dict = None
-
+    
+    '''
     train_dl = librispeech.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
+    '''
+    train_dl = ljspeech.train_dataloaders(
+        train_cuts, sampler_state_dict=sampler_state_dict
+    )
+
 
     valid_cuts = librispeech.dev_clean_cuts(option=params.gender)
     valid_cuts += librispeech.dev_other_cuts(option=params.gender)
