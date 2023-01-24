@@ -9,7 +9,7 @@ do
 	--model-name epoch-10.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter_test \
     --max-duration 600 \
-    --decoding-method greedy_search \
+    --decoding-method $method \
     --max-sym-per-frame 1 \
 	--encoder-type d2v \
     --encoder-dim 768 \
