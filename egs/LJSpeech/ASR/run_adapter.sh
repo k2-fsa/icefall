@@ -53,7 +53,7 @@ else
 		--adapter-lr 0.02472 \
 		--manifest-dir data/fbank_20
 		--gender male \
-		--wandb True \
+		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
