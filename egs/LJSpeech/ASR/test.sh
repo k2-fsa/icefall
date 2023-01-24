@@ -8,7 +8,7 @@ do
 	--additional-block True \
 	--model-name epoch-6.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/full_ft \
-    --max-duration 200 \
+    --max-duration 100 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
 	--encoder-type d2v \
