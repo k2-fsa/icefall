@@ -51,14 +51,14 @@ else
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
 		--adapter-lr 0.02472 \
-		--manifest-dir data/fbank_20 \
+		--manifest-dir data/fbank_40 \
 		--gender male \
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--multi-optim False \
 		--world-size 4 \
-		--num-epochs 40 \
+		--num-epochs 20 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
