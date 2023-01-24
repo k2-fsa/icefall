@@ -6,8 +6,8 @@ do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name epoch-$i.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/male_hpo6 \
+	--model-name epoch-10.pt \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter_test \
     --max-duration 600 \
     --decoding-method greedy_search \
     --max-sym-per-frame 1 \
