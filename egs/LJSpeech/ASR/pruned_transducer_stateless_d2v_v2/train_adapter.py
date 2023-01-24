@@ -1564,7 +1564,8 @@ def run_adapter(rank, world_size, args, wb=None):
 
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
     
-    librispeech = LibriSpeechAsrDataModule(args)
+    #librispeech = LibriSpeechAsrDataModule(args)
+    ljspeech = LJSpeechAsrDataModule(args)
     
     if params.hpo:
         train_cuts = librispeech.train_clean_10_cuts(option=params.gender)
@@ -1575,7 +1576,7 @@ def run_adapter(rank, world_size, args, wb=None):
             train_cuts += librispeech.train_clean_360_cuts(option=params.gender)
             train_cuts += librispeech.train_other_500_cuts(option=params.gender)
         '''
-        train_cuts = 
+        train_cuts = LJSpeechAsrDataModule 
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
