@@ -1,6 +1,6 @@
 git pull
 
-for method in greedy_search modified_beam_search fast_beam_search; do
+for method in greedy_search modified_beam_search fast_beam_search
 do
   ./pruned_transducer_stateless_d2v_v2/decode.py \
 	--input-strategy AudioSamples \
