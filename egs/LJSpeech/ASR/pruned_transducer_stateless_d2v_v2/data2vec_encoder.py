@@ -22,7 +22,7 @@ from torch import Tensor, nn
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
 try:
     import fairseq
-    from data2vec_audio import *
+    from data2vec_audio_adapter import *
 except Exception as e:
     print("Error: FairSeq is not properly installed.")
     print(
