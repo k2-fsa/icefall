@@ -7,8 +7,8 @@ do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name epoch-40.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter_20 \
+	--model-name epoch-20.pt \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/adapter_40 \
     --max-duration 600 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
