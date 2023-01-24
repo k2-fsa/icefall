@@ -14,4 +14,3 @@ def pad_to_multiple(x, multiple, dim=-1, value=0):
     pad_offset = (0,) * (-1 - dim) * 2 
 
     return F.pad(x, (*pad_offset, 0, remainder), value=value), remainder
-~                                                                        
