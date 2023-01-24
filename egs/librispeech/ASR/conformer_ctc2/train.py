@@ -347,7 +347,6 @@ def get_params() -> AttributeDict:
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
-            "group_num": 4,
         }
     )
 
