@@ -1569,10 +1569,13 @@ def run_adapter(rank, world_size, args, wb=None):
     if params.hpo:
         train_cuts = librispeech.train_clean_10_cuts(option=params.gender)
     else:
+        '''
         train_cuts = librispeech.train_clean_100_cuts(option=params.gender)
         if params.full_libri:
             train_cuts += librispeech.train_clean_360_cuts(option=params.gender)
             train_cuts += librispeech.train_other_500_cuts(option=params.gender)
+        '''
+        train_cuts = 
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
