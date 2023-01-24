@@ -15,6 +15,6 @@ do
     --encoder-dim 768 \
     --decoder-dim 768 \
     --joiner-dim 768 \
-	--avg 3 \
+	--avg 1 \
 	--use-averaged-model True
 done
