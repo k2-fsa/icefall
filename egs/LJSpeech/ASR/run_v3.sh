@@ -34,7 +34,7 @@ else
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
-		--multi-optim False \
+		--multi-optim True \
 		--world-size 4 \
 		--num-epochs 30 \
 		--full-libri 1 \
