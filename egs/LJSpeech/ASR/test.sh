@@ -6,7 +6,7 @@ do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name epoch-20.pt \
+	--model-name epoch-15.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/full_ft_origin_param \
     --max-duration 600 \
     --decoding-method $method \
