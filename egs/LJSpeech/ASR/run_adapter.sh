@@ -51,6 +51,7 @@ else
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 		--add-adapter True \
 		--adapter-lr 0.02472 \
+		--manifest-dir data/fbank_20
 		--gender male \
 		--wandb True \
 		--input-strategy AudioSamples \
