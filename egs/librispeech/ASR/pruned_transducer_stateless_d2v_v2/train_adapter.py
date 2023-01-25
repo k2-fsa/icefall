@@ -1566,6 +1566,7 @@ def run_adapter(rank, world_size, args, wb=None):
     
     librispeech = LibriSpeechAsrDataModule(args)
     
+    '''
     if params.hpo:
         train_cuts = librispeech.train_clean_10_cuts(option=params.gender)
     else:
@@ -1573,6 +1574,8 @@ def run_adapter(rank, world_size, args, wb=None):
         if params.full_libri:
             train_cuts += librispeech.train_clean_360_cuts(option=params.gender)
             train_cuts += librispeech.train_other_500_cuts(option=params.gender)
+    '''
+    train_cuts = librispeech.librispeech.test_clean_user(option='low')
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
