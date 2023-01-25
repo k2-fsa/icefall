@@ -794,6 +794,8 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
         )
+        print(results_dict)
+        exit()
 
         save_results(
             params=params,
