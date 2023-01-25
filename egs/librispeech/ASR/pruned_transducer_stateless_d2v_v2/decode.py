@@ -795,8 +795,6 @@ def main():
             decoding_graph=decoding_graph,
         )
         results = results_dict['greedy_search']
-        #for res in results:
-        #    print(res[0], ' '.join(res[1]))
         jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
 
         res_dict = {}
