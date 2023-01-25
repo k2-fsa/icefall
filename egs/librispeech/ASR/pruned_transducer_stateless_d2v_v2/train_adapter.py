@@ -1464,17 +1464,18 @@ def run(rank, world_size, args, wb=None):
         if params.print_diagnostics:
             diagnostic.print_diagnostics()
             break
-
-        save_checkpoint(
-            params=params,
-            model=model,
-            model_avg=model_avg,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            sampler=train_dl.sampler,
-            scaler=scaler,
-            rank=rank,
-        )
+        
+        if epoch % 10 == 0:
+            save_checkpoint(
+                params=params,
+                model=model,
+                model_avg=model_avg,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                sampler=train_dl.sampler,
+                scaler=scaler,
+                rank=rank,
+            )
 
     logging.info("Done!")
 
