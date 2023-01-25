@@ -776,13 +776,13 @@ def main():
     #test_other_cuts = librispeech.test_other_cuts(option='male')
     
     option = 'low'
-    test_clean_cuts = librispeech.test_clean_user(option='big')
-    test_other_cuts = librispeech.test_other_user(option='big')
+    test_clean_cuts = librispeech.test_clean_user(option='low')
+    test_other_cuts = librispeech.test_other_user(option='low')
 
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_sets = ["test-clean-low", "test-other-low"]
+    test_sets = [f"test-clean-{option}", f"test-other-{option}"]
     test_dl = [test_clean_dl, test_other_dl]
     
     for test_set, test_dl in zip(test_sets, test_dl):
