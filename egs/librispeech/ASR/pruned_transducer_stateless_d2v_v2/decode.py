@@ -797,8 +797,8 @@ def main():
         results = results_dict['greedy_search']
         for res in results:
             #print(res[0], ' '.join(res[1]))
-            print(' '.join(res[1]))
-            print(' '.join(res[2]))
+            print(res[0], ' '.join(res[1]))
+            #print(' '.join(res[2]))
             #print('')
         exit()
 
