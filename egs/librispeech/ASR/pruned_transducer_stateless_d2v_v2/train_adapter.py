@@ -1026,7 +1026,6 @@ def train_one_epoch(
     
         if batch_idx % params.accum_grads == 0: params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        print(batch_size)
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
