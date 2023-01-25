@@ -49,6 +49,7 @@ if [ $workstation = "whale" ]; then
 else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
+		--num-buckets 1 \
 		--add-adapter True \
 		--adapter-lr 0.02472 \
 		--gender male \
