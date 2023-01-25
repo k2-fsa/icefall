@@ -808,7 +808,8 @@ def main():
             text_idx = splited.index('"text":')
 
             pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
-            splited.insert(text_idx, pseudo)
+            #splited.insert(text_idx, pseudo)
+            splited.insert(len(text_idx)-1, pseudo)
             new_line = ' '.join(splited)
             new_line += '\n'
 
