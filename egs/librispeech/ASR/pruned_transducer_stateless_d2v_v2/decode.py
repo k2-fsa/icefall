@@ -796,6 +796,20 @@ def main():
         )
         results = results_dict['greedy_search']
         for res in results:
+            print(res[0], ' '.join(res[1]))
+
+    '''
+    for test_set, test_dl in zip(test_sets, test_dl):
+        results_dict = decode_dataset(
+            dl=test_dl,
+            params=params,
+            model=model,
+            sp=sp,
+            word_table=word_table,
+            decoding_graph=decoding_graph,
+        )
+        results = results_dict['greedy_search']
+        for res in results:
             #print(res[0], ' '.join(res[1]))
             print(res[0], ' '.join(res[1]))
             #print(' '.join(res[2]))
@@ -807,7 +821,7 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-
+    '''
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
     test_other_cuts, test_other_sets = librispeech.test_other_cuts(option='user')
