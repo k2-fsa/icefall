@@ -799,6 +799,7 @@ def main():
             #print(res[0], ' '.join(res[1]))
             print(' '.join(res[1]))
             print(' '.join(res[2]))
+            print('')
         exit()
 
         save_results(
