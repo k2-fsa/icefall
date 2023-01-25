@@ -804,7 +804,7 @@ def main():
         for line in jsons:
             splited = line.split()
             utt_id = splited[1][1:-2]
-            text_idx = line.index('"text":')
+            text_idx = splited.index('"text":')
 
             pseudo = f'"pseudo text": "{res_dict[utt_id]}",'
             splited.insert(text_idx-1, pseudo)
