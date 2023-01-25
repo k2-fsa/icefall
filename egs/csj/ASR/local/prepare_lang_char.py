@@ -55,14 +55,10 @@ def get_args():
         "--lang-dir",
         type=Path,
         default=None,
-        help=("Name of lang dir. " "If not set, this will default to lang_char"),
-    )
-
-    parser.add_argument(
-        "--userdef-string",
-        type=Path,
-        default=None,
-        help="Multicharacter strings that do not need to be split",
+        help=(
+            "Name of lang dir. "
+            "If not set, this will default to lang_char_{trans-mode}"
+        ),
     )
 
     return parser.parse_args()
@@ -76,16 +72,12 @@ def main():
     )
 
     if not args.lang_dir:
-        p = "lang_char"
+        p = "data/lang_char"
+        if args.trans_mode:
+            p += f"_{args.trans_mode}"
         args.lang_dir = Path(p)
 
-    if args.userdef_string:
-        args.userdef_string = set(args.userdef_string.read_text().split())
-    else:
-        args.userdef_string = set()
-
     sysdef_string = set(["<blk>", "<unk>", "<sos/eos>"])
-    args.userdef_string.update(sysdef_string)
 
     # Using disfluent parsing as fluent is a subset of disfluent
     parser = CSJSDBParser()
@@ -99,19 +91,17 @@ def main():
 
         text: str = cut.supervisions[0].custom["raw"]
         for w in parser.parse(text, sep=" ").split(" "):
-            if w in args.userdef_string:
-                token_set.add(w)
-            else:
-                token_set.update(w)
+            token_set.update(w)
 
     token_set = ["<blk>"] + sorted(token_set - sysdef_string) + ["<unk>", "<sos/eos>"]
     args.lang_dir.mkdir(parents=True, exist_ok=True)
     (args.lang_dir / "tokens.txt").write_text(
         "\n".join(f"{t}\t{i}" for i, t in enumerate(token_set))
     )
-    (args.lang_dir / "tokens_len").write_text(f"{len(token_set)}")
 
-    (args.lang_dir / "userdef_string").write_text("\n".join(args.userdef_string))
+    (args.lang_dir / "trans_mode").write_text(args.trans_mode)
+
+    (args.lang_dir / "lang_type").write_text("char")
     logging.info("Done.")
 
 
