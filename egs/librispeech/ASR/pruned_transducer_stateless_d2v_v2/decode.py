@@ -807,8 +807,8 @@ def main():
             text_idx = line.index('"text":')
 
             pseudo = f'"psudo text": "{res_dict[utt_id]}",'
-            line.insert(text_idx+1, pseudo)
-            print(line)
+            splited.insert(text_idx+1, pseudo)
+            print(splited)
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
