@@ -526,7 +526,7 @@ class LibriSpeechAsrDataModule:
     
     @lru_cache()
     def test_other_user(self, option=None) -> CutSet:
-        logging.info("About to get test-clean user cuts")
+        logging.info("About to get test-other user cuts")
         return load_manifest_lazy(
                 self.args.manifest_dir / f"/userlibri/test-clean_sampling/{option}.jsonl"
         )
