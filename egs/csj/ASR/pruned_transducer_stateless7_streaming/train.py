@@ -27,7 +27,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
@@ -38,7 +37,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --full-libri 1 \
   --max-duration 550
 """
 
@@ -64,6 +62,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
+from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -82,14 +81,14 @@ from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
 try:
     from TelegramStreamIO import TelegramStreamIO
 
     HAS_TELEGRAM = True
 except ImportError:
     HAS_TELEGRAM = False
-from tokenizer import Tokenizer
-LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -206,10 +205,8 @@ def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    
-    parser.add_argument(
-        "--debug", action="store_true", help="Use hardcoded arguments"
-    )
+
+    parser.add_argument("--debug", action="store_true", help="Use hardcoded arguments")
 
     parser.add_argument(
         "--telegram-cred",
@@ -916,7 +913,7 @@ def train_one_epoch(
             cur_lr = scheduler.get_last_lr()[0]
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
-            if batch_idx in [0, 500] and not rank:
+            if HAS_TELEGRAM and batch_idx in [0, 500] and not rank:
                 logging.warning(
                     f"Epoch {params.cur_epoch}, "
                     f"batch {batch_idx}, loss[{loss_info}], "
@@ -924,14 +921,14 @@ def train_one_epoch(
                     f"lr: {cur_lr:.2e}, "
                     + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
                 )
-
-            logging.info(
-                f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-            )
+            else:
+                logging.info(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}, "
+                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                )
 
             if tb_writer is not None:
                 tb_writer.add_scalar(
@@ -959,8 +956,12 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            if batch_idx % (params.valid_interval * 3) == 0 and not rank:
-                log_mode = logging.warn
+            if (
+                HAS_TELEGRAM
+                and batch_idx % (params.valid_interval * 3) == 0
+                and not rank
+            ):
+                log_mode = logging.warning
             else:
                 log_mode = logging.info
             log_mode(f"Epoch {params.cur_epoch}, validation: {valid_info}")
@@ -1001,12 +1002,8 @@ def run(rank, world_size, args):
         setup_dist(rank, world_size, master_port=params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
-    if args.telegram_cred and HAS_TELEGRAM:
-        formatter = logging.Formatter(f"{params.exp_dir.name} %(asctime)s \n%(message)s")
-        tg = TelegramStreamIO(args.telegram_cred)
-        tg.setLevel(logging.WARN)
-        tg.setFormatter(formatter)
-        logging.getLogger("").addHandler(tg)
+    if HAS_TELEGRAM:
+        TelegramStreamIO.setup_logger(params)
     logging.info("Training started")
 
     if args.tensorboard and rank == 0:
@@ -1019,8 +1016,7 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(args.word_table)
-    # sp.load(params.bpe_model)
+    sp = Tokenizer.load(args.lang_dir, args.lang_type)
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
@@ -1140,14 +1136,14 @@ def run(rank, world_size, args):
     valid_cuts = csj_corpus.valid_cuts()
     valid_dl = csj_corpus.valid_dataloaders(valid_cuts)
 
-    # if params.start_batch <= 0 and not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    if params.start_batch <= 0 and not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1218,6 +1214,7 @@ def display_and_save_batch(
         The BPE model.
     """
     from lhotse.utils import uuid4
+
     filename = f"{params.exp_dir}/batch-{uuid4()}.pt"
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
@@ -1279,7 +1276,6 @@ def main():
     CSJAsrDataModule.add_arguments(parser)
     Tokenizer.add_arguments(parser)
     args = parser.parse_args()
-    # args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
     assert world_size >= 1

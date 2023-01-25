@@ -30,7 +30,7 @@ import argparse
 import logging
 import math
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TextIO
+from typing import Dict, List, Optional, Tuple
 
 import k2
 import numpy as np
@@ -38,6 +38,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import CSJAsrDataModule
 from decode_stream import DecodeStream
+from error_reporting import write_error_stats
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
 from streaming_beam_search import (
@@ -45,197 +46,21 @@ from streaming_beam_search import (
     greedy_search,
     modified_beam_search,
 )
-from collections import defaultdict
+from tokenizer import Tokenizer
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 from zipformer import stack_states, unstack_states
-import kaldialign
+
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    str2bool,
-)
-from tokenizer import Tokenizer
+from icefall.utils import AttributeDict, setup_logger, store_transcripts, str2bool
 
 LOG_EPS = math.log(1e-10)
 
-def write_error_stats(
-    f: TextIO,
-    test_set_name: str,
-    results: List[Tuple[str, str]],
-    enable_log: bool = True,
-    # return_stats = False,
-) -> float:
-    """Write statistics based on predicted results and reference transcripts.
-
-    It will write the following to the given file:
-
-        - WER
-        - number of insertions, deletions, substitutions, corrects and total
-          reference words. For example::
-
-              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
-              reference words (2337 correct)
-
-        - The difference between the reference transcript and predicted result.
-          An instance is given below::
-
-            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
-
-          The above example shows that the reference word is `EDISON`,
-          but it is predicted to `ADDISON` (a substitution error).
-
-          Another example is::
-
-            FOR THE FIRST DAY (SIR->*) I THINK
-
-          The reference word `SIR` is missing in the predicted
-          results (a deletion error).
-      results:
-        An iterable of tuples. The first element is the cur_id, the second is
-        the reference transcript and the third element is the predicted result.
-      enable_log:
-        If True, also print detailed WER to the console.
-        Otherwise, it is written only to the given file.
-    Returns:
-      Return None.
-    """
-    subs: Dict[Tuple[str, str], int] = defaultdict(int)
-    ins: Dict[str, int] = defaultdict(int)
-    dels: Dict[str, int] = defaultdict(int)
-
-    # `words` stores counts per word, as follows:
-    #   corr, ref_sub, hyp_sub, ins, dels
-    words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
-    num_corr = 0
-    ERR = "*"
-    for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR)
-        for ref_word, hyp_word in ali:
-            if ref_word == ERR:
-                ins[hyp_word] += 1
-                words[hyp_word][3] += 1
-            elif hyp_word == ERR:
-                dels[ref_word] += 1
-                words[ref_word][4] += 1
-            elif hyp_word != ref_word:
-                subs[(ref_word, hyp_word)] += 1
-                words[ref_word][1] += 1
-                words[hyp_word][2] += 1
-            else:
-                words[ref_word][0] += 1
-                num_corr += 1
-    ref_len = sum([len(r) for _, r, _ in results])
-    sub_errs = sum(subs.values())
-    ins_errs = sum(ins.values())
-    del_errs = sum(dels.values())
-    tot_errs = sub_errs + ins_errs + del_errs
-    tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
-
-    if enable_log:
-        logging.info(
-            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
-            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
-            f"{del_errs} del, {sub_errs} sub ]"
-        )
-
-    print(f"%WER = {tot_err_rate}", file=f)
-    print(
-        f"Errors: {ins_errs} insertions, {del_errs} deletions, "
-        f"{sub_errs} substitutions, over {ref_len} reference "
-        f"words ({num_corr} correct)",
-        file=f,
-    )
-    print(
-        "Search below for sections starting with PER-UTT DETAILS:, "
-        "SUBSTITUTIONS:, DELETIONS:, INSERTIONS:, PER-WORD STATS:",
-        file=f,
-    )
-
-    print("", file=f)
-    print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
-    for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR)
-        combine_successive_errors = True
-        if combine_successive_errors:
-            ali = [[[x], [y]] for x, y in ali]
-            for i in range(len(ali) - 1):
-                if ali[i][0] != ali[i][1] and ali[i + 1][0] != ali[i + 1][1]:
-                    ali[i + 1][0] = ali[i][0] + ali[i + 1][0]
-                    ali[i + 1][1] = ali[i][1] + ali[i + 1][1]
-                    ali[i] = [[], []]
-            ali = [
-                [
-                    list(filter(lambda a: a != ERR, x)),
-                    list(filter(lambda a: a != ERR, y)),
-                ]
-                for x, y in ali
-            ]
-            ali = list(filter(lambda x: x != [[], []], ali))
-            ali = [
-                [
-                    ERR if x == [] else " ".join(x),
-                    ERR if y == [] else " ".join(y),
-                ]
-                for x, y in ali
-            ]
-
-        print(
-            f"{cut_id}:\t"
-            + " ".join(
-                (
-                    ref_word
-                    if ref_word == hyp_word
-                    else f"({ref_word}->{hyp_word})"
-                    for ref_word, hyp_word in ali
-                )
-            ),
-            file=f,
-        )
-
-    print("", file=f)
-    print("SUBSTITUTIONS: count ref -> hyp", file=f)
-
-    for count, (ref, hyp) in sorted(
-        [(v, k) for k, v in subs.items()], reverse=True
-    ):
-        print(f"{count}   {ref} -> {hyp}", file=f)
-
-    print("", file=f)
-    print("DELETIONS: count ref", file=f)
-    for count, ref in sorted([(v, k) for k, v in dels.items()], reverse=True):
-        print(f"{count}   {ref}", file=f)
-
-    print("", file=f)
-    print("INSERTIONS: count hyp", file=f)
-    for count, hyp in sorted([(v, k) for k, v in ins.items()], reverse=True):
-        print(f"{count}   {hyp}", file=f)
-
-    print("", file=f)
-    print(
-        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
-    )
-    for _, word, counts in sorted(
-        [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
-    ):
-        (corr, ref_sub, hyp_sub, ins, dels) = counts
-        tot_errs = ref_sub + hyp_sub + ins + dels
-        ref_count = corr + ref_sub + dels
-        hyp_count = corr + hyp_sub + ins
-
-        print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-    
-    # if return_stats:
-    return float(tot_err_rate)
-
-LOG_EPS = math.log(1e-10)
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -316,8 +141,8 @@ def get_parser():
         "--decoding-graph",
         type=str,
         default="",
-        help="""Used only when --decoding-method is 
-        fast_beam_search"""
+        help="""Used only when --decoding-method is
+        fast_beam_search""",
     )
 
     parser.add_argument(
@@ -331,7 +156,7 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4.,
+        default=4.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
@@ -367,7 +192,7 @@ def get_parser():
         default=2000,
         help="The number of streams that can be decoded parallel.",
     )
-    
+
     parser.add_argument(
         "--res-dir",
         type=Path,
@@ -554,7 +379,7 @@ def decode_dataset(
                 decode_results.append(
                     (
                         decode_streams[i].id,
-                        list(decode_streams[i].ground_truth.replace(' ','')),
+                        sp.text2word(decode_stream[i].ground_truth),
                         sp.decode(decode_streams[i].decoding_result()).split(),
                     )
                 )
@@ -572,7 +397,7 @@ def decode_dataset(
             decode_results.append(
                 (
                     decode_streams[i].id,
-                    list(decode_streams[i].ground_truth.replace(' ','')),
+                    sp.text2word(decode_stream[i].ground_truth),
                     sp.decode(decode_streams[i].decoding_result()).split(),
                 )
             )
@@ -637,6 +462,7 @@ def save_results(
     logging.info(s)
     return test_set_wers
 
+
 @torch.no_grad()
 def main():
     parser = get_parser()
@@ -677,13 +503,12 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(params.word_table)
+    sp = Tokenizer.load(params.lang_dir, params.lang_type)
 
     # <blk> and <unk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
-    len_file = "tokens_len" if params.word_table.suffix == ".pretoken" else "words_len"
-    params.vocab_size = int((params.word_table.parent / len_file).read_text())
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
@@ -785,7 +610,7 @@ def main():
     args.return_cuts = True
     csj_corpus = CSJAsrDataModule(args)
 
-    for subdir in ["eval1", "eval2", "eval3", "excluded"] : #, "valid"]:
+    for subdir in ["eval1", "eval2", "eval3", "excluded", "valid"]:
         results_dict = decode_dataset(
             cuts=getattr(csj_corpus, f"{subdir}_cuts")(),
             params=params,
@@ -793,31 +618,33 @@ def main():
             sp=sp,
             decoding_graph=decoding_graph,
         )
-        tot_err : List[Tuple] = save_results(
+        tot_err: List[Tuple] = save_results(
             params=params,
-            test_set_name=subdir+"-ori", 
+            test_set_name=subdir + "-ori",
             results_dict=results_dict,
         )
-        with (params.res_dir / (
-            f"{subdir}-{params.decode_chunk_len}"
-            f"_{params.avg}_{params.epoch}.oricer")).open("w") as fout:
+        with (
+            params.res_dir
+            / (
+                f"{subdir}-{params.decode_chunk_len}"
+                f"_{params.avg}_{params.epoch}.oricer"
+            )
+        ).open("w") as fout:
             if len(tot_err) == 1:
                 fout.write(f"{tot_err[0][1]}")
             else:
-                fout.write(
-                    '\n'.join(f"{k}\t{v}") for k,v in tot_err
-                )
+                fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
         results_dict = {
-            k: [(
-                vv[0], 
-                [i for i in vv[1] if i not in ['↵','。','、']],
-                [i for i in vv[2] if i not in ['↵','。','、']]
-            )
+            k: [
+                (
+                    vv[0],
+                    [i for i in vv[1] if i not in ["↵", "。", "、"]],
+                    [i for i in vv[2] if i not in ["↵", "。", "、"]],
+                )
                 for vv in v
-                ]
-            
-            for k,v in results_dict.items()
+            ]
+            for k, v in results_dict.items()
         }
 
         tot_err = save_results(
@@ -825,15 +652,17 @@ def main():
             test_set_name=subdir + "-txt",
             results_dict=results_dict,
         )
-        with (params.res_dir / (
-            f"{subdir}-{params.decode_chunk_len}"
-            f"_{params.avg}_{params.epoch}.txtcer")).open("w") as fout:
+        with (
+            params.res_dir
+            / (
+                f"{subdir}-{params.decode_chunk_len}"
+                f"_{params.avg}_{params.epoch}.txtcer"
+            )
+        ).open("w") as fout:
             if len(tot_err) == 1:
                 fout.write(f"{tot_err[0][1]}")
             else:
-                fout.write(
-                    '\n'.join(f"{k}\t{v}") for k,v in tot_err
-                )
+                fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 
