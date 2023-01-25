@@ -1,12 +1,14 @@
 import argparse
 from pathlib import Path
-from typing import List, Union
+from typing import Callable, List, Union
 
 import sentencepiece as spm
 from k2 import SymbolTable
 
 
 class Tokenizer:
+    text2word: Callable[[str], List[str]]
+
     @staticmethod
     def add_arguments(parser: argparse.ArgumentParser):
         group = parser.add_argument_group(title="Lang related options")
@@ -21,7 +23,7 @@ class Tokenizer:
         )
 
     @staticmethod
-    def Load(lang_dir: Path, lang_type="", oov="<UNK>"):
+    def Load(lang_dir: Path, lang_type="", oov="<unk>"):
 
         if not lang_type:
             assert (lang_dir / "lang_type").exists(), "lang_type not specified."
@@ -165,7 +167,7 @@ class Tokenizer:
 
 
 class CharTokenizer(Tokenizer):
-    def __init__(self, lang_dir: Path, oov="<UNK>", sep=""):
+    def __init__(self, lang_dir: Path, oov="<unk>", sep=""):
         assert (
             lang_dir / "tokens.txt"
         ).exists(), f"tokens.txt could not be found in {lang_dir}."
@@ -178,7 +180,7 @@ class CharTokenizer(Tokenizer):
         if self.sep:
             self.text2word = lambda x: x.split(self.sep)
         else:
-            self.text2word = list
+            self.text2word = lambda x: list(x.replace(" ", ""))
 
     def piece_to_id(self, piece: str) -> int:
         try:
@@ -217,6 +219,7 @@ def test_CharTokenizer():
         "今日はいい天気ですよね",
         "諏訪湖は綺麗でしょう",
         "这在词表外",
+        "分かち 書き に し た 文章 です",
         "",
     ]
     test_empty_string = ""

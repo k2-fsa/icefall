@@ -27,13 +27,24 @@ class TelegramStreamIO(logging.Handler):
         config = ConfigParser()
         if not config.read(tg_configfile):
             raise FileNotFoundError(
-                f"{tg_configfile} not found. "
-                "Retry without --telegram-cred flag."
+                f"{tg_configfile} not found. " "Retry without --telegram-cred flag."
             )
         config = config["TELEGRAM"]
         token = config["token"]
         self.chat_id = config["chat_id"]
         self.url = f"{self.API_ENDPOINT}/bot{token}/sendMessage"
+
+    @staticmethod
+    def setup_logger(params):
+        if not params.telegram_cred:
+            return
+        formatter = logging.Formatter(
+            f"{params.exp_dir.name} %(asctime)s \n%(message)s"
+        )
+        tg = TelegramStreamIO(params.telegram_cred)
+        tg.setLevel(logging.WARN)
+        tg.setFormatter(formatter)
+        logging.getLogger("").addHandler(tg)
 
     def emit(self, record: logging.LogRecord):
         """
