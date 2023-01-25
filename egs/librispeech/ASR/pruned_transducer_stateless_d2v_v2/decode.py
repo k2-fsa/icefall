@@ -781,7 +781,7 @@ def main():
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
+    test_sets = ["test-clean-low", "test-other-low"]
     test_dl = [test_clean_dl, test_other_dl]
     
     for test_set, test_dl in zip(test_sets, test_dl):
