@@ -797,7 +797,17 @@ def main():
         results = results_dict['greedy_search']
         #for res in results:
         #    print(res[0], ' '.join(res[1]))
-        jsons = open(f"{params.manifest_dir}/userlibri/{test_sets}/{option}.jsonl")
+        jsons = open(f"{params.manifest_dir}/userlibri/{test_sets}/{option}.jsonl", 'r').readlines()
+
+        res_dict = {}
+        for res in results:
+            res_dict[res[0]] = ' '.join(res[1])
+        for line in jsons:
+            splited = line.split()
+            text_idx = line.index('"text":')
+
+
+        
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
