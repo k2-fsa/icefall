@@ -810,6 +810,7 @@ def main():
             pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
             splited.insert(text_idx, pseudo)
             new_line = ' '.join(splited)
+            new_line += '\n'
 
             new_jsons.write(new_line)
 
