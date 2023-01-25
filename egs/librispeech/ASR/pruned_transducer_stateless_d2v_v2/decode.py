@@ -809,7 +809,8 @@ def main():
             pseudo = f'"psudo text": "{res_dict[utt_id]}",'
             splited.insert(text_idx-1, pseudo)
             print(text_idx)
-            #print(' '.join(splited))
+            print(' '.join(splited))
+            exit()
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
