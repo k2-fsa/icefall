@@ -796,6 +796,7 @@ def main():
         )
         results = results_dict['greedy_search']
         jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
+        new_jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}_p.jsonl", 'r').readlines()
 
         res_dict = {}
         for res in results:
