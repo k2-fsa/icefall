@@ -797,7 +797,7 @@ def main():
         results = results_dict['greedy_search']
         #for res in results:
         #    print(res[0], ' '.join(res[1]))
-        jsons = open(f"{params.manifest_dir}/userlibri/
+        jsons = open(f"{params.manifest_dir}/userlibri/{test_sets}/{option}.jsonl")
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
