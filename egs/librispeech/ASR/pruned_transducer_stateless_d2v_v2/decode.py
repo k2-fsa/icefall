@@ -805,7 +805,12 @@ def main():
 
         for line in jsons:
             splited = line.split()
+            utt_id = splited[1][1:-2]
             text_idx = line.index('"text":')
+
+            pseudo = f'"psudo text": "{res_dict[utt_id]}",'
+            line.insert(text_idx+1, pseudo)
+            print(line)
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
