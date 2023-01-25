@@ -796,7 +796,7 @@ def main():
         )
         results = results_dict['greedy_search']
         for res in results:
-            print(res[0])
+            print(res[0], res[1])
         exit()
 
         save_results(
