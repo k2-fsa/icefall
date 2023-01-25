@@ -806,7 +806,7 @@ def main():
             utt_id = splited[1][1:-2]
             text_idx = line.index('"text":')
 
-            pseudo = f'"psudo text": "{res_dict[utt_id]}",'
+            pseudo = f'"pseudo text": "{res_dict[utt_id]}",'
             splited.insert(text_idx-1, pseudo)
             print(text_idx)
             print(' '.join(splited))
