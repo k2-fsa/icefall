@@ -794,7 +794,9 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
         )
-        print(results_dict['greedy_search'])
+        results = results_dict['greedy_search']
+        for res in results:
+            print(res[0])
         exit()
 
         save_results(
