@@ -802,12 +802,10 @@ def main():
         res_dict = {}
         for res in results:
             res_dict[res[0]] = ' '.join(res[1])
+
         for line in jsons:
             splited = line.split()
             text_idx = line.index('"text":')
-
-
-        
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
