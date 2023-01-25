@@ -809,7 +809,7 @@ def main():
 
             pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
             #splited.insert(text_idx, pseudo)
-            splited.insert(len(text_idx)-1, pseudo)
+            splited.insert(len(text_idx)-3, pseudo)
             new_line = ' '.join(splited)
             new_line += '\n'
 
