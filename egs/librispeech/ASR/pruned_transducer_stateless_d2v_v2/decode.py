@@ -804,6 +804,7 @@ def main():
 
         for k, v in res_dict.items():
             print(k, v)
+        exit()
         
         '''
         for line in jsons:
