@@ -835,7 +835,7 @@ def compute_loss(
 
     #texts = batch["supervisions"]["text"]
     texts = []
-    for utt_id in
+    for utt_id in 
     
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
@@ -1595,6 +1595,7 @@ def run_adapter(rank, world_size, args, wb=None):
             pl[text[0]] = ' '.join(text[1:])
     
     pl_texts = pl
+
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
