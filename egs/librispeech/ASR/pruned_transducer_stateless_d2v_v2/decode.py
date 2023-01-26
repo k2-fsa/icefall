@@ -785,7 +785,6 @@ def main():
     test_sets = [f"test-clean_sampling", f"test-other_sampling"]
     test_dl = [test_clean_dl, test_other_dl]
     
-    '''
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
@@ -803,6 +802,10 @@ def main():
         for res in results:
             res_dict[res[0]] = ' '.join(res[1])
 
+        for k, v in res_dict.items():
+            print(k, v)
+        
+        '''
         for line in jsons:
             splited = line.split()
             utt_id = splited[1][1:-2]
@@ -815,7 +818,7 @@ def main():
             new_line += '\n'
 
             new_jsons.write(new_line)
-    '''
+        '''
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
