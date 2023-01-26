@@ -1647,6 +1647,7 @@ def run_adapter(rank, world_size, args, wb=None):
             world_size=world_size,
             rank=rank,
             wb=wb,
+            pl_texts=pl_texts
         )
 
         if params.print_diagnostics:
