@@ -1587,7 +1587,8 @@ def run_adapter(rank, world_size, args, wb=None):
 
     #train_cuts = librispeech.train_clean_10_cuts(option='male')
     train_cuts = librispeech.test_clean_user(option='big')
-    pl_texts = open('/workspace/icefall/egs/librispeech/ASR/tc_big.pl', 'r').readlines()
+    try: pl_texts = open('/workspace/icefall/egs/librispeech/ASR/tc_big.pl', 'r').readlines()
+    except: pl_texts = None
     pl = {}
     for text in pl_texts:
         text = text.strip().split()
