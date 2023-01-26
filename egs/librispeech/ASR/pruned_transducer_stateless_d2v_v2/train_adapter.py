@@ -1037,6 +1037,7 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     decode = True if batch_idx % params.decode_interval == 0 else False,
+                    pl_texts = pl_texts,
                 )
             loss_info.reduce(loss.device)
 
