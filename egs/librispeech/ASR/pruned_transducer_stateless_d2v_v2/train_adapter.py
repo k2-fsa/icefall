@@ -792,6 +792,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     decode: bool = False,
+    pl_texts: dict = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute transducer loss given the model and its inputs.
@@ -832,11 +833,10 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = batch["supervisions"]["text"]
-    print(texts)
-    exit()
+    #texts = batch["supervisions"]["text"]
+    texts = []
+    for utt_id in
     
-    #texts = batch["greedy pseudo text"]
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
 
