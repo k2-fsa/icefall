@@ -837,8 +837,6 @@ def compute_loss(
     texts = []
     for cut in supervisions['cut']:
         utt_id = cut.id
-        print(utt_id)
-        print(pl_texts[utt_id])
         texts.append(pl_texts[utt_id])
     
     token_ids = sp.encode(texts, out_type=int)
