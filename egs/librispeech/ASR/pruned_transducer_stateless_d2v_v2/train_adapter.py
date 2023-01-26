@@ -1589,8 +1589,11 @@ def run_adapter(rank, world_size, args, wb=None):
     
     sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+    #train_dl = librispeech.train_dataloaders(
+    #    train_cuts, sampler_state_dict=sampler_state_dict
+    #)
+    train_dl = librispeech.test_dataloaders(
+        train_cuts
     )
     
     print('\n'*5)
