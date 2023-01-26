@@ -1595,7 +1595,8 @@ def run_adapter(rank, world_size, args, wb=None):
     
     print('\n'*5)
     print('-'*30)
-    print(train_dl)
+    for batch in train_dl:
+        print(batch)
     print('-'*30)
     print('\n'*5)
     exit()
