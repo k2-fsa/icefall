@@ -836,7 +836,7 @@ def compute_loss(
     #texts = batch["supervisions"]["text"]
     texts = []
     for cut in supervisions['cut']:
-        utt_id = cut['id']
+        utt_id = cut.id
         print(utt_id)
         print(pl_texts[utt_id])
         texts.append(pl_texts[utt_id])
