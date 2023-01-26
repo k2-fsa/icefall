@@ -834,6 +834,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     print(texts)
+    
     #texts = batch["greedy pseudo text"]
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
@@ -1582,6 +1583,14 @@ def run_adapter(rank, world_size, args, wb=None):
 
     #train_cuts = librispeech.train_clean_10_cuts(option='male')
     train_cuts = librispeech.test_clean_user(option='big')
+    pl_texts = open('/workspace/icefall/egs/librispeech/ASR/tc_big.pl', 'r').readlines()
+    pl = {}
+    for text in pl_texts:
+        text = text.strip().split()
+        pl[text[0]] = ' '.join(text[1:])
+
+    print(pl)
+    exit()
 
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
