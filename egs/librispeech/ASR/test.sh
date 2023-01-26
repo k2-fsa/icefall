@@ -6,8 +6,8 @@ do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name epoch-25.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2/tc_big \
+	--model-name d2v-base-T.pt \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2 \
     --max-duration 600 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
