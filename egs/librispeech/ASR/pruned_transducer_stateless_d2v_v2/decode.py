@@ -784,7 +784,8 @@ def main():
 
     test_sets = [f"test-clean_sampling", f"test-other_sampling"]
     test_dl = [test_clean_dl, test_other_dl]
-
+    
+    '''
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
@@ -814,7 +815,6 @@ def main():
             new_line += '\n'
 
             new_jsons.write(new_line)
-
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -825,20 +825,12 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
         )
-        results = results_dict['greedy_search']
-        for res in results:
-            #print(res[0], ' '.join(res[1]))
-            print(res[0], ' '.join(res[1]))
-            #print(' '.join(res[2]))
-            #print('')
-        exit()
-
+        
         save_results(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
         )
-    '''
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
     test_other_cuts, test_other_sets = librispeech.test_other_cuts(option='user')
