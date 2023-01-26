@@ -1590,6 +1590,7 @@ def run_adapter(rank, world_size, args, wb=None):
     print(train_cuts)
     print('-'*30)
     print('\n'*5)
+    exit()
 
     sampler_state_dict = None
 
