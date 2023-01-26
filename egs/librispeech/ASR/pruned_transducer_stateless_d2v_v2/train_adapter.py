@@ -1596,6 +1596,7 @@ def run_adapter(rank, world_size, args, wb=None):
         train_cuts
     )
     
+    '''
     print('\n'*5)
     print('-'*30)
     for batch in train_dl:
@@ -1603,6 +1604,7 @@ def run_adapter(rank, world_size, args, wb=None):
     print('-'*30)
     print('\n'*5)
     exit()
+    '''
 
     valid_cuts = librispeech.dev_clean_cuts(option=params.gender)
     valid_cuts += librispeech.dev_other_cuts(option=params.gender)
