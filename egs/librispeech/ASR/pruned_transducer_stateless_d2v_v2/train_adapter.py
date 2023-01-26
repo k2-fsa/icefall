@@ -1587,13 +1587,14 @@ def run_adapter(rank, world_size, args, wb=None):
 
     #train_cuts = librispeech.train_clean_10_cuts(option='male')
     train_cuts = librispeech.test_clean_user(option='big')
-    pl_texts = open('/workspace/icefall/egs/librispeech/ASR/tc_big.pl', 'r').readlines()
-
-    pl = {}
-    for text in pl_texts:
-        text = text.strip().split()
-        pl[text[0]] = ' '.join(text[1:])
-
+    
+    with open('/workspace/icefall/egs/librispeech/ASR/tc_big.pl', 'r').readlines() as pl_texts:
+        pl = {}
+        for text in pl_texts:
+            text = text.strip().split()
+            pl[text[0]] = ' '.join(text[1:])
+    
+    pl_texts = pl
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
