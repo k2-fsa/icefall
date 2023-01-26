@@ -1562,6 +1562,7 @@ def run_adapter(rank, world_size, args, wb=None):
             p.requires_grad = True
         else:
             p.requires_grad = False
+    
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=params.adapter_lr,
