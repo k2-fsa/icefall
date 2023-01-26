@@ -834,6 +834,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     print(texts)
+    exit()
     
     #texts = batch["greedy pseudo text"]
     token_ids = sp.encode(texts, out_type=int)
