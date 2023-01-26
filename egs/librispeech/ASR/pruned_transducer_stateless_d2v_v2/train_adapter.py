@@ -834,9 +834,8 @@ def compute_loss(
     warm_step = params.warm_step
 
     #texts = batch["supervisions"]["text"]
-    print(batch)
     texts = []
-    for utt_id in batch["id"]:
+    for utt_id in supervisions["id"]:
         print(utt_id)
         print(pl_texts[utt_id])
         texts.append(pl_texts[utt_id])
