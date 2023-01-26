@@ -807,7 +807,6 @@ def main():
             print(k, v)
         exit()
         
-        '''
         for line in jsons:
             splited = line.split()
             utt_id = splited[1][1:-2]
@@ -820,7 +819,6 @@ def main():
             new_line += '\n'
 
             new_jsons.write(new_line)
-        '''
     '''
 
     for test_set, test_dl in zip(test_sets, test_dl):
