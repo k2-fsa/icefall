@@ -775,7 +775,7 @@ def main():
     #test_clean_cuts = librispeech.test_clean_cuts(option='male')
     #test_other_cuts = librispeech.test_other_cuts(option='male')
     
-    option = 'low'
+    option = 'mid'
     test_clean_cuts = librispeech.test_clean_user(option=option)
     test_other_cuts = librispeech.test_other_user(option=option)
 
