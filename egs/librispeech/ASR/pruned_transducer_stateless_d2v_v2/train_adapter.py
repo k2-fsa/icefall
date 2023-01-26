@@ -1589,9 +1589,6 @@ def run_adapter(rank, world_size, args, wb=None):
         text = text.strip().split()
         pl[text[0]] = ' '.join(text[1:])
 
-    print(pl)
-    exit()
-
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
