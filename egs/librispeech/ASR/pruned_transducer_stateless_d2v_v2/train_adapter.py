@@ -1585,7 +1585,11 @@ def run_adapter(rank, world_size, args, wb=None):
         return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    print('\n'*5)
+    print('-'*30)
     print(train_cuts)
+    print('-'*30)
+    print('\n'*5)
 
     sampler_state_dict = None
 
