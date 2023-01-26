@@ -1579,25 +1579,26 @@ def run_adapter(rank, world_size, args, wb=None):
             train_cuts += librispeech.train_other_500_cuts(option=params.gender)
     '''
 
-    train_cuts = librispeech.train_clean_10_cuts(option='male')
-    #train_cuts = librispeech.test_clean_user(option='big')
+    #train_cuts = librispeech.train_clean_10_cuts(option='male')
+    train_cuts = librispeech.test_clean_user(option='big')
 
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    
+    sampler_state_dict = None
+
+    train_dl = librispeech.train_dataloaders(
+        train_cuts, sampler_state_dict=sampler_state_dict
+    )
+    
     print('\n'*5)
     print('-'*30)
     print(train_cuts)
     print('-'*30)
     print('\n'*5)
     exit()
-
-    sampler_state_dict = None
-
-    train_dl = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
 
     valid_cuts = librispeech.dev_clean_cuts(option=params.gender)
     valid_cuts += librispeech.dev_other_cuts(option=params.gender)
