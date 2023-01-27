@@ -175,7 +175,7 @@ def parse_alignments(ali_path: Pathlike) -> Dict[str, List[AlignmentItem]]:
 def main(corpus_dir):
     nj = 15
     output_dir = "data/manifests"
-
+    print(corpus_dir, output_dir)
     prepare_vox(corpus_dir, "auto", output_dir, nj)
 
 corpus_dir = sys.argv[1]
