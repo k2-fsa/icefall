@@ -79,9 +79,10 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None):
     if data_dir is None:
         raise NotImplementedError("need data directory")
 
-    directory = data_dir + '/wavs'
+    directory = data_dir
 
-    parts = ['train', 'dev', 'test']
+    #parts = ['train', 'dev', 'test']
+    parts = ['4446']
     prefix = "LJSpeech"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
