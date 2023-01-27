@@ -788,6 +788,7 @@ def main():
     test_dl = [test_clean_dl]
     #test_dl = [test_clean_dl, test_other_dl]
     
+    '''
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
@@ -824,8 +825,9 @@ def main():
                 new_line += '\n'
 
                 new_jsons.write(new_line)
-
     '''
+
+    
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
@@ -841,7 +843,6 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-    '''
 
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
