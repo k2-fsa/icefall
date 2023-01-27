@@ -95,7 +95,7 @@ def prepare_vox(
                     futures.append(
                         parse_utterance(part_path, trans_path + ' ' + line, alignments)
                     )
-            print(futures)
+                print(futures)
         for future in tqdm(futures, desc="Processing", leave=False):
             result = future
             if result is None:
