@@ -77,16 +77,16 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 
   # to $dl_dir/LJSpeech
   if [ ! -e $dl_dir/vox/.user.done ]; then
-    for dset in "4446"; do
-      log "Resampling vox/$dset set"
-      file_list=`ls $dl_dir/vox/$dset/`
-      for wavfile in $file_list; do
-		echo $wavfile
-        sox -v 0.9 $dl_dir/vox/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/vox/$dset/tmp_$wavfile
-        mv $dl_dir/vox/$dset/tmp_$wavfile $dl_dir/vox/$dset/$wavfile
-      done
-      log "Resampling $dset done"
-    done
+    #for dset in "4446"; do
+    #  log "Resampling vox/$dset set"
+    #  file_list=`ls $dl_dir/vox/$dset/`
+    #  for wavfile in $file_list; do
+	#	echo $wavfile
+    #    sox -v 0.9 $dl_dir/vox/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/vox/$dset/tmp_$wavfile
+    #    mv $dl_dir/vox/$dset/tmp_$wavfile $dl_dir/vox/$dset/$wavfile
+    #  done
+    #  log "Resampling $dset done"
+    #done
     python local/prepare_vox_text.py $dl_dir/vox/4446
     #touch $dl_dir/vox/.vox.done
   fi
