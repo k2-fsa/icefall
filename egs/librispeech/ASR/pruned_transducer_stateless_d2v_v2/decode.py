@@ -805,7 +805,8 @@ def main():
             res_dict[res[0]] = ' '.join(res[2])
         
         res_dict = sorted(res_dict.items(), key=lambda x:x[0])
-        for k, v in res_dict.items():
+
+        for k, v in res_dict:
             print(k, v)
         exit()
         
