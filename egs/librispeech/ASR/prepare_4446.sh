@@ -76,7 +76,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # |-- metadata.csv
 
   # to $dl_dir/LJSpeech
-  if [ ! -e $dl_dir/LJSpeech/.LJSpeech.done ]; then
+  if [ ! -e $dl_dir/user/.user.done ]; then
     for dset in "4446"; do
       log "Resampling $dset set"
       file_list=`ls $dl_dir/$dset/`
@@ -86,7 +86,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
       done
       log "Resampling $dset done"
     done
-    python local/prepare_LJSpeech_text.py $dl_dir/LJSpeech/metadata.csv
+    python local/prepare_LJSpeech_text.py $dl_dir/
     touch $dl_dir/LJSpeech/.LJSpeech.done
   fi
 
