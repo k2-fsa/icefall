@@ -59,7 +59,8 @@ def prepare_LJSpeech(
 
     manifests = {}
 
-    dataset_parts = ["train", "dev", "test"]
+    #dataset_parts = ["train", "dev", "test"]
+    dataset_parts = ["4446"]
     if output_dir is not None:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
