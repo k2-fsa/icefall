@@ -15,7 +15,8 @@ if not os.path.exists(save_dir):
 #    strings = f.readlines()
 
 wavs = sorted(glob.glob(f"{sys.argv[1]}/*.wav"))
-for string in strings:
+
+for string in wavs:
 
     # Split the string into parts
     parts = string.split("|")
