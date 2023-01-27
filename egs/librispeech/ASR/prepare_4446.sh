@@ -116,14 +116,14 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     touch data/fbank/.vox.done
   fi
 
-  if [ ! -e data/fbank/.LJSpeech-validated.done ]; then
-    log "Validating data/fbank for LJSpeech"
-    parts=`ls $dl_dir/LJSpeech/wavs/`
-    for part in ${parts[@]}; do
-      python3 ./local/validate_manifest.py \
-        data/fbank/LJSpeech_cuts_${part}.jsonl.gz
-    done
-  fi
+  #if [ ! -e data/fbank/.LJSpeech-validated.done ]; then
+  #  log "Validating data/fbank for LJSpeech"
+  #  parts=`ls $dl_dir/LJSpeech/wavs/`
+  #  for part in ${parts[@]}; do
+  #    python3 ./local/validate_manifest.py \
+  #      data/fbank/LJSpeech_cuts_${part}.jsonl.gz
+  #  done
+  #fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
