@@ -11,9 +11,10 @@ save_dir = os.path.join(save_dir, outdir)
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-with open(metafile, 'r') as f:
-    strings = f.readlines()
+#with open(metafile, 'r') as f:
+#    strings = f.readlines()
 
+wavs = sorted(glob.glob(f"{sys.argv[1]}/*.wav"))
 for string in strings:
 
     # Split the string into parts
