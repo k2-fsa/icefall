@@ -17,7 +17,7 @@ if not os.path.exists(save_dir):
 wavs = sorted(glob.glob(f"{sys.argv[1]}/*.wav"))
 
 for wav in wavs:
-    filename = wav.split('/')[-1].reaplce('.wav', '')
+    filename = wav.split('/')[-1].replace('.wav', '')
     filename = os.path.join(save_dir, filename)
     with open(f"{filename}.txt", "w") as file:
         file.write('TBD')
