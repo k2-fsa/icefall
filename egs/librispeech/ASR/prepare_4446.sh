@@ -76,7 +76,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # |-- metadata.csv
 
   # to $dl_dir/LJSpeech
-  if [ ! -e $dl_dir/vox/.user.done ]; then
+  if [ ! -e $dl_dir/vox/.vox.done ]; then
     #for dset in "4446"; do
     #  log "Resampling vox/$dset set"
     #  file_list=`ls $dl_dir/vox/$dset/`
