@@ -93,7 +93,8 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None):
     )
 
     assert manifests is not None
-
+    
+    print(len(manifests), len(parts))
     assert len(manifests) == len(parts), (
         len(manifests),
         len(parts),
