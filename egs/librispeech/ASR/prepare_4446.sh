@@ -91,8 +91,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   fi
 
   mkdir -p data/manifests
-  if [ ! -e data/manifests/.LJSpeech.done ]; then
-    python local/prepare_LJSpeech.py $dl_dir/LJSpeech
+  if [ ! -e data/manifests/.vox.done ]; then
+    python local/prepare_vox.py $dl_dir/vox
     touch data/manifests/.LJSpeech.done
   fi
 fi
