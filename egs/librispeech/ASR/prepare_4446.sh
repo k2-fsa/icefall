@@ -88,13 +88,13 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
       log "Resampling $dset done"
     done
     python local/prepare_vox_text.py $dl_dir/vox/4446
-    touch $dl_dir/vox/.vox.done
+    #touch $dl_dir/vox/.vox.done
   fi
 
   mkdir -p data/manifests
   if [ ! -e data/manifests/.vox.done ]; then
     python local/prepare_vox.py $dl_dir/vox
-    touch data/manifests/.vox.done
+    #touch data/manifests/.vox.done
   fi
 fi
 
@@ -114,7 +114,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   mkdir -p data/fbank
   if [ ! -e data/fbank/.LJSpeech.done ]; then
     ./local/compute_fbank_vox.py --data-dir $dl_dir/vox
-    touch data/fbank/.vox.done
+    #touch data/fbank/.vox.done
   fi
 
   #if [ ! -e data/fbank/.LJSpeech-validated.done ]; then
@@ -132,6 +132,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   mkdir -p data/fbank
   if [ ! -e data/fbank/.musan.done ]; then
     ./local/compute_fbank_musan.py
-    touch data/fbank/.musan.done
+    #touch data/fbank/.musan.done
   fi
 fi
