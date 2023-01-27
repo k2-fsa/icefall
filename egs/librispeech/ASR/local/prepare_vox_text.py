@@ -16,7 +16,13 @@ if not os.path.exists(save_dir):
 
 wavs = sorted(glob.glob(f"{sys.argv[1]}/*.wav"))
 
-for string in wavs:
+for wav in wavs:
+    filename = wav.split('/')[-1].reaplce('.wav', '')
+    filename = os.path.join(save_dir, filename)
+    with open(f"{filename}.txt", "w") as file:
+        file.write('TBD')
+
+    '''
 
     # Split the string into parts
     parts = string.split("|")
@@ -36,3 +42,4 @@ for string in wavs:
     filename = os.path.join(save_dir, filename)
     with open(f"{filename}.txt", "w") as file:
         file.write(text2)
+    '''
