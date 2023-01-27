@@ -86,11 +86,11 @@ def prepare_vox(
         for trans_path in tqdm(
             glob.iglob(str(txt_path) + "/*.txt"), desc="Distributing tasks", leave=False
         ):
-            print(trans_path)
             alignments = {}
             with open(trans_path) as f:
                 cur_file_name = trans_path.split('/')[-1].replace('.txt', '')
                 if cur_file_name not in part_file_names:
+                    print('hi!')
                     continue
                 for line in f:
                     futures.append(
