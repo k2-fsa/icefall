@@ -265,7 +265,7 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "dim_feedforward": 2048,
             "encoder_dim": 512,
-            "num_encoder_layers": 12,
+            "num_encoder_layers": 18,
             # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
