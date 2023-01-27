@@ -535,5 +535,5 @@ class LibriSpeechAsrDataModule:
     def vox_cuts(self, option=None) -> CutSet:
         logging.info("About to get test-other user cuts")
         return load_manifest_lazy(
-                self.args.manifest_dir / f"vox_cuts_{option}.jsonl"
+                self.args.manifest_dir / f"vox_cuts_{option}.jsonl.gz"
         )
