@@ -78,7 +78,7 @@ def prepare_vox(
         #part_path = Path(os.path.join(corpus_dir, "wavs", part))
         part_path = Path(os.path.join(corpus_dir, part))
         #part_file_names = list(map(lambda x: x.strip('.wav'), os.listdir(part_path)))
-        part_file_names = sorted(glob.glob(part_path+'/*.wav'))
+        part_file_names = sorted(glob.glob(str(part_path)+'/*.wav'))
         part_file_names = [name.split('/')[-1].replace('.wav', '') for name in part_file_names]
         txt_path = os.path.join(corpus_dir, "texts")
         print(part_file_names)
