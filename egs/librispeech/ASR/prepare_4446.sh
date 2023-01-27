@@ -78,7 +78,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/LJSpeech
   if [ ! -e $dl_dir/user/.user.done ]; then
     for dset in "4446"; do
-      log "Resampling $dset set"
+      log "Resampling user/$dset set"
       file_list=`ls $dl_dir/user/$dset/`
       for wavfile in $file_list; do
         sox -v 0.9 $dl_dir/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/$dset/tmp_$wavfile
