@@ -7,7 +7,7 @@ do
 	--enable-spec-aug False \
 	--additional-block True \
 	--model-name d2v-base-T.pt \
-	--exp-dir ./pruned_transducer_stateless_d2v_v2 \
+	--exp-dir ./pruned_transducer_stateless_d2v_v2/test \
     --max-duration 100 \
     --decoding-method $method \
     --max-sym-per-frame 1 \
