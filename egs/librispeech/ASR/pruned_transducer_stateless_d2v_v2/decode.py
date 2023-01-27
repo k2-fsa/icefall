@@ -807,18 +807,19 @@ def main():
             print(k, v)
         exit()
         
-        for line in jsons:
-            splited = line.split()
-            utt_id = splited[1][1:-2]
-            text_idx = splited.index('"text":')
+        if 0:
+            for line in jsons:
+                splited = line.split()
+                utt_id = splited[1][1:-2]
+                text_idx = splited.index('"text":')
 
-            pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
-            #splited.insert(text_idx, pseudo)
-            splited.insert(len(splited)-2, pseudo)
-            new_line = ' '.join(splited)
-            new_line += '\n'
+                pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
+                #splited.insert(text_idx, pseudo)
+                splited.insert(len(splited)-2, pseudo)
+                new_line = ' '.join(splited)
+                new_line += '\n'
 
-            new_jsons.write(new_line)
+                new_jsons.write(new_line)
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
