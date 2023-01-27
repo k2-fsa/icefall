@@ -81,7 +81,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
       log "Resampling vox/$dset set"
       file_list=`ls $dl_dir/vox/$dset/`
       for wavfile in $file_list; do
-        sox -v 0.9 $dl_dir/vox/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/user/$dset/tmp_$wavfile
+        sox -v 0.9 $dl_dir/vox/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/vox/$dset/tmp_$wavfile
         mv $dl_dir/user/$dset/tmp_$wavfile $dl_dir/user/$dset/$wavfile
       done
       log "Resampling $dset done"
