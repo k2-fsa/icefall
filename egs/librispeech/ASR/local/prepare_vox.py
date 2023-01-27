@@ -174,7 +174,7 @@ def main(corpus_dir):
     nj = 15
     output_dir = "data/manifests"
 
-    prepare_LJSpeech(corpus_dir, "auto", output_dir, nj)
+    prepare_vox(corpus_dir, "auto", output_dir, nj)
 
 corpus_dir = sys.argv[1]
 main(corpus_dir)
