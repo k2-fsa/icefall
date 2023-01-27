@@ -776,11 +776,11 @@ def main():
     #test_other_cuts = librispeech.test_other_cuts(option='male')
     
     option = '4446'
-    test_clean_cuts = librispeech.test_clean_user(option=option)
-    test_other_cuts = librispeech.test_other_user(option=option)
+    test_clean_cuts = librispeech.vox_cuts(option=option)
+    #test_other_cuts = librispeech.test_other_user(option=option)
 
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    #test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
     test_sets = [f"test-clean_sampling", f"test-other_sampling"]
     test_dl = [test_clean_dl, test_other_dl]
