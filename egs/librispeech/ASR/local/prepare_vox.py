@@ -79,6 +79,7 @@ def prepare_vox(
         part_path = Path(os.path.join(corpus_dir, part))
         part_file_names = list(map(lambda x: x.strip('.wav'), os.listdir(part_path))) 
         txt_path = os.path.join(corpus_dir, "texts")
+        print(part_file_names)
         print(part_path)
         print(txt_path)
         futures = []
