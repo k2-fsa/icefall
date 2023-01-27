@@ -77,12 +77,12 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 
   # to $dl_dir/LJSpeech
   if [ ! -e $dl_dir/LJSpeech/.LJSpeech.done ]; then
-    for dset in "train" "dev" "test"; do
-      log "Resampling LJSpeech $dset set"
-      file_list=`ls $dl_dir/LJSpeech/wavs/$dset/`
+    for dset in "4446"; do
+      log "Resampling $dset set"
+      file_list=`ls $dl_dir/$dset/`
       for wavfile in $file_list; do
-        sox -v 0.9 $dl_dir/LJSpeech/wavs/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/LJSpeech/wavs/$dset/tmp_$wavfile
-        mv $dl_dir/LJSpeech/wavs/$dset/tmp_$wavfile $dl_dir/LJSpeech/wavs/$dset/$wavfile
+        sox -v 0.9 $dl_dir/$dset/$wavfile -r 16000 -e signed-integer $dl_dir/$dset/tmp_$wavfile
+        mv $dl_dir/$dset/tmp_$wavfile $dl_dir/$dset/$wavfile
       done
       log "Resampling $dset done"
     done
