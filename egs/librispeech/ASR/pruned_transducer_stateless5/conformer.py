@@ -33,6 +33,7 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
+import random
 
 
 class Conformer(EncoderInterface):
