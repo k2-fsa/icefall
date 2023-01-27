@@ -26,7 +26,7 @@ from lhotse.utils import (
 #     "https://drive.google.com/uc?id=1WYfgr31T-PPwMcxuAq09XZfHQO5Mw8fE"
 # )
 
-def prepare_LJSpeech(
+def prepare_vox(
     corpus_dir: str,
     dataset_parts: str = "auto",
     output_dir: str = None,
