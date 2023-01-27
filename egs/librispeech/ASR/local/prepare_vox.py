@@ -71,7 +71,7 @@ def prepare_vox(
     for part in tqdm(dataset_parts, desc="Dataset parts"):
         logging.info(f"Processing vox subset: {part}")
         if manifests_exist(part=part, output_dir=output_dir):
-            logging.info(f"LJSpeech subset: {part} already prepared - skipping.")
+            logging.info(f"vox subset: {part} already prepared - skipping.")
             continue
         recordings = []
         supervisions = []
