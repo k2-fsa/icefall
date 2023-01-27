@@ -109,10 +109,10 @@ def prepare_vox(
 
         if output_dir is not None:
             supervision_set.to_file(
-                output_dir / f"LJSpeech_supervisions_{part}.jsonl.gz"
+                output_dir / f"vox_supervisions_{part}.jsonl.gz"
             )
             recording_set.to_file(
-                output_dir / f"LJSpeech_recordings_{part}.jsonl.gz"
+                output_dir / f"vox_recordings_{part}.jsonl.gz"
             )
 
         manifests[part] = {
