@@ -89,6 +89,7 @@ def prepare_vox(
             alignments = {}
             with open(trans_path) as f:
                 cur_file_name = trans_path.split('/')[-1].replace('.txt', '')
+                print(cur_file_name)
                 if cur_file_name not in part_file_names:
                     continue
                 for line in f:
