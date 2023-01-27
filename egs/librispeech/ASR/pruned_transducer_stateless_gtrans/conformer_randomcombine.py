@@ -213,56 +213,13 @@ class Conformer(EncoderInterface):
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
          
         layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
-        '''
-        if self.group_num == 4:
-            x = self.layer_norm(1/4*(self.sigmoid(self.alpha[0])*layer_outputs[2] + \
-                                     self.sigmoid(self.alpha[1])*layer_outputs[5] + \
-                                     self.sigmoid(self.alpha[2])*layer_outputs[8] + \
-                                     self.sigmoid(self.alpha[3])*layer_outputs[11]
-                                    )
-                                )
-        elif self.group_num == 6:
-            x = self.layer_norm(1/6*(self.sigmoid(self.alpha[0])*layer_outputs[1] + \
-                                     self.sigmoid(self.alpha[1])*layer_outputs[3] + \
-                                     self.sigmoid(self.alpha[2])*layer_outputs[5] + \
-                                     self.sigmoid(self.alpha[3])*layer_outputs[7] + \
-                                     self.sigmoid(self.alpha[4])*layer_outputs[9] + \
-                                     self.sigmoid(self.alpha[5])*layer_outputs[11]
-                                    )
-                                )
-
-        elif self.group_num == 12:
-            x = self.layer_norm(1/12*(self.sigmoid(self.alpha[0])*layer_outputs[0] + \
-                                     self.sigmoid(self.alpha[1])*layer_outputs[1] + \
-                                     self.sigmoid(self.alpha[2])*layer_outputs[2] + \
-                                     self.sigmoid(self.alpha[3])*layer_outputs[3] + \
-                                     self.sigmoid(self.alpha[4])*layer_outputs[4] + \
-                                     self.sigmoid(self.alpha[5])*layer_outputs[5] + \
-                                     self.sigmoid(self.alpha[6])*layer_outputs[6] + \
-                                     self.sigmoid(self.alpha[7])*layer_outputs[7] + \
-                                     self.sigmoid(self.alpha[8])*layer_outputs[8] + \
-                                     self.sigmoid(self.alpha[9])*layer_outputs[9] + \
-                                     self.sigmoid(self.alpha[10])*layer_outputs[10] + \
-                                     self.sigmoid(self.alpha[11])*layer_outputs[11]
-                                    )
-                                )
-        '''
-
+        
         if self.group_num != 0:
             x = 0
             for enum, alpha in enumerate(self.alpha):
                 x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
             x = self.layer_norm(x/self.group_num)
 
-        '''
-        layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
-
-        x = 0
-        for enum, alpha in enumerate(self.alpha):
-            x += self.sigmoid(alpha*layer_outputs[(enum+1)*self.group_layer_num-1])
-
-        x = self.layer_norm(x/self.group_num)
-        '''
         return x, lengths
 
     @torch.jit.export
