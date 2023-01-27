@@ -81,9 +81,6 @@ def prepare_vox(
         part_file_names = sorted(glob.glob(str(part_path)+'/*.wav'))
         part_file_names = [name.split('/')[-1].replace('.wav', '') for name in part_file_names]
         txt_path = os.path.join(corpus_dir, "texts")
-        print(part_file_names)
-        print(part_path)
-        print(txt_path)
         futures = []
         
         for trans_path in tqdm(
@@ -98,7 +95,6 @@ def prepare_vox(
                     futures.append(
                         parse_utterance(part_path, trans_path + ' ' + line, alignments)
                     )
-                print(futures)
         for future in tqdm(futures, desc="Processing", leave=False):
             result = future
             if result is None:
