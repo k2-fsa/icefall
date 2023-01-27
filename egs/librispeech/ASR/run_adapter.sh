@@ -58,7 +58,7 @@ else
 		--enable-spec-aug False \
 		--multi-optim False \
 		--world-size 4 \
-		--num-epochs 20 \
+		--num-epochs 50 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
