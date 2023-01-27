@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import glob
 
 metafile = sys.argv[1]
 outdir = "texts"
