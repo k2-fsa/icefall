@@ -247,10 +247,12 @@ class Conformer(EncoderInterface):
                                     )
                                 )
         '''
-        x = 0
-        for enum, alpha in enumerate(self.alpha):
-            x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
-        x = self.layer_norm(x/self.group_num)
+
+        if self.group_num != 0:
+            x = 0
+            for enum, alpha in enumerate(self.alpha):
+                x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
+            x = self.layer_norm(x/self.group_num)
 
         '''
         layer_outputs = [x.permute(1, 0, 2) for x in layer_outputs]
