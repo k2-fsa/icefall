@@ -802,7 +802,7 @@ def main():
 
         res_dict = {}
         for res in results:
-            res_dict[res[0]] = ' '.join(res[1])
+            res_dict[res[0]] = ' '.join(res[2])
 
         for k, v in res_dict.items():
             print(k, v)
