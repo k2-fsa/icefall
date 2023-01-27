@@ -78,6 +78,7 @@ def prepare_vox(
         #part_path = Path(os.path.join(corpus_dir, "wavs", part))
         part_path = Path(os.path.join(corpus_dir, part))
         part_file_names = list(map(lambda x: x.strip('.wav'),os.listdir(part_path))) 
+        print(part_file_names)
         txt_path = os.path.join(corpus_dir, "texts")
         print(part_path)
         print(txt_path)
@@ -90,7 +91,6 @@ def prepare_vox(
             with open(trans_path) as f:
                 cur_file_name = trans_path.split('/')[-1].replace('.txt', '')
                 if cur_file_name not in part_file_names:
-                    print('hi!')
                     continue
                 for line in f:
                     futures.append(
