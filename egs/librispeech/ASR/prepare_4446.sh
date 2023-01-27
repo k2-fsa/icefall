@@ -63,28 +63,6 @@ log() {
 
 log "dl_dir: $dl_dir"
 
-if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "Stage 0: Download data"
-
-  # If you have pre-downloaded it to /path/to/LJSpeech,
-  # you can create a symlink
-  #
-  #   ln -sfv /path/to/LJSpeech $dl_dir/LJSpeech
-  #
-  if [ ! -d $dl_dir/LJSpeech/wav ]; then
-    echo "download not supported yet";
-  fi
-
-  # If you have pre-downloaded it to /path/to/musan,
-  # you can create a symlink
-  #
-  #   ln -sfv /path/to/musan $dl_dir/
-  #
-  if [ ! -d $dl_dir/musan ]; then
-    lhotse download musan $dl_dir
-  fi
-fi
-
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare LJSpeech manifest"
   # We assume that you have downloaded the LJSpeech corpus (ver 1.1)
