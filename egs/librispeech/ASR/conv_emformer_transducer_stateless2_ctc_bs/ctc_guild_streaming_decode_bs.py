@@ -20,10 +20,10 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 11 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -35,10 +35,10 @@ Usage:
       --decoding-method greedy_search
 
 (2) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 12 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -46,15 +46,15 @@ Usage:
       --left-context-length 32 \
       --right-context-length 8 \
       --memory-size 32 \
-      --decoding-method modified_beam_search \
       --use-averaged-model True \
+      --decoding-method modified_beam_search \
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -246,6 +246,7 @@ def get_parser():
 def greedy_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
     streams: List[Stream],
 ) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
@@ -255,21 +256,43 @@ def greedy_search(
         The transducer model.
       encoder_out:
         Output from the encoder. Its shape is (N, T, C), where N >= 1.
+      encoder_out_lens:
+        A 1-D tensor of shape (N,), containing number of valid frames in
+        encoder_out before padding.
       streams:
         A list of Stream objects.
     """
-    assert len(streams) == encoder_out.size(0)
+    streams_length = len(streams)
+    assert streams_length == encoder_out.size(0)
     assert encoder_out.ndim == 3
+
+    is_valid = encoder_out_lens != 0
+    if torch.all(~is_valid):
+        return
+    fake_encoder_out_lens = [i + 1 if i == 0 else i for i in encoder_out_lens.cpu()]
+    fake_packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
+        input=encoder_out,
+        lengths=fake_encoder_out_lens,
+        batch_first=True,
+        enforce_sorted=False,
+    )
+
+    device = next(model.parameters()).device
 
     blank_id = model.decoder.blank_id
     context_size = model.decoder.context_size
-    device = next(model.parameters()).device
-    T = encoder_out.size(1)
 
-    encoder_out = model.joiner.encoder_proj(encoder_out)
+    N = encoder_out.size(0)
+
+    batch_size_list = fake_packed_encoder_out.batch_sizes.tolist()
+    sorted_indices = fake_packed_encoder_out.sorted_indices.tolist()
+    
+    assert N == batch_size_list[0], (N, batch_size_list)
+
+    encoder_out = model.joiner.encoder_proj(fake_packed_encoder_out.data)
 
     decoder_input = torch.tensor(
-        [stream.hyp[-context_size:] for stream in streams],
+        [streams[sorted_indices[i]].hyp[-context_size:] for i in range(streams_length)],
         device=device,
         dtype=torch.int64,
     )
@@ -277,29 +300,35 @@ def greedy_search(
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
 
-    for t in range(T):
+    offset = 0
+    for (t, batch_size) in enumerate(batch_size_list):
+        start = offset
+        end = offset + batch_size
+        current_encoder_out = encoder_out.data[start:end]
+        current_encoder_out = current_encoder_out.unsqueeze(1).unsqueeze(1)
         # current_encoder_out's shape: (batch_size, 1, encoder_out_dim)
-        current_encoder_out = encoder_out[:, t : t + 1, :]  # noqa
+        offset = end
+
+        decoder_out = decoder_out[:batch_size]
 
         logits = model.joiner(
-            current_encoder_out.unsqueeze(2),
+            current_encoder_out,
             decoder_out.unsqueeze(1),
             project_input=False,
         )
-        # logits'shape (batch_size,  vocab_size)
-        logits = logits.squeeze(1).squeeze(1)
-
+        # logits'shape (batch_size, 1, 1, vocab_size)
+        logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
         assert logits.ndim == 2, logits.shape
         y = logits.argmax(dim=1).tolist()
         emitted = False
         for i, v in enumerate(y):
-            if v != blank_id:
-                streams[i].hyp.append(v)
+            if is_valid[sorted_indices[i]] and v != blank_id:
+                streams[sorted_indices[i]].hyp.append(v)
                 emitted = True
         if emitted:
             # update decoder output
             decoder_input = torch.tensor(
-                [stream.hyp[-context_size:] for stream in streams],
+                [streams[sorted_indices[i]].hyp[-context_size:] for i in range(streams_length)],
                 device=device,
                 dtype=torch.int64,
             )
@@ -578,7 +607,6 @@ def decode_one_chunk(
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
-        threshold=0.95,
     )
 
     if params.decoding_method == "greedy_search":
@@ -586,6 +614,7 @@ def decode_one_chunk(
             model=model,
             streams=streams,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
     elif params.decoding_method == "modified_beam_search":
         modified_beam_search(
@@ -976,5 +1005,4 @@ def main():
 
 
 if __name__ == "__main__":
-    torch.manual_seed(42)
     main()
