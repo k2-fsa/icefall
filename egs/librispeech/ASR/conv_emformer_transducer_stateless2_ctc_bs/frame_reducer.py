@@ -44,7 +44,6 @@ class FrameReducer(nn.Module):
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
         blank_id: int = 0,
-        threshold: float = 0.95,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -57,8 +56,6 @@ class FrameReducer(nn.Module):
               The CTC output with shape [N, T, vocab_size].
             blank_id:
               The ID of the blank symbol.
-            threshold:
-              The threshold of blank posterior probability.
         Returns:
             x_fr:
               The frame reduced encoder output with shape [N, T', C].
@@ -68,9 +65,7 @@ class FrameReducer(nn.Module):
         """
 
         padding_mask = make_pad_mask(x_lens)
-        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(threshold)) * (
-            ~padding_mask
-        )
+        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
         frames_list: List[torch.Tensor] = []
         lens_list: List[int] = []

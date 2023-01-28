@@ -363,7 +363,6 @@ def decode_one_batch(
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
-        threshold=0.95,
     )
 
     hyps = []

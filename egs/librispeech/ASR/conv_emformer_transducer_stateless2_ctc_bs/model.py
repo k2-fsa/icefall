@@ -138,15 +138,23 @@ class Transducer(nn.Module):
         blank_id = self.decoder.blank_id
 
         # frame reduce
-        encoder_out_fr, x_lens_fr = self.frame_reducer(
-            encoder_out,
-            x_lens,
-            ctc_output,
-            blank_id,
-            1.0
-            if warmup < 1.0
-            else (1.0 - math.exp(2 * warmup - 6.9954) if warmup < 2.0 else 0.95),
-        )
+        if warmup >= 2.0:
+            # lconv
+            encoder_out = self.lconv(
+                x=encoder_out,
+                src_key_padding_mask=make_pad_mask(x_lens),
+            )
+
+            # frame reduce
+            encoder_out_fr, x_lens_fr = self.frame_reducer(
+                encoder_out,
+                x_lens,
+                ctc_output,
+                blank_id,
+            )
+        else:
+            encoder_out_fr = encoder_out
+            x_lens_fr = x_lens
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
