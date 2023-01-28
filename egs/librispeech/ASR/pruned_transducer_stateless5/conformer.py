@@ -695,8 +695,8 @@ class ConformerEncoder(nn.Module):
         outputs = []
         
         for i, mod in enumerate(self.layers):
-            if random.random() < 0.05:
-                continue
+            #if random.random() < 0.05:
+            #    continue
             output = mod(
                 output,
                 pos_emb,
