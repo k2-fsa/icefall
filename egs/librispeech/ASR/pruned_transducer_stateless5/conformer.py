@@ -696,7 +696,9 @@ class ConformerEncoder(nn.Module):
         residual = None
 
         for i, mod in enumerate(self.layers):
-            if i in [2,5,8]:
+            if i == 2:
+                residual = output
+            elif i in [2,5,8]:
                 residual = output
                 output = mod(
                     output,
