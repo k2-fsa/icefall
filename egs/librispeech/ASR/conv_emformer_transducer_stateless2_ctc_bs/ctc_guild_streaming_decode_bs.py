@@ -286,13 +286,16 @@ def greedy_search(
 
     batch_size_list = fake_packed_encoder_out.batch_sizes.tolist()
     sorted_indices = fake_packed_encoder_out.sorted_indices.tolist()
-    
+
     assert N == batch_size_list[0], (N, batch_size_list)
 
     encoder_out = model.joiner.encoder_proj(fake_packed_encoder_out.data)
 
     decoder_input = torch.tensor(
-        [streams[sorted_indices[i]].hyp[-context_size:] for i in range(streams_length)],
+        [
+            streams[sorted_indices[i]].hyp[-context_size:]
+            for i in range(streams_length)
+        ],
         device=device,
         dtype=torch.int64,
     )
