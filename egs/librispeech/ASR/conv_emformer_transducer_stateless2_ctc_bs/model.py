@@ -137,14 +137,7 @@ class Transducer(nn.Module):
         # blank skip
         blank_id = self.decoder.blank_id
 
-        # frame reduce
         if warmup >= 2.0:
-            # lconv
-            encoder_out = self.lconv(
-                x=encoder_out,
-                src_key_padding_mask=make_pad_mask(x_lens),
-            )
-
             # frame reduce
             encoder_out_fr, x_lens_fr = self.frame_reducer(
                 encoder_out,

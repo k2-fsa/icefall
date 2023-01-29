@@ -342,6 +342,7 @@ def decode_one_chunk(
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
         blank_id=0,
+        is_training=False,
     )
 
     if params.decoding_method == "greedy_search":
@@ -538,7 +539,9 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in ("greedy_search")
+    assert params.decoding_method in (
+        "greedy_search",
+    )
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:

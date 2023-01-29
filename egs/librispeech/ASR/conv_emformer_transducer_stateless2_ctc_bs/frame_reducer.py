@@ -44,6 +44,7 @@ class FrameReducer(nn.Module):
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
         blank_id: int = 0,
+        is_training: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -56,6 +57,8 @@ class FrameReducer(nn.Module):
               The CTC output with shape [N, T, vocab_size].
             blank_id:
               The ID of the blank symbol.
+            is_training:
+              True for training. False for validation.
         Returns:
             x_fr:
               The frame reduced encoder output with shape [N, T', C].
@@ -69,18 +72,30 @@ class FrameReducer(nn.Module):
 
         frames_list: List[torch.Tensor] = []
         lens_list: List[int] = []
-        non_empty_frames_idx: List[int] = []
-        for i in range(x.shape[0]):
-            frames = x[i][non_blank_mask[i]]
-            if frames.shape[0] != 0:
+
+        if is_training:
+            for i in range(x.shape[0]):
+                frames = x[i][non_blank_mask[i]]
                 frames_list.append(frames)
                 lens_list.append(frames.shape[0])
-                non_empty_frames_idx.append(i)
-        if len(frames_list) != 0:
             frames_list = pad_sequence(frames_list, batch_first=True)
-        else:
-            frames_list = torch.tensor(frames_list).to(device=x.device)
-        lens_list = torch.tensor(lens_list).to(device=x.device)
-        non_empty_frames_idx = torch.tensor(non_empty_frames_idx).to(device=x.device)
+            lens_list = torch.tensor(lens_list).to(device=x.device)
 
-        return frames_list, lens_list, non_empty_frames_idx
+            return frames_list, lens_list
+        else:
+            non_empty_frames_idx: List[int] = []
+
+            for i in range(x.shape[0]):
+                frames = x[i][non_blank_mask[i]]
+                if frames.shape[0] != 0:
+                    frames_list.append(frames)
+                    lens_list.append(frames.shape[0])
+                    non_empty_frames_idx.append(i)
+            if len(frames_list) != 0:
+                frames_list = pad_sequence(frames_list, batch_first=True)
+            else:
+                frames_list = torch.tensor(frames_list).to(device=x.device)
+            lens_list = torch.tensor(lens_list).to(device=x.device)
+            non_empty_frames_idx = torch.tensor(non_empty_frames_idx).to(device=x.device)
+
+            return frames_list, lens_list, non_empty_frames_idx
