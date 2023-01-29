@@ -30,6 +30,7 @@ def prepare_vox(
     corpus_dir: str,
     dataset_parts: str = "auto",
     output_dir: str = None,
+    spk_id:str = "6938",
     num_jobs: int = 1,
 ) -> Dict[str, Dict[str, Union[RecordingSet, SupervisionSet]]]:
     """
