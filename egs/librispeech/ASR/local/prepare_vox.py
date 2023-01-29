@@ -180,4 +180,4 @@ def main(corpus_dir):
 
 corpus_dir = sys.argv[1]
 spk_id = sys.argv[2]
-main(corpus_dir)
+main(corpus_dir, spk_id)
