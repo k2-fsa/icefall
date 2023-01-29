@@ -61,6 +61,14 @@ def get_args():
         default=None,
         help="""Path to data""",
     )
+    
+    parser.add_argument(
+        "--spk-id",
+        type=str,
+        default=None,
+        help="""Path to data""",
+    )
+
     return parser.parse_args()
 
 
