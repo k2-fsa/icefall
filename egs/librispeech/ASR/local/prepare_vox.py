@@ -179,4 +179,5 @@ def main(corpus_dir):
     prepare_vox(corpus_dir, "auto", output_dir, nj)
 
 corpus_dir = sys.argv[1]
+spk_id = sys.argv[2]
 main(corpus_dir)
