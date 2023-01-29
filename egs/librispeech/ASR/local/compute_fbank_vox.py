@@ -71,7 +71,7 @@ def get_args():
     return parser.parse_args()
 
 
-def compute_fbank_LJSpeech(bpe_model: Optional[str] = None):
+def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -146,4 +146,4 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_LJSpeech(bpe_model=args.bpe_model, args)
+    compute_fbank_LJSpeech(bpe_model=args.bpe_model, args=args)
