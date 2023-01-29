@@ -1395,3 +1395,39 @@ def is_module_available(*modules: str) -> bool:
     import importlib
 
     return all(importlib.util.find_spec(m) is not None for m in modules)
+
+
+def filter_uneven_sized_batch(batch: dict, allowed_max_frames: int):
+    """For the uneven-sized batch, the total duration after padding would possibly
+    cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    we simply drop the last few shortest samples, so that the retained total frames
+    (after padding) would not exceed the given allow_max_frames.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      allowed_max_frames:
+        The allowed max number of frames in batch.
+    """
+    features = batch["inputs"]
+    supervisions = batch["supervisions"]
+
+    N, T, _ = features.size()
+    assert T == supervisions["num_frames"].max(), (T, supervisions["num_frames"].max())
+    keep_num_utt = allowed_max_frames // T
+
+    if keep_num_utt >= N:
+        return batch
+
+    # Note: we assume the samples in batch is sorted descendingly by length
+    logging.info(
+        f"Filtering uneven-sized batch, original batch size is {N}, "
+        f"retained batch size is {keep_num_utt}."
+    )
+    batch["inputs"] = features[:keep_num_utt]
+    for k, v in supervisions.items():
+        assert len(v) == N, (len(v), N)
+        batch["supervisions"][k] = v[:keep_num_utt]
+
+    return batch

@@ -421,13 +421,13 @@ class Zipformer(EncoderInterface):
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
-        On e.g. 15% of frames, these masks will zero out all enocder dims larger than
+        On e.g. 15% of frames, these masks will zero out all encoder dims larger than
         some supplied number, e.g. >256, so in effect on those frames we are using
-        a smaller encoer dim.
+        a smaller encoder dim.
 
         We generate the random masks at this level because we want the 2 masks to 'agree'
         all the way up the encoder stack. This will mean that the 1st mask will have
-        mask values repeated self.zipformer_subsampling_factor times.
+        mask values repeated self.zipformer_downsampling_factors times.
 
         Args:
            x: the embeddings (needed for the shape and dtype and device), of shape
@@ -1687,8 +1687,8 @@ class RelPositionalEncoding(torch.nn.Module):
                 if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        # Suppose `i` means to the position of query vecotr and `j` means the
-        # position of key vector. We use position relative positions when keys
+        # Suppose `i` means to the position of query vector and `j` means the
+        # position of key vector. We use positive relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x_size_left, self.d_model)
         pe_negative = torch.zeros(x_size_left, self.d_model)
@@ -1778,10 +1778,10 @@ class RelPositionMultiheadAttention(nn.Module):
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
         in_proj_dim = (
-            2 * attention_dim
-            + attention_dim // 2  # query, key
-            + pos_dim * num_heads  # value
-        )  # positional encoding query
+            2 * attention_dim  # query, key
+            + attention_dim // 2  # value
+            + pos_dim * num_heads  # positional encoding query
+        )
 
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim**-0.25
@@ -2536,7 +2536,7 @@ class FeedforwardModule(nn.Module):
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.
