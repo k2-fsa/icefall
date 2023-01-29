@@ -146,4 +146,4 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_LJSpeech(bpe_model=args.bpe_model)
+    compute_fbank_LJSpeech(bpe_model=args.bpe_model, args)
