@@ -88,7 +88,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     #  done
     #  log "Resampling $dset done"
     #done
-    python local/prepare_vox_text.py $dl_dir/vox/4446
+    python local/prepare_vox_text.py $dl_dir/vox/$spk_id
     #touch $dl_dir/vox/.vox.done
   fi
 
