@@ -20,10 +20,10 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 11 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -35,10 +35,10 @@ Usage:
       --decoding-method greedy_search
 
 (2) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 12 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -51,10 +51,10 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
