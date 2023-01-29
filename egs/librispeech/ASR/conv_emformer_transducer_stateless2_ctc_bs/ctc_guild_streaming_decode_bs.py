@@ -33,40 +33,6 @@ Usage:
       --memory-size 32 \
       --use-averaged-model True \
       --decoding-method greedy_search
-
-(2) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
-      --epoch 30 \
-      --avg 12 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
-      --num-decode-streams 2000 \
-      --num-encoder-layers 12 \
-      --chunk-length 32 \
-      --cnn-module-kernel 31 \
-      --left-context-length 32 \
-      --right-context-length 8 \
-      --memory-size 32 \
-      --use-averaged-model True \
-      --decoding-method modified_beam_search \
-      --beam-size 4
-
-(3) fast beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
-      --epoch 30 \
-      --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
-      --num-decode-streams 2000 \
-      --num-encoder-layers 12 \
-      --chunk-length 32 \
-      --cnn-module-kernel 31 \
-      --left-context-length 32 \
-      --right-context-length 8 \
-      --memory-size 32 \
-      --decoding-method fast_beam_search \
-      --use-averaged-model True \
-      --beam 4 \
-      --max-contexts 4 \
-      --max-states 8
 """
 
 
@@ -82,7 +48,6 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 from emformer import LOG_EPSILON, stack_states, unstack_states
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -170,44 +135,7 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
-          - modified_beam_search
-          - fast_beam_search
         """,
-    )
-
-    parser.add_argument(
-        "--beam-size",
-        type=int,
-        default=4,
-        help="""An interger indicating how many candidates we will keep for each
-        frame. Used only when --decoding-method is beam_search or
-        modified_beam_search.""",
-    )
-
-    parser.add_argument(
-        "--beam",
-        type=float,
-        default=4,
-        help="""A floating point value to calculate the cutoff score during beam
-        search (i.e., `cutoff = max-score - beam`), which is the same as the
-        `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-contexts",
-        type=int,
-        default=4,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
-    )
-
-    parser.add_argument(
-        "--max-states",
-        type=int,
-        default=8,
-        help="""Used only when --decoding-method is
-        fast_beam_search""",
     )
 
     parser.add_argument(
@@ -293,7 +221,10 @@ def greedy_search(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     decoder_input = torch.tensor(
-        [streams[non_empty_frames_idx[sorted_indices[i]]].hyp[-context_size:] for i in range(len(non_empty_frames_idx))],
+        [
+            streams[non_empty_frames_idx[sorted_indices[i]]].hyp[-context_size:]
+            for i in range(len(non_empty_frames_idx))
+        ],
         device=device,
         dtype=torch.int64,
     )
@@ -343,207 +274,10 @@ def greedy_search(
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
 
-def modified_beam_search(
-    model: nn.Module,
-    encoder_out: torch.Tensor,
-    streams: List[Stream],
-    beam: int = 4,
-):
-    """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
-
-    Args:
-      model:
-        The RNN-T model.
-      encoder_out:
-        A 3-D tensor of shape (N, T, encoder_out_dim) containing the output of
-        the encoder model.
-      streams:
-        A list of stream objects.
-      beam:
-        Number of active paths during the beam search.
-    """
-    assert encoder_out.ndim == 3, encoder_out.shape
-    assert len(streams) == encoder_out.size(0)
-
-    blank_id = model.decoder.blank_id
-    context_size = model.decoder.context_size
-    device = next(model.parameters()).device
-    batch_size = len(streams)
-    T = encoder_out.size(1)
-
-    B = [stream.hyps for stream in streams]
-
-    encoder_out = model.joiner.encoder_proj(encoder_out)
-
-    for t in range(T):
-        current_encoder_out = encoder_out[:, t].unsqueeze(1).unsqueeze(1)
-        # current_encoder_out's shape: (batch_size, 1, 1, encoder_out_dim)
-
-        hyps_shape = get_hyps_shape(B).to(device)
-
-        A = [list(b) for b in B]
-        B = [HypothesisList() for _ in range(batch_size)]
-
-        ys_log_probs = torch.stack(
-            [hyp.log_prob.reshape(1) for hyps in A for hyp in hyps], dim=0
-        )  # (num_hyps, 1)
-
-        decoder_input = torch.tensor(
-            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
-            device=device,
-            dtype=torch.int64,
-        )  # (num_hyps, context_size)
-
-        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
-        decoder_out = model.joiner.decoder_proj(decoder_out)
-        # decoder_out is of shape (num_hyps, 1, 1, decoder_output_dim)
-
-        # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
-        # as index, so we use `to(torch.int64)` below.
-        current_encoder_out = torch.index_select(
-            current_encoder_out,
-            dim=0,
-            index=hyps_shape.row_ids(1).to(torch.int64),
-        )  # (num_hyps, encoder_out_dim)
-
-        logits = model.joiner(current_encoder_out, decoder_out, project_input=False)
-        # logits is of shape (num_hyps, 1, 1, vocab_size)
-
-        logits = logits.squeeze(1).squeeze(1)
-
-        log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
-
-        log_probs.add_(ys_log_probs)
-
-        vocab_size = log_probs.size(-1)
-
-        log_probs = log_probs.reshape(-1)
-
-        row_splits = hyps_shape.row_splits(1) * vocab_size
-        log_probs_shape = k2.ragged.create_ragged_shape2(
-            row_splits=row_splits, cached_tot_size=log_probs.numel()
-        )
-        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
-
-        for i in range(batch_size):
-            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
-                topk_token_indexes = (topk_indexes % vocab_size).tolist()
-
-            for k in range(len(topk_hyp_indexes)):
-                hyp_idx = topk_hyp_indexes[k]
-                hyp = A[i][hyp_idx]
-
-                new_ys = hyp.ys[:]
-                new_token = topk_token_indexes[k]
-                if new_token != blank_id:
-                    new_ys.append(new_token)
-
-                new_log_prob = topk_log_probs[k]
-                new_hyp = Hypothesis(ys=new_ys, log_prob=new_log_prob)
-                B[i].add(new_hyp)
-
-    for i in range(batch_size):
-        streams[i].hyps = B[i]
-
-
-def fast_beam_search_one_best(
-    model: nn.Module,
-    streams: List[Stream],
-    encoder_out: torch.Tensor,
-    processed_lens: torch.Tensor,
-    beam: float,
-    max_states: int,
-    max_contexts: int,
-) -> None:
-    """It limits the maximum number of symbols per frame to 1.
-
-    A lattice is first obtained using modified beam search, and then
-    the shortest path within the lattice is used as the final output.
-
-    Args:
-      model:
-        An instance of `Transducer`.
-      streams:
-        A list of stream objects.
-      encoder_out:
-        A tensor of shape (N, T, C) from the encoder.
-      processed_lens:
-        A tensor of shape (N,) containing the number of processed frames
-        in `encoder_out` before padding.
-      beam:
-        Beam value, similar to the beam used in Kaldi..
-      max_states:
-        Max states per stream per frame.
-      max_contexts:
-        Max contexts pre stream per frame.
-    """
-    assert encoder_out.ndim == 3
-
-    context_size = model.decoder.context_size
-    vocab_size = model.decoder.vocab_size
-
-    B, T, C = encoder_out.shape
-    assert B == len(streams)
-
-    config = k2.RnntDecodingConfig(
-        vocab_size=vocab_size,
-        decoder_history_len=context_size,
-        beam=beam,
-        max_contexts=max_contexts,
-        max_states=max_states,
-    )
-    individual_streams = []
-    for i in range(B):
-        individual_streams.append(streams[i].rnnt_decoding_stream)
-    decoding_streams = k2.RnntDecodingStreams(individual_streams, config)
-
-    encoder_out = model.joiner.encoder_proj(encoder_out)
-
-    for t in range(T):
-        # shape is a RaggedShape of shape (B, context)
-        # contexts is a Tensor of shape (shape.NumElements(), context_size)
-        shape, contexts = decoding_streams.get_contexts()
-        # `nn.Embedding()` in torch below v1.7.1 supports only torch.int64
-        contexts = contexts.to(torch.int64)
-        # decoder_out is of shape (shape.NumElements(), 1, decoder_out_dim)
-        decoder_out = model.decoder(contexts, need_pad=False)
-        decoder_out = model.joiner.decoder_proj(decoder_out)
-        # current_encoder_out is of shape
-        # (shape.NumElements(), 1, joiner_dim)
-        # fmt: off
-        current_encoder_out = torch.index_select(
-            encoder_out[:, t:t + 1, :], 0, shape.row_ids(1).to(torch.int64)
-        )
-        # fmt: on
-        logits = model.joiner(
-            current_encoder_out.unsqueeze(2),
-            decoder_out.unsqueeze(1),
-            project_input=False,
-        )
-        logits = logits.squeeze(1).squeeze(1)
-        log_probs = logits.log_softmax(dim=-1)
-        decoding_streams.advance(log_probs)
-
-    decoding_streams.terminate_and_flush_to_streams()
-
-    lattice = decoding_streams.format_output(processed_lens.tolist())
-
-    best_path = one_best_decoding(lattice)
-    hyps = get_texts(best_path)
-
-    for i in range(B):
-        streams[i].hyp = hyps[i]
-
-
 def decode_one_chunk(
     model: nn.Module,
     streams: List[Stream],
     params: AttributeDict,
-    decoding_graph: Optional[k2.Fsa] = None,
 ) -> List[int]:
     """
     Args:
@@ -553,9 +287,6 @@ def decode_one_chunk(
         A list of Stream objects.
       params:
         It is returned by :func:`get_params`.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
 
     Returns:
        A list of indexes indicating the finished streams.
@@ -621,25 +352,6 @@ def decode_one_chunk(
             encoder_out_lens=encoder_out_lens,
             non_empty_frames_idx=non_empty_frames_idx,
         )
-    elif params.decoding_method == "modified_beam_search":
-        modified_beam_search(
-            model=model,
-            streams=streams,
-            encoder_out=encoder_out,
-            beam=params.beam_size,
-        )
-    elif params.decoding_method == "fast_beam_search":
-        # feature_len is needed to get partial results.
-        # The rnnt_decoding_stream for fast_beam_search.
-        fast_beam_search_one_best(
-            model=model,
-            streams=streams,
-            encoder_out=encoder_out,
-            processed_lens=(num_processed_frames >> 2) + encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-        )
     else:
         raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
 
@@ -689,13 +401,10 @@ def decode_dataset(
         The Transducer model.
       sp:
         The BPE model.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
 
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
-      is used, or it may be "beam_7" if beam size of 7 is used.
+      is used.
       Its value is a list of tuples. Each tuple contains two elements:
       The first is the reference transcript, and the second is the
       predicted result.
@@ -776,14 +485,6 @@ def decode_dataset(
 
     if params.decoding_method == "greedy_search":
         key = "greedy_search"
-    elif params.decoding_method == "fast_beam_search":
-        key = (
-            f"beam_{params.beam}_"
-            f"max_contexts_{params.max_contexts}_"
-            f"max_states_{params.max_states}"
-        )
-    else:
-        key = f"beam_size_{params.beam_size}"
 
     return {key: decode_results}
 
@@ -843,8 +544,6 @@ def main():
 
     assert params.decoding_method in (
         "greedy_search",
-        "fast_beam_search",
-        "modified_beam_search",
     )
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
@@ -859,15 +558,8 @@ def main():
     params.suffix += f"-right-context-length-{params.right_context_length}"
     params.suffix += f"-memory-size-{params.memory_size}"
 
-    if "fast_beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam}"
-        params.suffix += f"-max-contexts-{params.max_contexts}"
-        params.suffix += f"-max-states-{params.max_states}"
-    elif "beam_search" in params.decoding_method:
-        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
-    else:
-        params.suffix += f"-context-{params.context_size}"
-        params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+    params.suffix += f"-context-{params.context_size}"
+    params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -975,11 +667,6 @@ def main():
 
     model.eval()
 
-    if params.decoding_method == "fast_beam_search":
-        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
-    else:
-        decoding_graph = None
-
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -996,8 +683,6 @@ def main():
             cuts=test_cut,
             model=model,
             params=params,
-            sp=sp,
-            decoding_graph=decoding_graph,
         )
 
         save_results(
