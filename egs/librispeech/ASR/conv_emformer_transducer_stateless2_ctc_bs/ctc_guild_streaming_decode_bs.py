@@ -388,7 +388,6 @@ def decode_dataset(
     model: nn.Module,
     params: AttributeDict,
     sp: spm.SentencePieceProcessor,
-    decoding_graph: Optional[k2.Fsa] = None,
 ):
     """Decode dataset.
 
@@ -422,7 +421,6 @@ def decode_dataset(
         stream = Stream(
             params=params,
             cut_id=cut.id,
-            decoding_graph=decoding_graph,
             device=device,
             LOG_EPS=LOG_EPSILON,
         )
@@ -449,7 +447,6 @@ def decode_dataset(
                 model=model,
                 streams=streams,
                 params=params,
-                decoding_graph=decoding_graph,
             )
 
             for i in sorted(finished_streams, reverse=True):
@@ -470,7 +467,6 @@ def decode_dataset(
             model=model,
             streams=streams,
             params=params,
-            decoding_graph=decoding_graph,
         )
 
         for i in sorted(finished_streams, reverse=True):
@@ -683,6 +679,7 @@ def main():
             cuts=test_cut,
             model=model,
             params=params,
+            sp=sp,
         )
 
         save_results(
