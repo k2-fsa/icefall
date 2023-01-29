@@ -707,6 +707,7 @@ class ConformerEncoder(nn.Module):
                     warmup=warmup,
                 )
                 output += residual
+                residual = output 
             else:
                 output = mod(
                     output,
