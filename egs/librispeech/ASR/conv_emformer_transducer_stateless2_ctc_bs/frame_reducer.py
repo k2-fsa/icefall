@@ -44,7 +44,7 @@ class FrameReducer(nn.Module):
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
         blank_id: int = 0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             x:
@@ -69,11 +69,18 @@ class FrameReducer(nn.Module):
 
         frames_list: List[torch.Tensor] = []
         lens_list: List[int] = []
+        non_empty_frames_idx: List[int] = []
         for i in range(x.shape[0]):
             frames = x[i][non_blank_mask[i]]
-            frames_list.append(frames)
-            lens_list.append(frames.shape[0])
-        x_fr = pad_sequence(frames_list, batch_first=True)
-        x_lens_fr = torch.tensor(lens_list).to(device=x.device)
+            if frames.shape[0] != 0:
+                frames_list.append(frames)
+                lens_list.append(frames.shape[0])
+                non_empty_frames_idx.append(i)
+        if len(frames_list) != 0:
+            frames_list = pad_sequence(frames_list, batch_first=True)
+        else:
+            frames_list = torch.tensor(frames_list).to(device=x.device)
+        lens_list = torch.tensor(lens_list).to(device=x.device)
+        non_empty_frames_idx = torch.tensor(non_empty_frames_idx).to(device=x.device)
 
-        return x_fr, x_lens_fr
+        return frames_list, lens_list, non_empty_frames_idx

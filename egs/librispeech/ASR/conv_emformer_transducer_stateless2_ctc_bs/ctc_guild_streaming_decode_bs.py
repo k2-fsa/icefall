@@ -20,10 +20,10 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 11 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -35,10 +35,10 @@ Usage:
       --decoding-method greedy_search
 
 (2) modified beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 12 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -51,10 +51,10 @@ Usage:
       --beam-size 4
 
 (3) fast beam search
-./conv_emformer_transducer_stateless2_ctc_bs/ctc_guild_streaming_decode_bs.py \
+./conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/ctc_guild_streaming_decode_bs.py \
       --epoch 30 \
       --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2_ctc_bs/exp \
+      --exp-dir conv_emformer_transducer_stateless2_ctc_bs_withoutlconv/exp \
       --num-decode-streams 2000 \
       --num-encoder-layers 12 \
       --chunk-length 32 \
@@ -247,6 +247,7 @@ def greedy_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
+    non_empty_frames_idx: torch.Tensor,
     streams: List[Stream],
 ) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
@@ -259,20 +260,20 @@ def greedy_search(
       encoder_out_lens:
         A 1-D tensor of shape (N,), containing number of valid frames in
         encoder_out before padding.
+      non_empty_frames_idx:
+        A list of the indexes of non-empty frames.
       streams:
         A list of Stream objects.
     """
-    streams_length = len(streams)
-    assert streams_length == encoder_out.size(0)
+    if encoder_out.size(0) == 0:
+        return
+
+    assert len(non_empty_frames_idx) == encoder_out.size(0)
     assert encoder_out.ndim == 3
 
-    is_valid = encoder_out_lens != 0
-    if torch.all(~is_valid):
-        return
-    fake_encoder_out_lens = [i + 1 if i == 0 else i for i in encoder_out_lens.cpu()]
-    fake_packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
+    packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
-        lengths=fake_encoder_out_lens,
+        lengths=encoder_out_lens.cpu(),
         batch_first=True,
         enforce_sorted=False,
     )
@@ -284,15 +285,15 @@ def greedy_search(
 
     N = encoder_out.size(0)
 
-    batch_size_list = fake_packed_encoder_out.batch_sizes.tolist()
-    sorted_indices = fake_packed_encoder_out.sorted_indices.tolist()
+    batch_size_list = packed_encoder_out.batch_sizes.tolist()
+    sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     assert N == batch_size_list[0], (N, batch_size_list)
 
-    encoder_out = model.joiner.encoder_proj(fake_packed_encoder_out.data)
+    encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     decoder_input = torch.tensor(
-        [streams[sorted_indices[i]].hyp[-context_size:] for i in range(streams_length)],
+        [streams[non_empty_frames_idx[sorted_indices[i]]].hyp[-context_size:] for i in range(len(non_empty_frames_idx))],
         device=device,
         dtype=torch.int64,
     )
@@ -322,15 +323,15 @@ def greedy_search(
         y = logits.argmax(dim=1).tolist()
         emitted = False
         for i, v in enumerate(y):
-            if is_valid[sorted_indices[i]] and v != blank_id:
-                streams[sorted_indices[i]].hyp.append(v)
+            if v != blank_id:
+                streams[non_empty_frames_idx[sorted_indices[i]]].hyp.append(v)
                 emitted = True
         if emitted:
             # update decoder output
             decoder_input = torch.tensor(
                 [
-                    streams[sorted_indices[i]].hyp[-context_size:]
-                    for i in range(streams_length)
+                    streams[non_empty_frames_idx[sorted_indices[i]]].hyp[-context_size:]
+                    for i in range(len(non_empty_frames_idx))
                 ],
                 device=device,
                 dtype=torch.int64,
@@ -605,7 +606,7 @@ def decode_one_chunk(
         num_processed_frames=num_processed_frames,
     )
 
-    encoder_out, encoder_out_lens = model.frame_reducer(
+    encoder_out, encoder_out_lens, non_empty_frames_idx = model.frame_reducer(
         x=encoder_out,
         x_lens=encoder_out_lens,
         ctc_output=ctc_output,
@@ -618,6 +619,7 @@ def decode_one_chunk(
             streams=streams,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            non_empty_frames_idx=non_empty_frames_idx,
         )
     elif params.decoding_method == "modified_beam_search":
         modified_beam_search(
