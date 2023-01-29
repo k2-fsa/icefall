@@ -292,10 +292,8 @@ def greedy_search(
     encoder_out = model.joiner.encoder_proj(fake_packed_encoder_out.data)
 
     decoder_input = torch.tensor(
-        [
-            streams[sorted_indices[i]].hyp[-context_size:]
-            for i in range(streams_length)
-        ],
+        [streams[sorted_indices[i]].hyp[-context_size:] for i in
+range(streams_length)],
         device=device,
         dtype=torch.int64,
     )
@@ -331,7 +329,10 @@ def greedy_search(
         if emitted:
             # update decoder output
             decoder_input = torch.tensor(
-                [streams[sorted_indices[i]].hyp[-context_size:] for i in range(streams_length)],
+                [
+                    streams[sorted_indices[i]].hyp[-context_size:]
+                    for i in range(streams_length)
+                ],
                 device=device,
                 dtype=torch.int64,
             )
