@@ -114,7 +114,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 3: Compute fbank for LJSpeech"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.LJSpeech.done ]; then
-    ./local/compute_fbank_vox.py --data-dir $dl_dir/vox
+    ./local/compute_fbank_vox.py --data-dir $dl_dir/vox --spk-id $spk_id
     #touch data/fbank/.vox.done
   fi
 
