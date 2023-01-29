@@ -693,17 +693,27 @@ class ConformerEncoder(nn.Module):
         output = src
 
         outputs = []
-        
+        residual = None
+
         for i, mod in enumerate(self.layers):
-            if random.random() < 0.05:
-                continue
-            output = mod(
-                output,
-                pos_emb,
-                src_mask=mask,
-                src_key_padding_mask=src_key_padding_mask,
-                warmup=warmup,
-            )
+            if i in [2,5,8]:
+                residual = output
+                output = mod(
+                    output,
+                    pos_emb,
+                    src_mask=mask,
+                    src_key_padding_mask=src_key_padding_mask,
+                    warmup=warmup,
+                )
+                output += residual
+            else:
+                output = mod(
+                    output,
+                    pos_emb,
+                    src_mask=mask,
+                    src_key_padding_mask=src_key_padding_mask,
+                    warmup=warmup,
+                )
             #if i in self.aux_layers:
             #    outputs.append(output)
 
