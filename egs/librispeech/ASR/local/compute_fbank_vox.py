@@ -89,7 +89,7 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args: Optional = Non
     directory = data_dir
 
     #parts = ['train', 'dev', 'test']
-    parts = ['4446']
+    parts = [args.spk_id]
     prefix = "vox"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
