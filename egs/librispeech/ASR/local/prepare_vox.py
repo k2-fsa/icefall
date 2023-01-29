@@ -172,7 +172,7 @@ def parse_alignments(ali_path: Pathlike) -> Dict[str, List[AlignmentItem]]:
         ]
     return alignments
 
-def main(corpus_dir):
+def main(corpus_dir, spk_id):
     nj = 15
     output_dir = "data/manifests"
     print(corpus_dir, output_dir)
