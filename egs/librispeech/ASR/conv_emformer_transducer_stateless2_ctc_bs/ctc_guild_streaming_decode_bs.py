@@ -538,9 +538,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    assert params.decoding_method in (
-        "greedy_search",
-    )
+    assert params.decoding_method in ("greedy_search")
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:
