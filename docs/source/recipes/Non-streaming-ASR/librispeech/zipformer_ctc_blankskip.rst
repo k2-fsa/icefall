@@ -447,7 +447,8 @@ Download pretrained models
 If you don't want to train from scratch, you can download the pretrained models
 by visiting the following links:
 
-  - `<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2022-12-14>`_
+  - trained on LibriSpeech 100h: `<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2022-12-14>`_
+  - trained on LibriSpeech 960h: `<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2023-01-29>`_
 
   See `<https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>`_
   for the details of the above pretrained models
