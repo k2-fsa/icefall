@@ -71,7 +71,7 @@ def get_args():
     return parser.parse_args()
 
 
-def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args):
+def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args: Optional = None):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
