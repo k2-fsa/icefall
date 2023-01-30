@@ -5,6 +5,7 @@
 
 import sys
 sys.path.append('../pruned_transducer_stateless_d2v_v2')
+
 import argparse
 import logging
 import math
