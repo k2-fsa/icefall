@@ -1,5 +1,6 @@
 git pull
 
+for i in 10 20 30 40 50
 for method in greedy_search #modified_beam_search fast_beam_search
 do
   ./pruned_transducer_stateless_d2v_v2/decode.py \
