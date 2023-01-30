@@ -1591,7 +1591,7 @@ def run_adapter(rank, world_size, args, wb=None):
     #train_cuts = librispeech.test_clean_user(option='big')
     train_cuts = librispeech.vox_cuts(option='6938')
     
-    with open('/workspace/icefall/egs/librispeech/ASR/4446.pl', 'r') as pl_texts:
+    with open('/workspace/icefall/egs/librispeech/ASR/6938.pl', 'r') as pl_texts:
         pl_texts = pl_texts.readlines()
 
         pl = {}
