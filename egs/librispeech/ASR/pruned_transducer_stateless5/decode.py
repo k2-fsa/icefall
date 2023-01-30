@@ -663,7 +663,7 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        logging.info(f"Decoding {batch_idx}-th batch")
+        #logging.info(f"Decoding {batch_idx}-th batch")
 
         hyps_dict = decode_one_batch(
             params=params,
