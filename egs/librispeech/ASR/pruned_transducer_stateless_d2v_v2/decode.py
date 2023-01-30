@@ -787,7 +787,7 @@ def main():
         test_sets = [f"test-clean_sampling"]
         test_dl = [test_clean_dl]
     
-    if 1:
+    if 0:
         option = '6938'
         test_clean_cuts = librispeech.vox_cuts(option=option)
     
