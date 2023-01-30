@@ -694,7 +694,17 @@ class ConformerEncoder(nn.Module):
 
         outputs = []
         residual = None
+        
+        for i, mod in enumerate(self.layers):
+            output = mod(
+                output,
+                pos_emb,
+                src_mask=mask,
+                src_key_padding_mask=src_key_padding_mask,
+                warmup=warmup,
+            )
 
+        '''
         for i, mod in enumerate(self.layers):
             if i == 0:
                 residual = output
@@ -716,6 +726,7 @@ class ConformerEncoder(nn.Module):
                     src_key_padding_mask=src_key_padding_mask,
                     warmup=warmup,
                 )
+        '''
             #if i in self.aux_layers:
             #    outputs.append(output)
 
