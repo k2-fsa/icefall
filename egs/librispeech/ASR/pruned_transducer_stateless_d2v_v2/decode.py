@@ -774,16 +774,23 @@ def main():
     
     #test_clean_cuts = librispeech.test_clean_cuts(option='male')
     #test_other_cuts = librispeech.test_other_cuts(option='male')
-    
+    if 0:
+        test_clean_cuts = librispeech.test_clean_user(option=option)
+        test_other_cuts = librispeech.test_other_user(option=option)
+
     if 1:
         option = 'low'
         test_clean_cuts = librispeech.test_clean_user(option=option)
         test_other_cuts = librispeech.test_other_user(option=option)
-    #option = '6938'
-    #test_clean_cuts = librispeech.vox_cuts(option=option)
-    #test_clean_cuts = librispeech.test_clean_user(option=option)
-    #test_other_cuts = librispeech.test_other_user(option=option)
-
+        test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+        test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+        test_sets = [f"test-clean_sampling"]
+        test_dl = [test_clean_dl]
+    
+    if 1:
+        option = '6938'
+        test_clean_cuts = librispeech.vox_cuts(option=option)
+    
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     #test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
