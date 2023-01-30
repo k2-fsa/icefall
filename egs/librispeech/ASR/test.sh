@@ -6,7 +6,7 @@ do
 	--input-strategy AudioSamples \
 	--enable-spec-aug False \
 	--additional-block True \
-	--model-name d2v-base-T.pt \
+	--model-name epoch-40.pt \
 	--exp-dir ./pruned_transducer_stateless_d2v_v2/6938_test \
     --max-duration 600 \
     --decoding-method $method \
