@@ -777,6 +777,9 @@ def main():
     if 0:
         test_clean_cuts = librispeech.test_clean_user(option=option)
         test_other_cuts = librispeech.test_other_user(option=option)
+        test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+        test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
 
     if 1:
         option = 'low'
