@@ -794,14 +794,9 @@ def main():
     if 0:
         option = '6938'
         test_clean_cuts = librispeech.vox_cuts(option=option)
-    
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    #test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = [f"test-clean_sampling"]
-    #test_sets = [f"test-clean_sampling", f"test-other_sampling"]
-    test_dl = [test_clean_dl]
-    #test_dl = [test_clean_dl, test_other_dl]
+        test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+        test_sets = [f"test-clean_sampling"]
+        test_dl = [test_clean_dl]
     
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
