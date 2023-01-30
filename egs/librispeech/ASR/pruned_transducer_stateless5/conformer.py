@@ -710,7 +710,7 @@ class ConformerEncoder(nn.Module):
         for i, mod in enumerate(self.layers):
             if i == 0:
                 residual = output
-            elif i in [2,5,8,11]:
+            elif i in [2,5,8,11,14,17]:
                 output = mod(
                     output,
                     pos_emb,
