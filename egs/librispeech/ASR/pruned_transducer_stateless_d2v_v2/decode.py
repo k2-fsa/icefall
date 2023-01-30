@@ -807,51 +807,12 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
         )
-        results = results_dict['greedy_search']
-        #jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
-        #new_jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}_p.jsonl", 'w')
-
-        res_dict = {}
-        for res in results:
-            res_dict[res[0]] = ' '.join(res[2])
-        
-        res_dict = sorted(res_dict.items(), key=lambda x:x[0])
-
-        for k, v in res_dict:
-            print(k, v)
-        exit()
-        
-        if 0:
-            for line in jsons:
-                splited = line.split()
-                utt_id = splited[1][1:-2]
-                text_idx = splited.index('"text":')
-
-                pseudo = f'"greedy pseudo text": "{res_dict[utt_id]}",'
-                #splited.insert(text_idx, pseudo)
-                splited.insert(len(splited)-2, pseudo)
-                new_line = ' '.join(splited)
-                new_line += '\n'
-
-                new_jsons.write(new_line)
-
-    '''
-    for test_set, test_dl in zip(test_sets, test_dl):
-        results_dict = decode_dataset(
-            dl=test_dl,
-            params=params,
-            model=model,
-            sp=sp,
-            word_table=word_table,
-            decoding_graph=decoding_graph,
-        )
         
         save_results(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
         )
-    '''
 
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
