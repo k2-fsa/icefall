@@ -37,9 +37,8 @@ Usage of this script:
   --frame-reducer-filename ./pruned_transducer_stateless7_ctc_bs/exp/frame_reducer.onnx \
   --ctc-output-filename ./pruned_transducer_stateless7_ctc_bs/exp/ctc_output.onnx \
   --bpe-model ./data/lang_bpe_500/bpe.model \
-  /home/yfy62/test-wavs/1089-134686-0001.wav \
-  /home/yfy62/test-wavs/1221-135766-0001.wav \
-  /home/yfy62/test-wavs/1221-135766-0002.wav
+  /path/to/foo.wav \
+  /path/to/bar.wav
 """
 
 import argparse
