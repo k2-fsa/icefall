@@ -13,7 +13,7 @@ stop_stage=100
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-#  - $dl_dir/tedlium3
+#  - $dl_dir/tedlium2
 #      You can find data, doc, legacy, LM, etc, inside it.
 #      You can download them from https://www.openslr.org/51
 #
@@ -58,9 +58,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   # ln -sfv /path/to/tedlium3 $dl_dir/tedlium3
   #
-  if [ ! -d $dl_dir/tedlium3 ]; then
+  if [ ! -d $dl_dir/tedlium2 ]; then
     lhotse download tedlium $dl_dir
-    mv $dl_dir/TEDLIUM_release-3 $dl_dir/tedlium3
+    mv $dl_dir/TEDLIUM_release-2 $dl_dir/tedlium2
   fi
 
   # If you have pre-downloaded it to /path/to/musan,
@@ -74,13 +74,13 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare tedlium3 manifests"
-  if [ ! -f data/manifests/.tedlium3.done ]; then
+  log "Stage 1: Prepare tedlium2 manifests"
+  if [ ! -f data/manifests/.tedlium2.done ]; then
     # We assume that you have downloaded the tedlium3 corpus
     # to $dl_dir/tedlium3
     mkdir -p data/manifests
-    lhotse prepare tedlium $dl_dir/tedlium3 data/manifests
-    touch data/manifests/.tedlium3.done
+    lhotse prepare tedlium $dl_dir/tedlium2 data/manifests
+    touch data/manifests/.tedlium2.done
   fi
 fi
 
@@ -96,12 +96,12 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute fbank for tedlium3"
+  log "Stage 3: Compute fbank for tedlium2"
 
-  if [ ! -e data/fbank/.tedlium3.done ]; then
+  if [ ! -e data/fbank/.tedlium2.done ]; then
     mkdir -p data/fbank
     python3 ./local/compute_fbank_tedlium.py
-    touch data/fbank/.tedlium3.done
+    touch data/fbank/.tedlium2.done
   fi
 fi
 
