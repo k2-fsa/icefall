@@ -39,7 +39,7 @@ logger = logging.getLogger().setLevel(logging.INFO)
 class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
-        self.adapters = ResidualAdapterModule(proj_dim=384)
+        self.adapters = ResidualAdapterModule(proj_dim=512)
 
         for p in self.adapters.parameters():
             p.data /= 10.
