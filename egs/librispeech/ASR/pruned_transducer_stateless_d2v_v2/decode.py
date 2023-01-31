@@ -783,7 +783,7 @@ def main():
         test_dl = [test_clean_dl, test_other_dl]
 
     if 1:
-        option = 'low'
+        option = 'big'
         test_clean_cuts = librispeech.test_clean_user(option=option)
         test_other_cuts = librispeech.test_other_user(option=option)
         test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
