@@ -419,10 +419,10 @@ def main():
         [lconv_out_nodes[0].name],
         {
             lconv_input_nodes[0].name: encoder_out,
-            lconv_input_nodes[1].name: make_pad_mask(
-                torch.from_numpy(encoder_out_lens)
-            ).numpy(),
-        }
+            lconv_input_nodes[1]
+            .name: make_pad_mask(torch.from_numpy(encoder_out_lens))
+            .numpy(),
+        },
     )[0]
 
     frame_reducer_input_nodes = frame_reducer.get_inputs()
@@ -433,7 +433,7 @@ def main():
             frame_reducer_input_nodes[0].name: encoder_out,
             frame_reducer_input_nodes[1].name: encoder_out_lens,
             frame_reducer_input_nodes[2].name: ctc_out,
-        }
+        },
     )
 
     hyps = greedy_search(

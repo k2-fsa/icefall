@@ -71,7 +71,7 @@ class FrameReducer(nn.Module):
         max_len = out_lens.max()
         pad_lens_list = torch.full_like(out_lens, max_len.item()) - out_lens
         max_pad_len = pad_lens_list.max()
-        
+
         out = F.pad(x, (0, 0, 0, max_pad_len))
 
         valid_pad_mask = ~make_pad_mask(pad_lens_list)
