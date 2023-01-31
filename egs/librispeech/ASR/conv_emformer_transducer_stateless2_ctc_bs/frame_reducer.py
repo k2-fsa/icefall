@@ -96,6 +96,8 @@ class FrameReducer(nn.Module):
             else:
                 frames_list = torch.tensor(frames_list).to(device=x.device)
             lens_list = torch.tensor(lens_list).to(device=x.device)
-            non_empty_frames_idx = torch.tensor(non_empty_frames_idx).to(device=x.device)
+            non_empty_frames_idx = torch.tensor(non_empty_frames_idx).to(
+                device=x.device
+            )
 
             return frames_list, lens_list, non_empty_frames_idx
