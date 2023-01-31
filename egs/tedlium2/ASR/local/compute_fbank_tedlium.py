@@ -44,6 +44,7 @@ def compute_fbank_tedlium():
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
+    print(num_jobs)
     num_mel_bins = 80
 
     dataset_parts = (
