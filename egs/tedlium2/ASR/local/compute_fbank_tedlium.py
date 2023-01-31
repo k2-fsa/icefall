@@ -89,7 +89,8 @@ def compute_fbank_tedlium():
             cur_num_jobs = num_jobs if ex is None else 80
             cur_num_jobs = min(cur_num_jobs, len(cut_set))
             
-            print(cur_num_jobs)
+            cur_num_jobs += 1
+
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
