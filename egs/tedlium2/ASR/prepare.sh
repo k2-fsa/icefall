@@ -58,10 +58,10 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   # ln -sfv /path/to/tedlium3 $dl_dir/tedlium3
   #
-  if [ ! -d $dl_dir/tedlium2 ]; then
-    lhotse download tedlium $dl_dir
-    mv $dl_dir/TEDLIUM_release-2 $dl_dir/tedlium2
-  fi
+  #if [ ! -d $dl_dir/tedlium2 ]; then
+  #  lhotse download tedlium $dl_dir
+  #  mv $dl_dir/TEDLIUM_release-2 $dl_dir/tedlium2
+  #fi
 
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
