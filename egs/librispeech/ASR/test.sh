@@ -9,7 +9,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--model-name epoch-$i.pt \
-		--exp-dir ./pruned_transducer_stateless_d2v_v2/6938_test \
+		--exp-dir ./pruned_transducer_stateless_d2v_v2/4446_test \
 		--max-duration 600 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
