@@ -76,11 +76,11 @@ class Decoder(nn.Module):
         self.repeat_param = nn.Parameter(torch.randn(decoder_dim))
 
     def _add_repeat_param(
-        self,
-        embedding_out: torch.Tensor,
-        k: torch.Tensor
+        self, embedding_out: torch.Tensor, k: torch.Tensor
     ) -> torch.Tensor:
-        """Add the repeat parameter to the embedding_out tensor.
+        """
+        Add the repeat parameter to the embedding_out tensor.
+
         Args:
           embedding_out:
             A tensor of shape (N, U, decoder_dim).
