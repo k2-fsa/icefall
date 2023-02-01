@@ -134,6 +134,89 @@ for m in nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescoring-4-gram;
 done
 ```
 
+### pruned_transducer_stateless7_ctc_bs (zipformer with transducer loss and ctc loss using blank skip)
+
+See https://github.com/k2-fsa/icefall/pull/730 for more details.
+
+[pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/rrNZ7l83Qu6RKoD7y49wiA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2023-01-29>
+
+Number of model parameters: 76804822, i.e., 76.80 M
+
+#### greedy_search
+
+| apply blank skip | test-clean | test-other | comment             |
+| ---------------- | ---------- | ---------- | ------------------- |
+| train&decode     | 2.28       | 5.53       | --epoch 30 --avg 13 |
+| None             | 2.23       | 5.19       | --epoch 30 --avg 8  |
+
+#### modified_beam_search
+
+| apply blank skip | test-clean | test-other | comment             |
+| ---------------- | ---------- | ---------- | ------------------- |
+| train&decode     | 2.26       | 5.44       | --epoch 30 --avg 13 |
+| None             | 2.21       | 5.12       | --epoch 30 --avg 8  |
+
+The training commands are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless7_ctc_bs/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --ctc-loss-scale 0.2 \
+  --master-port 12535
+```
+
+The decoding commands for the transducer branch are:
+
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+The decoding commands for the ctc branch are:
+
+```bash
+for m in ctc-decoding nbest nbest-rescoring whole-lattice-rescoring; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
+          --max-duration 100 \
+          --decoding-method $m \
+          --hlg-scale 0.6 \
+          --lm-dir data/lm
+    done
+  done
+done
+```
 
 ### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
 
