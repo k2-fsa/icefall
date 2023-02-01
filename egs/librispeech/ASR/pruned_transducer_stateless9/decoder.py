@@ -75,6 +75,26 @@ class Decoder(nn.Module):
 
         self.repeat_param = nn.Parameter(torch.randn(decoder_dim))
 
+    def _add_repeat_param(
+        self,
+        embedding_out: torch.Tensor,
+        k: torch.Tensor
+    ) -> torch.Tensor:
+        """Add the repeat parameter to the embedding_out tensor.
+        Args:
+          embedding_out:
+            A tensor of shape (N, U, decoder_dim).
+          k:
+            A tensor of shape (N, U).
+        Returns:
+          Return a tensor of shape (N, U, decoder_dim).
+        """
+        return embedding_out + torch.einsum(
+            "ab,c->abc",
+            k / (1 + k),
+            self.repeat_param,
+        )
+
     def forward(
         self,
         y: torch.Tensor,
@@ -109,10 +129,9 @@ class Decoder(nn.Module):
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
 
-        embedding_out = embedding_out + torch.einsum(
-            "ab,c->abc",
-            k / (1 + k),
-            self.repeat_param,
+        embedding_out = self._add_repeat_param(
+            embedding_out=embedding_out,
+            k=k,
         )
         embedding_out = F.relu(embedding_out)
         return embedding_out

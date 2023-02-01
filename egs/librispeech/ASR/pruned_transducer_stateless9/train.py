@@ -642,9 +642,7 @@ def compute_k(
     Returns:
       Return a tensor of shape (N, U).
     """
-    y = list(map(torch.tensor, y))
-    y = pad_sequence(y, batch_first=True)
-    y = F.pad(y, (1, 0), mode="constant", value=blank_id)
+    y = F.pad(y, (1, 0), mode="constant", value=blank_id)  # [B, S + 1], start with SOS.
 
     k = torch.zeros_like(y)
     for i in range(2, y.size(1)):
@@ -714,17 +712,19 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
+    y_lens = torch.tensor(list(map(len, y))).to(device)
+    y = list(map(torch.tensor, y))
+    y = pad_sequence(y, batch_first=True)  # [B, S]
 
-    # compute k
     k = compute_k(y, params.context_size, model.decoder.blank_id).to(device)
-
-    y = k2.RaggedTensor(y).to(device)
+    y = y.to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            y_lens=y_lens,
             k=k,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
