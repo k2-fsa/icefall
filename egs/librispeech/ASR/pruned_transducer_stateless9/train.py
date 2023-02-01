@@ -715,8 +715,12 @@ def compute_loss(
     y_lens = torch.tensor(list(map(len, y))).to(device)
     y = list(map(torch.tensor, y))
     y = pad_sequence(y, batch_first=True)  # [B, S]
-
-    k = compute_k(y, params.context_size, model.decoder.blank_id).to(device)
+    
+    k = compute_k(
+        y,
+        params.context_size,
+        model.decoder.blank_id if isinstance(model, DDP) else model.module.decoder.blank_id,
+        ).to(device)
     y = y.to(device)
 
     with torch.set_grad_enabled(is_training):
