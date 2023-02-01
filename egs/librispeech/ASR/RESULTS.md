@@ -149,6 +149,8 @@ results at:
 
 Number of model parameters: 76804822, i.e., 76.80 M
 
+Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
+
 #### greedy_search
 
 | apply blank skip | test-clean | test-other | decoding time(s) | comment             |
@@ -156,7 +158,8 @@ Number of model parameters: 76804822, i.e., 76.80 M
 | train&decode     | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
 | None             | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
 
-- Using blank skip is **1.88 times**  faster compared to the model without blank skip (pruned_transducer_stateless7_ctc).
+- Apply blank skip both on train&decode correspond to the model [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs), and on None, i.e. without blank skip, correspond to the model [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc).
+- Apply blank skip both on train&decode is **1.88 times**  faster compared to the model without blank skip, while the WERs don`t have obvious increase.
 
 #### modified_beam_search
 
@@ -165,9 +168,10 @@ Number of model parameters: 76804822, i.e., 76.80 M
 | train&decode     | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
 | None             | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
 
-- Using blank skip is **3.53 times**  faster compared to the model without blank skip (pruned_transducer_stateless7_ctc).
+- Apply blank skip both on train&decode correspond to the model [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs), and on None, i.e. without blank skip, correspond to the model [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc).
+- Apply blank skip both on train&decode is **3.53 times**  faster compared to the model without blank skip, while the WERs don`t have obvious increase.
 
-The training commands for the model using blank skip (pruned_transducer_stateless7_ctc_bs) are:
+The training commands for the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
 
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -184,7 +188,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --master-port 12535
 ```
 
-The decoding commands for the transducer branch of the model using blank skip (pruned_transducer_stateless7_ctc_bs) are:
+The decoding commands for the transducer branch of the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
 
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search; do
@@ -203,7 +207,7 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-The decoding commands for the transducer branch of the model without blank skip (pruned_transducer_stateless7_ctc) are:
+The decoding commands for the transducer branch of the model without blank skip ([pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc)) are:
 
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search; do
