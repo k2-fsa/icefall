@@ -719,7 +719,7 @@ def compute_loss(
     k = compute_k(
         y,
         params.context_size,
-        model.decoder.blank_id if isinstance(model, DDP) else model.module.decoder.blank_id,
+        model.module.decoder.blank_id if isinstance(model, DDP) else model.decoder.blank_id,
         ).to(device)
     y = y.to(device)
 
