@@ -159,7 +159,7 @@ Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
 | [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
 
 - [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
-- Applying blank skip both on training and decoding is **1.88 times** faster than the model that doesn\`t apply blank skip without obvious performance loss.
+- Applying blank skip both on training and decoding is **1.88 times** faster than the model that doesn't apply blank skip without obvious performance loss.
 
 #### modified_beam_search
 
@@ -169,7 +169,7 @@ Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
 | [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
 
 - [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
-- Applying blank skip both on training and decoding is **3.53 times**  faster than the model that doesn\`t apply blank skip without obvious performance loss.
+- Applying blank skip both on training and decoding is **3.53 times**  faster than the model that doesn't apply blank skip without obvious performance loss.
 
 The training commands for the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
 
