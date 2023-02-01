@@ -58,6 +58,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+import torch.nn.functional as F
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
@@ -69,6 +70,7 @@ from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
 
@@ -624,6 +626,41 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+def compute_k(
+    y: torch.Tensor,
+    context_size: int = 2,
+    blank_id: int = 0,
+) -> torch.Tensor:
+    """
+    Args:
+      y:
+        A 2-D tensor of shape (N, U).
+      context_size:
+        Number of previous words to use to predict the next word.
+        1 means bigram; 2 means trigram. n means (n+1)-gram.
+    Returns:
+      Return a tensor of shape (N, U).
+    """
+    y = list(map(torch.tensor, y))
+    y = pad_sequence(y, batch_first=True)
+    y = F.pad(y, (1, 0), mode='constant', value=blank_id)
+
+    k = torch.zeros_like(y)
+    for i in range(2, y.size(1)):
+        k[:, i : i + 1] = torch.where(
+            y[:, i : i + 1] != 0,
+            torch.sum(
+                (
+                    y[:, i - context_size : i]
+                    == y[:, i : i + 1].expand_as(y[:, i - context_size : i])
+                ).int(),
+                dim=1,
+                keepdim=True,
+            ),
+            y[:, i : i + 1],
+        )
+
+    return k
 
 def compute_loss(
     params: AttributeDict,
@@ -675,6 +712,10 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
+
+    # compute k
+    k = compute_k(y, params.context_size, model.decoder.blank_id).to(device)
+
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -682,6 +723,7 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            k=k,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,

@@ -71,43 +71,12 @@ class Transducer(nn.Module):
         )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
-    def _compute_k(
-        self,
-        y: torch.Tensor,
-        context_size: int = 2,
-    ) -> torch.Tensor:
-        """
-        Args:
-          y:
-            A 2-D tensor of shape (N, U).
-          context_size:
-            Number of previous words to use to predict the next word.
-            1 means bigram; 2 means trigram. n means (n+1)-gram.
-        Returns:
-          Return a tensor of shape (N, U).
-        """
-        k = torch.zeros_like(y)
-        for i in range(2, y.size(1)):
-            k[:, i : i + 1] = torch.where(
-                y[:, i : i + 1] != 0,
-                torch.sum(
-                    (
-                        y[:, i - context_size : i]
-                        == y[:, i : i + 1].expand_as(y[:, i - context_size : i])
-                    ).int(),
-                    dim=1,
-                    keepdim=True,
-                ),
-                y[:, i : i + 1],
-            )
-
-        return k
-
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         y: k2.RaggedTensor,
+        k: torch.Tensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -122,6 +91,9 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          k:
+            A statistic given the context_size with respect to utt.
+            A 2-D tensor of shape (N, U).
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -159,14 +131,8 @@ class Transducer(nn.Module):
         # sos_y_padded: [B, S + 1], start with SOS.
         sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
-        # compute k
-        k = self._compute_k(
-            sos_y_padded.cpu(),
-            self.decoder.context_size,
-        )
-
         # decoder_out: [B, S + 1, decoder_dim]
-        decoder_out = self.decoder(sos_y_padded, k.to(device=x.device))
+        decoder_out = self.decoder(sos_y_padded, k)
 
         # Note: y does not start with SOS
         # y_padded : [B, S]
