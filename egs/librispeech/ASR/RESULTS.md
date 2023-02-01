@@ -151,17 +151,21 @@ Number of model parameters: 76804822, i.e., 76.80 M
 
 #### greedy_search
 
-| apply blank skip | test-clean | test-other | comment             |
-| ---------------- | ---------- | ---------- | ------------------- |
-| train&decode     | 2.28       | 5.53       | --epoch 30 --avg 13 |
-| None             | 2.23       | 5.19       | --epoch 30 --avg 8  |
+| apply blank skip | test-clean | test-other | decoding time(s) | comment             |
+| ---------------- | ---------- | ---------- | ---------------- | ------------------- |
+| train&decode     | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
+| None             | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
+
+- The decode time of using blank skip is **53.25%** of that of without using blank skip, which means speeding up **1.88 times**.
 
 #### modified_beam_search
 
-| apply blank skip | test-clean | test-other | comment             |
-| ---------------- | ---------- | ---------- | ------------------- |
-| train&decode     | 2.26       | 5.44       | --epoch 30 --avg 13 |
-| None             | 2.21       | 5.12       | --epoch 30 --avg 8  |
+| apply blank skip | test-clean | test-other | decoding time(s) | comment             |
+| ---------------- | ---------- | ---------- | ---------------- | ------------------- |
+| train&decode     | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
+| None             | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
+
+- The decode time of using blank skip is **28.36%** of that of without using blank skip, which means speeding up **3.53 times**.
 
 The training commands are:
 
