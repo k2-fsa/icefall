@@ -74,30 +74,25 @@ class Transducer(nn.Module):
     def _compute_k(
         self,
         y: torch.Tensor,
-        y_lens: torch.Tensor,
         context_size: int = 2,
     ) -> torch.Tensor:
         """
         Args:
           y:
             A 2-D tensor of shape (N, U).
-          y_lens:
-            A tensor of shape (N,) containing the number of frames in
-            `y` before padding.
           context_size:
             Number of previous words to use to predict the next word.
             1 means bigram; 2 means trigram. n means (n+1)-gram.
         Returns:
           Return a tensor of shape (N, U).
         """
-        padding_mask = make_pad_mask(y_lens + 1)
-
         k = torch.zeros_like(y)
-        for i in range(2, len(y)):
-            for j in range(context_size):
-                k[:, i:i+1] += (y[:, i-1-j:i-j] == y[:, i:i+1]).int()
-  
-        k = k.masked_fill(padding_mask, 0)
+        for i in range(2, y.size(1)):
+            k[:, i : i + 1] = torch.where(
+                y[:, i : i + 1] != 0,
+                torch.sum((y[:, i - context_size : i] == y[:, i : i + 1].expand_as(y[:, i - context_size : i])).int(), dim=1, keepdim=True),
+                y[:, i : i + 1],
+            )
 
         return k
 
@@ -160,9 +155,8 @@ class Transducer(nn.Module):
         # compute k
         k = self._compute_k(
             sos_y_padded.cpu(),
-            y_lens.cpu(),
             self.decoder.context_size,
-            )
+        )
 
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded, k.to(device=x.device))
