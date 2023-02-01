@@ -93,13 +93,13 @@ results at:
 
 Number of model parameters: 69136519, i.e., 69.14 M
 
-|                          | test-clean | test-other  | comment             |
-|--------------------------|------------|-------------|---------------------|
-| 1best                    | 2.54       | 5.65        | --epoch 30 --avg 10 |
-| nbest                    | 2.54       | 5.66        | --epoch 30 --avg 10 |
-| nbest-rescoring-LG       | 2.49       | 5.42        | --epoch 30 --avg 10 |
-| nbest-rescoring-3-gram   | 2.52       | 5.62        | --epoch 30 --avg 10 |
-| nbest-rescoring-4-gram   | 2.5        | 5.51        | --epoch 30 --avg 10 |
+|                        | test-clean | test-other | comment             |
+| ---------------------- | ---------- | ---------- | ------------------- |
+| 1best                  | 2.54       | 5.65       | --epoch 30 --avg 10 |
+| nbest                  | 2.54       | 5.66       | --epoch 30 --avg 10 |
+| nbest-rescoring-LG     | 2.49       | 5.42       | --epoch 30 --avg 10 |
+| nbest-rescoring-3-gram | 2.52       | 5.62       | --epoch 30 --avg 10 |
+| nbest-rescoring-4-gram | 2.5        | 5.51       | --epoch 30 --avg 10 |
 
 The training commands are:
 ```bash
@@ -134,6 +134,97 @@ for m in nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescoring-4-gram;
 done
 ```
 
+### pruned_transducer_stateless7_ctc_bs (zipformer with transducer loss and ctc loss using blank skip)
+
+See https://github.com/k2-fsa/icefall/pull/730 for more details.
+
+[pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/rrNZ7l83Qu6RKoD7y49wiA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2023-01-29>
+
+Number of model parameters: 76804822, i.e., 76.80 M
+
+Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
+
+#### greedy_search
+
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
+
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **1.88 times** faster than the model that doesn't apply blank skip without obvious performance loss.
+
+#### modified_beam_search
+
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
+
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **3.53 times**  faster than the model that doesn't apply blank skip without obvious performance loss.
+
+The training commands for the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless7_ctc_bs/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --ctc-loss-scale 0.2 \
+  --master-port 12535
+```
+
+The decoding commands for the transducer branch of the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
+
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+The decoding commands for the transducer branch of the model without blank skip ([pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc)) are:
+
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
 
 ### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
 
