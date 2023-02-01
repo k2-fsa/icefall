@@ -52,6 +52,7 @@ from icefall.utils import (
 )
 from lhotse.cut import Cut
 
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

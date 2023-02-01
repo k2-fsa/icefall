@@ -90,7 +90,14 @@ class Transducer(nn.Module):
         for i in range(2, y.size(1)):
             k[:, i : i + 1] = torch.where(
                 y[:, i : i + 1] != 0,
-                torch.sum((y[:, i - context_size : i] == y[:, i : i + 1].expand_as(y[:, i - context_size : i])).int(), dim=1, keepdim=True),
+                torch.sum(
+                    (
+                        y[:, i - context_size : i]
+                        == y[:, i : i + 1].expand_as(y[:, i - context_size : i])
+                    ).int(),
+                    dim=1,
+                    keepdim=True,
+                ),
                 y[:, i : i + 1],
             )
 
