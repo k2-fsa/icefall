@@ -719,8 +719,10 @@ def compute_loss(
     k = compute_k(
         y,
         params.context_size,
-        model.module.decoder.blank_id if isinstance(model, DDP) else model.decoder.blank_id,
-        ).to(device)
+        model.module.decoder.blank_id 
+        if isinstance(model, DDP)
+        else model.decoder.blank_id,
+    ).to(device)
     y = y.to(device)
 
     with torch.set_grad_enabled(is_training):
