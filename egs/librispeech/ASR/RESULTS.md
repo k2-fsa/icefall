@@ -93,13 +93,13 @@ results at:
 
 Number of model parameters: 69136519, i.e., 69.14 M
 
-|                          | test-clean | test-other  | comment             |
-|--------------------------|------------|-------------|---------------------|
-| 1best                    | 2.54       | 5.65        | --epoch 30 --avg 10 |
-| nbest                    | 2.54       | 5.66        | --epoch 30 --avg 10 |
-| nbest-rescoring-LG       | 2.49       | 5.42        | --epoch 30 --avg 10 |
-| nbest-rescoring-3-gram   | 2.52       | 5.62        | --epoch 30 --avg 10 |
-| nbest-rescoring-4-gram   | 2.5        | 5.51        | --epoch 30 --avg 10 |
+|                        | test-clean | test-other | comment             |
+| ---------------------- | ---------- | ---------- | ------------------- |
+| 1best                  | 2.54       | 5.65       | --epoch 30 --avg 10 |
+| nbest                  | 2.54       | 5.66       | --epoch 30 --avg 10 |
+| nbest-rescoring-LG     | 2.49       | 5.42       | --epoch 30 --avg 10 |
+| nbest-rescoring-3-gram | 2.52       | 5.62       | --epoch 30 --avg 10 |
+| nbest-rescoring-4-gram | 2.5        | 5.51       | --epoch 30 --avg 10 |
 
 The training commands are:
 ```bash
@@ -153,23 +153,23 @@ Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
 
 #### greedy_search
 
-| apply blank skip | test-clean | test-other | decoding time(s) | comment             |
-| ---------------- | ---------- | ---------- | ---------------- | ------------------- |
-| train&decode     | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
-| None             | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
 
-- Apply blank skip both on train&decode correspond to the model [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs), and on None, i.e. without blank skip, correspond to the model [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc).
-- Apply blank skip both on train&decode is **1.88 times**  faster compared to the model without blank skip, while the WERs don`t have obvious increase.
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **1.88 times**  faster than the model doesn\`t apply blank skip withous obvious performance loss.
 
 #### modified_beam_search
 
-| apply blank skip | test-clean | test-other | decoding time(s) | comment             |
-| ---------------- | ---------- | ---------- | ---------------- | ------------------- |
-| train&decode     | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
-| None             | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
 
-- Apply blank skip both on train&decode correspond to the model [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs), and on None, i.e. without blank skip, correspond to the model [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc).
-- Apply blank skip both on train&decode is **3.53 times**  faster compared to the model without blank skip, while the WERs don`t have obvious increase.
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **3.53 times**  faster than the model doesn\`t apply blank skip withous obvious performance loss.
 
 The training commands for the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
 
