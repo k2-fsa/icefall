@@ -626,6 +626,7 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def compute_k(
     y: torch.Tensor,
     context_size: int = 2,
@@ -643,7 +644,7 @@ def compute_k(
     """
     y = list(map(torch.tensor, y))
     y = pad_sequence(y, batch_first=True)
-    y = F.pad(y, (1, 0), mode='constant', value=blank_id)
+    y = F.pad(y, (1, 0), mode="constant", value=blank_id)
 
     k = torch.zeros_like(y)
     for i in range(2, y.size(1)):
@@ -661,6 +662,7 @@ def compute_k(
         )
 
     return k
+
 
 def compute_loss(
     params: AttributeDict,
