@@ -156,7 +156,7 @@ Number of model parameters: 76804822, i.e., 76.80 M
 | train&decode     | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
 | None             | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
 
-- The decode time of using blank skip is **53.25%** of that of without using blank skip, which means speeding up **1.88 times**.
+- Using blank skip is **1.88 times**  faster compared to the model without blank skip (pruned_transducer_stateless7_ctc).
 
 #### modified_beam_search
 
@@ -165,9 +165,9 @@ Number of model parameters: 76804822, i.e., 76.80 M
 | train&decode     | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
 | None             | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
 
-- The decode time of using blank skip is **28.36%** of that of without using blank skip, which means speeding up **3.53 times**.
+- Using blank skip is **3.53 times**  faster compared to the model without blank skip (pruned_transducer_stateless7_ctc).
 
-The training commands are:
+The training commands for the model using blank skip (pruned_transducer_stateless7_ctc_bs) are:
 
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -184,7 +184,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --master-port 12535
 ```
 
-The decoding commands for the transducer branch are:
+The decoding commands for the transducer branch of the model using blank skip (pruned_transducer_stateless7_ctc_bs) are:
 
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search; do
@@ -203,20 +203,20 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-The decoding commands for the ctc branch are:
+The decoding commands for the transducer branch of the model without blank skip (pruned_transducer_stateless7_ctc) are:
 
 ```bash
-for m in ctc-decoding nbest nbest-rescoring whole-lattice-rescoring; do
+for m in greedy_search modified_beam_search fast_beam_search; do
   for epoch in 30; do
     for avg in 15; do
-      ./pruned_transducer_stateless7_ctc_bs/ctc_decode.py \
+      ./pruned_transducer_stateless7_ctc/decode.py \
           --epoch $epoch \
           --avg $avg \
-          --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
-          --max-duration 100 \
-          --decoding-method $m \
-          --hlg-scale 0.6 \
-          --lm-dir data/lm
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
     done
   done
 done
