@@ -221,8 +221,10 @@ class Conformer(EncoderInterface):
                 x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
             x = self.layer_norm(x/self.group_num)
             '''
-            x = self.sigmoid(self.alpha[0]) * layer_outputs[2]
-            x += self.sigmoid(self.alpha[1]) * layer_outputs[5]
+            x = layer_outputs[2]
+            #x = self.sigmoid(self.alpha[0]) * layer_outputs[2]
+            #x += self.sigmoid(self.alpha[1]) * layer_outputs[5]
+            #x += self.sigmoid(self.alpha[2]) * layer_outputs[5]
             x = self.layer_norm(x/2)
 
         return x, lengths
