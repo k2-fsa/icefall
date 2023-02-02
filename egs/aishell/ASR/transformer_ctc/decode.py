@@ -262,7 +262,7 @@ def decode_one_batch(
     '''
 
     if params.method == 'greedy-search' or params.method == 'ctc-decoding':
-        print(batch)
+        print(nnet_output.size())
         exit()
 
     if params.method == "ctc-decoding":
