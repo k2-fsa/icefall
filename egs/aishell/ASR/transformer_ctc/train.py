@@ -573,6 +573,7 @@ def train_one_epoch(
             graph_compiler=graph_compiler,
             valid_dl=valid_dl,
             world_size=world_size,
+            wb=wb,
         )
         model.train()
         logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
