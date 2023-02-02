@@ -49,6 +49,7 @@ from icefall.utils import (
     write_error_stats,
 )
 
+import asr_metrics as metrics
 
 def get_parser():
     parser = argparse.ArgumentParser(
