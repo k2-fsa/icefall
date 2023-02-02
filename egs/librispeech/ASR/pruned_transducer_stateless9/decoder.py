@@ -126,7 +126,7 @@ class Decoder(nn.Module):
         embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
-            if need_pad is True: 
+            if need_pad is True:
                 embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
             else:
                 # During inference time, there is no need to do extra padding
