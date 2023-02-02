@@ -259,7 +259,8 @@ def decode_one_batch(
     logging.info(lattice)
 
     if params.method == 'greedy-search':
-        logging.info(batch)
+        print(batch)
+        exit()
 
     if params.method == "ctc-decoding":
         best_path = one_best_decoding(
