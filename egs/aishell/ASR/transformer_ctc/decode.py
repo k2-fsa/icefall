@@ -498,7 +498,7 @@ def decode_dataset(
             subs_all += subs
             dels_all += dels
             ins_all += ins
-            char_num == len(ref)
+            char_num += len(ref)
     
             
         '''
