@@ -23,7 +23,7 @@ import torch.nn as nn
 from label_smoothing import LabelSmoothingLoss
 from subsampling import Conv2dSubsampling, VggSubsampling
 from torch.nn.utils.rnn import pad_sequence
-
+from torch.nn.modules import Module
 # Note: TorchScript requires Dict/List/etc. to be fully typed.
 Supervisions = Dict[str, torch.Tensor]
 
