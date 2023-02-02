@@ -532,21 +532,22 @@ def train_one_epoch(
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
-            logging.info("Computing validation loss")
-            valid_info = compute_validation_loss(
-                params=params,
-                model=model,
-                graph_compiler=graph_compiler,
-                valid_dl=valid_dl,
-                world_size=world_size,
+    #if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+    if 1:
+        logging.info("Computing validation loss")
+        valid_info = compute_validation_loss(
+            params=params,
+            model=model,
+            graph_compiler=graph_compiler,
+            valid_dl=valid_dl,
+            world_size=world_size,
+        )
+        model.train()
+        logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+        if tb_writer is not None:
+            valid_info.write_summary(
+                tb_writer, "train/valid_", params.batch_idx_train
             )
-            model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
-            if tb_writer is not None:
-                valid_info.write_summary(
-                    tb_writer, "train/valid_", params.batch_idx_train
-                )
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
