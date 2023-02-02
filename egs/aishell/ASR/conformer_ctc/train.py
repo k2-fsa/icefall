@@ -309,7 +309,7 @@ def save_checkpoint(
     #    best_valid_filename = params.exp_dir / "best-valid-loss.pt"
     #    copyfile(src=filename, dst=best_valid_filename)
     if max(params.best_valid_losses.keys()) == params.cur_epoch:
-        best_valid_filename = params.exp_dir / f"best-valid-loss_{params.cur_epoch).pt"
+        best_valid_filename = params.exp_dir / f"best-valid-loss_{params.cur_epoch}.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
 
