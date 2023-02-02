@@ -442,16 +442,18 @@ def compute_validation_loss(
         tot_loss.reduce(loss.device)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if params.cur_epoch < 10:
+    if params.cur_epoch < 3:
         params.best_valid_losses[params.cur_epoch] = loss_value
 
     #if loss_value < params.best_valid_loss:
     #    params.best_valid_epoch = params.cur_epoch
     #    params.best_valid_loss = loss_value
-    if params.cur_epoch >= 10 and loss_value < max(params.best_valid_losses.values()):
+    if params.cur_epoch >= 3 and loss_value < max(params.best_valid_losses.values()):
         for k, v in params.best_valid_losses.items():
             if v == max(params.best_valid_losses.values()):
-                params.best_valid_losses[k] = v
+                remove_filename = params.exp_dir / f"best-valid-loss_{k}.pt"
+                if loss.device == 0: os.remove(remove_filename)
+                params.best_valid_losses[params.cur_epoch] = loss_value
         
     return tot_loss
 
