@@ -73,14 +73,50 @@ class Decoder(nn.Module):
                 bias=False,
             )
 
-    def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
+        self.repeat_param = nn.Parameter(torch.randn(decoder_dim))
+
+    def _add_repeat_param(
+        self,
+        embedding_out: torch.Tensor,
+        k: torch.Tensor,
+        is_training: bool = True,
+    ) -> torch.Tensor:
+        """
+        Add the repeat parameter to the embedding_out tensor.
+
+        Args:
+          embedding_out:
+            A tensor of shape (N, U, decoder_dim).
+          k:
+            A tensor of shape (N, U).
+            Should be (N, S + 1) during training.
+            Should be (N, 1) during inference.
+        Returns:
+          Return a tensor of shape (N, U, decoder_dim).
+        """
+        return embedding_out + torch.matmul(
+            (k / (1 + k)).unsqueeze(2),
+            self.repeat_param.unsqueeze(0),
+        )
+
+    def forward(
+        self,
+        y: torch.Tensor,
+        k: torch.Tensor,
+        need_pad: bool = True,
+    ) -> torch.Tensor:
         """
         Args:
           y:
             A 2-D tensor of shape (N, U).
+          k:
+            A 2-D tensor, statistic given the context_size with respect to utt.
+            Should be (N, S + 1) during training.
+            Should be (N, 1) during inference.
           need_pad:
-            True to left pad the input. Should be True during training.
-            False to not pad the input. Should be False during inference.
+            Whether to left pad the input.
+            Should be True during training.
+            Should be False during inference.
         Returns:
           Return a tensor of shape (N, U, decoder_dim).
         """
@@ -90,7 +126,7 @@ class Decoder(nn.Module):
         embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
-            if need_pad is True:
+            if need_pad is True: 
                 embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
             else:
                 # During inference time, there is no need to do extra padding
@@ -98,5 +134,10 @@ class Decoder(nn.Module):
                 assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
+
+        embedding_out = self._add_repeat_param(
+            embedding_out=embedding_out,
+            k=k,
+        )
         embedding_out = F.relu(embedding_out)
         return embedding_out

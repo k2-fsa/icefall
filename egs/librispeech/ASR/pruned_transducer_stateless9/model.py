@@ -20,10 +20,11 @@ import random
 import k2
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from encoder_interface import EncoderInterface
 from scaling import penalize_abs_values_gt
 
-from icefall.utils import add_sos
+from icefall.utils import add_sos, make_pad_mask
 
 
 class Transducer(nn.Module):
@@ -75,7 +76,9 @@ class Transducer(nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        y: k2.RaggedTensor,
+        y: torch.Tensor,
+        y_lens: torch.Tensor,
+        k: torch.Tensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -88,8 +91,14 @@ class Transducer(nn.Module):
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
           y:
-            A ragged tensor with 2 axes [utt][label]. It contains labels of each
+            A 2-D tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
+          y_lens:
+            A 1-D tensor of shape (N,). It contains the number of frames in `y`
+            before padding.
+          k:
+            A statistic given the context_size with respect to utt.
+            A 2-D tensor of shape (N, U).
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -110,31 +119,24 @@ class Transducer(nn.Module):
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
-        assert y.num_axes == 2, y.num_axes
+        assert len(y.shape) == 2, len(y.shape)
 
-        assert x.size(0) == x_lens.size(0) == y.dim0
+        assert x.size(0) == x_lens.size(0) == y.size(0)
 
         encoder_out, x_lens = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)
 
-        # Now for the decoder, i.e., the prediction network
-        row_splits = y.shape.row_splits(1)
-        y_lens = row_splits[1:] - row_splits[:-1]
-
         blank_id = self.decoder.blank_id
-        sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.
-        sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+        sos_y_padded = F.pad(y, (1, 0), mode="constant", value=blank_id)
 
         # decoder_out: [B, S + 1, decoder_dim]
-        decoder_out = self.decoder(sos_y_padded)
+        decoder_out = self.decoder(sos_y_padded, k)
 
-        # Note: y does not start with SOS
+        # Note: y_padded does not start with SOS
         # y_padded : [B, S]
-        y_padded = y.pad(mode="constant", padding_value=0)
-
-        y_padded = y_padded.to(torch.int64)
+        y_padded = y.to(torch.int64)
         boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens

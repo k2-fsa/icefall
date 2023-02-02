@@ -542,7 +542,9 @@ def greedy_search(
         [-1] * (context_size - 1) + [blank_id], device=device, dtype=torch.int64
     ).reshape(1, context_size)
 
-    decoder_out = model.decoder(decoder_input, need_pad=False)
+    k = torch.zeros(1, 1, device=device, dtype=torch.int64)
+
+    decoder_out = model.decoder(decoder_input, k, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
@@ -586,7 +588,20 @@ def greedy_search(
                 1, context_size
             )
 
-            decoder_out = model.decoder(decoder_input, need_pad=False)
+            c = torch.tensor([hyp[-context_size - 1 :]], device=device).reshape(
+                1, context_size + 1
+            )
+
+            k[:, 0] = torch.sum(
+                (
+                    c[:, -context_size - 1 : -1]
+                    == c[:, -1].expand_as(c[:, -context_size - 1 : -1])
+                ).int(),
+                dim=1,
+                keepdim=True,
+            )
+
+            decoder_out = model.decoder(decoder_input, k, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
             sym_per_utt += 1
@@ -594,7 +609,7 @@ def greedy_search(
         else:
             sym_per_frame = 0
             t += 1
-    hyp = hyp[context_size:]  # remove blanks
+    hyp = hyp[context_size :]  # remove blanks
 
     if not return_timestamps:
         return hyp
