@@ -272,7 +272,6 @@ def decode_one_batch(
             for idx in topk_indexes:
                 hyp += token_dict[idx.item()]
             print(hyp) 
-            exit()
             
 
     if params.method == "ctc-decoding":
