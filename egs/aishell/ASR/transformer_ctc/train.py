@@ -720,7 +720,7 @@ def main():
     if world_size > 1:
         mp.spawn(run, args=(world_size, args, wb), nprocs=world_size, join=True)
     else:
-        run(rank=0, world_size=1, args=args)
+        run(rank=0, world_size=1, args=args, wb=wb)
 
 
 torch.set_num_threads(1)
