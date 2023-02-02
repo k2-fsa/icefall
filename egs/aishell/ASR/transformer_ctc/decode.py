@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
+from transformer import Transformer
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
