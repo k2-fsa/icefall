@@ -556,7 +556,7 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
-            wb.log({"train/loss": tot_loss})
+            wb.log({"train/loss": loss.item()})
 
             if tb_writer is not None:
                 loss_info.write_summary(
