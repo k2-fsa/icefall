@@ -423,8 +423,20 @@ def decode_dataset(
         logging.info(f"decoding {batch_idx} th batch")
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-
+        '''
         hyps_dict = decode_one_batch(
+            params=params,
+            model=model,
+            HLG=HLG,
+            H=H,
+            batch=batch,
+            lexicon=lexicon,
+            sos_id=sos_id,
+            eos_id=eos_id,
+            token_dict=token_dict,
+        )
+        '''
+        decode_one_batch_greedy(
             params=params,
             model=model,
             HLG=HLG,
