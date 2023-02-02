@@ -266,6 +266,7 @@ def decode_one_batch(
         for i in range(batch_size):
             topk_log_probs, topk_indexes = nnet_output[i].topk(1)
             print(topk_indexes)
+            exit()
             
 
     if params.method == "ctc-decoding":
