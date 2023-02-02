@@ -401,7 +401,6 @@ class TransfEncoder(nn.TransformerEncoder):
     __constants__ = ['norm']
 
     def __init__(self, encoder_layer, num_layers, norm=None, enable_nested_tensor=True, mask_check=True):
-        print(encoder_layer)
         super(TransfEncoder, self).__init__(
                 encoder_layer=encoder_layer,
                 num_layers=num_layers,
