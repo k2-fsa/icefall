@@ -502,7 +502,7 @@ class TransfEncoder(nn.TransformerEncoder):
         if self.norm is not None:
             output = self.norm(output)
 
-        return output, outputs
+        return output, layer_outputs
 
 
 class TransformerEncoderLayer(nn.Module):
