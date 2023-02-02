@@ -244,6 +244,7 @@ def decode_one_batch(
         assert HLG is None
         decoding_graph = H
 
+    logging.info('maybe here...')
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=decoding_graph,
