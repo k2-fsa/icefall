@@ -581,6 +581,7 @@ def run(rank, world_size, args):
     params.update(vars(args))
 
     fix_random_seed(params.seed)
+    print(rank)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
