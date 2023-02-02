@@ -643,9 +643,8 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
 
     aishell = AishellAsrDataModule(args)
-    #train_dl = aishell.train_dataloaders(aishell.train_cuts())
-    train_dl = aishell.valid_dataloaders(aishell.valid_cuts())
-    valid_dl = aishell.valid_dataloaders(aishell.test_cuts())
+    train_dl = aishell.train_dataloaders(aishell.train_cuts())
+    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     for epoch in range(params.start_epoch, params.num_epochs):
         fix_random_seed(params.seed + epoch)
