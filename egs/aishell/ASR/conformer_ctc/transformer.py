@@ -226,6 +226,12 @@ class Transformer(nn.Module):
         mask = mask.to(x.device) if mask is not None else None
         x, layer_outputs = self.encoder(x, src_key_padding_mask=mask)  # (T, N, C)
 
+        if self.groupnum != 0:
+            x = 0
+            for enum, alpha in enumerate(self.alpha):
+                x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
+            x = self.layer_norm(x)
+
         return x, mask
 
     def ctc_output(self, x: torch.Tensor) -> torch.Tensor:
