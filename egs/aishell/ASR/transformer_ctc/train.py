@@ -711,7 +711,8 @@ def main():
     parser = get_parser()
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
+    if args.wandb: args.exp_dir = args.exp_dir + str(random.randint(0,400))
+    else: args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
     world_size = args.world_size
