@@ -160,6 +160,12 @@ class Transformer(nn.Module):
         else:
             self.decoder_criterion = None
 
+        self.group_num = group_num
+        self.group_layer_num = int(self.encoder_layers // self.group_num)
+        self.alpha = nn.Parameter(torch.rand(self.group_num))
+        self.sigmoid = nn.Sigmoid()
+        self.layer_norm = nn.LayerNorm(d_model)
+
     def forward(
         self, x: torch.Tensor, supervision: Optional[Supervisions] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
