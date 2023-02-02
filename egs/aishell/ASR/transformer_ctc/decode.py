@@ -355,7 +355,7 @@ def decode_dataset(
     lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
-    token_dict,
+    token_dict: dict,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
