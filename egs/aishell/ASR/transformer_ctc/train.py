@@ -437,6 +437,7 @@ def compute_validation_loss(
     graph_compiler: CharCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
+    wb=None,
 ) -> MetricsTracker:
     """Run the validation process. The validation loss
     is saved in `params.valid_loss`.
