@@ -113,7 +113,6 @@ class Transformer(nn.Module):
         #    num_layers=num_encoder_layers,
         #    norm=encoder_norm,
         #)
-        print(encoder_norm)
         self.encoder = TransfEncoder(
             encoder_layer=encoder_layer,
             num_layers=num_encoder_layers,
