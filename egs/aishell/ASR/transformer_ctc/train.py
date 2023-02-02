@@ -48,6 +48,8 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+import random
+import wandb
 
 
 def get_parser():
