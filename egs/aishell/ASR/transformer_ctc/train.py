@@ -691,6 +691,7 @@ def run(rank, world_size, args, wb=None):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
+            wb=wb,
         )
 
         save_checkpoint(
