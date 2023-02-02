@@ -455,7 +455,8 @@ def compute_validation_loss(
                 remove_epoch = k
         
         remove_filename = params.exp_dir / f"best-valid-loss_{remove_epoch}.pt"
-        if loss.device == 0: os.remove(remove_filename)
+        try: os.remove(remove_filename)
+        except: pass
         del params.best_valid_losses[k]
         params.best_valid_losses[params.cur_epoch] = loss_value
         
