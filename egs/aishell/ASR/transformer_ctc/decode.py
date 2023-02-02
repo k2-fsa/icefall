@@ -505,7 +505,8 @@ def main():
 
         if not hasattr(HLG, "lm_scores"):
             HLG.lm_scores = HLG.scores.clone()
-
+    
+    '''
     model = Conformer(
         num_features=params.feature_dim,
         nhead=params.nhead,
@@ -516,6 +517,14 @@ def main():
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=params.vgg_frontend,
         use_feat_batchnorm=params.use_feat_batchnorm,
+    )
+    '''
+    model = Transformer(
+        num_features=params.feature_dim,
+        num_classes=num_classes,
+        use_feat_batchnorm=params.use_feat_batchnorm,
+        num_encoder_layers=params.num_encoder_layers,
+        num_decoder_layers=params.num_decoder_layers,
     )
 
     if params.avg == 1:
