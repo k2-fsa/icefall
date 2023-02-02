@@ -445,8 +445,7 @@ def compute_validation_loss(
     #if loss_value < params.best_valid_loss:
     #    params.best_valid_epoch = params.cur_epoch
     #    params.best_valid_loss = loss_value
-    if params.cur_epoch >= 10 and loss_value < max(params.best_valid_losses):
-        params.best_valid
+    if params.cur_epoch >= 10 and loss_value < max(params.best_valid_losses.values()):
 
 
     return tot_loss
