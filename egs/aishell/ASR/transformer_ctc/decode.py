@@ -255,10 +255,14 @@ def decode_one_batch(
         subsampling_factor=params.subsampling_factor,
     )
 
+    logging.info(lattice)
+
     if params.method == "ctc-decoding":
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
+
+        logging.info(best_path)
         # Note: `best_path.aux_labels` contains token IDs, not word IDs
         # since we are using H, not HLG here.
         #
