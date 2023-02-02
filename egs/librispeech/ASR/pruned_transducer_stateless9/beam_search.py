@@ -603,7 +603,7 @@ def greedy_search(
                     keepdim=True,
                 )
 
-            decoder_out = model.decoder(decoder_input, y, need_pad=False)
+            decoder_out = model.decoder(decoder_input, k need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
             sym_per_utt += 1

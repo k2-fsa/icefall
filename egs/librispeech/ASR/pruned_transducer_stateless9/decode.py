@@ -21,8 +21,8 @@
 Usage:
 (1) greedy search
 ./pruned_transducer_stateless9/decode.py \
-    --epoch 28 \
-    --avg 15 \
+    --epoch 30 \
+    --avg 8 \
     --exp-dir ./pruned_transducer_stateless9/exp \
     --max-duration 600 \
     --decoding-method greedy_search
