@@ -258,7 +258,7 @@ def decode_one_batch(
 
     logging.info(lattice)
 
-    if params.method == 'greedy-search':
+    if params.method == 'greedy-search' or params.method == 'ctc-decoding':
         print(batch)
         exit()
 
