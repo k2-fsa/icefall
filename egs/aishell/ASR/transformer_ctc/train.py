@@ -612,6 +612,8 @@ def run(rank, world_size, args):
         num_features=params.feature_dim,
         num_classes=num_classes,
         use_feat_batchnorm=params.use_feat_batchnorm,
+        num_encoder_layers=params.num_encoder_layers,
+        num_decoder_layers=params.num_decoder_layers,
     )
     '''
     model = Conformer(
