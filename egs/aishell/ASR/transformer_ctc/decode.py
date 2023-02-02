@@ -447,7 +447,8 @@ def decode_dataset(
             eos_id=eos_id,
             token_dict=token_dict,
         )
-
+        
+        '''
         for lm_scale, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
@@ -463,6 +464,7 @@ def decode_dataset(
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+        '''
     return results
 
 
