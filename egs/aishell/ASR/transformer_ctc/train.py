@@ -470,8 +470,8 @@ def compute_validation_loss(
         tot_loss.reduce(loss.device)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
-
-    if loss.device == 0:
+    
+    if wb is not None:
         wb.log({"valid/loss": loss_value})
 
     if params.cur_epoch < 10:
