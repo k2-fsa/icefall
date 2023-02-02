@@ -262,8 +262,9 @@ def decode_one_batch(
     '''
 
     if params.method == 'greedy-search' or params.method == 'ctc-decoding':
-        print(nnet_output.size())
-        exit()
+        batch_size = nnet_output.size(0)
+        for i in range(batch_size):
+            print(nnet_output[i].topk(1))
 
     if params.method == "ctc-decoding":
         best_path = one_best_decoding(
