@@ -499,9 +499,7 @@ def decode_dataset(
             ins_all += ins
             char_num == len(ref)
     
-    cer = (subs_all+dels_all+ins_all) / char_num
-    print(cer * 100)
-        
+            
         '''
         for lm_scale, hyps in hyps_dict.items():
             this_batch = []
@@ -519,6 +517,9 @@ def decode_dataset(
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
         '''
+    cer = (subs_all+dels_all+ins_all) / char_num
+    print(cer * 100)
+
     return results
 
 
