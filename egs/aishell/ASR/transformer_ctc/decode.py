@@ -265,7 +265,7 @@ def decode_one_batch(
         batch_size = nnet_output.size(0)
         for i in range(batch_size):
             topk_log_probs, topk_indexes = nnet_output[i].topk(1)
-            print(topk_indexes.size())
+            print(topk_indexes.squeeze())
             
             exit()
             
