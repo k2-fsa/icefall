@@ -718,7 +718,7 @@ def main():
     world_size = args.world_size
     assert world_size >= 1
     if world_size > 1:
-        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+        mp.spawn(run, args=(world_size, args, wb), nprocs=world_size, join=True)
     else:
         run(rank=0, world_size=1, args=args)
 
