@@ -523,7 +523,7 @@ def train_one_epoch(
 
         optimizer.zero_grad()
         loss.backward()
-        clip_grad_norm_(model.parameters(), 5.0, 2.0)
+        #clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
 
         if batch_idx % params.log_interval == 0:
