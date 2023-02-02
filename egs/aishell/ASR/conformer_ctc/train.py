@@ -28,6 +28,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from conformer import Conformer
+from transformer import Transformer
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
