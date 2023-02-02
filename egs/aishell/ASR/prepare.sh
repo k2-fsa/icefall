@@ -31,7 +31,7 @@ stop_stage=10
 #     - noise
 #     - speech
 
-dl_dir=/home/work/workspace/aishell
+dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
 

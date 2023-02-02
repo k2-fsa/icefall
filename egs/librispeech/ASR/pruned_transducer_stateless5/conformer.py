@@ -33,7 +33,6 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
-import random
 
 
 class Conformer(EncoderInterface):
@@ -693,10 +692,7 @@ class ConformerEncoder(nn.Module):
         output = src
 
         outputs = []
-        residual = None
 
-        '''
-        
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -705,33 +701,10 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
-        '''
+            if i in self.aux_layers:
+                outputs.append(output)
 
-        for i, mod in enumerate(self.layers):
-            if i == 0:
-                residual = output
-            elif i in [2,5,8,11,14,17]:
-                output = mod(
-                    output,
-                    pos_emb,
-                    src_mask=mask,
-                    src_key_padding_mask=src_key_padding_mask,
-                    warmup=warmup,
-                )
-                output += residual
-                residual = output 
-            else:
-                output = mod(
-                    output,
-                    pos_emb,
-                    src_mask=mask,
-                    src_key_padding_mask=src_key_padding_mask,
-                    warmup=warmup,
-                )
-            #if i in self.aux_layers:
-            #    outputs.append(output)
-
-        #output = self.combiner(outputs)
+        output = self.combiner(outputs)
 
         return output
 
