@@ -205,17 +205,20 @@ def decode_one_batch_greedy(
     else:
         assert HLG is None
         decoding_graph = H
+    
+    hyps = []
 
-    if params.method == 'greedy-search' or params.method == 'ctc-decoding':
-        batch_size = nnet_output.size(0)
-        for i in range(batch_size):
-            topk_log_probs, topk_indexes = nnet_output[i].topk(1)
-            topk_indexes = topk_indexes.squeeze().unique_consecutive()
-            topk_indexes = topk_indexes[topk_indexes != 0]
-            hyp = ''
-            for idx in topk_indexes:
-                hyp += token_dict[idx.item()]
-            print(hyp) 
+    batch_size = nnet_output.size(0)
+    for i in range(batch_size):
+        topk_log_probs, topk_indexes = nnet_output[i].topk(1)
+        topk_indexes = topk_indexes.squeeze().unique_consecutive()
+        topk_indexes = topk_indexes[topk_indexes != 0]
+        hyp = ''
+        for idx in topk_indexes:
+            hyp += token_dict[idx.item()]
+        hyps.append(hyp)
+
+    return hyps
 
 
 def decode_one_batch(
