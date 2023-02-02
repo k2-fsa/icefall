@@ -460,6 +460,10 @@ def compute_validation_loss(
         tot_loss.reduce(loss.device)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
+
+    if loss.device == 0:
+        wb.log({"valid/loss": loss_value)
+
     if params.cur_epoch < 10:
         params.best_valid_losses[params.cur_epoch] = loss_value
 
@@ -551,8 +555,6 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
             wb.log({"train/loss": tot_loss})
-
-        if batch_idx % params.log_interval == 0:
 
             if tb_writer is not None:
                 loss_info.write_summary(
