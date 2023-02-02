@@ -475,6 +475,7 @@ def compute_validation_loss(
         for k, v in params.best_valid_losses.items():
             if v == max(params.best_valid_losses.values()):
                 remove_epoch = k
+                break
         
         remove_filename = params.exp_dir / f"best-valid-loss_{remove_epoch}.pt"
         try: os.remove(remove_filename)
