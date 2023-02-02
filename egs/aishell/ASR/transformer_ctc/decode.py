@@ -470,7 +470,7 @@ def decode_dataset(
             token_dict=token_dict,
         )
         '''
-        decode_one_batch_greedy(
+        hyps = decode_one_batch_greedy(
             params=params,
             model=model,
             HLG=HLG,
@@ -481,6 +481,11 @@ def decode_dataset(
             eos_id=eos_id,
             token_dict=token_dict,
         )
+
+        for i, hyp in enumerate(hyps):
+            print('hyp = ', hyp)
+            print('ref = ', texts[i])
+            print('')
         
         '''
         for lm_scale, hyps in hyps_dict.items():
