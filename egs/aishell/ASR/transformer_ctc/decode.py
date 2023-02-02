@@ -590,6 +590,7 @@ def main():
             lexicon=lexicon,
             sos_id=sos_id,
             eos_id=eos_id,
+            token_dict,
         )
 
         save_results(params=params, test_set_name=test_set, results_dict=results_dict)
