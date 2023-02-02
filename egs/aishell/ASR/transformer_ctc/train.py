@@ -216,7 +216,7 @@ def get_params() -> AttributeDict:
             "weight_decay": 1e-5,
             "lr_factor": 3.0,
             #"warm_step": 36000,
-            "warm_step": 1000,
+            "warm_step": 2000,
             "env_info": get_env_info(),
         }
     )
@@ -581,7 +581,6 @@ def run(rank, world_size, args):
     params.update(vars(args))
 
     fix_random_seed(params.seed)
-    print(rank)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
