@@ -268,7 +268,9 @@ def decode_one_batch(
             topk_log_probs, topk_indexes = nnet_output[i].topk(1)
             topk_indexes = topk_indexes.squeeze().unique_consecutive()
             topk_indexes = topk_indexes[topk_indexes != 0]
-            print(topk_indexes)
+            hyp = ''
+            for idx in topk_indexes:
+                hyp += token_dict[idx]
             
             exit()
             
