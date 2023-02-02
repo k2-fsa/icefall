@@ -193,7 +193,7 @@ class TransfEnc(Transformer):
         cnn_module_kernel: int = 31,
         group_num: int = 0,
     ) -> None:
-        super(Conformer, self).__init__(
+        super(TransfEnc, self).__init__(
             num_features=num_features,
             num_classes=num_classes,
             subsampling_factor=subsampling_factor,
