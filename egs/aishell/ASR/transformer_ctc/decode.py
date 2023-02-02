@@ -548,6 +548,12 @@ def main():
         num_decoder_layers=params.num_decoder_layers,
     )
 
+    f = open(f"{params.lang_dir}/tokens.txt", "r").readlines()
+    token_dict = {}
+    for line in f:
+        line = line.strip().split()
+        token_dict[line[1]] = line[0]
+
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
