@@ -172,6 +172,7 @@ def decode_one_batch(
     lexicon: Lexicon,
     sos_id: int,
     eos_id: int,
+    token_dict: dict,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
