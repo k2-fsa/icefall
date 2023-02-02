@@ -231,9 +231,9 @@ def get_params() -> AttributeDict:
             "num_decoder_layers": 0,
             "use_feat_batchnorm": True,
             # parameters for Noam
-            "weight_decay": 1e-5,
-            "lr_factor": 3.0,
-            "warm_step": 2000,
+            #"weight_decay": 1e-5,
+            #"lr_factor": 3.0,
+            #"warm_step": 2000,
             "env_info": get_env_info(),
         }
     )
