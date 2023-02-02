@@ -410,7 +410,7 @@ class TransformerEncoder(Module):
         self.mask_check = mask_check
 
         def forward(self, src: Tensor, mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
-        r"""Pass the input through the encoder layers in turn.
+        """Pass the input through the encoder layers in turn.
 
         Args:
             src: the sequence to the encoder (required).
