@@ -588,7 +588,7 @@ def greedy_search(
                 1, context_size
             )
 
-            c = torch.tensor([hyp[-context_size * 2:]], device=device).reshape(
+            c = torch.tensor([hyp[-context_size * 2 :]], device=device).reshape(
                 1, context_size * 2
             )
 
@@ -596,7 +596,8 @@ def greedy_search(
                 k[:, i : i + 1] = torch.sum(
                     (
                         c[:, -context_size * 2 + i : -context_size + i]
-                        == c[:, -context_size + i : -context_size + i + 1] * context_size
+                        == c[:, -context_size + i : -context_size + i + 1]
+                        * context_size
                     ).int(),
                     dim=1,
                     keepdim=True,
@@ -610,7 +611,7 @@ def greedy_search(
         else:
             sym_per_frame = 0
             t += 1
-    hyp = hyp[2 * context_size - 1:]  # remove blanks
+    hyp = hyp[2 * context_size - 1 :]  # remove blanks
 
     if not return_timestamps:
         return hyp
