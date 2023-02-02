@@ -147,10 +147,6 @@ def get_parser():
         default=1000,
     )
 
-            "weight_decay": 1e-5,
-            "lr_factor": 3.0,
-            "warm_step": 2000,
-
     return parser
 
 
