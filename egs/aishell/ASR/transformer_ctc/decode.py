@@ -271,7 +271,7 @@ def decode_one_batch(
             hyp = ''
             for idx in topk_indexes:
                 hyp += token_dict[idx]
-            
+            print(hyp) 
             exit()
             
 
