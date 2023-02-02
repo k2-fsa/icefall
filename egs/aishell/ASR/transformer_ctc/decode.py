@@ -407,6 +407,7 @@ def decode_dataset(
             lexicon=lexicon,
             sos_id=sos_id,
             eos_id=eos_id,
+            token_dict=token_dict
         )
 
         for lm_scale, hyps in hyps_dict.items():
