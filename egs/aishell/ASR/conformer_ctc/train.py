@@ -441,7 +441,7 @@ def compute_validation_loss(
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     if params.cur_epoch < 10:
         params.best_valid_losses.append(loss_value)
-        params.best_valid_epoch = params.cur_epoch
+        params.best_valid_epochs.append = params.cur_epoch
 
     #if loss_value < params.best_valid_loss:
     #    params.best_valid_epoch = params.cur_epoch
