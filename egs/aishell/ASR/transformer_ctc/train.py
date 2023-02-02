@@ -214,7 +214,7 @@ def get_params() -> AttributeDict:
             "use_feat_batchnorm": True,
             # parameters for Noam
             "weight_decay": 1e-5,
-            "lr_factor": 5.0,
+            "lr_factor": 3.0,
             #"warm_step": 36000,
             "warm_step": 1000,
             "env_info": get_env_info(),
