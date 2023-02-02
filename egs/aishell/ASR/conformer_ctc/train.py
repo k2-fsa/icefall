@@ -193,6 +193,7 @@ def get_params() -> AttributeDict:
         {
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
+            "best_valid_losses": [float("inf") for i in range(10)],
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
