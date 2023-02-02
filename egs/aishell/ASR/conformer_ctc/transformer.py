@@ -401,7 +401,13 @@ class TransfEncoder(nn.TransformerEncoder):
     __constants__ = ['norm']
 
     def __init__(self, encoder_layer, num_layers, norm=None, enable_nested_tensor=True, mask_check=True):
-        super(TransfEncoder, self).__init__()
+        super(TransfEncoder, self).__init__(
+                encoder_layer=encoder_layer,
+                num_layers=num_layers,
+                norm=norm,
+                enable_nested_tensor=enable_nested_tensor,
+                mask_check=mask_check
+            )
 
     def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None):
         """Pass the input through the encoder layers in turn.
