@@ -729,7 +729,7 @@ def main():
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     if args.wandb: args.exp_dir = args.exp_dir + str(random.randint(0,400))
-    else: args.exp_dir = Path(args.exp_dir)
+    args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
     if args.wandb: wb = wandb.init(project="aishell", entity="dohe0342", config=vars(args))
