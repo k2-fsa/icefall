@@ -453,6 +453,7 @@ def compute_validation_loss(
             if v == max(params.best_valid_losses.values()):
                 remove_filename = params.exp_dir / f"best-valid-loss_{k}.pt"
                 if loss.device == 0: os.remove(remove_filename)
+                del params.best_valid_losses[k]
                 params.best_valid_losses[params.cur_epoch] = loss_value
         
     return tot_loss
