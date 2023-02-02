@@ -115,7 +115,7 @@ class Transformer(nn.Module):
         #)
         self.encoder = TransfEncoder(
             encoder_layer=encoder_layer,
-            num_layers=encoder_layer,
+            num_layers=num_encoder_layers,
             norm=encoder_norm,
         )
 
@@ -406,8 +406,6 @@ class TransfEncoder(nn.TransformerEncoder):
                 encoder_layer=encoder_layer,
                 num_layers=num_layers,
                 norm=norm,
-                enable_nested_tensor=enable_nested_tensor,
-                mask_check=mask_check
             )
 
     def forward(self, src: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None):
