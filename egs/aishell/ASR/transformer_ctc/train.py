@@ -128,6 +128,28 @@ def get_parser():
         default=42,
         help="The seed for random generators intended for reproducibility",
     )
+    
+    parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=1e-5,
+    )
+    
+    parser.add_argument(
+        "--lr-factor",
+        type=float,
+        default=3.0,
+    )
+    
+    parser.add_argument(
+        "--warm-step",
+        type=int,
+        default=1000,
+    )
+
+            "weight_decay": 1e-5,
+            "lr_factor": 3.0,
+            "warm_step": 2000,
 
     return parser
 
@@ -215,7 +237,6 @@ def get_params() -> AttributeDict:
             # parameters for Noam
             "weight_decay": 1e-5,
             "lr_factor": 3.0,
-            #"warm_step": 36000,
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
