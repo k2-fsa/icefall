@@ -442,13 +442,13 @@ def compute_validation_loss(
         tot_loss.reduce(loss.device)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if params.cur_epoch < 2:
+    if params.cur_epoch < 10:
         params.best_valid_losses[params.cur_epoch] = loss_value
 
     #if loss_value < params.best_valid_loss:
     #    params.best_valid_epoch = params.cur_epoch
     #    params.best_valid_loss = loss_value
-    if params.cur_epoch >= 2 and loss_value < max(params.best_valid_losses.values()):
+    if params.cur_epoch >= 10 and loss_value < max(params.best_valid_losses.values()):
         remove_epoch = -1
         for k, v in params.best_valid_losses.items():
             if v == max(params.best_valid_losses.values()):
