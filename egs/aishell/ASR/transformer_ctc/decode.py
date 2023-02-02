@@ -245,6 +245,8 @@ def decode_one_batch(
         decoding_graph = H
 
     logging.info('maybe here...')
+
+    '''
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=decoding_graph,
@@ -257,6 +259,7 @@ def decode_one_batch(
     )
 
     logging.info(lattice)
+    '''
 
     if params.method == 'greedy-search' or params.method == 'ctc-decoding':
         print(batch)
