@@ -209,8 +209,8 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "attention_dim": 512,
             "nhead": 4,
-            "num_encoder_layers": 12,
-            "num_decoder_layers": 6,
+            "num_encoder_layers": 18,
+            "num_decoder_layers": 0,
             "use_feat_batchnorm": True,
             # parameters for Noam
             "weight_decay": 1e-5,
