@@ -588,6 +588,12 @@ def run(rank, world_size, args):
     )
 
     logging.info("About to create model")
+    model = Transformer(
+        num_features=params.feature_dim,
+        num_classes=num_classes,
+        use_feat_batchnorm=params.use_feat_batchnorm,
+    )
+    '''
     model = Conformer(
         num_features=params.feature_dim,
         nhead=params.nhead,
@@ -599,6 +605,7 @@ def run(rank, world_size, args):
         vgg_frontend=False,
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
+    '''
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
