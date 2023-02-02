@@ -222,11 +222,11 @@ class Conformer(EncoderInterface):
             x = self.layer_norm(x/self.group_num)
             '''
             x = self.sigmoid(self.alpha[-1]) * layer_outputs[17]
-            x += self.sigmoid(self.alpha[-2]) * layer_outputs[14]
-            x += self.sigmoid(self.alpha[-3]) * layer_outputs[11]
-            x += self.sigmoid(self.alpha[-4]) * layer_outputs[8]
-            x += self.sigmoid(self.alpha[-5]) * layer_outputs[5]
-            x += self.sigmoid(self.alpha[-6]) * layer_outputs[2]
+            #x += self.sigmoid(self.alpha[-2]) * layer_outputs[14]
+            #x += self.sigmoid(self.alpha[-3]) * layer_outputs[11]
+            #x += self.sigmoid(self.alpha[-4]) * layer_outputs[8]
+            #x += self.sigmoid(self.alpha[-5]) * layer_outputs[5]
+            #x += self.sigmoid(self.alpha[-6]) * layer_outputs[2]
             #x += self.sigmoid(self.alpha[2]) * layer_outputs[5]
             x = self.layer_norm(x)
             #x = self.sigmoid(self.alpha[-1]) * layer_outputs[17]
