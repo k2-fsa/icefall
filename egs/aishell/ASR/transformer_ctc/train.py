@@ -491,6 +491,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
+    wb = None,
 ) -> None:
     """Train the model for one epoch.
 
