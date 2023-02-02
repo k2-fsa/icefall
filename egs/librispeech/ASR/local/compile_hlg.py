@@ -114,7 +114,7 @@ def compile_HLG(lang_dir: str, lm: str = "G_3_gram") -> k2.Fsa:
     # for why we need to set LG.properties to None
     LG.__dict__["_properties"] = None
 
-    #assert isinstance(LG.aux_labels, k2.RaggedTensor)
+    assert isinstance(LG.aux_labels, k2.RaggedTensor)
     LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
 
     LG = k2.remove_epsilon(LG)
