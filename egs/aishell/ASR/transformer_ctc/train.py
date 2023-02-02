@@ -480,7 +480,7 @@ def compute_validation_loss(
         try: os.remove(remove_filename)
         except: pass
 
-        del params.best_valid_losses[k]
+        del params.best_valid_losses[remove_epoch]
         params.best_valid_losses[params.cur_epoch] = loss_value
         
     return tot_loss
