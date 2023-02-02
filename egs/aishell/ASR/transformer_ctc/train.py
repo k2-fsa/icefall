@@ -54,6 +54,13 @@ def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    
+    parser.add_argument(
+        "--wandb",
+        type=str2bool,
+        default=False,
+        help="Should various information be logged in tensorboard.",
+    )
 
     parser.add_argument(
         "--world-size",
