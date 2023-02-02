@@ -484,7 +484,7 @@ def decode_dataset(
 
         for i, hyp in enumerate(hyps):
             print('hyp = ', hyp)
-            print('ref = ', texts[i])
+            print('ref = ', texts[i].replace(' ', ''))
             print('')
         
         '''
