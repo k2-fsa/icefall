@@ -42,7 +42,7 @@ class Transformer(nn.Module):
         normalize_before: bool = True,
         vgg_frontend: bool = False,
         use_feat_batchnorm: bool = False,
-        group-num: int = 6,
+        group_num: int = 6,
     ) -> None:
         """
         Args:
