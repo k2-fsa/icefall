@@ -715,6 +715,9 @@ def main():
     else: args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
 
+    if args.wandb: wb = wandb.init(project="d2v-T", entity="dohe0342", config=vars(args))
+    else: wb = None
+
     world_size = args.world_size
     assert world_size >= 1
     if world_size > 1:
