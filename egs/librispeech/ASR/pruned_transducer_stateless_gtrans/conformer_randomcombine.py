@@ -225,7 +225,7 @@ class Conformer(EncoderInterface):
             x += self.sigmoid(self.alpha[-2]) * layer_outputs[14]
             x += self.sigmoid(self.alpha[-3]) * layer_outputs[11]
             #x += self.sigmoid(self.alpha[2]) * layer_outputs[5]
-            x = self.layer_norm(x/2)
+            x = self.layer_norm(x/3)
             #x = self.sigmoid(self.alpha[-1]) * layer_outputs[17]
             #x += self.sigmoid(self.alpha[-2]) * layer_outputs[
 
