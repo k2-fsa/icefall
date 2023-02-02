@@ -268,7 +268,6 @@ def decode_one_batch(
             topk_indexes = topk_indexes.squeeze().unique_consecutive()
             topk_indexes = topk_indexes[topk_indexes != 0]
             print(topk_indexes)
-            #print(topk_indexes.squeeze())
             
             exit()
             
