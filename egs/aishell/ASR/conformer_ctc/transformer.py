@@ -224,7 +224,7 @@ class Transformer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
-        x, layer_outputs= self.encoder(x, src_key_padding_mask=mask)  # (T, N, C)
+        x, layer_outputs = self.encoder(x, src_key_padding_mask=mask)  # (T, N, C)
 
         return x, mask
 
