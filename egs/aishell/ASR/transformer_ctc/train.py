@@ -207,7 +207,7 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "subsampling_factor": 4,
             "feature_dim": 80,
-            "attention_dim": 512,
+            "attention_dim": 256,
             "nhead": 4,
             "num_encoder_layers": 18,
             "num_decoder_layers": 0,
