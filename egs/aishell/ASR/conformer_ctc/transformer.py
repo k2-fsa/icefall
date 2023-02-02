@@ -109,9 +109,14 @@ class Transformer(nn.Module):
         else:
             encoder_norm = None
 
-        self.encoder = nn.TransformerEncoder(
+        #self.encoder = nn.TransformerEncoder(
+        #    encoder_layer=encoder_layer,
+        #    num_layers=num_encoder_layers,
+        #    norm=encoder_norm,
+        #)
+        self.encoder = TransformerEncoder(
             encoder_layer=encoder_layer,
-            num_layers=num_encoder_layers,
+            num_layers=encoder_layer,
             norm=encoder_norm,
         )
 
