@@ -30,6 +30,7 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -50,7 +51,7 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-from lhotse.cut import Cut
+
 
 
 def get_parser():
