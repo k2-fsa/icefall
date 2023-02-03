@@ -42,13 +42,9 @@ class Conv2dSubsampling(nn.Module):
         assert idim >= 7
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels=1, out_channels=odim, kernel_size=3, stride=2
-            ),
+            nn.Conv2d(in_channels=1, out_channels=odim, kernel_size=3, stride=2),
             nn.ReLU(),
-            nn.Conv2d(
-                in_channels=odim, out_channels=odim, kernel_size=3, stride=2
-            ),
+            nn.Conv2d(in_channels=odim, out_channels=odim, kernel_size=3, stride=2),
             nn.ReLU(),
         )
         self.out = nn.Linear(odim * (((idim - 1) // 2 - 1) // 2), odim)
@@ -132,17 +128,13 @@ class VggSubsampling(nn.Module):
                 )
             )
             layers.append(
-                torch.nn.MaxPool2d(
-                    kernel_size=2, stride=2, padding=0, ceil_mode=True
-                )
+                torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0, ceil_mode=True)
             )
             cur_channels = block_dim
 
         self.layers = nn.Sequential(*layers)
 
-        self.out = nn.Linear(
-            block_dims[-1] * (((idim - 1) // 2 - 1) // 2), odim
-        )
+        self.out = nn.Linear(block_dims[-1] * (((idim - 1) // 2 - 1) // 2), odim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.

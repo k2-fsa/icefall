@@ -1,4 +1,4 @@
-# Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
+# Copyright (c)  2021  Xiaomi Corporation (authors: Daniel Povey, Fangjun Kuang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -155,12 +155,8 @@ class LmDatasetCollate:
         sentence_tokens_with_sos = add_sos(sentence_tokens, self.sos_id)
         sentence_tokens_with_eos = add_eos(sentence_tokens, self.eos_id)
 
-        x = sentence_tokens_with_sos.pad(
-            mode="constant", padding_value=self.blank_id
-        )
-        y = sentence_tokens_with_eos.pad(
-            mode="constant", padding_value=self.blank_id
-        )
+        x = sentence_tokens_with_sos.pad(mode="constant", padding_value=self.blank_id)
+        y = sentence_tokens_with_eos.pad(mode="constant", padding_value=self.blank_id)
         sentence_token_lengths += 1  # plus 1 since we added a SOS
 
         return x.to(torch.int64), y.to(torch.int64), sentence_token_lengths
@@ -198,7 +194,7 @@ def get_dataloader(
         batch_size=params.batch_size,
     )
     if is_distributed:
-        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False)
+        sampler = DistributedSampler(dataset, shuffle=True, drop_last=True)
     else:
         sampler = None
 

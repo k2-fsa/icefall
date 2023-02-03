@@ -23,6 +23,10 @@ on:
   pull_request:
     types: [labeled]
 
+concurrency:
+  group: run_pre_trained_transducer_stateless_modified_2_aishell-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run_pre_trained_transducer_stateless_modified_2_aishell:
     if: github.event.label.name == 'ready' || github.event_name == 'push'

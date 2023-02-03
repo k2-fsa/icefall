@@ -56,9 +56,7 @@ def get_parser():
     parser.add_argument(
         "--skip-ncols", "-s", default=0, type=int, help="skip first n columns"
     )
-    parser.add_argument(
-        "--space", default="<space>", type=str, help="space symbol"
-    )
+    parser.add_argument("--space", default="<space>", type=str, help="space symbol")
     parser.add_argument(
         "--non-lang-syms",
         "-l",
@@ -66,9 +64,7 @@ def get_parser():
         type=str,
         help="list of non-linguistic symobles, e.g., <NOISE> etc.",
     )
-    parser.add_argument(
-        "text", type=str, default=False, nargs="?", help="input text"
-    )
+    parser.add_argument("text", type=str, default=False, nargs="?", help="input text")
     parser.add_argument(
         "--trans_type",
         "-t",
@@ -108,8 +104,7 @@ def token2id(
             if token_type == "lazy_pinyin":
                 text = lazy_pinyin(chars_list)
                 sub_ids = [
-                    token_table[txt] if txt in token_table else oov_id
-                    for txt in text
+                    token_table[txt] if txt in token_table else oov_id for txt in text
                 ]
                 ids.append(sub_ids)
             else:  # token_type = "pinyin"
@@ -135,9 +130,7 @@ def main():
     if args.text:
         f = codecs.open(args.text, encoding="utf-8")
     else:
-        f = codecs.getreader("utf-8")(
-            sys.stdin if is_python2 else sys.stdin.buffer
-        )
+        f = codecs.getreader("utf-8")(sys.stdin if is_python2 else sys.stdin.buffer)
 
     sys.stdout = codecs.getwriter("utf-8")(
         sys.stdout if is_python2 else sys.stdout.buffer

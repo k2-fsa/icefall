@@ -78,13 +78,10 @@ class LabelSmoothingLoss(torch.nn.Module):
         ignored = target == self.ignore_index
         target[ignored] = 0
 
-        true_dist = torch.nn.functional.one_hot(
-            target, num_classes=num_classes
-        ).to(x)
+        true_dist = torch.nn.functional.one_hot(target, num_classes=num_classes).to(x)
 
         true_dist = (
-            true_dist * (1 - self.label_smoothing)
-            + self.label_smoothing / num_classes
+            true_dist * (1 - self.label_smoothing) + self.label_smoothing / num_classes
         )
         # Set the value of ignored indexes to 0
         true_dist[ignored] = 0

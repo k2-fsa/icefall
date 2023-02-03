@@ -35,6 +35,9 @@
 # can generate other transcript formats by supplying your own config files. A few examples of these
 # config files can be found in local/conf.
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 nj=8

@@ -243,6 +243,7 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_LG
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
@@ -267,7 +268,7 @@ def get_parser():
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search,
+        Used only when --decoding-method is fast_beam_search, fast_beam_search_LG,
         fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle
         """,
@@ -278,7 +279,7 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        Used only when --decoding_method is fast_beam_search_nbest_LG and fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
         """,
     )
@@ -287,7 +288,7 @@ def get_parser():
         "--max-contexts",
         type=int,
         default=8,
-        help="""Used only when --decoding-method is
+        help="""Used only when --decoding-method is fast_beam_search_LG,
         fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle""",
     )
@@ -296,7 +297,7 @@ def get_parser():
         "--max-states",
         type=int,
         default=64,
-        help="""Used only when --decoding-method is
+        help="""Used only when --decoding-method is fast_beam_search_LG,
         fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle""",
     )
@@ -305,8 +306,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -394,8 +394,8 @@ def decode_one_batch(
       word_table:
         The word symbol table.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
+        only when --decoding_method is fast_beam_search, fast_beam_search_LG, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return the decoding result and timestamps. See above description for the
@@ -426,11 +426,12 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
-        encoder_out, encoder_out_lens = model.encoder(
-            x=feature, x_lens=feature_lens
-        )
+        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
-    if params.decoding_method == "fast_beam_search":
+    if (
+        params.decoding_method == "fast_beam_search"
+        or params.decoding_method == "fast_beam_search_LG"
+    ):
         res = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
@@ -481,10 +482,7 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
             return_timestamps=True,
         )
-    elif (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         res = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -527,7 +525,7 @@ def decode_one_batch(
                 )
             tokens.extend(res.tokens)
             timestamps.extend(res.timestamps)
-        res = DecodingResults(tokens=tokens, timestamps=timestamps)
+        res = DecodingResults(hyps=tokens, timestamps=timestamps)
 
     hyps, timestamps = parse_hyp_and_timestamp(
         decoding_method=params.decoding_method,
@@ -547,8 +545,8 @@ def decode_one_batch(
         if "nbest" in params.decoding_method:
             key += f"_num_paths_{params.num_paths}_"
             key += f"nbest_scale_{params.nbest_scale}"
-            if "LG" in params.decoding_method:
-                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: (hyps, timestamps)}
     else:
@@ -562,9 +560,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[
-    str, List[Tuple[str, List[str], List[str], List[float], List[float]]]
-]:
+) -> Dict[str, List[Tuple[str, List[str], List[str], List[float], List[float]]]]:
     """Decode dataset.
 
     Args:
@@ -579,8 +575,8 @@ def decode_dataset(
       word_table:
         The word symbol table.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
+        only when --decoding_method is fast_beam_search, fast_beam_search_LG, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -639,9 +635,7 @@ def decode_dataset(
                 cut_ids, hyps, texts, timestamps_hyp, timestamps_ref
             ):
                 ref_words = ref_text.split()
-                this_batch.append(
-                    (cut_id, ref_words, hyp_words, time_ref, time_hyp)
-                )
+                this_batch.append((cut_id, ref_words, hyp_words, time_ref, time_hyp))
 
             results[name].extend(this_batch)
 
@@ -650,9 +644,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -690,8 +682,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -718,9 +709,7 @@ def save_results(
         note = ""
     logging.info(s)
 
-    s = "\nFor {}, symbol-delay of different settings are:\n".format(
-        test_set_name
-    )
+    s = "\nFor {}, symbol-delay of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_delays:
         s += "{}\tmean: {}s, variance: {}{}\n".format(key, val[0], val[1], note)
@@ -742,6 +731,7 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_LG",
         "fast_beam_search_nbest",
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
@@ -765,12 +755,10 @@ def main():
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
-            if "LG" in params.decoding_method:
-                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -807,9 +795,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -836,9 +824,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -886,7 +874,7 @@ def main():
     model.eval()
 
     if "fast_beam_search" in params.decoding_method:
-        if params.decoding_method == "fast_beam_search_nbest_LG":
+        if "LG" in params.decoding_method:
             lexicon = Lexicon(params.lang_dir)
             word_table = lexicon.word_table
             lg_filename = params.lang_dir / "LG.pt"
@@ -897,9 +885,7 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
         word_table = None
