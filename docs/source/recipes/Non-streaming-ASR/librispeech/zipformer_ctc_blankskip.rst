@@ -299,11 +299,11 @@ to run the training part first.
 
     - (1) ``epoch-1.pt``, ``epoch-2.pt``, ..., which are saved at the end
       of each epoch. You can pass ``--epoch`` to
-      ``pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py`` to use them.
+      ``pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py`` to use them.
 
     - (2) ``checkpoints-436000.pt``, ``epoch-438000.pt``, ..., which are saved
       every ``--save-every-n`` batches. You can pass ``--iter`` to
-      ``pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py`` to use them.
+      ``pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py`` to use them.
 
     We suggest that you try both types of checkpoints and choose the one
     that produces the lowest WERs.
@@ -311,7 +311,7 @@ to run the training part first.
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py --help
+  $ ./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py --help
 
 shows the options for decoding.
 
@@ -320,7 +320,7 @@ The following shows the example using ``epoch-*.pt``:
 .. code-block:: bash
 
     for m in greedy_search fast_beam_search modified_beam_search; do
-        ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py \
+        ./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py \
             --epoch 30 \
             --avg 13 \
             --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
@@ -333,7 +333,7 @@ To test CTC branch, you can use the following command:
 .. code-block:: bash
 
     for m in ctc-decoding 1best; do
-        ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py \
+        ./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py \
             --epoch 30 \
             --avg 13 \
             --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
@@ -367,7 +367,7 @@ It will generate a file ``./pruned_transducer_stateless7_ctc_bs/exp/pretrained.p
 
 .. hint::
 
-   To use the generated ``pretrained.pt`` for ``pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py``,
+   To use the generated ``pretrained.pt`` for ``pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py``,
    you can run:
 
    .. code-block:: bash
@@ -376,7 +376,7 @@ It will generate a file ``./pruned_transducer_stateless7_ctc_bs/exp/pretrained.p
       ln -s pretrained epoch-9999.pt
 
    And then pass ``--epoch 9999 --avg 1 --use-averaged-model 0`` to
-   ``./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py``.
+   ``./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py``.
 
 To use the exported model with ``./pruned_transducer_stateless7_ctc_bs/pretrained.py``, you
 can run:

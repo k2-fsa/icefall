@@ -194,7 +194,7 @@ The decoding commands for the transducer branch of the model using blank skip ([
 for m in greedy_search modified_beam_search fast_beam_search; do
   for epoch in 30; do
     for avg in 15; do
-      ./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py \
+      ./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py \
           --epoch $epoch \
           --avg $avg \
           --use-averaged-model 1 \
