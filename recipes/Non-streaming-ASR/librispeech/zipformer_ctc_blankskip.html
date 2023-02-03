@@ -388,23 +388,23 @@ to run the training part first.</p>
 <div><ul class="simple">
 <li><p>(1) <code class="docutils literal notranslate"><span class="pre">epoch-1.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-2.pt</span></code>, …, which are saved at the end
 of each epoch. You can pass <code class="docutils literal notranslate"><span class="pre">--epoch</span></code> to
-<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py</span></code> to use them.</p></li>
 <li><p>(2) <code class="docutils literal notranslate"><span class="pre">checkpoints-436000.pt</span></code>, <code class="docutils literal notranslate"><span class="pre">epoch-438000.pt</span></code>, …, which are saved
 every <code class="docutils literal notranslate"><span class="pre">--save-every-n</span></code> batches. You can pass <code class="docutils literal notranslate"><span class="pre">--iter</span></code> to
-<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code> to use them.</p></li>
+<code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py</span></code> to use them.</p></li>
 </ul>
 <p>We suggest that you try both types of checkpoints and choose the one
 that produces the lowest WERs.</p>
 </div></blockquote>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py<span class="w"> </span>--help
+$<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>shows the options for decoding.</p>
 <p>The following shows the example using <code class="docutils literal notranslate"><span class="pre">epoch-*.pt</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>greedy_search<span class="w"> </span>fast_beam_search<span class="w"> </span>modified_beam_search<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">    </span>./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--avg<span class="w"> </span><span class="m">13</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_ctc_bs/exp<span class="w"> </span><span class="se">\</span>
@@ -415,7 +415,7 @@ $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_
 </div>
 <p>To test CTC branch, you can use the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>ctc-decoding<span class="w"> </span>1best<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">    </span>./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--avg<span class="w"> </span><span class="m">13</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>--exp-dir<span class="w"> </span>pruned_transducer_stateless7_ctc_bs/exp<span class="w"> </span><span class="se">\</span>
@@ -445,14 +445,14 @@ command to extract <code class="docutils literal notranslate"><span class="pre">
 <p>It will generate a file <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/exp/pretrained.pt</span></code>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code>,
+<p>To use the generated <code class="docutils literal notranslate"><span class="pre">pretrained.pt</span></code> for <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py</span></code>,
 you can run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>pruned_transducer_stateless7_ctc_bs/exp
 ln<span class="w"> </span>-s<span class="w"> </span>pretrained<span class="w"> </span>epoch-9999.pt
 </pre></div>
 </div>
 <p>And then pass <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">9999</span> <span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code> to
-<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/ctc_guild_decode_bs.py</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py</span></code>.</p>
 </div>
 <p>To use the exported model with <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/pretrained.py</span></code>, you
 can run:</p>
