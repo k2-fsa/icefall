@@ -53,7 +53,6 @@ from icefall.utils import (
 )
 
 
-
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
