@@ -349,7 +349,7 @@ class AishellAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         cuts_train = load_manifest_lazy(
-            self.args.manifest_dir / "aishell_cuts_train.jsonl.gz"
+            self.args.manifest_dir / "aishell_cuts_train_part.jsonl.gz"
         )
         return cuts_train
 
