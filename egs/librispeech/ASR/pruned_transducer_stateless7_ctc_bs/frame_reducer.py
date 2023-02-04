@@ -22,7 +22,8 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
+import torch.nn.functional as F
+
 from icefall.utils import make_pad_mask
 
 
@@ -55,25 +56,69 @@ class FrameReducer(nn.Module):
             ctc_output:
               The CTC output with shape [N, T, vocab_size].
             blank_id:
-              The ID of the blank symbol.
+              The blank id of ctc_output.
         Returns:
-            x_fr:
+            out:
               The frame reduced encoder output with shape [N, T', C].
-            x_lens_fr:
+            out_lens:
               A tensor of shape (batch_size,) containing the number of frames in
-              `x_fr` before padding.
+              `out` before padding.
         """
+
+        N, T, C = x.size()
 
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
-        frames_list: List[torch.Tensor] = []
-        lens_list: List[int] = []
-        for i in range(x.shape[0]):
-            frames = x[i][non_blank_mask[i]]
-            frames_list.append(frames)
-            lens_list.append(frames.shape[0])
-        x_fr = pad_sequence(frames_list, batch_first=True)
-        x_lens_fr = torch.tensor(lens_list).to(device=x.device)
+        out_lens = non_blank_mask.sum(dim=1)
+        max_len = out_lens.max()
+        pad_lens_list = torch.full_like(out_lens, max_len.item()) - out_lens
+        max_pad_len = pad_lens_list.max()
 
-        return x_fr, x_lens_fr
+        out = F.pad(x, (0, 0, 0, max_pad_len))
+
+        valid_pad_mask = ~make_pad_mask(pad_lens_list)
+        total_valid_mask = torch.concat([non_blank_mask, valid_pad_mask], dim=1)
+
+        out = out[total_valid_mask].reshape(N, -1, C)
+
+        return out.to(device=x.device), out_lens.to(device=x.device)
+
+
+if __name__ == "__main__":
+    import time
+    from torch.nn.utils.rnn import pad_sequence
+
+    test_times = 10000
+    frame_reducer = FrameReducer()
+
+    # non zero case
+    x = torch.ones(15, 498, 384, dtype=torch.float32)
+    x_lens = torch.tensor([498] * 15, dtype=torch.int64)
+    ctc_output = torch.log(torch.randn(15, 498, 500, dtype=torch.float32))
+    x_fr, x_lens_fr = frame_reducer(x, x_lens, ctc_output)
+
+    avg_time = 0
+    for i in range(test_times):
+        delta_time = time.time()
+        x_fr, x_lens_fr = frame_reducer(x, x_lens, ctc_output)
+        delta_time = time.time() - delta_time
+        avg_time += delta_time
+    print(x_fr.shape)
+    print(x_lens_fr)
+    print(avg_time / test_times)
+
+    # all zero case
+    x = torch.zeros(15, 498, 384, dtype=torch.float32)
+    x_lens = torch.tensor([498] * 15, dtype=torch.int64)
+    ctc_output = torch.zeros(15, 498, 500, dtype=torch.float32)
+
+    avg_time = 0
+    for i in range(test_times):
+        delta_time = time.time()
+        x_fr, x_lens_fr = frame_reducer(x, x_lens, ctc_output)
+        delta_time = time.time() - delta_time
+        avg_time += delta_time
+    print(x_fr.shape)
+    print(x_lens_fr)
+    print(avg_time / test_times)
