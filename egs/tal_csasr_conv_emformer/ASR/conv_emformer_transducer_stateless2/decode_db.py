@@ -349,7 +349,6 @@ def decode_one_batch(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
             hyp_tokens.append(hyp)
-    print('hyp_tokens',hyp_tokens)
     hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}

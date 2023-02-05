@@ -159,6 +159,7 @@ def generate_lexicon(
           tokens.
     """
     sp = ""
+    print('bpe_model',bpe_model)
     if bpe_model is not None:
         bpemb_en = BPEmb(lang="zh")
         bpemb_en.spm = sentencepiece_load(bpe_model)

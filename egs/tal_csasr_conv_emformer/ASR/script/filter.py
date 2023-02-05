@@ -73,7 +73,6 @@ def filter(data,path,max_length=2000,
            token_min_length=1,
            min_output_input_ratio=0.0005,
            max_output_input_ratio=5):
-    #with open(path, "w") as fp:
     index=0
     with open_best(path, "w") as f:
       for sample in data:

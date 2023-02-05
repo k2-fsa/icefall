@@ -63,7 +63,7 @@ import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
-
+import sentencepiece as spm
 import k2
 import optim
 import torch
@@ -97,7 +97,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils_db import (
+from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     display_and_save_batch,
@@ -624,6 +624,7 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -680,7 +681,7 @@ def compute_loss(
                 f"simple_loss: {simple_loss}\n"
                 f"pruned_loss: {pruned_loss}"
             )
-            display_and_save_batch(batch, params=params)
+            display_and_save_batch(batch, params=params,sp=sp)
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
@@ -730,6 +731,7 @@ def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -743,6 +745,7 @@ def compute_validation_loss(
             params=params,
             model=model,
             graph_compiler=graph_compiler,
+            sp=sp,
             batch=batch,
             is_training=False,
         )
@@ -766,6 +769,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -818,6 +822,7 @@ def train_one_epoch(
                     params=params,
                     model=model,
                     graph_compiler=graph_compiler,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                     warmup=(params.batch_idx_train / params.model_warm_step),
@@ -833,7 +838,7 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except:  # noqa
-            display_and_save_batch(batch, params=params)
+            display_and_save_batch(batch, params=params,sp=sp)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -897,6 +902,7 @@ def train_one_epoch(
                 params=params,
                 model=model,
                 graph_compiler=graph_compiler,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -1068,6 +1074,7 @@ def run(rank, world_size, args):
     #        optimizer=optimizer,
     #        graph_compiler=graph_compiler,
     #        params=params,
+    #        sp: spm.SentencePieceProcessor
     #    )
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1092,6 +1099,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             scheduler=scheduler,
             graph_compiler=graph_compiler,
+            sp=bpemb_en,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1128,6 +1136,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     graph_compiler: CharCtcTrainingGraphCompiler,
     params: AttributeDict,
+    sp: spm.SentencePieceProcessor
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1162,7 +1171,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params)
+            display_and_save_batch(batch, params=params,sp=sp)
             raise
 
 

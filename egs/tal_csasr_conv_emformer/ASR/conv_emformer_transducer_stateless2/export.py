@@ -65,6 +65,9 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
+from scaling_converter import convert_scaled_to_non_scaled
+
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -78,6 +81,16 @@ from icefall.utils import str2bool
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+ 
+    parser.add_argument(
+        "--lang_dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -166,12 +179,25 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    #sp = spm.SentencePieceProcessor()
+    #sp.load(params.bpe_model)
 
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    #params.blank_id = sp.piece_to_id("<blk>")
+    #params.vocab_size = sp.get_piece_size()
+
+    
+    from icefall.lexicon import Lexicon
+    lexicon = Lexicon(params.lang_dir)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
+
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.unk_id = lexicon.token_table["<unk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
+
 
     logging.info(params)
 
@@ -262,6 +288,7 @@ def main():
         # it here.
         # Otherwise, one of its arguments is a ragged tensor and is not
         # torch scriptabe.
+        convert_scaled_to_non_scaled(model, inplace=True)
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)

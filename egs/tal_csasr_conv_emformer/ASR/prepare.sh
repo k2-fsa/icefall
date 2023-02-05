@@ -25,12 +25,13 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-
+export PYTHONPATH=../../../../icefall
 
 dl_dir=
 #dataLst=$1
 musan=/data/asr_data/musan/
 outdir=data
+
 
 . shared/parse_options.sh || exit 1
 
@@ -51,9 +52,9 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   types='test_set dev_set train_set'
   for type in $types
   do
-  wavpath=../../../../../data_process/TALCS_corpus/$type/wav #your data path
-  #text=../../../../../data_process/TALCS_corpus/$type/text.token
-  text=../../../../../data_process/TALCS_corpus/$type/label.txt  #your data path
+  wavpath=../../../../../../data_process/TALCS_corpus/$type/wav #your data path
+  #text=../../../../../../data_process/TALCS_corpus/$type/text.token
+  text=../../../../../../data_process/TALCS_corpus/$type/label.txt  #your data path
   log "Stage 1: Prepare tal_csasr manifest"
   python script/ch_en_mix_db_from_dir.py $wavpath $text $type data/manifests/tal_csasr $num_jobs
   done
@@ -97,10 +98,10 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   ## Download BPE models trained with LibriSpeech
   ## Here we use the BPE model with 5000 units trained with Librispeech.
   ## You can also use other BPE models if available.
-  #if [ ! -f $lang_char_dir/bpe.model ]; then
-  #  wget -O $lang_char_dir/bpe.model \
-  #    https://huggingface.co/luomingshuang/bpe_models_trained_with_Librispeech/resolve/main/lang_bpe_5000/bpe.model
-  #fi
+  if [ ! -f $lang_char_dir/spm_model_name.model ]; then
+    wget -O $lang_char_dir/spm_model_name.model \
+      https://huggingface.co/xuancaiqisehua/icefall_asr_tal-csasr_conv_emformer_transducer_stateless2/blob/main/data/lang_char_bpe/spm_model_name.model
+  fi
 
   ## Prepare text.
   ## Note: in Linux, you can install jq with the  following command:
@@ -108,9 +109,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   ## 2. chmod +x ./jq
   ## 3. cp jq /usr/bin
   if [ ! -f $lang_char_dir/text_full ]; then
-    #gunzip -c data/manifests/tal_csasr/tal_csasr_supervisions_train_set.jsonl.gz \
-    #  | jq ".text" | sed 's/"//g' \
-    #  | ./local/text2token.py -t "char" > $lang_char_dir/text_train
+    gunzip -c data/manifests/tal_csasr/tal_csasr_supervisions_train_set.jsonl.gz \
+      | jq ".text" | sed 's/"//g' \
+      | ./local/text2token.py -t "char" > $lang_char_dir/text_train
 
     gunzip -c data/manifests/tal_csasr/tal_csasr_supervisions_dev_set.jsonl.gz \
       | jq ".text" | sed 's/"//g' \

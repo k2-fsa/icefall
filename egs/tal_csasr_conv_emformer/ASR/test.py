@@ -12,8 +12,9 @@ from local.text_normalize import text_normalize
 #from local.tokenize_with_bpe_model import tokenize_by_bpe_model
 from icefall.utils import tokenize_by_bpe_model
 
-#data=torch.load('exp_conv_emformer/batch-c33f4584-b23b-c1d8-493c-d01609de8895.pt')
-#print(data)
+data=torch.load('exp_conv_emformer/batch-bdd640fb-0667-1ad1-1c80-317fa3b1799d.pt')
+print(data)
+exit()
 from conv_emformer_transducer_stateless2.asr_datamodule_ch_en import TAL_CSASRAsrDataModule
 
 def add_model_arguments(parser: argparse.ArgumentParser):

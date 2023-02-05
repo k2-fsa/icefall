@@ -1233,11 +1233,12 @@ def tokenize_by_bpe_model(
         # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
         # encode ch_or_w using bpe_model.
         else:
-            for p in sp.encode_as_pieces(ch_or_w):
+            #for p in sp.encode_as_pieces(ch_or_w):
+            for p in sp.encode(ch_or_w):
                 tokens.append(p)
     txt_with_bpe = "/".join(tokens)
 
-    return txt_with_bpe
+    return txt_with_bpe.upper()
 
 
 def display_and_save_batch(
@@ -1267,7 +1268,7 @@ def display_and_save_batch(
 
     logging.info(f"features shape: {features.shape}")
 
-    y = sp.encode(supervisions["text"], out_type=int)
+    y = sp.encode(supervisions["text"])
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 

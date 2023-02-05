@@ -19,72 +19,56 @@
 """
 Usage:
 (1) greedy search
-./conv_emformer_transducer_stateless2/decode.py \
-      --epoch 30 \
-      --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2/exp \
-      --max-duration 300 \
-      --num-encoder-layers 12 \
-      --chunk-length 32 \
-      --cnn-module-kernel 31 \
-      --left-context-length 32 \
-      --right-context-length 8 \
-      --memory-size 32 \
-      --decoding-method greedy_search \
-      --use-averaged-model True
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) modified beam search
-./conv_emformer_transducer_stateless2/decode.py \
-      --epoch 30 \
-      --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2/exp \
-      --max-duration 300 \
-      --num-encoder-layers 12 \
-      --chunk-length 32 \
-      --cnn-module-kernel 31 \
-      --left-context-length 32 \
-      --right-context-length 8 \
-      --memory-size 32 \
-      --decoding-method modified_beam_search \
-      --use-averaged-model True \
-      --beam-size 4
+(2) beam search (not recommended)
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
-(3) fast beam search
-./conv_emformer_transducer_stateless2/decode.py \
-      --epoch 30 \
-      --avg 10 \
-      --exp-dir conv_emformer_transducer_stateless2/exp \
-      --max-duration 300 \
-      --num-encoder-layers 12 \
-      --chunk-length 32 \
-      --cnn-module-kernel 31 \
-      --left-context-length 32 \
-      --right-context-length 8 \
-      --memory-size 32 \
-      --decoding-method fast_beam_search \
-      --use-averaged-model True \
-      --beam 4 \
-      --max-contexts 4 \
-      --max-states 8
+(3) modified beam search
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+(4) fast beam search
+./pruned_transducer_stateless5/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless5/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 4 \
+    --max-contexts 4 \
+    --max-states 8
 """
 
 
 import argparse
 import logging
-import math
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-#import sentencepiece as spm
+import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule_ch_en import TAL_CSASRAsrDataModule
-from local.text_normalize import text_normalize
-from lhotse.cut import Cut
-
-from icefall.char_graph_compiler_db import CharCtcTrainingGraphCompiler
+from asr_datamodule import TAL_CSASRAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -92,6 +76,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from lhotse.cut import Cut
+from local.text_normalize import text_normalize
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -100,6 +86,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -108,24 +95,10 @@ from icefall.utils import (
     write_error_stats,
 )
 
-from icefall.lexicon import Lexicon
-
-LOG_EPS = math.log(1e-10)
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    parser.add_argument(
-        "--lang_dir",
-        type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
     )
 
     parser.add_argument(
@@ -150,7 +123,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=10,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -159,7 +132,7 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
-        default=True,
+        default=False,
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -170,15 +143,18 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless5/exp",
         help="The experiment dir",
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -187,6 +163,7 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
+          - beam_search
           - modified_beam_search
           - fast_beam_search
         """,
@@ -233,7 +210,6 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
-
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -250,9 +226,10 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    token_table: k2.SymbolTable,
+    lexicon: Lexicon,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
+    sp: spm.SentencePieceProcessor = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -269,8 +246,6 @@ def decode_one_batch(
         It's the return value of :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -292,16 +267,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.chunk_length
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.chunk_length),
-        value=LOG_EPS,
-    )
-
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
     hyps = []
-
+    zh_hyps = []
+    en_hyps = []
+    pattern = re.compile(r"([\u4e00-\u9fff])")
+    en_letter = "[\u0041-\u005a|\u0061-\u007a]+"  # English letters
+    zh_char = "[\u4e00-\u9fa5]+"  # Chinese chars
     if params.decoding_method == "fast_beam_search":
         hyp_tokens = fast_beam_search_one_best(
             model=model,
@@ -312,12 +284,44 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
+        for i in range(encoder_out.size(0)):
+            hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+            chars = pattern.split(hyp.upper())
+            chars_new = []
+            zh_text = []
+            en_text = []
+            for char in chars:
+                if char != "":
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
+            hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
+        for i in range(encoder_out.size(0)):
+            hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+            chars = pattern.split(hyp.upper())
+            chars_new = []
+            zh_text = []
+            en_text = []
+            for char in chars:
+                if char != "":
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
+            hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -325,9 +329,25 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
+        for i in range(encoder_out.size(0)):
+            hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+            chars = pattern.split(hyp.upper())
+            chars_new = []
+            zh_text = []
+            en_text = []
+            for char in chars:
+                if char != "":
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
+            hyps.append(chars_new)
+            zh_hyps.append(zh_text)
+            en_hyps.append(en_text)
     else:
-        hyp_tokens = []
         batch_size = encoder_out.size(0)
+
         for i in range(batch_size):
             # fmt: off
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
@@ -348,28 +368,43 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyp_tokens.append(hyp)
-    hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
+            for i in range(encoder_out.size(0)):
+                hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
+                chars = pattern.split(hyp.upper())
+                chars_new = []
+                zh_text = []
+                en_text = []
+                for char in chars:
+                    if char != "":
+                        tokens = char.strip().split(" ")
+                        chars_new.extend(tokens)
+                        for token in tokens:
+                            zh_text.extend(re.findall(zh_char, token))
+                            en_text.extend(re.findall(en_letter, token))
+                hyps.append(chars_new)
+                zh_hyps.append(zh_text)
+                en_hyps.append(en_text)
     if params.decoding_method == "greedy_search":
-        return {"greedy_search": hyps}
+        return {"greedy_search": (hyps, zh_hyps, en_hyps)}
     elif params.decoding_method == "fast_beam_search":
         return {
             (
                 f"beam_{params.beam}_"
                 f"max_contexts_{params.max_contexts}_"
                 f"max_states_{params.max_states}"
-            ): hyps
+            ): (hyps, zh_hyps, en_hyps)
         }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}": (hyps, zh_hyps, en_hyps)}
 
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    token_table: k2.SymbolTable,
+    lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
+    sp: spm.SentencePieceProcessor = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -380,8 +415,6 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -400,39 +433,73 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
+    zh_results = defaultdict(list)
+    en_results = defaultdict(list)
+    pattern = re.compile(r"([\u4e00-\u9fff])")
+    en_letter = "[\u0041-\u005a|\u0061-\u007a]+"  # English letters
+    zh_char = "[\u4e00-\u9fa5]+"  # Chinese chars
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        #texts = [[token_table[int(t)] for t in tokens.split()] for tokens in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-
+        zh_texts = []
+        en_texts = []
+        for i in range(len(texts)):
+            text = texts[i]
+            chars = pattern.split(text.upper())
+            chars_new = []
+            zh_text = []
+            en_text = []
+            for char in chars:
+                if char != "":
+                    tokens = char.strip().split(" ")
+                    chars_new.extend(tokens)
+                    for token in tokens:
+                        zh_text.extend(re.findall(zh_char, token))
+                        en_text.extend(re.findall(en_letter, token))
+            zh_texts.append(zh_text)
+            en_texts.append(en_text)
+            texts[i] = chars_new
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            token_table=token_table,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
             batch=batch,
+            sp=sp,
         )
 
-        for name, hyps in hyps_dict.items():
+        for name, hyps_texts in hyps_dict.items():
             this_batch = []
+            this_batch_zh = []
+            this_batch_en = []
+            # print(hyps_texts)
+            hyps, zh_hyps, en_hyps = hyps_texts
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = ref_text
-                this_batch.append((cut_id, ref_words, hyp_words))
+                this_batch.append((cut_id, ref_text, hyp_words))
+
+            for cut_id, hyp_words, ref_text in zip(cut_ids, zh_hyps, zh_texts):
+                this_batch_zh.append((cut_id, ref_text, hyp_words))
+
+            for cut_id, hyp_words, ref_text in zip(cut_ids, en_hyps, en_texts):
+                this_batch_en.append((cut_id, ref_text, hyp_words))
 
             results[name].extend(this_batch)
+            zh_results[name + "_zh"].extend(this_batch_zh)
+            en_results[name + "_en"].extend(this_batch_en)
+
         num_cuts += len(texts)
 
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
-    return results
+    return results, zh_results, en_results
 
 
 def save_results(
@@ -519,29 +586,18 @@ def main():
     logging.info("Decoding started")
 
     device = torch.device("cpu")
-    #if torch.cuda.is_available():
-    #    device = torch.device("cuda", 0)
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
 
     logging.info(f"Device: {device}")
 
-    #sp = spm.SentencePieceProcessor()
-    #sp.load(params.bpe_model)
-
-    # <blk> and <unk> is defined in local/train_bpe_model.py
-    #params.blank_id = sp.piece_to_id("<blk>")
-    #params.unk_id = sp.piece_to_id("<unk>")
-    #params.vocab_size = sp.get_piece_size()
+    bpe_model = params.lang_dir + "/bpe.model"
+    sp = spm.SentencePieceProcessor()
+    sp.load(bpe_model)
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
-
     params.blank_id = lexicon.token_table["<blk>"]
-    params.unk_id = lexicon.token_table["<unk>"]
     params.vocab_size = max(lexicon.tokens) + 1
-
 
     logging.info(params)
 
@@ -607,9 +663,9 @@ def main():
                 )
             )
         else:
-            assert params.avg > 0
+            assert params.avg > 0, params.avg
             start = params.epoch - params.avg
-            assert start >= 1
+            assert start >= 1, start
             filename_start = f"{params.exp_dir}/epoch-{start}.pt"
             filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
             logging.info(
@@ -636,9 +692,6 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # we need cut ids to display recognition results.
-    args.return_cuts = True
-
     def text_normalize_for_cut(c: Cut):
         # Text normalize for each sample
         text = c.supervisions[0].text
@@ -646,7 +699,8 @@ def main():
         c.supervisions[0].text = text_normalize(text)
         return c
 
-
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
     tal_csasr = TAL_CSASRAsrDataModule(args)
 
     dev_cuts = tal_csasr.valid_cuts()
@@ -657,25 +711,32 @@ def main():
     test_cuts = test_cuts.map(text_normalize_for_cut)
     test_dl = tal_csasr.test_dataloaders(test_cuts)
 
-    #test_sets = ["dev", "test"]
-    #test_dl = [dev_dl, test_dl]
-
-    test_sets = ["dev"]
-    test_dl = [dev_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
-        results_dict = decode_dataset(
+        results_dict, zh_results_dict, en_results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
-            token_table=lexicon.token_table,
+            lexicon=lexicon,
             decoding_graph=decoding_graph,
+            sp=sp,
         )
-
         save_results(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
+        )
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=zh_results_dict,
+        )
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=en_results_dict,
         )
 
     logging.info("Done!")

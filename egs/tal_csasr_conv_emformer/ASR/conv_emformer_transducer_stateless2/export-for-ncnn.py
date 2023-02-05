@@ -44,6 +44,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
 
@@ -88,7 +89,15 @@ def get_parser():
         files, e.g., checkpoints, log, etc, are saved
         """,
     )
-
+    parser.add_argument(
+        "--lang_dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
     parser.add_argument(
         "--bpe-model",
         type=str,
@@ -219,12 +228,17 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    #sp = spm.SentencePieceProcessor()
+    #sp.load(params.bpe_model)
+   
+    lexicon = Lexicon(params.lang_dir)
+
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    #params.blank_id = sp.piece_to_id("<blk>")
+    #params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 

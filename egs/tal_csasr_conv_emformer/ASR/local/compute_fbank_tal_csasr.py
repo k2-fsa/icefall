@@ -48,12 +48,10 @@ def compute_fbank_tal_csasr(num_mel_bins: int = 80):
     num_jobs = min(15, os.cpu_count())
 
     dataset_parts = (
-        "test_set","dev_set")
-    #dataset_parts = (
-    #    "train_set",
-    #    "dev_set",
-    #    "test_set",
-    #)
+        "train_set",
+        "dev_set",
+        "test_set",
+    )
     prefix = "tal_csasr"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
