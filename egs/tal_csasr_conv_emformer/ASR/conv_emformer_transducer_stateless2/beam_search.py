@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conv_emformer_transducer_stateless2/beam_search.py
+../pruned_transducer_stateless2/beam_search.py

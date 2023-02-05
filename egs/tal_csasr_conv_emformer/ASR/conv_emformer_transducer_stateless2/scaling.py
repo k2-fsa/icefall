@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conv_emformer_transducer_stateless2/scaling.py
+../conv_emformer_transducer_stateless/scaling.py

@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conv_emformer_transducer_stateless2/lstmp.py
+../lstm_transducer_stateless2/lstmp.py
