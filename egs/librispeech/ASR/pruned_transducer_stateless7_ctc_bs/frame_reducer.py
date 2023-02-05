@@ -79,9 +79,12 @@ class FrameReducer(nn.Module):
         fake_limit_indexes = torch.topk(
             ctc_output[:, :, blank_id], max_limit_len
         ).indices
-        T = torch.arange(max_limit_len).expand_as(
-            fake_limit_indexes,
-        ).to(device=x.device)
+        T = (
+            torch.arange(max_limit_len)
+            .expand_as(
+                fake_limit_indexes,
+            ).to(device=x.device)
+        )
         T = torch.remainder(T, limit_lens.unsqueeze(1))
         limit_indexes = torch.gather(fake_limit_indexes, 1, T)
         limit_mask = torch.full_like(
@@ -94,11 +97,14 @@ class FrameReducer(nn.Module):
 
         out_lens = non_blank_mask.sum(dim=1)
         max_len = out_lens.max()
-        pad_lens_list = torch.full_like(
-            out_lens,
-            max_len.item(),
-            device=x.device,    
-        ) - out_lens
+        pad_lens_list = (
+            torch.full_like(
+                out_lens,
+                max_len.item(),
+                device=x.device,    
+            )
+            - out_lens
+        )
         max_pad_len = pad_lens_list.max()
 
         out = F.pad(x, (0, 0, 0, max_pad_len))
@@ -115,7 +121,7 @@ if __name__ == "__main__":
     import time
 
     test_times = 10000
-    device="cuda:0"
+    device = "cuda:0"
     frame_reducer = FrameReducer()
 
     # non zero case
