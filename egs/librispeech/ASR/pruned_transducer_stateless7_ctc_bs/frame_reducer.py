@@ -83,7 +83,8 @@ class FrameReducer(nn.Module):
             torch.arange(max_limit_len)
             .expand_as(
                 fake_limit_indexes,
-            ).to(device=x.device)
+            )
+            .to(device=x.device)
         )
         T = torch.remainder(T, limit_lens.unsqueeze(1))
         limit_indexes = torch.gather(fake_limit_indexes, 1, T)
@@ -101,7 +102,7 @@ class FrameReducer(nn.Module):
             torch.full_like(
                 out_lens,
                 max_len.item(),
-                device=x.device,    
+                device=x.device,
             )
             - out_lens
         )
