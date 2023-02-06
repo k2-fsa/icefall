@@ -720,9 +720,9 @@ def greedy_search_batch(
 
             k = torch.sum(
                 (
-                    c[:, : context_size]
+                    c[:, :context_size]
                     == c[:, context_size : context_size + 1].expand_as(
-                      c[:, : context_size]
+                        c[:, :context_size]
                     )
                 ).int(),
                 dim=1,
