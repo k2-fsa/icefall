@@ -12,7 +12,7 @@ class OnnxStreamingEncoder(torch.nn.Module):
     def __init__(self, encoder):
         """
         Args:
-            encoder: A Instance of Zipformer Class
+            encoder: An instance of Zipformer Class
         """
         super().__init__()
         self.model = encoder
