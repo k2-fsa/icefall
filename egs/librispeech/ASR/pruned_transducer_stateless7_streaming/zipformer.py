@@ -2084,16 +2084,26 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, seq_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, seq_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
@@ -2275,16 +2285,26 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, kv_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(kv_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, kv_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, kv_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
