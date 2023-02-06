@@ -19,7 +19,7 @@
 # limitations under the License.
 
 import math
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -74,7 +74,7 @@ class FrameReducer(nn.Module):
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
-        if y_lens != None:
+        if y_lens is not None:
             # Limit the maximum number of reduced frames
             limit_lens = T - y_lens
             max_limit_len = limit_lens.max().int()
