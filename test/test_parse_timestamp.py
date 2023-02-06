@@ -37,34 +37,61 @@ def test_parse_bpe_timestamps_and_texts():
     sp = spm.SentencePieceProcessor()
     sp.load(str(lang_dir / "bpe.model"))
 
-    text = "HELLO WORLD"
-    token_ids = sp.encode(text, out_type=int)
+    text_1 = "HELLO WORLD"
+    token_ids_1 = sp.encode(text_1, out_type=int)
     # out_type=str: ['_HE', 'LL', 'O', '_WORLD']
     # out_type=int: [22, 58, 24, 425]
 
     # [22, 22, 58, 24, 0, 0, 425, 425, 425, 0, 0]
-    labels = (
-        token_ids[0:1] * 2 + token_ids[1:3] + [0] * 2 + token_ids[3:4] * 3 + [0] * 2
-    )
-    # [22, 0, 58, 24, 0, 0, 425, 0, 0, 0, 0]
-    aux_labels = (
-        token_ids[0:1]
-        + [0]
-        + token_ids[1:3]
+    labels_1 = (
+        token_ids_1[0:1] * 2
+        + token_ids_1[1:3]
         + [0] * 2
-        + token_ids[3:4]
+        + token_ids_1[3:4] * 3
+        + [0] * 2
+    )
+    # [22, 0, 58, 24, 0, 0, 425, 0, 0, 0, 0, -1]
+    aux_labels_1 = (
+        token_ids_1[0:1]
+        + [0]
+        + token_ids_1[1:3]
+        + [0] * 2
+        + token_ids_1[3:4]
         + [0] * 4
         + [-1]
     )
+    fsa_1 = k2.linear_fsa(labels_1)
+    fsa_1.aux_labels = torch.tensor(aux_labels_1).to(torch.int32)
 
-    fsa = k2.linear_fsa(labels)
-    fsa.aux_labels = torch.tensor(aux_labels).to(torch.int32)
+    text_2 = "SAY GOODBYE"
+    token_ids_2 = sp.encode(text_2, out_type=int)
+    # out_type=str: ['_SAY', '_GOOD', 'B', 'Y', 'E']
+    # out_type=int: [289, 286, 41, 16, 11]
 
-    fsa_vec = k2.create_fsa_vec([fsa])
+    # [289, 0, 0, 286, 286, 41, 16, 11, 0, 0]
+    labels_2 = (
+        token_ids_2[0:1] + [0] * 2 + token_ids_2[1:2] * 2 + token_ids_2[2:5] + [0] * 2
+    )
+    # [289, 0, 0, 286, 0, 41, 16, 11, 0, 0, -1]
+    aux_labels_2 = (
+        token_ids_2[0:1]
+        + [0] * 2
+        + token_ids_2[1:2]
+        + [0]
+        + token_ids_2[2:5]
+        + [0] * 2
+        + [-1]
+    )
+    fsa_2 = k2.linear_fsa(labels_2)
+    fsa_2.aux_labels = torch.tensor(aux_labels_2).to(torch.int32)
+
+    fsa_vec = k2.create_fsa_vec([fsa_1, fsa_2])
 
     utt_index_pairs, utt_words = parse_bpe_timestamps_and_texts(fsa_vec, sp)
     assert utt_index_pairs[0] == [(0, 3), (6, 8)], utt_index_pairs[0]
     assert utt_words[0] == ["HELLO", "WORLD"], utt_words[0]
+    assert utt_index_pairs[1] == [(0, 0), (3, 7)], utt_index_pairs[1]
+    assert utt_words[1] == ["SAY", "GOODBYE"], utt_words[1]
 
 
 def test_parse_timestamps_and_texts():
@@ -77,31 +104,49 @@ def test_parse_timestamps_and_texts():
 
     sp = spm.SentencePieceProcessor()
     sp.load(str(lang_dir / "bpe.model"))
+    word_table = lexicon.word_table
 
-    text = "HELLO WORLD"
-    token_ids = sp.encode(text, out_type=int)
+    text_1 = "HELLO WORLD"
+    token_ids_1 = sp.encode(text_1, out_type=int)
     # out_type=str: ['_HE', 'LL', 'O', '_WORLD']
     # out_type=int: [22, 58, 24, 425]
-
-    word_table = lexicon.word_table
-    word_ids = [word_table[s] for s in text.split()]  # [79677, 196937]
-
+    word_ids_1 = [word_table[s] for s in text_1.split()]  # [79677, 196937]
     # [22, 22, 58, 24, 0, 0, 425, 425, 425, 0, 0]
-    labels = (
-        token_ids[0:1] * 2 + token_ids[1:3] + [0] * 2 + token_ids[3:4] * 3 + [0] * 2
+    labels_1 = (
+        token_ids_1[0:1] * 2
+        + token_ids_1[1:3]
+        + [0] * 2
+        + token_ids_1[3:4] * 3
+        + [0] * 2
     )
-
     # [[79677], [], [], [], [], [], [196937], [], [], [], [], []]
-    aux_labels = [word_ids[0:1]] + [[]] * 5 + [word_ids[1:2]] + [[]] * 5
+    aux_labels_1 = [word_ids_1[0:1]] + [[]] * 5 + [word_ids_1[1:2]] + [[]] * 5
 
-    fsa = k2.linear_fsa(labels)
-    fsa.aux_labels = k2.RaggedTensor(aux_labels)
+    fsa_1 = k2.linear_fsa(labels_1)
+    fsa_1.aux_labels = k2.RaggedTensor(aux_labels_1)
 
-    fsa_vec = k2.create_fsa_vec([fsa, fsa])
+    text_2 = "SAY GOODBYE"
+    token_ids_2 = sp.encode(text_2, out_type=int)
+    # out_type=str: ['_SAY', '_GOOD', 'B', 'Y', 'E']
+    # out_type=int: [289, 286, 41, 16, 11]
+    word_ids_2 = [word_table[s] for s in text_2.split()]  # [154967, 72079]
+    # [289, 0, 0, 286, 286, 41, 16, 11, 0, 0]
+    labels_2 = (
+        token_ids_2[0:1] + [0] * 2 + token_ids_2[1:2] * 2 + token_ids_2[2:5] + [0] * 2
+    )
+    # [[154967], [], [], [72079], [], [], [], [], [], [], []]
+    aux_labels_2 = [word_ids_2[0:1]] + [[]] * 2 + [word_ids_2[1:2]] + [[]] * 7
+
+    fsa_2 = k2.linear_fsa(labels_2)
+    fsa_2.aux_labels = k2.RaggedTensor(aux_labels_2)
+
+    fsa_vec = k2.create_fsa_vec([fsa_1, fsa_2])
 
     utt_index_pairs, utt_words = parse_timestamps_and_texts(fsa_vec, word_table)
     assert utt_index_pairs[0] == [(0, 3), (6, 8)], utt_index_pairs[0]
     assert utt_words[0] == ["HELLO", "WORLD"], utt_words[0]
+    assert utt_index_pairs[1] == [(0, 0), (3, 7)], utt_index_pairs[1]
+    assert utt_words[1] == ["SAY", "GOODBYE"], utt_words[1]
 
 
 if __name__ == "__main__":
