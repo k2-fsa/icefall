@@ -1,5 +1,6 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                    Mingshuang Luo)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                    Mingshuang Luo,
+#                                                    Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
