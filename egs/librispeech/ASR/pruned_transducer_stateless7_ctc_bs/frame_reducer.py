@@ -45,7 +45,7 @@ class FrameReducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         ctc_output: torch.Tensor,
-        y_lens: torch.Tensor,
+        y_lens: Optional[torch.Tensor] = None,
         blank_id: int = 0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -74,27 +74,29 @@ class FrameReducer(nn.Module):
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
-        limit_lens = T - y_lens
-        max_limit_len = limit_lens.max().int()
-        fake_limit_indexes = torch.topk(
-            ctc_output[:, :, blank_id], max_limit_len
-        ).indices
-        T = (
-            torch.arange(max_limit_len)
-            .expand_as(
-                fake_limit_indexes,
+        if y_lens != None:
+            # Limit the maximum number of reduced frames
+            limit_lens = T - y_lens
+            max_limit_len = limit_lens.max().int()
+            fake_limit_indexes = torch.topk(
+                ctc_output[:, :, blank_id], max_limit_len
+            ).indices
+            T = (
+                torch.arange(max_limit_len)
+                .expand_as(
+                    fake_limit_indexes,
+                )
+                .to(device=x.device)
             )
-            .to(device=x.device)
-        )
-        T = torch.remainder(T, limit_lens.unsqueeze(1))
-        limit_indexes = torch.gather(fake_limit_indexes, 1, T)
-        limit_mask = torch.full_like(
-            non_blank_mask,
-            False,
-            device=x.device,
-        ).scatter_(1, limit_indexes, True)
+            T = torch.remainder(T, limit_lens.unsqueeze(1))
+            limit_indexes = torch.gather(fake_limit_indexes, 1, T)
+            limit_mask = torch.full_like(
+                non_blank_mask,
+                False,
+                device=x.device,
+            ).scatter_(1, limit_indexes, True)
 
-        non_blank_mask = non_blank_mask | ~limit_mask
+            non_blank_mask = non_blank_mask | ~limit_mask
 
         out_lens = non_blank_mask.sum(dim=1)
         max_len = out_lens.max()
