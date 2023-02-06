@@ -672,7 +672,7 @@ def greedy_search_batch(
     timestamps = [[] for _ in range(N)]
 
     decoder_input = torch.tensor(hyps, device=device, dtype=torch.int64)[
-      :, -context_size:
+        :, -context_size:
     ]  # (N, context_size)
 
     k = torch.zeros(N, 1, device=device, dtype=torch.int64)
