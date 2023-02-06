@@ -106,10 +106,9 @@ import logging
 import math
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, TextIO, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import k2
-import kaldialign
 import torch
 import torch.nn as nn
 from asr_datamodule import CSJAsrDataModule

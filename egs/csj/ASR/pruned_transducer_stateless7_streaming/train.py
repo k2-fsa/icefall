@@ -273,13 +273,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
         "--base-lr", type=float, default=0.05, help="The base learning rate."
     )
 
@@ -994,8 +987,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    # if params.full_libri is False:
-    #     params.valid_interval = 1600
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -1016,7 +1007,7 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(args.lang_dir, args.lang_type)
+    sp = Tokenizer.load(args.lang, args.lang_type)
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")

@@ -24,19 +24,11 @@ from lhotse import CutSet
 from lhotse.recipes.csj import CSJSDBParser
 
 ARGPARSE_DESCRIPTION = """
-This script gathers all training transcripts, parses them in disfluent mode, and produces a token_list that would be the output set of the ASR system.
-
-It splits transcripts by whitespace into lists, then, for each word in the
-list, if the word does not appear in the list of user-defined multicharacter
-strings, it further splits that word into individual characters to be counted
-into the output token set.
+This script gathers all training transcripts, parses them in disfluent mode, and produces a token list that would be the output set of the ASR system.
 
 It outputs 3 files into the lang directory:
-- userdef_string: a list of user defined strings that should not be split
- further into individual characters. By default, it contains "<unk>", "<blk>",
- "<sos/eos>"
-- tokens_len: the total number of tokens in the output set.
-- tokens.txt: a list of tokens in the output set. The length matches tokens_len.
+- tokens.txt: a list of tokens in the output set.
+- lang_type: a file that contains the string "char"
 
 """
 
@@ -54,7 +46,7 @@ def get_args():
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default=None,
+        default=Path("data/lang_char"),
         help=(
             "Name of lang dir. "
             "If not set, this will default to lang_char_{trans-mode}"
@@ -71,11 +63,11 @@ def main():
         level=logging.INFO,
     )
 
-    if not args.lang_dir:
-        p = "data/lang_char"
-        if args.trans_mode:
-            p += f"_{args.trans_mode}"
-        args.lang_dir = Path(p)
+    # if not args.lang_dir:
+    #     p = "data/lang_char"
+    #     if args.trans_mode:
+    #         p += f"_{args.trans_mode}"
+    #     args.lang_dir = Path(p)
 
     sysdef_string = set(["<blk>", "<unk>", "<sos/eos>"])
 
@@ -98,8 +90,6 @@ def main():
     (args.lang_dir / "tokens.txt").write_text(
         "\n".join(f"{t}\t{i}" for i, t in enumerate(token_set))
     )
-
-    (args.lang_dir / "trans_mode").write_text(args.trans_mode)
 
     (args.lang_dir / "lang_type").write_text("char")
     logging.info("Done.")
