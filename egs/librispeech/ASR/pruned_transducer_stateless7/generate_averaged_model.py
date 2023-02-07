@@ -19,17 +19,23 @@
 # limitations under the License.
 """
 Usage:
-(1) use the checkpoint exp_dir/epoch-iter.pt
+(1) use the checkpoint exp_dir/epoch-xxx.pt
 ./pruned_transducer_stateless7/generate_averaged_model.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp
+
+It will generate a file `epoch-28-avg-15.pt` in the given `exp_dir`.
+You can later load it by `torch.load("epoch-28-avg-15.pt")`.
 
 (2) use the checkpoint exp_dir/checkpoint-iter.pt
 ./pruned_transducer_stateless7/generate_averaged_model.py \
     --iter 22000 \
     --avg 5 \
     --exp-dir ./pruned_transducer_stateless7/exp
+
+It will generate a file `iter-22000-avg-5.pt` in the given `exp_dir`.
+You can later load it by `torch.load("iter-22000-avg-5.pt")`.
 """
 
 
