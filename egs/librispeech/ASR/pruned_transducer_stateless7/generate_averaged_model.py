@@ -171,7 +171,7 @@ def main():
             )
         )
         filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}.pt"
-        torch.save(model.state_dict(), filename)
+        torch.save({"model": model.state_dict()}, filename)
     else:
         assert params.avg > 0, params.avg
         start = params.epoch - params.avg
@@ -191,7 +191,7 @@ def main():
             )
         )
         filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}.pt"
-        torch.save(model.state_dict(), filename)
+        torch.save({"model": model.state_dict()}, filename)
 
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
