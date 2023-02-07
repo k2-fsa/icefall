@@ -10,9 +10,8 @@ log() {
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
-
 log "=========================================================================="
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 log "Downloading pre-trained model from $repo_url"
 git lfs install
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
@@ -68,3 +67,56 @@ log "Run onnx_pretrained.py"
 
 rm -rf $repo
 log "--------------------------------------------------------------------------"
+
+log "=========================================================================="
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+log "Downloading pre-trained model from $repo_url"
+git lfs install
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-iter-1224000-avg-14.pt"
+
+cd exp
+ln -s pretrained-iter-1224000-avg-14.pt epoch-9999.pt
+popd
+
+log "Export via torch.jit.script()"
+
+./pruned_transducer_stateless3/export.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 9999 \
+  --avg 1 \
+  --exp-dir $repo/exp/ \
+  --jit 1
+
+log "Test exporting to ONNX format"
+
+./pruned_transducer_stateless3/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 9999 \
+  --avg 1 \
+  --exp-dir $repo/exp/
+
+ls -lh $repo/exp
+
+log "Run onnx_check.py"
+
+./pruned_transducer_stateless3/onnx_check.py \
+  --jit-filename $repo/exp/cpu_jit.pt \
+  --onnx-encoder-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
+  --onnx-decoder-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \
+  --onnx-joiner-filename $repo/exp/joiner-epoch-9999-avg-1.onnx
+
+log "Run onnx_pretrained.py"
+
+./pruned_transducer_stateless3/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-9999-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
