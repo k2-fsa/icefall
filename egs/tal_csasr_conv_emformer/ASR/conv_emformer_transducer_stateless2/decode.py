@@ -350,6 +350,7 @@ def decode_one_batch(
                 )
             hyp_tokens.append(hyp)
     hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
+    print('=====hyps=====',hyps)
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif params.decoding_method == "fast_beam_search":
@@ -660,8 +661,8 @@ def main():
     #test_sets = ["dev", "test"]
     #test_dl = [dev_dl, test_dl]
 
-    test_sets = ["dev"]
-    test_dl = [dev_dl]
+    test_sets = ["test"]
+    test_dl = [test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

@@ -25,6 +25,10 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
+
+
+
+
 export PYTHONPATH=../../../../icefall
 
 dl_dir=
@@ -52,11 +56,11 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   types='test_set dev_set train_set'
   for type in $types
   do
-  wavpath=../../../../../../data_process/TALCS_corpus/$type/wav #your data path
-  #text=../../../../../../data_process/TALCS_corpus/$type/text.token
-  text=../../../../../../data_process/TALCS_corpus/$type/label.txt  #your data path
+  wavpath=../../../../../data_process/TALCS_corpus/$type/wav #your data path
+  #text=../../../../../data_process/TALCS_corpus/$type/text.token
+  text=../../../../../data_process/TALCS_corpus/$type/label.txt  #your data path
   log "Stage 1: Prepare tal_csasr manifest"
-  python script/ch_en_mix_db_from_dir.py $wavpath $text $type data/manifests/tal_csasr $num_jobs
+  python local/ch_en_mix_db_from_dir.py $wavpath $text $type data/manifests/tal_csasr $num_jobs
   done
 fi
 
@@ -176,6 +180,6 @@ fi
 
 #filter long sentense for OOM
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  python script/filter.py data/fbank/tal_csasr_cuts_train_set.jsonl.gz tmp.jsonl.gz
+  python local/filter.py data/fbank/tal_csasr_cuts_train_set.jsonl.gz tmp.jsonl.gz
   mv  tmp.jsonl.gz data/fbank/tal_csasr_cuts_train_set.jsonl.gz 
 fi

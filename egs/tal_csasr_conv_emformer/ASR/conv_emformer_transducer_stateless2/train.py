@@ -947,8 +947,8 @@ def run(rank, world_size, args):
         tb_writer = None
 
     device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
+    #if torch.cuda.is_available():
+    #    device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
     #import sentencepiece as spm

@@ -1,1 +1,1 @@
-../conv_emformer_transducer_stateless/encoder_interface.py
+../../../librispeech/ASR/conv_emformer_transducer_stateless2/encoder_interface.py

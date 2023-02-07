@@ -73,7 +73,7 @@ def filter(data,path,max_length=2000,
            token_min_length=1,
            min_output_input_ratio=0.0005,
            max_output_input_ratio=5):
-    index=0
+    #index=0
     with open_best(path, "w") as f:
       for sample in data:
         num_frames = sample['supervisions'][0]['duration'] * 100
@@ -93,9 +93,9 @@ def filter(data,path,max_length=2000,
                 continue
         json.dump(sample, f,ensure_ascii=False)
         f.write('\n')
-        index+=1
-        if index>50:
-          break 
+        #index+=1
+        #if index>50:
+        #  break 
 if len(sys.argv)<3:
   print(f"Useage python {sys.argv[0]} infile outfile")
   exit()
