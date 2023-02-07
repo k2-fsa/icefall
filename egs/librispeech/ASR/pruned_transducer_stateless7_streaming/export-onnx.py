@@ -146,7 +146,7 @@ class OnnxEncoder(nn.Module):
         """
         Args:
           encoder:
-            A zipformer encoder.
+            A Zipformer encoder.
           encoder_proj:
             The projection layer for encoder from the joiner.
         """

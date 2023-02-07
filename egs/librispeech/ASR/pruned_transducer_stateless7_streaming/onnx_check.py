@@ -76,13 +76,7 @@ from zipformer import stack_states
 
 from icefall import is_module_available
 
-if not is_module_available("onnxruntime"):
-    raise ValueError("Please 'pip install onnxruntime' first.")
-
-import onnxruntime as ort
 import torch
-
-ort.set_default_logger_severity(3)
 
 
 def get_parser():

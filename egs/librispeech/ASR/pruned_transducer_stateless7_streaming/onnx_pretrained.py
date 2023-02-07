@@ -333,7 +333,6 @@ class OnnxModel:
                 self.joiner.get_inputs()[1].name: decoder_out.numpy(),
             },
         )[0]
-        return torch.from_numpy(out)
 
         return torch.from_numpy(out)
 
