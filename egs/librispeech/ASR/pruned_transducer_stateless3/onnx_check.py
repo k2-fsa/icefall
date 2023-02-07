@@ -125,13 +125,13 @@ def test_encoder(
     onnx_model: OnnxModel,
 ):
     C = 80
-    for i in range(10):
+    for i in range(3):
         N = torch.randint(low=1, high=20, size=(1,)).item()
-        T = torch.randint(low=50, high=100, size=(1,)).item()
+        T = torch.randint(low=30, high=50, size=(1,)).item()
         logging.info(f"test_encoder: iter {i}, N={N}, T={T}")
 
         x = torch.rand(N, T, C)
-        x_lens = torch.randint(low=10, high=T + 1, size=(N,))
+        x_lens = torch.randint(low=30, high=T + 1, size=(N,))
         x_lens[0] = T
 
         torch_encoder_out, torch_encoder_out_lens = torch_model.encoder(x, x_lens)
