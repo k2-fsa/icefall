@@ -87,7 +87,9 @@ class Transducer(nn.Module):
         Returns:
           Return a tensor of shape (N, U).
         """
-        y_shift = F.pad(y, (context_size, 0), mode="constant", value=self.decoder.blank_id)[:, :-context_size]
+        y_shift = F.pad(
+            y, (context_size, 0), mode="constant", value=self.decoder.blank_id
+        )[:, :-context_size]
         mask = y_shift != y
 
         T_arange = torch.arange(y.size(1)).expand_as(y).to(device=y.device)
@@ -154,7 +156,7 @@ class Transducer(nn.Module):
 
         # compute k
         k = self._compute_k(sos_y_padded, context_size=self.decoder.context_size)
-        
+
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded, k)
 

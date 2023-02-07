@@ -709,7 +709,8 @@ def greedy_search_batch(
                     [h[-context_size - 1] for h in hyps[:batch_size]],
                     device=device,
                     dtype=torch.int64,
-                ) == decoder_input[:, -1],
+                )
+                == decoder_input[:, -1],
                 k + 1,
                 torch.zeros(N, 1, device=device, dtype=torch.int64),
             )
