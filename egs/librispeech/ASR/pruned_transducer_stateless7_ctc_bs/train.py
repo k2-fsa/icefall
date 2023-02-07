@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,
@@ -35,7 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
   --full-libri 1 \
-  --max-duration 550
+  --max-duration 750
 """
 
 

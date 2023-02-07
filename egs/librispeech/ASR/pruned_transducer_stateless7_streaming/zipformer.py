@@ -270,7 +270,7 @@ class Zipformer(EncoderInterface):
         dim_feedforward (int, int): feedforward dimension in 2 encoder stacks
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
-        cnn_module_kernel (int): Kernel size of convolution module
+        cnn_module_kernels (int): Kernel size of convolution module
         vgg_frontend (bool): whether to use vgg frontend.
         warmup_batches (float): number of batches to warm up over
     """
@@ -311,6 +311,8 @@ class Zipformer(EncoderInterface):
         # Used in decoding
         self.decode_chunk_size = decode_chunk_size
 
+        self.left_context_len = self.decode_chunk_size * self.num_left_chunks
+
         # will be written to, see set_batch_count()
         self.batch_count = 0
         self.warmup_end = warmup_batches
@@ -330,7 +332,10 @@ class Zipformer(EncoderInterface):
         # each one will be ZipformerEncoder or DownsampledZipformerEncoder
         encoders = []
 
+        self.num_encoder_layers = num_encoder_layers
         self.num_encoders = len(encoder_dims)
+        self.attention_dims = attention_dim
+        self.cnn_module_kernels = cnn_module_kernels
         for i in range(self.num_encoders):
             encoder_layer = ZipformerEncoderLayer(
                 encoder_dims[i],
@@ -382,7 +387,7 @@ class Zipformer(EncoderInterface):
 
     def _init_skip_modules(self):
         """
-        If self.zipformer_downampling_factors = (1, 2, 4, 8, 4, 2), then at the input of layer
+        If self.zipformer_downsampling_factors = (1, 2, 4, 8, 4, 2), then at the input of layer
         indexed 4 (in zero indexing), with has subsapling_factor=4, we combine the output of
         layers 2 and 3; and at the input of layer indexed 5, which which has subsampling_factor=2,
         we combine the outputs of layers 1 and 5.
@@ -695,7 +700,7 @@ class Zipformer(EncoderInterface):
             num_layers = encoder.num_layers
             ds = self.zipformer_downsampling_factors[i]
 
-            len_avg = torch.zeros(num_layers, 1, dtype=torch.int32, device=device)
+            len_avg = torch.zeros(num_layers, 1, dtype=torch.int64, device=device)
             cached_len.append(len_avg)
 
             avg = torch.zeros(num_layers, 1, encoder.d_model, device=device)
@@ -2084,16 +2089,26 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, seq_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, seq_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
@@ -2275,16 +2290,26 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, kv_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(kv_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, kv_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, kv_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
