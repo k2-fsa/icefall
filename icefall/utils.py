@@ -1502,7 +1502,7 @@ def filter_uneven_sized_batch(batch: dict, allowed_max_frames: int):
 def parse_bpe_start_end_pairs(
     tokens: List[str], is_first_token: List[bool]
 ) -> List[Tuple[int, int]]:
-    """Parse pairs of start and end frame indexes for each word,
+    """Parse pairs of start and end frame indexes for each word.
 
     Args:
       tokens:
@@ -1571,7 +1571,7 @@ def parse_bpe_start_end_pairs(
 def parse_bpe_timestamps_and_texts(
     best_paths: k2.Fsa, sp: spm.SentencePieceProcessor
 ) -> Tuple[List[Tuple[int, int]], List[List[str]]]:
-    """Parse timestamps (frame indexes) and texts for BPE-based models.
+    """Parse timestamps (frame indexes) and texts.
 
     Args:
       best_paths:
