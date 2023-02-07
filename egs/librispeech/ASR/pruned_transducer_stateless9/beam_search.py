@@ -588,18 +588,10 @@ def greedy_search(
                 1, context_size
             )
 
-            c = torch.tensor([hyp[-context_size - 1 :]], device=device).reshape(
-                1, context_size + 1
-            )
-
-            k = torch.sum(
-                (
-                    c[:, -context_size - 1 : -1]
-                    == c[:, -1].expand_as(c[:, -context_size - 1 : -1])
-                ).int(),
-                dim=1,
-                keepdim=True,
-            )
+            if hyp[-context_size - 1] == hyp[-1]:
+                k += 1
+            else:
+                k[0, 0] = 0
 
             decoder_out = model.decoder(decoder_input, k, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -712,21 +704,14 @@ def greedy_search_batch(
             # update decoder output
             decoder_input = [h[-context_size:] for h in hyps[:batch_size]]
 
-            c = torch.tensor(
-                [h[-context_size - 1 :] for h in hyps[:batch_size]],
-                device=device,
-                dtype=torch.int64,
-            )
-
-            k = torch.sum(
-                (
-                    c[:, :context_size]
-                    == c[:, context_size : context_size + 1].expand_as(
-                        c[:, :context_size]
-                    )
-                ).int(),
-                dim=1,
-                keepdim=True,
+            k = torch.where(
+                torch.tensor(
+                    [h[-context_size - 1] for h in hyps[:batch_size]],
+                    device=device,
+                    dtype=torch.int64,
+                ) == decoder_input[:, -1],
+                k + 1,
+                torch.zeros(N, 1, device=device, dtype=torch.int64),
             )
 
             decoder_input = torch.tensor(

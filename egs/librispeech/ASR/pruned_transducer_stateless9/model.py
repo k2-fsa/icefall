@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from encoder_interface import EncoderInterface
 from scaling import penalize_abs_values_gt
 
-from icefall.utils import add_sos, make_pad_mask
+from icefall.utils import add_sos
 
 
 class Transducer(nn.Module):
@@ -72,13 +72,35 @@ class Transducer(nn.Module):
         )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
+    def _compute_k(
+        self,
+        y: torch.Tensor,
+        context_size: int = 2,
+    ) -> torch.Tensor:
+        """
+        Args:
+          y:
+            A 2-D tensor of shape (N, U).
+          context_size:
+            Number of previous words to use to predict the next word.
+            1 means bigram; 2 means trigram. n means (n+1)-gram.
+        Returns:
+          Return a tensor of shape (N, U).
+        """
+        y_shift = F.pad(y, (context_size, 0), mode="constant", value=self.decoder.blank_id)[:, :-context_size]
+        mask = y_shift != y
+
+        T_arange = torch.arange(y.size(1)).expand_as(y).to(device=y.device)
+        cummax_out = (T_arange * mask).cummax(dim=-1)[0]
+        k = T_arange - cummax_out
+
+        return k
+
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        y: torch.Tensor,
-        y_lens: torch.Tensor,
-        k: torch.Tensor,
+        y: k2.RaggedTensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
@@ -91,14 +113,8 @@ class Transducer(nn.Module):
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
           y:
-            A 2-D tensor with 2 axes [utt][label]. It contains labels of each
+            A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
-          y_lens:
-            A 1-D tensor of shape (N,). It contains the number of frames in `y`
-            before padding.
-          k:
-            A statistic given the context_size with respect to utt.
-            A 2-D tensor of shape (N, U).
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -119,24 +135,34 @@ class Transducer(nn.Module):
         """
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
-        assert len(y.shape) == 2, len(y.shape)
+        assert y.num_axes == 2, y.num_axes
 
-        assert x.size(0) == x_lens.size(0) == y.size(0)
+        assert x.size(0) == x_lens.size(0) == y.dim0
 
         encoder_out, x_lens = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)
 
+        # Now for the decoder, i.e., the prediction network
+        row_splits = y.shape.row_splits(1)
+        y_lens = row_splits[1:] - row_splits[:-1]
+
         blank_id = self.decoder.blank_id
+        sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.
-        sos_y_padded = F.pad(y, (1, 0), mode="constant", value=blank_id)
+        sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
+        # compute k
+        k = self._compute_k(sos_y_padded, context_size=self.decoder.context_size)
+        
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded, k)
 
-        # Note: y_padded does not start with SOS
+        # Note: y does not start with SOS
         # y_padded : [B, S]
-        y_padded = y.to(torch.int64)
+        y_padded = y.pad(mode="constant", padding_value=0)
+
+        y_padded = y_padded.to(torch.int64)
         boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
