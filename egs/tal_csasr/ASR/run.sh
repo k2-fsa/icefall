@@ -1,8 +1,8 @@
 #prepare dataset
 #bash prepare_20230113.sh --stage 1 --stop_stage 1 >myout 2>&1 &
 
-#export PYTHONPATH=../../../../icefall
-#export CUDA_VISIBLE_DEVICES="4,5,6,7"
+export PYTHONPATH=../../../../icefall
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
 stage=3
 stop_stage=3
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then

@@ -1,1 +1,0 @@
-../../../tal_csasr/ASR/local/compute_fbank_tal_csasr.py

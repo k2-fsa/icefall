@@ -65,11 +65,24 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare tal_csasr manifest"
   # We assume that you have downloaded the TALCS_corpus
   # to $dl_dir/tal_csasr
-  if [ ! -f data/manifests/tal_csasr/.manifests.done ]; then
-    mkdir -p data/manifests/tal_csasr
-    lhotse prepare tal-csasr $dl_dir/tal_csasr data/manifests/tal_csasr
-    touch data/manifests/tal_csasr/.manifests.done
-  fi
+  # use lhotse prepare tal-csasr
+  #if [ ! -f data/manifests/tal_csasr/.manifests.done ]; then
+  #  mkdir -p data/manifests/tal_csasr
+  #  lhotse prepare tal-csasr $dl_dir/tal_csasr data/manifests/tal_csasr
+  #  touch data/manifests/tal_csasr/.manifests.done
+  #fi
+
+  # If you have downloaded tal-csasr
+  types='test_set dev_set train_set'
+  for type in $types
+  do
+  wavpath=../../../../../data_process/TALCS_corpus/$type/wav #your data path
+  #text=../../../../../data_process/TALCS_corpus/$type/text.token # use text token to prepare manifest
+  text=../../../../../data_process/TALCS_corpus/$type/label.txt  #your data path
+  log "Stage 1: Prepare tal_csasr manifest"
+  num_jobs=30
+  python local/prepare_tal_csasr.py $wavpath $text $type data/manifests/tal_csasr $num_jobs 
+  done
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -110,9 +123,15 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   # Download BPE models trained with LibriSpeech
   # Here we use the BPE model with 5000 units trained with Librispeech.
   # You can also use other BPE models if available.
-  if [ ! -f $lang_char_dir/bpe.model ]; then
-    wget -O $lang_char_dir/bpe.model \
-      https://huggingface.co/luomingshuang/bpe_models_trained_with_Librispeech/resolve/main/lang_bpe_5000/bpe.model
+  #if [ ! -f $lang_char_dir/bpe.model ]; then
+  #  wget -O $lang_char_dir/bpe.model \
+  #    https://huggingface.co/luomingshuang/bpe_models_trained_with_Librispeech/resolve/main/lang_bpe_5000/bpe.model
+  #fi
+   
+  #You can use spm_model_name.model. 
+  if [ ! -f $lang_char_dir/spm_model_name.model ]; then
+    wget -O $lang_char_dir/spm_model_name.model \
+      https://huggingface.co/xuancaiqisehua/icefall_asr_tal-csasr_conv_emformer_transducer_stateless2/blob/main/data/lang_char_bpe/spm_model_name.model
   fi
 
   # Prepare text.
@@ -147,13 +166,18 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   # Prepare words segments
   if [ ! -f $lang_char_dir/text_words_segmentation ]; then
-    python ./local/text2segments.py \
+    python ./local/text2segments1.py \
       --input $lang_char_dir/text \
       --output $lang_char_dir/text_words_segmentation
+    
+    # You can use other code to generate words_no_ids.txt
+    python ./local/genWordSegment.py $lang_char_dir/text_words_segmentation $lang_char_dir/words_no_ids.txt
+    sort $lang_char_dir/words_no_ids.txt >tmp
+    mv tmp $lang_char_dir/words_no_ids.txt
 
-    cat $lang_char_dir/text_words_segmentation | sed "s/ /\n/g" \
-      | sort -u | sed "/^$/d" \
-      | uniq > $lang_char_dir/words_no_ids.txt
+    #cat $lang_char_dir/text_words_segmentation | sed "s/ /\n/g" \
+    #  | sort -u | sed "/^$/d" \
+    #  | uniq > $lang_char_dir/words_no_ids.txt
   fi
 
   # Prepare words.txt
@@ -164,12 +188,21 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 
   # Tokenize text with BPE model
-  python ./local/tokenize_with_bpe_model.py \
+  if [ ! -f $lang_char_dir/text_with_bpe ]; then
+  python ./local/tokenize_with_bpe_model1.py \
     --input $lang_char_dir/text \
     --output $lang_char_dir/text_with_bpe \
-    --bpe-model $lang_char_dir/bpe.model
+    --bpe-model $lang_char_dir/spm_model_name.model
+  fi
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
-    python local/prepare_char.py
+    python local/prepare_char1.py
   fi
+fi
+
+
+#filter long sentense for OOM
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  python local/filter.py data/fbank/tal_csasr_cuts_train_set.jsonl.gz tmp.jsonl.gz
+  mv  tmp.jsonl.gz data/fbank/tal_csasr_cuts_train_set.jsonl.gz 
 fi

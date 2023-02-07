@@ -99,19 +99,19 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 
-  ## Download BPE models trained with LibriSpeech
-  ## Here we use the BPE model with 5000 units trained with Librispeech.
-  ## You can also use other BPE models if available.
+  # Download BPE models trained with LibriSpeech
+  # Here we use the BPE model with 5000 units trained with Librispeech.
+  # You can also use other BPE models if available.
   if [ ! -f $lang_char_dir/spm_model_name.model ]; then
     wget -O $lang_char_dir/spm_model_name.model \
       https://huggingface.co/xuancaiqisehua/icefall_asr_tal-csasr_conv_emformer_transducer_stateless2/blob/main/data/lang_char_bpe/spm_model_name.model
   fi
 
-  ## Prepare text.
-  ## Note: in Linux, you can install jq with the  following command:
-  ## 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-  ## 2. chmod +x ./jq
-  ## 3. cp jq /usr/bin
+  # Prepare text.
+  # Note: in Linux, you can install jq with the  following command:
+  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+  # 2. chmod +x ./jq
+  # 3. cp jq /usr/bin
   if [ ! -f $lang_char_dir/text_full ]; then
     gunzip -c data/manifests/tal_csasr/tal_csasr_supervisions_train_set.jsonl.gz \
       | jq ".text" | sed 's/"//g' \
@@ -157,7 +157,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     #  | uniq > $lang_char_dir/words_no_ids.txt
   fi
 
-  ## Prepare words.txt
+  # Prepare words.txt
   if [ ! -f $lang_char_dir/words.txt ]; then
     ./local/prepare_words.py \
       --input $lang_char_dir/words_no_ids.txt \
