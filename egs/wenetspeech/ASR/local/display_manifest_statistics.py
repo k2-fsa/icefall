@@ -33,6 +33,7 @@ def main():
     paths = [
         "./data/fbank/cuts_S.jsonl.gz",
         "./data/fbank/cuts_M.jsonl.gz",
+        "./data/fbank/cuts_L.jsonl.gz",
         "./data/fbank/cuts_DEV.jsonl.gz",
         "./data/fbank/cuts_TEST_NET.jsonl.gz",
         "./data/fbank/cuts_TEST_MEETING.jsonl.gz",
@@ -48,6 +49,24 @@ if __name__ == "__main__":
     main()
 
 """
+Starting display the statistics for ./data/fbank/cuts_L.jsonl.gz
+
+Cuts count: 43874235
+Total duration (hours): 30217.3
+Speech duration (hours): 30217.3 (100.0%)
+***
+Duration statistics (seconds):
+mean    2.5
+std     1.7
+min     0.2
+25%     1.4
+50%     2.0
+75%     3.0
+99%     8.4
+99.5%   9.1
+99.9%   15.4
+max     405.1
+
 Starting display the statistics for ./data/fbank/cuts_S.jsonl.gz
 Duration statistics (seconds):
 mean    2.4

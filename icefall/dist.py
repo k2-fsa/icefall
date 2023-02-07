@@ -21,17 +21,19 @@ import torch
 from torch import distributed as dist
 
 
-def setup_dist(rank, world_size, master_port=None, use_ddp_launch=False):
+def setup_dist(
+    rank, world_size, master_port=None, use_ddp_launch=False, master_addr=None
+):
     """
     rank and world_size are used only if use_ddp_launch is False.
     """
     if "MASTER_ADDR" not in os.environ:
-        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_ADDR"] = (
+            "localhost" if master_addr is None else str(master_addr)
+        )
 
     if "MASTER_PORT" not in os.environ:
-        os.environ["MASTER_PORT"] = (
-            "12354" if master_port is None else str(master_port)
-        )
+        os.environ["MASTER_PORT"] = "12354" if master_port is None else str(master_port)
 
     if use_ddp_launch is False:
         dist.init_process_group("nccl", rank=rank, world_size=world_size)

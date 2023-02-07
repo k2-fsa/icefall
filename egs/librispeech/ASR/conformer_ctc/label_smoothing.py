@@ -44,7 +44,8 @@ class LabelSmoothingLoss(torch.nn.Module):
             mean of the output is taken. (3) "sum": the output will be summed.
         """
         super().__init__()
-        assert 0.0 <= label_smoothing < 1.0
+        assert 0.0 <= label_smoothing < 1.0, f"{label_smoothing}"
+        assert reduction in ("none", "sum", "mean"), reduction
         self.ignore_index = ignore_index
         self.label_smoothing = label_smoothing
         self.reduction = reduction
@@ -82,13 +83,10 @@ class LabelSmoothingLoss(torch.nn.Module):
         # for why we don't use target[ignored] = 0 here
         target = torch.where(ignored, torch.zeros_like(target), target)
 
-        true_dist = torch.nn.functional.one_hot(
-            target, num_classes=num_classes
-        ).to(x)
+        true_dist = torch.nn.functional.one_hot(target, num_classes=num_classes).to(x)
 
         true_dist = (
-            true_dist * (1 - self.label_smoothing)
-            + self.label_smoothing / num_classes
+            true_dist * (1 - self.label_smoothing) + self.label_smoothing / num_classes
         )
 
         # Set the value of ignored indexes to 0

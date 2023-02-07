@@ -30,29 +30,22 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
 
-from icefall.ali import (
-    convert_alignments_to_tensor,
-    load_alignments,
-    lookup_alignments,
-)
+from icefall.ali import convert_alignments_to_tensor, load_alignments, lookup_alignments
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.lexicon import Lexicon
 from icefall.mmi import LFMMILoss
 from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
-from icefall.utils import (
-    AttributeDict,
-    encode_supervisions,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, encode_supervisions, setup_logger, str2bool
 
 
 def get_parser():
@@ -110,10 +103,38 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="conformer_mmi/exp",
+        help="""The experiment dir.
+        It specifies the directory where all training related
+        files, e.g., checkpoints, log, etc, are saved
+        """,
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe_500",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
         help="The seed for random generators intended for reproducibility",
+    )
+
+    parser.add_argument(
+        "--use-pruned-intersect",
+        type=str2bool,
+        default=False,
+        help="""Whether to use `intersect_dense_pruned` to get denominator
+        lattice.""",
     )
 
     return parser
@@ -129,12 +150,6 @@ def get_params() -> AttributeDict:
     you can also access them via `params`.
 
     Explanation of options saved in `params`:
-
-        - exp_dir: It specifies the directory where all training related
-                   files, e.g., checkpoints, log, etc, are saved
-
-        - lang_dir: It contains language related input files such as
-                    "lexicon.txt"
 
         - best_train_loss: Best training loss so far. It is used to select
                            the model that has the lowest training loss. It is
@@ -180,8 +195,6 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "exp_dir": Path("conformer_mmi/exp_500"),
-            "lang_dir": Path("data/lang_bpe_500"),
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -202,13 +215,10 @@ def get_params() -> AttributeDict:
             "use_double_scores": True,
             "att_rate": 0.0,
             "num_decoder_layers": 0,
-            #  "att_rate": 0.7,
-            #  "num_decoder_layers": 6,
             # parameters for Noam
             "weight_decay": 1e-6,
             "lr_factor": 5.0,
             "warm_step": 80000,
-            "use_pruned_intersect": False,
             "den_scale": 1.0,
             # use alignments before this number of batches
             "use_ali_until": 13000,
@@ -377,10 +387,7 @@ def compute_loss(
             nnet_output = nnet_output.clone()
             nnet_output[:, :min_len, :] += ali_scale * mask[:, :min_len, :]
 
-        if (
-            params.batch_idx_train > params.use_ali_until
-            and params.beam_size < 8
-        ):
+        if params.batch_idx_train > params.use_ali_until and params.beam_size < 8:
             logging.info("Change beam size to 8")
             params.beam_size = 8
         else:
@@ -764,25 +771,41 @@ def run(rank, world_size, args):
         valid_ali = None
 
     librispeech = LibriSpeechAsrDataModule(args)
-    train_dl = librispeech.train_dataloaders()
-    valid_dl = librispeech.valid_dataloaders()
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
+
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        return 1.0 <= c.duration <= 20.0
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
+    train_dl = librispeech.train_dataloaders(train_cuts)
+
+    valid_cuts = librispeech.dev_clean_cuts()
+    valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     for epoch in range(params.start_epoch, params.num_epochs):
         fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
-        if (
-            params.batch_idx_train >= params.use_ali_until
-            and train_ali is not None
-        ):
+        if params.batch_idx_train >= params.use_ali_until and train_ali is not None:
             # Delete the alignments to save memory
             train_ali = None
             valid_ali = None
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:
@@ -821,6 +844,7 @@ def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
     assert world_size >= 1

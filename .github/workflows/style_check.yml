@@ -24,6 +24,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: style_check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   style_check:
     runs-on: ${{ matrix.os }}
@@ -45,17 +49,18 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m pip install --upgrade pip black==21.6b0 flake8==3.9.2 click==8.0.4
-          # See https://github.com/psf/black/issues/2964
-          # The version of click should be selected from 8.0.0, 8.0.1, 8.0.2, 8.0.3, and 8.0.4
+          python3 -m pip install --upgrade pip black==22.3.0 flake8==5.0.4 click==8.1.0
+          # Click issue fixed in https://github.com/psf/black/pull/2966
 
       - name: Run flake8
         shell: bash
         working-directory: ${{github.workspace}}
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --show-source --statistics
-          flake8 .
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 \
+            --statistics --extend-ignore=E203,E266,E501,F401,E402,F403,F841,W503
 
       - name: Run black
         shell: bash

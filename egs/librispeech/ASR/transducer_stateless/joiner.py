@@ -60,13 +60,9 @@ class Joiner(nn.Module):
         encoder_out_len: List[int] = encoder_out_len.tolist()
         decoder_out_len: List[int] = decoder_out_len.tolist()
 
-        encoder_out_list = [
-            encoder_out[i, : encoder_out_len[i], :] for i in range(N)
-        ]
+        encoder_out_list = [encoder_out[i, : encoder_out_len[i], :] for i in range(N)]
 
-        decoder_out_list = [
-            decoder_out[i, : decoder_out_len[i], :] for i in range(N)
-        ]
+        decoder_out_list = [decoder_out[i, : decoder_out_len[i], :] for i in range(N)]
 
         x = [
             e.unsqueeze(1) + d.unsqueeze(0)

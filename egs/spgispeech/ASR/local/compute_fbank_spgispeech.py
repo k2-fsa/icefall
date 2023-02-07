@@ -103,11 +103,7 @@ def compute_fbank_spgispeech(args):
             chunk_size=chunk_size,
         )
         start = args.start
-        stop = (
-            min(args.stop, args.num_splits)
-            if args.stop > 0
-            else args.num_splits
-        )
+        stop = min(args.stop, args.num_splits) if args.stop > 0 else args.num_splits
         num_digits = len(str(args.num_splits))
         for i in range(start, stop):
             idx = f"{i + 1}".zfill(num_digits)
@@ -129,9 +125,7 @@ def compute_fbank_spgispeech(args):
                 logging.info(f"{partition} already exists - skipping.")
                 continue
             logging.info(f"Processing {partition}")
-            cut_set = load_manifest_lazy(
-                src_dir / f"cuts_{partition}_raw.jsonl.gz"
-            )
+            cut_set = load_manifest_lazy(src_dir / f"cuts_{partition}_raw.jsonl.gz")
             cut_set = cut_set.compute_and_store_features_batch(
                 extractor=extractor,
                 storage_path=output_dir / f"feats_{partition}",
@@ -144,9 +138,7 @@ def compute_fbank_spgispeech(args):
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()

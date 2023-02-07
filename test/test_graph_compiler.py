@@ -154,9 +154,7 @@ class TestCtcTrainingGraphCompiler(object):
         fsas = k2.Fsa.from_fsas([fsa1, fsa2])
 
         decoding_graph = k2.arc_sort(decoding_graph)
-        lattice = k2.intersect(
-            decoding_graph, fsas, treat_epsilons_specially=False
-        )
+        lattice = k2.intersect(decoding_graph, fsas, treat_epsilons_specially=False)
         lattice = k2.connect(lattice)
 
         aux_labels0 = lattice[0].aux_labels[:-1]

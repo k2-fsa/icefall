@@ -1,5 +1,534 @@
 ## Results
 
+### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
+
+#### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
+
+See <https://github.com/k2-fsa/icefall/pull/787> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+##### training on full librispeech
+
+The WERs are:
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 3.15       | 8.09       | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 320ms      | 3.17       | 8.24       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 320ms      | 3.2        | 8.04       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 320ms      | 3.36       | 8.19       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 320ms      | 3.12       | 8.11       | --epoch 30 --avg 9  | chunk-size           |
+| greedy search        | 640ms      | 2.97       | 7.5        | --epoch 30 --avg 9  | simulated streaming  |
+| greedy search        | 640ms      | 2.98       | 7.67       | --epoch 30 --avg 9  | chunk-wise           |
+| fast beam search     | 640ms      | 3.02       | 7.47       | --epoch 30 --avg 9  | simulated streaming  |
+| fast beam search     | 640ms      | 2.96       | 7.61       | --epoch 30 --avg 9  | chunk-wise           |
+| modified beam search | 640ms      | 2.94       | 7.36       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 640ms      | 2.95       | 7.53       | --epoch 30 --avg 9  | chunk-size           |
+
+Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless7_streaming/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --full-libri 1 \
+  --max-duration 750 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/A46UpqEWQWS7oDi5VcQ8rg/>
+
+The simulated streaming decoding command (e.g., chunk-size=320ms) is:
+```bash
+for $m in greedy_search fast_beam_search modified_beam_search; do
+  ./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --decoding-method $m
+done
+```
+
+The streaming chunk-size decoding command (e.g., chunk-size=320ms) is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless7_streaming/streaming_decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --decoding-method $m \
+    --decode-chunk-len 32 \
+    --num-decode-streams 2000
+done
+```
+
+
+### zipformer_mmi (zipformer with mmi loss)
+
+See <https://github.com/k2-fsa/icefall/pull/746> for more details.
+
+[zipformer_mmi](./zipformer_mmi)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/xyOZUKpEQm62HBIlUD4uPA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-mmi-2022-12-08>
+
+Number of model parameters: 69136519, i.e., 69.14 M
+
+|                        | test-clean | test-other | comment             |
+| ---------------------- | ---------- | ---------- | ------------------- |
+| 1best                  | 2.54       | 5.65       | --epoch 30 --avg 10 |
+| nbest                  | 2.54       | 5.66       | --epoch 30 --avg 10 |
+| nbest-rescoring-LG     | 2.49       | 5.42       | --epoch 30 --avg 10 |
+| nbest-rescoring-3-gram | 2.52       | 5.62       | --epoch 30 --avg 10 |
+| nbest-rescoring-4-gram | 2.5        | 5.51       | --epoch 30 --avg 10 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./zipformer_mmi/train.py \
+  --world-size 4 \
+  --master-port 12345 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --lang-dir data/lang_bpe_500 \
+  --max-duration 500 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_mmi/exp
+```
+
+The decoding commands for the transducer branch are:
+```bash
+export CUDA_VISIBLE_DEVICES="5"
+
+for m in nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescoring-4-gram; do
+  ./zipformer_mmi/decode.py \
+    --epoch 30 \
+    --avg 10 \
+    --exp-dir ./zipformer_mmi/exp/ \
+    --max-duration 100 \
+    --lang-dir data/lang_bpe_500 \
+    --nbest-scale 1.2 \
+    --hp-scale 1.0 \
+    --decoding-method $m
+done
+```
+
+### pruned_transducer_stateless7_ctc_bs (zipformer with transducer loss and ctc loss using blank skip)
+
+See https://github.com/k2-fsa/icefall/pull/730 for more details.
+
+[pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/rrNZ7l83Qu6RKoD7y49wiA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2023-01-29>
+
+Number of model parameters: 76804822, i.e., 76.80 M
+
+Test on 8-card V100 cluster, with 4-card busy and 4-card idle.
+
+#### greedy_search
+
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.28       | 5.53       | 48.939           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.24       | 5.18       | 91.900           | --epoch 30 --avg 8  |
+
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **1.88 times** faster than the model that doesn't apply blank skip without obvious performance loss.
+
+#### modified_beam_search
+
+| model                                                        | test-clean | test-other | decoding time(s) | comment             |
+| ------------------------------------------------------------ | ---------- | ---------- | ---------------- | ------------------- |
+| [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) | 2.26       | 5.44       | 80.446           | --epoch 30 --avg 13 |
+| [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) | 2.20       | 5.12       | 283.676          | --epoch 30 --avg 8  |
+
+- [pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs) applies blank skip both on training and decoding, and [pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc) doesn`t apply blank skip.
+- Applying blank skip both on training and decoding is **3.53 times**  faster than the model that doesn't apply blank skip without obvious performance loss.
+
+The training commands for the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless7_ctc_bs/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --ctc-loss-scale 0.2 \
+  --master-port 12535
+```
+
+The decoding commands for the transducer branch of the model using blank skip ([pruned_transducer_stateless7_ctc_bs](./pruned_transducer_stateless7_ctc_bs)) are:
+
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_bs.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+The decoding commands for the transducer branch of the model without blank skip ([pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc)) are:
+
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  for epoch in 30; do
+    for avg in 15; do
+      ./pruned_transducer_stateless7_ctc/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+### pruned_transducer_stateless7_ctc (zipformer with transducer loss and ctc loss)
+
+See <https://github.com/k2-fsa/icefall/pull/683> for more details.
+
+[pruned_transducer_stateless7_ctc](./pruned_transducer_stateless7_ctc)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/hxlGAhOPToGmRLZFnAzPWw/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-ctc-2022-12-01>
+
+Number of model parameters: 70561891, i.e., 70.56 M
+
+|                          | test-clean | test-other  | comment            |
+|--------------------------|------------|-------------|--------------------|
+| greedy search            | 2.23       | 5.19        | --epoch 30 --avg 8 |
+| modified beam search     | 2.21       | 5.12        | --epoch 30 --avg 8 |
+| fast beam search         | 2.23       | 5.18        | --epoch 30 --avg 8 |
+| ctc decoding             | 2.48       | 5.82        | --epoch 30 --avg 9 |
+| 1best                    | 2.43       | 5.22        | --epoch 30 --avg 9 |
+| nbest                    | 2.43       | 5.22        | --epoch 30 --avg 9 |
+| nbest rescoring          | 2.34       | 5.05        | --epoch 30 --avg 9 |
+| whole lattice rescoring  | 2.34       | 5.04        | --epoch 30 --avg 9 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless7_ctc/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7_ctc/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --ctc-loss-scale 0.2 \
+  --master-port 12535
+```
+
+The decoding commands for the transducer branch are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search ; do
+  for epoch in 30; do
+    for avg in 8; do
+      ./pruned_transducer_stateless7_ctc/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+The decoding commands for the ctc branch are:
+```bash
+for m in ctc-decoding nbest nbest-rescoring whole-lattice-rescoring; do
+  for epoch in 30; do
+    for avg in 9; do
+      ./pruned_transducer_stateless7_ctc/ctc_decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+          --max-duration 100 \
+          --decoding-method $m \
+          --hlg-scale 0.6 \
+          --lm-dir data/lm
+    done
+  done
+done
+```
+
+
+### LibriSpeech BPE training results (Conformer CTC, supporting delay penalty)
+
+#### [conformer_ctc3](./conformer_ctc3)
+
+It implements Conformer model training with CTC loss.
+For streaming mode, it supports symbol delay penalty.
+
+See <https://github.com/k2-fsa/icefall/pull/669> for more details.
+
+##### training on full librispeech
+
+This model contains 12 encoder layers. The number of model parameters is 77352694.
+
+The WERs are:
+
+|                                     | test-clean | test-other | comment              |
+|-------------------------------------|------------|------------|----------------------|
+| ctc-decoding                        | 3.09       | 7.62       | --epoch 25 --avg 7   |
+| 1best                               | 2.87       | 6.44       | --epoch 25 --avg 7   |
+| nbest                               | 2.88       | 6.5        | --epoch 25 --avg 7   |
+| nbest-rescoring                     | 2.71       | 6.1        | --epoch 25 --avg 7   |
+| whole-lattice-rescoring             | 2.71       | 6.04       | --epoch 25 --avg 7   |
+
+The training command is:
+
+```bash
+./conformer_ctc3/train.py \
+  --world-size 4 \
+  --num-epochs 25 \
+  --start-epoch 1 \
+  --exp-dir conformer_ctc3/full \
+  --full-libri 1 \
+  --max-duration 300 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/4jbxIQ2SQIaQeRqsR6bOSA>
+
+The decoding command using different methods is:
+```bash
+for method in ctc-decoding 1best nbest nbest-rescoring whole-lattice-rescoring; do
+  ./conformer_ctc3/decode.py \
+    --epoch 25 \
+    --avg 7 \
+    --exp-dir conformer_ctc3/exp \
+    --max-duration 300 \
+    --decoding-method $method \
+    --manifest-dir data/fbank \
+    --lm-dir data/lm \
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-conformer-ctc3-2022-11-27>
+
+The command to train a streaming model with symbol delay penalty is:
+```bash
+./conformer_ctc3/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir conformer_ctc3/exp \
+  --full-libri 1 \
+  --dynamic-chunk-training 1 \
+  --causal-convolution 1 \
+  --short-chunk-size 25 \
+  --num-left-chunks 4 \
+  --max-duration 300 \
+  --delay-penalty 0.1
+```
+To evaluate symbol delay, you should:
+(1) Generate cuts with word-time alignments:
+```bash
+./local/add_alignment_librispeech.py \
+  --alignments-dir data/alignment \
+  --cuts-in-dir data/fbank \
+  --cuts-out-dir data/fbank_ali
+```
+(2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
+For example:
+```bash
+./conformer_ctc3/decode.py \
+  --epoch 25 \
+  --avg 7 \
+  --exp-dir ./conformer_ctc3/exp \
+  --max-duration 300 \
+  --decoding-method ctc-decoding \
+  --simulate-streaming 1 \
+  --causal-convolution 1 \
+  --decode-chunk-size 16 \
+  --left-context 64 \
+  --manifest-dir data/fbank_ali
+```
+Note: It supports to calculate symbol delay with following decoding methods:
+  - ctc-greedy-search
+  - ctc-decoding
+  - 1best
+
+
+### pruned_transducer_stateless8 (zipformer + multidataset)
+
+See <https://github.com/k2-fsa/icefall/pull/675> for more details.
+
+[pruned_transducer_stateless8](./pruned_transducer_stateless8)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/3e9AfOcgRwOXpLQlZvHZrQ>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/WeijiZhuang/icefall-asr-librispeech-pruned-transducer-stateless8-2022-12-02>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 1.81       | 4.18       | --epoch 20 --avg 4 |
+| fast_beam_search     | 1.82       | 4.15       | --epoch 20 --avg 4 |
+| modified_beam_search | 1.78       | **4.08**   | --epoch 20 --avg 4 |
+| greedy_search        | 1.84       | 4.3        | --epoch 19 --avg 8 |
+| fast_beam_search     |**1.77**    | 4.25       | --epoch 19 --avg 8 |
+| modified_beam_search | 1.81       | 4.16       | --epoch 19 --avg 8 |
+
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless8/train.py \
+  --world-size 8 \
+  --num-epochs 20 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless8/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --master-port 12535 \
+  --giga-prob 0.9
+```
+
+The decoding commands are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for epoch in $(seq 20 -1 10); do
+    for avg in $(seq 9 -1 1); do
+      ./pruned_transducer_stateless8/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless8/exp \
+          --feedforward-dims "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+
+### pruned_transducer_stateless7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/672> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/P7vXWqK7QVu1mU9Ene1gGg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+|                      | test-clean | test-other  | comment                                |
+|----------------------|------------|-------------|----------------------------------------|
+| greedy search        | 2.17       | 5.23        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search | 2.15       | 5.20        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM shallow fusion | 1.99       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM shallow fusion | 1.94       | 4.73        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + RNNLM + LODR | 1.91       | 4.57        | --epoch 30 --avg 9 --max-duration 600  |
+| modified beam search + TransformerLM + LODR | 1.91       | 4.51        | --epoch 30 --avg 9 --max-duration 600  |
+| fast beam search     | 2.15       | 5.22        | --epoch 30 --avg 9 --max-duration 600  |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,3,6,7"
+
+./pruned_transducer_stateless7/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --full-libri 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7/exp \
+  --feedforward-dims  "1024,1024,2048,2048,1024" \
+  --master-port 12535
+```
+
+The decoding commands are:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search ; do
+  for epoch in 30; do
+    for avg in 9; do
+      ./pruned_transducer_stateless7/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7/exp \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m
+    done
+  done
+done
+```
+
+
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
 #### [lstm_transducer_stateless3](./lstm_transducer_stateless3)
@@ -102,6 +631,9 @@ The WERs are:
 | greedy search (max sym per frame 1) | 2.78       | 7.36       | --iter 468000 --avg 16  |
 | modified_beam_search                | 2.73       | 7.15       | --iter 468000 --avg 16  |
 | modified_beam_search + RNNLM shallow fusion   | 2.42     |  6.46      | --iter 468000 --avg 16  |
+| modified_beam_search + TransformerLM shallow fusion   | 2.37     |  6.48      | --iter 468000 --avg 16  |
+| modified_beam_search + RNNLM + LODR   | 2.24     |  5.89      | --iter 468000 --avg 16  |
+| modified_beam_search + TransformerLM + LODR   | 2.19     |  5.90      | --iter 468000 --avg 16  |
 | fast_beam_search                    | 2.76       | 7.31       | --iter 468000 --avg 16  |
 | greedy search (max sym per frame 1) | 2.77       | 7.35       | --iter 472000 --avg 18  |
 | modified_beam_search                | 2.75       | 7.08       | --iter 472000 --avg 18  |
@@ -156,9 +688,12 @@ for m in greedy_search fast_beam_search modified_beam_search; do
 done
 ```
 
-To decode with RNNLM shallow fusion, use the following decoding command. A well-trained RNNLM
-can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
+```bash
 for iter in 472000; do
     for avg in 8 10 12 14 16 18; do
         ./lstm_transducer_stateless2/decode.py \
@@ -166,16 +701,47 @@ for iter in 472000; do
                 --avg $avg \
                 --exp-dir ./lstm_transducer_stateless2/exp \
                 --max-duration 600 \
-                --decoding-method modified_beam_search_rnnlm_shallow_fusion \
-                --beam 4 \
-                --rnn-lm-scale 0.3 \
-                --rnn-lm-exp-dir /path/to/RNNLM \
-                --rnn-lm-epoch 99 \
-                --rnn-lm-avg 1 \
-                --rnn-lm-num-layers 3 \
-                --rnn-lm-tie-weights 1
+                --decoding-method modified_beam_search_lm_shallow_fusion \
+                --use-shallow-fusion 1 \
+                --lm-type rnn \
+                --lm-exp-dir /ceph-data4/yangxiaoyu/pretrained_models/LM/icefall-librispeech-rnn-lm/exp \
+                --lm-epoch 99 \
+                --lm-scale $lm_scale \
+                --lm-avg 1 \
     done
 done
+```
+
+You may also decode using LODR + LM shallow fusion. This decoding method is proposed in <https://arxiv.org/pdf/2203.16776.pdf>.
+It subtracts the internal language model score during shallow fusion, which is approximated by a bi-gram model. The bi-gram can be
+generated by `generate-lm.sh`, or you may download it from <https://huggingface.co/marcoyang/librispeech_bigram>.
+
+The decoding command is as follows:
+
+```bash
+for iter in 472000; do
+    for avg in 8 10 12 14 16 18; do
+        ./lstm_transducer_stateless2/decode.py \
+                --iter $iter \
+                --avg $avg \
+                --exp-dir ./lstm_transducer_stateless2/exp \
+                --max-duration 600 \
+                --decoding-method modified_beam_search_LODR \
+                --beam 4 \
+                --max-contexts 4 \
+                --use-shallow-fusion 1 \
+                --lm-type rnn \
+                --lm-exp-dir /ceph-data4/yangxiaoyu/pretrained_models/LM/icefall-librispeech-rnn-lm/exp \
+                --lm-epoch 99 \
+                --lm-scale 0.4 \
+                --lm-avg 1 \
+                --tokens-ngram 2 \
+                --ngram-lm-scale -0.16
+    done
+done
+```
+Note that you can also set `--lm-type transformer` to use transformer LM during LODR. But it will be slower
+because it has not been optimized. The pre-trained transformer LM is available at <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
 
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
@@ -1334,6 +1900,9 @@ layers (24 v.s 12) but a narrower model (1536 feedforward dim and 384 encoder di
 | greedy search (max sym per frame 1) | 2.54       | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search                | 2.47       | 5.71       | --epoch 30 --avg 10  --max-duration 600 |
 | modified beam search + RNNLM shallow fusion     | 2.27       | 5.24      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + RNNLM + LODR     | 2.23       | 5.17      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM shallow fusion     | 2.27       | 5.26      | --epoch 30 --avg 10  --max-duration 600 |
+| modified beam search + TransformerLM + LODR     | 2.22       | 5.11      | --epoch 30 --avg 10  --max-duration 600 |
 | fast beam search                    | 2.5        | 5.72       | --epoch 30 --avg 10  --max-duration 600 |
 
 ```bash
@@ -1696,6 +2265,9 @@ subset so that the gigaspeech dataloader never exhausts.
 |-------------------------------------|------------|------------|---------------------------------------------|
 | greedy search (max sym per frame 1) | 2.03       | 4.70       | --iter 1224000 --avg 14  --max-duration 600 |
 | modified beam search                | 2.00       | 4.63       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + rnnlm shallow fusion  | 1.94     |  4.2    | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + rnnlm + LODR         | 1.77       | 3.99       | --iter 1224000 --avg 14  --max-duration 600 |
+| modified beam search + TransformerLM + LODR    | 1.75       | 3.94       | --iter 1224000 --avg 14  --max-duration 600 |
 | fast beam search                    | 2.10       | 4.68       | --iter 1224000 --avg 14 --max-duration 600 |
 
 The training commands are:
@@ -1737,6 +2309,66 @@ for iter in 1224000; do
         --max-sym-per-frame 1 \
         --beam 4 \
         --max-contexts 32
+    done
+  done
+done
+```
+You may also decode using shallow fusion with external neural network LM. To do so you need to
+download a well-trained NN LM:
+RNN LM: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>
+Transformer LM: <https://huggingface.co/marcoyang/icefall-librispeech-transformer-lm/tree/main>
+
+```bash
+rnn_lm_scale=0.3
+
+for iter in 1224000; do
+  for avg in 14; do
+    for method in modified_beam_search_rnnlm_shallow_fusion ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32 \
+        --rnn-lm-scale $rnn_lm_scale \
+        --rnn-lm-exp-dir /path/to/RNNLM \
+        --rnn-lm-epoch 99 \
+        --rnn-lm-avg 1 \
+        --rnn-lm-num-layers 3 \
+        --rnn-lm-tie-weights 1
+    done
+  done
+done
+```
+
+If you want to try out with LODR decoding, use the following command. This assums you have a bi-gram LM trained on LibriSpeech text. You can also download the bi-gram LM from here <https://huggingface.co/marcoyang/librispeech_bigram/tree/main> and put it under the directory `data/lang_bpe_500`.
+
+```bash
+rnn_lm_scale=0.4
+
+for iter in 1224000; do
+  for avg in 14; do
+    for method in modified_beam_search_rnnlm_LODR ; do
+      ./pruned_transducer_stateless3/decode.py \
+        --iter $iter \
+        --avg $avg \
+        --exp-dir ./pruned_transducer_stateless3/exp-0.9/ \
+        --max-duration 600 \
+        --decoding-method $method \
+        --max-sym-per-frame 1 \
+        --beam 4 \
+        --max-contexts 32 \
+        --rnn-lm-scale $rnn_lm_scale \
+        --rnn-lm-exp-dir /path/to/RNNLM \
+        --rnn-lm-epoch 99 \
+        --rnn-lm-avg 1 \
+        --rnn-lm-num-layers 3 \
+        --rnn-lm-tie-weights 1 \
+        --tokens-ngram 2 \
+        --ngram-lm-scale -0.14
     done
   done
 done

@@ -129,9 +129,7 @@ class RnnLmModel(torch.nn.Module):
         tokens_eos = add_eos(tokens, eos_id)
         sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
 
-        sentence_lengths = (
-            sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
-        )
+        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
 
         x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
         y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)
@@ -155,20 +153,35 @@ class RnnLmModel(torch.nn.Module):
     def clean_cache(self):
         self.cache = {}
 
-    def score_token(self, tokens: torch.Tensor, state=None):
+    def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
+        """Score a batch of tokens
+
+        Args:
+            x (torch.Tensor):
+                A batch of tokens
+            x_lens (torch.Tensor):
+                The length of tokens in the batch before padding
+            state (_type_, optional):
+                Either None or a tuple of two torch.Tensor. Each tensor has
+                the shape of (hidden_dim)
+
+
+        Returns:
+            _type_: _description_
+        """
         device = next(self.parameters()).device
-        batch_size = tokens.size(0)
+        batch_size = x.size(0)
         if state:
             h, c = state
         else:
-            h = torch.zeros(
-                self.rnn.num_layers, batch_size, self.rnn.input_size
-            ).to(device)
-            c = torch.zeros(
-                self.rnn.num_layers, batch_size, self.rnn.input_size
-            ).to(device)
+            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(
+                device
+            )
+            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(
+                device
+            )
 
-        embedding = self.input_embedding(tokens)
+        embedding = self.input_embedding(x)
         rnn_out, states = self.rnn(embedding, (h, c))
         logits = self.output_linear(rnn_out)
 
@@ -181,12 +194,8 @@ class RnnLmModel(torch.nn.Module):
         if state:
             h, c = state
         else:
-            h = torch.zeros(
-                self.rnn.num_layers, batch_size, self.rnn.input_size
-            )
-            c = torch.zeros(
-                self.rnn.num_layers, batch_size, self.rnn.input_size
-            )
+            h = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size)
+            c = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size)
 
         device = next(self.parameters()).device
 
@@ -194,9 +203,7 @@ class RnnLmModel(torch.nn.Module):
         tokens_eos = add_eos(tokens, eos_id)
         sos_tokens_row_splits = sos_tokens.shape.row_splits(1)
 
-        sentence_lengths = (
-            sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
-        )
+        sentence_lengths = sos_tokens_row_splits[1:] - sos_tokens_row_splits[:-1]
 
         x_tokens = sos_tokens.pad(mode="constant", padding_value=blank_id)
         y_tokens = tokens_eos.pad(mode="constant", padding_value=blank_id)

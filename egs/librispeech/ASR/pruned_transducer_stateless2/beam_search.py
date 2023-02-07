@@ -26,7 +26,9 @@ from model import Transducer
 
 from icefall import NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
+from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel
+from icefall.transformer_lm.model import TransformerLM
 from icefall.utils import (
     DecodingResults,
     add_eos,
@@ -537,7 +539,7 @@ def greedy_search(
     device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device, dtype=torch.int64
+        [-1] * (context_size - 1) + [blank_id], device=device, dtype=torch.int64
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -580,9 +582,9 @@ def greedy_search(
         if y not in (blank_id, unk_id):
             hyp.append(y)
             timestamp.append(t)
-            decoder_input = torch.tensor(
-                [hyp[-context_size:]], device=device
-            ).reshape(1, context_size)
+            decoder_input = torch.tensor([hyp[-context_size:]], device=device).reshape(
+                1, context_size
+            )
 
             decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -646,7 +648,7 @@ def greedy_search_batch(
     assert torch.all(encoder_out_lens > 0), encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
 
-    hyps = [[blank_id] * context_size for _ in range(N)]
+    hyps = [[-1] * (context_size - 1) + [blank_id] for _ in range(N)]
 
     # timestamp[n][i] is the frame index after subsampling
     # on which hyp[n][i] is decoded
@@ -775,9 +777,7 @@ class HypothesisList(object):
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(
-                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
-            )
+            torch.logaddexp(old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob)
         else:
             self._data[key] = hyp
 
@@ -793,9 +793,7 @@ class HypothesisList(object):
           Return the hypothesis that has the largest `log_prob`.
         """
         if length_norm:
-            return max(
-                self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
-            )
+            return max(self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys))
         else:
             return max(self._data.values(), key=lambda hyp: hyp.log_prob)
 
@@ -990,9 +988,7 @@ def modified_beam_search(
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
 
-        log_probs = (logits / temperature).log_softmax(
-            dim=-1
-        )  # (num_hyps, vocab_size)
+        log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
 
         log_probs.add_(ys_log_probs)
 
@@ -1004,9 +1000,7 @@ def modified_beam_search(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -1676,9 +1670,7 @@ def fast_beam_search_with_nbest_rnn_rescoring(
         for rnn_scale in rnn_lm_scale_list:
             key = f"ngram_lm_scale_{n_scale}_rnn_lm_scale_{rnn_scale}"
             tot_scores = (
-                am_scores.values
-                + n_scale * ngram_lm_scores
-                + rnn_scale * rnn_lm_scores
+                am_scores.values + n_scale * ngram_lm_scores + rnn_scale * rnn_lm_scores
             )
             ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
             max_indexes = ragged_tot_scores.argmax()
@@ -1804,9 +1796,7 @@ def modified_beam_search_ngram_rescoring(
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
 
-        log_probs = (logits / temperature).log_softmax(
-            dim=-1
-        )  # (num_hyps, vocab_size)
+        log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
 
         log_probs.add_(ys_log_probs)
         vocab_size = log_probs.size(-1)
@@ -1816,9 +1806,7 @@ def modified_beam_search_ngram_rescoring(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -1841,9 +1829,7 @@ def modified_beam_search_ngram_rescoring(
                     state_cost = hyp.state_cost
 
                 # We only keep AM scores in new_hyp.log_prob
-                new_log_prob = (
-                    topk_log_probs[k] - hyp.state_cost.lm_score * lm_scale
-                )
+                new_log_prob = topk_log_probs[k] - hyp.state_cost.lm_score * lm_scale
 
                 new_hyp = Hypothesis(
                     ys=new_ys, log_prob=new_log_prob, state_cost=state_cost
@@ -1862,17 +1848,21 @@ def modified_beam_search_ngram_rescoring(
     return ans
 
 
-def modified_beam_search_rnnlm_shallow_fusion(
+def modified_beam_search_LODR(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     sp: spm.SentencePieceProcessor,
-    rnnlm: RnnLmModel,
-    rnnlm_scale: float,
+    LODR_lm: NgramLm,
+    LODR_lm_scale: float,
+    LM: LmScorer,
     beam: int = 4,
-    return_timestamps: bool = False,
 ) -> List[List[int]]:
-    """Modified_beam_search + RNNLM shallow fusion
+    """This function implements LODR (https://arxiv.org/abs/2203.16776) with
+    `modified_beam_search`. It uses a bi-gram language model as the estimate
+    of the internal language model and subtracts its score during shallow fusion
+    with an external language model. This implementation uses a RNNLM as the
+    external language model.
 
     Args:
         model (Transducer):
@@ -1884,22 +1874,24 @@ def modified_beam_search_rnnlm_shallow_fusion(
             valid frames in encoder_out before padding.
         sp:
             Sentence piece generator.
-        rnnlm (RnnLmModel):
-            RNNLM
-        rnnlm_scale (float):
-            scale of RNNLM in shallow fusion
+        LODR_lm:
+            A low order n-gram LM, whose score will be subtracted during shallow fusion
+        LODR_lm_scale:
+            The scale of the LODR_lm
+        LM:
+            A neural net LM, e.g an RNNLM or transformer LM
         beam (int, optional):
             Beam size. Defaults to 4.
 
     Returns:
       Return a list-of-list of token IDs. ans[i] is the decoding results
       for the i-th utterance.
+
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
-    assert rnnlm is not None
-    lm_scale = rnnlm_scale
-    vocab_size = rnnlm.vocab_size
+    assert LM is not None
+    lm_scale = LM.lm_scale
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -1921,7 +1913,8 @@ def modified_beam_search_rnnlm_shallow_fusion(
 
     # get initial lm score and lm state by scoring the "sos" token
     sos_token = torch.tensor([[sos_id]]).to(torch.int64).to(device)
-    init_score, init_states = rnnlm.score_token(sos_token)
+    lens = torch.tensor([1]).to(device)
+    init_score, init_states = LM.score_token(sos_token, lens)
 
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
@@ -1929,18 +1922,19 @@ def modified_beam_search_rnnlm_shallow_fusion(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                state=init_states,
+                state=init_states,  # state of the NN LM
                 lm_score=init_score.reshape(-1),
-                timestamp=[],
+                state_cost=NgramLmStateCost(
+                    LODR_lm
+                ),  # state of the source domain ngram
             )
         )
 
-    rnnlm.clean_cache()
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for batch_size in batch_size_list:
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]  # get batch
@@ -1995,15 +1989,13 @@ def modified_beam_search_rnnlm_shallow_fusion(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(
-            shape=log_probs_shape, value=log_probs
-        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
         """
         for all hyps with a non-blank new token, score this token.
         It is a little confusing here because this for-loop
         looks very similar to the one below. Here, we go through all
         top-k tokens and only add the non-blanks ones to the token_list.
-        The RNNLM will score those tokens given the LM states. Note that
+        LM will score those tokens given the LM states. Note that
         the variable `scores` is the LM score after seeing the new
         non-blank token.
         """
@@ -2023,24 +2015,306 @@ def modified_beam_search_rnnlm_shallow_fusion(
 
                 new_token = topk_token_indexes[k]
                 if new_token not in (blank_id, unk_id):
-                    assert new_token != 0, new_token
-                    token_list.append([new_token])
-                    # store the LSTM states
-                    hs.append(hyp.state[0])
-                    cs.append(hyp.state[1])
+                    if LM.lm_type == "rnn":
+                        token_list.append([new_token])
+                        # store the LSTM states
+                        hs.append(hyp.state[0])
+                        cs.append(hyp.state[1])
+                    else:
+                        # for transformer LM
+                        token_list.append(
+                            [sos_id] + hyp.ys[context_size:] + [new_token]
+                        )
 
-        # forward RNNLM to get new states and scores
+        # forward NN LM to get new states and scores
         if len(token_list) != 0:
-            tokens_to_score = (
-                torch.tensor(token_list)
-                .to(torch.int64)
-                .to(device)
-                .reshape(-1, 1)
-            )
+            x_lens = torch.tensor([len(tokens) for tokens in token_list]).to(device)
+            if LM.lm_type == "rnn":
+                tokens_to_score = (
+                    torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
+                )
+                hs = torch.cat(hs, dim=1).to(device)
+                cs = torch.cat(cs, dim=1).to(device)
+                state = (hs, cs)
+            else:
+                # for transformer LM
+                tokens_list = [torch.tensor(tokens) for tokens in token_list]
+                tokens_to_score = (
+                    torch.nn.utils.rnn.pad_sequence(
+                        tokens_list, batch_first=True, padding_value=0.0
+                    )
+                    .to(device)
+                    .to(torch.int64)
+                )
 
-            hs = torch.cat(hs, dim=1).to(device)
-            cs = torch.cat(cs, dim=1).to(device)
-            scores, lm_states = rnnlm.score_token(tokens_to_score, (hs, cs))
+                state = None
+
+            scores, lm_states = LM.score_token(tokens_to_score, x_lens, state)
+
+        count = 0  # index, used to locate score and lm states
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+                topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+
+                ys = hyp.ys[:]
+
+                # current score of hyp
+                lm_score = hyp.lm_score
+                state = hyp.state
+
+                hyp_log_prob = topk_log_probs[k]  # get score of current hyp
+                new_token = topk_token_indexes[k]
+                if new_token not in (blank_id, unk_id):
+
+                    ys.append(new_token)
+                    state_cost = hyp.state_cost.forward_one_step(new_token)
+
+                    # calculate the score of the latest token
+                    current_ngram_score = state_cost.lm_score - hyp.state_cost.lm_score
+
+                    assert current_ngram_score <= 0.0, (
+                        state_cost.lm_score,
+                        hyp.state_cost.lm_score,
+                    )
+                    # score = score + TDLM_score - LODR_score
+                    # LODR_LM_scale should be a negative number here
+                    hyp_log_prob += (
+                        lm_score[new_token] * lm_scale
+                        + LODR_lm_scale * current_ngram_score
+                    )  # add the lm score
+
+                    lm_score = scores[count]
+                    if LM.lm_type == "rnn":
+                        state = (
+                            lm_states[0][:, count, :].unsqueeze(1),
+                            lm_states[1][:, count, :].unsqueeze(1),
+                        )
+                    count += 1
+                else:
+                    state_cost = hyp.state_cost
+
+                new_hyp = Hypothesis(
+                    ys=ys,
+                    log_prob=hyp_log_prob,
+                    state=state,
+                    lm_score=lm_score,
+                    state_cost=state_cost,
+                )
+                B[i].add(new_hyp)
+
+    B = B + finalized_B
+    best_hyps = [b.get_most_probable(length_norm=True) for b in B]
+
+    sorted_ans = [h.ys[context_size:] for h in best_hyps]
+    ans = []
+    unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
+    for i in range(N):
+        ans.append(sorted_ans[unsorted_indices[i]])
+
+    return ans
+
+
+def modified_beam_search_lm_shallow_fusion(
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    sp: spm.SentencePieceProcessor,
+    LM: LmScorer,
+    beam: int = 4,
+    return_timestamps: bool = False,
+) -> List[List[int]]:
+    """Modified_beam_search + NN LM shallow fusion
+
+    Args:
+        model (Transducer):
+            The transducer model
+        encoder_out (torch.Tensor):
+            Encoder output in (N,T,C)
+        encoder_out_lens (torch.Tensor):
+            A 1-D tensor of shape (N,), containing the number of
+            valid frames in encoder_out before padding.
+        sp:
+            Sentence piece generator.
+        LM (LmScorer):
+            A neural net LM, e.g RNN or Transformer
+        beam (int, optional):
+            Beam size. Defaults to 4.
+
+    Returns:
+      Return a list-of-list of token IDs. ans[i] is the decoding results
+      for the i-th utterance.
+    """
+    assert encoder_out.ndim == 3, encoder_out.shape
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+    assert LM is not None
+    lm_scale = LM.lm_scale
+
+    packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
+        input=encoder_out,
+        lengths=encoder_out_lens.cpu(),
+        batch_first=True,
+        enforce_sorted=False,
+    )
+
+    blank_id = model.decoder.blank_id
+    sos_id = sp.piece_to_id("<sos/eos>")
+    unk_id = getattr(model, "unk_id", blank_id)
+    context_size = model.decoder.context_size
+    device = next(model.parameters()).device
+
+    batch_size_list = packed_encoder_out.batch_sizes.tolist()
+    N = encoder_out.size(0)
+    assert torch.all(encoder_out_lens > 0), encoder_out_lens
+    assert N == batch_size_list[0], (N, batch_size_list)
+
+    # get initial lm score and lm state by scoring the "sos" token
+    sos_token = torch.tensor([[sos_id]]).to(torch.int64).to(device)
+    lens = torch.tensor([1]).to(device)
+    init_score, init_states = LM.score_token(sos_token, lens)
+
+    B = [HypothesisList() for _ in range(N)]
+    for i in range(N):
+        B[i].add(
+            Hypothesis(
+                ys=[blank_id] * context_size,
+                log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                state=init_states,
+                lm_score=init_score.reshape(-1),
+                timestamp=[],
+            )
+        )
+
+    encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
+
+    offset = 0
+    finalized_B = []
+    for (t, batch_size) in enumerate(batch_size_list):
+        start = offset
+        end = offset + batch_size
+        current_encoder_out = encoder_out.data[start:end]  # get batch
+        current_encoder_out = current_encoder_out.unsqueeze(1).unsqueeze(1)
+        # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
+        offset = end
+
+        finalized_B = B[batch_size:] + finalized_B
+        B = B[:batch_size]
+
+        hyps_shape = get_hyps_shape(B).to(device)
+
+        A = [list(b) for b in B]
+        B = [HypothesisList() for _ in range(batch_size)]
+
+        ys_log_probs = torch.cat(
+            [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
+        )
+
+        lm_scores = torch.cat(
+            [hyp.lm_score.reshape(1, -1) for hyps in A for hyp in hyps]
+        )
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
+
+        current_encoder_out = torch.index_select(
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
+        )  # (num_hyps, 1, 1, encoder_out_dim)
+
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
+        )  # (num_hyps, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
+
+        log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
+
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+
+        log_probs = log_probs.reshape(-1)
+
+        row_splits = hyps_shape.row_splits(1) * vocab_size
+        log_probs_shape = k2.ragged.create_ragged_shape2(
+            row_splits=row_splits, cached_tot_size=log_probs.numel()
+        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
+        """
+        for all hyps with a non-blank new token, score this token.
+        It is a little confusing here because this for-loop
+        looks very similar to the one below. Here, we go through all
+        top-k tokens and only add the non-blanks ones to the token_list.
+        `LM` will score those tokens given the LM states. Note that
+        the variable `scores` is the LM score after seeing the new
+        non-blank token.
+        """
+        token_list = []  # a list of list
+        hs = []
+        cs = []
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+                topk_token_indexes = (topk_indexes % vocab_size).tolist()
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+
+                new_token = topk_token_indexes[k]
+                if new_token not in (blank_id, unk_id):
+                    if LM.lm_type == "rnn":
+                        token_list.append([new_token])
+                        # store the LSTM states
+                        hs.append(hyp.state[0])
+                        cs.append(hyp.state[1])
+                    else:
+                        # for transformer LM
+                        token_list.append(
+                            [sos_id] + hyp.ys[context_size:] + [new_token]
+                        )
+
+        if len(token_list) != 0:
+            x_lens = torch.tensor([len(tokens) for tokens in token_list]).to(device)
+            if LM.lm_type == "rnn":
+                tokens_to_score = (
+                    torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
+                )
+                hs = torch.cat(hs, dim=1).to(device)
+                cs = torch.cat(cs, dim=1).to(device)
+                state = (hs, cs)
+            else:
+                # for transformer LM
+                tokens_list = [torch.tensor(tokens) for tokens in token_list]
+                tokens_to_score = (
+                    torch.nn.utils.rnn.pad_sequence(
+                        tokens_list, batch_first=True, padding_value=0.0
+                    )
+                    .to(device)
+                    .to(torch.int64)
+                )
+
+                state = None
+
+            scores, lm_states = LM.score_token(tokens_to_score, x_lens, state)
 
         count = 0  # index, used to locate score and lm states
         for i in range(batch_size):
@@ -2067,15 +2341,15 @@ def modified_beam_search_rnnlm_shallow_fusion(
 
                     ys.append(new_token)
                     new_timestamp.append(t)
-                    hyp_log_prob += (
-                        lm_score[new_token] * lm_scale
-                    )  # add the lm score
+
+                    hyp_log_prob += lm_score[new_token] * lm_scale  # add the lm score
 
                     lm_score = scores[count]
-                    state = (
-                        lm_states[0][:, count, :].unsqueeze(1),
-                        lm_states[1][:, count, :].unsqueeze(1),
-                    )
+                    if LM.lm_type == "rnn":
+                        state = (
+                            lm_states[0][:, count, :].unsqueeze(1),
+                            lm_states[1][:, count, :].unsqueeze(1),
+                        )
                     count += 1
 
                 new_hyp = Hypothesis(
@@ -2083,7 +2357,7 @@ def modified_beam_search_rnnlm_shallow_fusion(
                     log_prob=hyp_log_prob,
                     state=state,
                     lm_score=lm_score,
-                    timestampe=new_timestamp,
+                    timestamp=new_timestamp,
                 )
                 B[i].add(new_hyp)
 

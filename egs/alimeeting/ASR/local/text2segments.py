@@ -30,8 +30,8 @@ with word segmenting:
 
 import argparse
 
-import paddle
 import jieba
+import paddle
 from tqdm import tqdm
 
 paddle.enable_static()
