@@ -1,39 +1,53 @@
 #!/usr/bin/env python3
 # Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 """
 This script loads ONNX models exported by ./export-onnx.py
 and uses them to decode waves.
 
-You can use the following command to get the exported models:
+We use the pre-trained model from
+https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+as an example to show how to use this file.
+
+1. Download the pre-trained model
+
+cd egs/librispeech/ASR
+
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained.pt"
+cd exp
+ln -s pretrained.pt epoch-99.pt
+popd
+
+2. Export the model to ONNX
 
 ./pruned_transducer_stateless7_streaming/export-onnx.py \
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --decode-chunk-len 32 \
+  --exp-dir $repo/exp/
 
-Usage of this script:
+It will generate the following 3 files in $repo/exp
+
+  - encoder-epoch-99-avg-1.onnx
+  - decoder-epoch-99-avg-1.onnx
+  - joiner-epoch-99-avg-1.onnx
+
+3. Run this file with the exported ONNX models
 
 ./pruned_transducer_stateless7_streaming/onnx_pretrained.py \
-  --encoder-model-filename ./pruned_transducer_stateless7_streaming/exp/encoder.onnx \
-  --decoder-model-filename ./pruned_transducer_stateless7_streaming/exp/decoder.onnx \
-  --joiner-model-filename ./pruned_transducer_stateless7_streaming/exp/joiner.onnx \
-  --tokens ./data/lang_bpe_500/tokens.txt \
-  /path/to/foo.wav
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.wav
 
 Note: Even though this script only supports decoding a single file,
 the exported ONNX models do support batch processing.
@@ -95,7 +109,7 @@ def get_parser():
     return parser
 
 
-class Model:
+class OnnxModel:
     def __init__(
         self,
         encoder_model_filename: str,
@@ -117,7 +131,9 @@ class Model:
             encoder_model_filename,
             sess_options=self.session_opts,
         )
+        self.init_encoder_states()
 
+    def init_encoder_states(self, batch_size: int = 1):
         encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
 
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
@@ -156,19 +172,21 @@ class Model:
         cached_conv1 = []
         cached_conv2 = []
 
+        N = batch_size
+
         for i in range(num_encoders):
-            cached_len.append(torch.zeros(num_encoder_layers[i], 1, dtype=torch.int64))
-            cached_avg.append(torch.zeros(num_encoder_layers[i], 1, encoder_dims[i]))
+            cached_len.append(torch.zeros(num_encoder_layers[i], N, dtype=torch.int64))
+            cached_avg.append(torch.zeros(num_encoder_layers[i], N, encoder_dims[i]))
             cached_key.append(
                 torch.zeros(
-                    num_encoder_layers[i], left_context_len[i], 1, attention_dims[i]
+                    num_encoder_layers[i], left_context_len[i], N, attention_dims[i]
                 )
             )
             cached_val.append(
                 torch.zeros(
                     num_encoder_layers[i],
                     left_context_len[i],
-                    1,
+                    N,
                     attention_dims[i] // 2,
                 )
             )
@@ -176,18 +194,18 @@ class Model:
                 torch.zeros(
                     num_encoder_layers[i],
                     left_context_len[i],
-                    1,
+                    N,
                     attention_dims[i] // 2,
                 )
             )
             cached_conv1.append(
                 torch.zeros(
-                    num_encoder_layers[i], 1, encoder_dims[i], cnn_module_kernels[i] - 1
+                    num_encoder_layers[i], N, encoder_dims[i], cnn_module_kernels[i] - 1
                 )
             )
             cached_conv2.append(
                 torch.zeros(
-                    num_encoder_layers[i], 1, encoder_dims[i], cnn_module_kernels[i] - 1
+                    num_encoder_layers[i], N, encoder_dims[i], cnn_module_kernels[i] - 1
                 )
             )
 
@@ -212,14 +230,21 @@ class Model:
 
         decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
         self.context_size = int(decoder_meta["context_size"])
+        self.vocab_size = int(decoder_meta["vocab_size"])
 
         logging.info(f"context_size: {self.context_size}")
+        logging.info(f"vocab_size: {self.vocab_size}")
 
     def init_joiner(self, joiner_model_filename: str):
         self.joiner = ort.InferenceSession(
             joiner_model_filename,
             sess_options=self.session_opts,
         )
+
+        joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
+        self.joiner_dim = int(joiner_meta["joiner_dim"])
+
+        logging.info(f"joiner_dim: {self.joiner_dim}")
 
     def _build_encoder_input_output(
         self,
@@ -356,7 +381,7 @@ def create_streaming_feature_extractor() -> OnlineFeature:
 
 
 def greedy_search(
-    model: Model,
+    model: OnnxModel,
     encoder_out: torch.Tensor,
     context_size: int,
     decoder_out: Optional[torch.Tensor] = None,
@@ -409,7 +434,7 @@ def main():
     args = parser.parse_args()
     logging.info(vars(args))
 
-    model = Model(
+    model = OnnxModel(
         encoder_model_filename=args.encoder_model_filename,
         decoder_model_filename=args.decoder_model_filename,
         joiner_model_filename=args.joiner_model_filename,

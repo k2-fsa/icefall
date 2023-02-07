@@ -1,24 +1,46 @@
 #!/usr/bin/env python3
+#
+# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
 
 """
-This script exports a transducer model from icefall to onnx format.
+This script exports a transducer model from PyTorch to ONNX.
 
-See ./onnx_pretrained.py for how to use the exported models.
+We use the pre-trained model from
+https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+as an example to show how to use this file.
 
-Usage:
+1. Download the pre-trained model
+
+cd egs/librispeech/ASR
+
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained.pt"
+cd exp
+ln -s pretrained.pt epoch-99.pt
+popd
+
+2. Export the model to ONNX
 
 ./pruned_transducer_stateless7_streaming/export-onnx.py \
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --use-averaged-model 1 \
-  --epoch 30 \
-  --avg 9
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --decode-chunk-len 32 \
+  --exp-dir $repo/exp/
 
-It will generate the following 3 files in the given exp_dir:
-    ./exp/encoder-epoch-30-avg-9-with-averaged-model.onnx
-    ./exp/decoder-epoch-30-avg-9-with-averaged-model.onnx
-    ./exp/joiner-epoch-30-avg-9-with-averaged-model.onnx
+It will generate the following 3 files in $repo/exp
 
+  - encoder-epoch-99-avg-1.onnx
+  - decoder-epoch-99-avg-1.onnx
+  - joiner-epoch-99-avg-1.onnx
+
+See ./onnx_pretrained.py for how to use the exported models.
 """
 
 import argparse
@@ -376,6 +398,7 @@ def export_decoder_model_onnx(
         The opset version to use.
     """
     context_size = decoder_model.decoder.context_size
+    vocab_size = decoder_model.decoder.vocab_size
     y = torch.zeros(10, context_size, dtype=torch.int64)
     torch.onnx.export(
         decoder_model,
@@ -390,7 +413,10 @@ def export_decoder_model_onnx(
             "decoder_out": {0: "N"},
         },
     )
-    meta_data = {"context_size": str(context_size)}
+    meta_data = {
+        "context_size": str(context_size),
+        "vocab_size": str(vocab_size),
+    }
     add_meta_data(filename=decoder_filename, meta_data=meta_data)
 
 
@@ -432,6 +458,10 @@ def export_joiner_model_onnx(
             "logit": {0: "N"},
         },
     )
+    meta_data = {
+        "joiner_dim": str(joiner_dim),
+    }
+    add_meta_data(filename=joiner_filename, meta_data=meta_data)
 
 
 @torch.no_grad()
@@ -556,6 +586,15 @@ def main():
     )
 
     joiner = OnnxJoiner(output_linear=model.joiner.output_linear)
+
+    encoder_num_param = sum([p.numel() for p in encoder.parameters()])
+    decoder_num_param = sum([p.numel() for p in decoder.parameters()])
+    joiner_num_param = sum([p.numel() for p in joiner.parameters()])
+    total_num_param = encoder_num_param + decoder_num_param + joiner_num_param
+    logging.info(f"encoder parameters: {encoder_num_param}")
+    logging.info(f"decoder parameters: {decoder_num_param}")
+    logging.info(f"joiner parameters: {joiner_num_param}")
+    logging.info(f"total parameters: {total_num_param}")
 
     if params.iter > 0:
         suffix = f"iter-{params.iter}"
