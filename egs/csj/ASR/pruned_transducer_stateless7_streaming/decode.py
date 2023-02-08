@@ -122,7 +122,6 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from error_reporting import write_error_stats
 from tokenizer import Tokenizer
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -133,7 +132,13 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict, setup_logger, store_transcripts, str2bool
+from icefall.utils import (
+    AttributeDict,
+    setup_logger,
+    store_transcripts,
+    str2bool,
+    write_error_stats,
+)
 
 LOG_EPS = math.log(1e-10)
 
@@ -200,13 +205,6 @@ def get_parser():
         type=Path,
         default=None,
         help="The path to save results.",
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -323,6 +321,15 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--pad",
+        type=int,
+        default=30,
+        help="""
+        Number of frames to pad at the end.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -377,12 +384,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += 30
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, 30),
-        value=LOG_EPS,
-    )
+    if params.pad:
+        feature_lens += params.pad
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.pad),
+            value=LOG_EPS,
+        )
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
@@ -398,7 +406,7 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "fast_beam_search_nbest_LG":
         hyp_tokens = fast_beam_search_nbest_LG(
             model=model,
@@ -426,7 +434,7 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
@@ -441,7 +449,7 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
@@ -449,7 +457,7 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -458,7 +466,7 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     else:
         batch_size = encoder_out.size(0)
 
@@ -482,7 +490,7 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append(sp.text2word(sp.decode(hyp)))
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -589,6 +597,7 @@ def save_results(
         )
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
+
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -619,6 +628,7 @@ def save_results(
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
+
     return test_set_wers
 
 
@@ -679,7 +689,7 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(params.lang_dir, params.lang_type)
+    sp = Tokenizer.load(params.lang, params.lang_type)
 
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
@@ -811,51 +821,51 @@ def main():
             sp=sp,
             decoding_graph=decoding_graph,
         )
-        tot_err: List[Tuple] = save_results(
-            params=params,
-            test_set_name=subdir + "-ori",
-            results_dict=results_dict,
-        )
-        with (
-            params.res_dir
-            / (
-                f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
-                f"_{params.avg}_{params.epoch}.oricer"
-            )
-        ).open("w") as fout:
-            if len(tot_err) == 1:
-                fout.write(f"{tot_err[0][1]}")
-            else:
-                fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
-
-        results_dict = {
-            k: [
-                (
-                    vv[0],
-                    [i for i in vv[1] if i not in ["↵", "。", "、"]],
-                    [i for i in vv[2] if i not in ["↵", "。", "、"]],
-                )
-                for vv in v
-            ]
-            for k, v in results_dict.items()
-        }
-
         tot_err = save_results(
             params=params,
-            test_set_name=subdir + "-txt",
+            test_set_name=subdir,
             results_dict=results_dict,
         )
         with (
             params.res_dir
             / (
                 f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
-                f"_{params.avg}_{params.epoch}.txtcer"
+                f"_{params.avg}_{params.epoch}.cer"
             )
         ).open("w") as fout:
             if len(tot_err) == 1:
                 fout.write(f"{tot_err[0][1]}")
             else:
                 fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
+
+        # results_dict = {
+        #     k: [
+        #         (
+        #             vv[0],
+        #             [i for i in vv[1] if i not in ["↵", "。", "、"]],
+        #             [i for i in vv[2] if i not in ["↵", "。", "、"]],
+        #         )
+        #         for vv in v
+        #     ]
+        #     for k, v in results_dict.items()
+        # }
+
+        # tot_err = save_results(
+        #     params=params,
+        #     test_set_name=subdir + "-txt",
+        #     results_dict=results_dict,
+        # )
+        # with (
+        #     params.res_dir
+        #     / (
+        #         f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
+        #         f"_{params.avg}_{params.epoch}.txtcer"
+        #     )
+        # ).open("w") as fout:
+        #     if len(tot_err) == 1:
+        #         fout.write(f"{tot_err[0][1]}")
+        #     else:
+        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 

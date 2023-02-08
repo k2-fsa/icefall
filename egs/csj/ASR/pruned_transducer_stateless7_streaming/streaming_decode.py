@@ -37,8 +37,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from asr_datamodule import CSJAsrDataModule
+from decode import save_results
 from decode_stream import DecodeStream
-from error_reporting import write_error_stats
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
 from streaming_beam_search import (
@@ -57,7 +57,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import AttributeDict, setup_logger, store_transcripts, str2bool
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 LOG_EPS = math.log(1e-10)
 
@@ -379,8 +379,8 @@ def decode_dataset(
                 decode_results.append(
                     (
                         decode_streams[i].id,
-                        sp.text2word(decode_stream[i].ground_truth),
-                        sp.decode(decode_streams[i].decoding_result()).split(),
+                        sp.text2word(decode_streams[i].ground_truth),
+                        sp.text2word(sp.decode(decode_streams[i].decoding_result())),
                     )
                 )
                 del decode_streams[i]
@@ -397,8 +397,8 @@ def decode_dataset(
             decode_results.append(
                 (
                     decode_streams[i].id,
-                    sp.text2word(decode_stream[i].ground_truth),
-                    sp.decode(decode_streams[i].decoding_result()).split(),
+                    sp.text2word(decode_streams[i].ground_truth),
+                    sp.text2word(sp.decode(decode_streams[i].decoding_result())),
                 )
             )
             del decode_streams[i]
@@ -416,51 +416,6 @@ def decode_dataset(
     else:
         raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
     return {key: decode_results}
-
-
-def save_results(
-    params: AttributeDict,
-    test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
-):
-    test_set_wers = dict()
-    for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
-        results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
-        logging.info(f"The transcripts are stored in {recog_path}")
-
-        # The following prints out WERs, per-word error statistics and aligned
-        # ref/hyp pairs.
-        errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
-        with open(errs_filename, "w") as f:
-            wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
-            )
-            test_set_wers[key] = wer
-
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
-
-    test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
-    with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
-        for key, val in test_set_wers:
-            print("{}\t{}".format(key, val), file=f)
-
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
-    note = "\tbest for {}".format(test_set_name)
-    for key, val in test_set_wers:
-        s += "{}\t{}{}\n".format(key, val, note)
-        note = ""
-    logging.info(s)
-    return test_set_wers
 
 
 @torch.no_grad()
@@ -503,7 +458,7 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(params.lang_dir, params.lang_type)
+    sp = Tokenizer.load(params.lang, params.lang_type)
 
     # <blk> and <unk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
@@ -618,51 +573,50 @@ def main():
             sp=sp,
             decoding_graph=decoding_graph,
         )
-        tot_err: List[Tuple] = save_results(
-            params=params,
-            test_set_name=subdir + "-ori",
-            results_dict=results_dict,
-        )
-        with (
-            params.res_dir
-            / (
-                f"{subdir}-{params.decode_chunk_len}"
-                f"_{params.avg}_{params.epoch}.oricer"
-            )
-        ).open("w") as fout:
-            if len(tot_err) == 1:
-                fout.write(f"{tot_err[0][1]}")
-            else:
-                fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
-
-        results_dict = {
-            k: [
-                (
-                    vv[0],
-                    [i for i in vv[1] if i not in ["↵", "。", "、"]],
-                    [i for i in vv[2] if i not in ["↵", "。", "、"]],
-                )
-                for vv in v
-            ]
-            for k, v in results_dict.items()
-        }
-
         tot_err = save_results(
-            params=params,
-            test_set_name=subdir + "-txt",
-            results_dict=results_dict,
+            params=params, test_set_name=subdir, results_dict=results_dict
         )
+
         with (
             params.res_dir
             / (
                 f"{subdir}-{params.decode_chunk_len}"
-                f"_{params.avg}_{params.epoch}.txtcer"
+                f"_{params.avg}_{params.epoch}.cer"
             )
         ).open("w") as fout:
             if len(tot_err) == 1:
                 fout.write(f"{tot_err[0][1]}")
             else:
                 fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
+
+        # results_dict = {
+        #     k: [
+        #         (
+        #             vv[0],
+        #             [i for i in vv[1] if i not in ["↵", "。", "、"]],
+        #             [i for i in vv[2] if i not in ["↵", "。", "、"]],
+        #         )
+        #         for vv in v
+        #     ]
+        #     for k, v in results_dict.items()
+        # }
+
+        # tot_err = save_results(
+        #     params=params,
+        #     test_set_name=subdir + "-txt",
+        #     results_dict=results_dict,
+        # )
+        # with (
+        #     params.res_dir
+        #     / (
+        #         f"{subdir}-{params.decode_chunk_len}"
+        #         f"_{params.avg}_{params.epoch}.txtcer"
+        #     )
+        # ).open("w") as fout:
+        #     if len(tot_err) == 1:
+        #         fout.write(f"{tot_err[0][1]}")
+        #     else:
+        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 
