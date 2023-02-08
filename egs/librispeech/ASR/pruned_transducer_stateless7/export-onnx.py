@@ -6,47 +6,49 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained.pt"
+git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
+
 cd exp
-ln -s pretrained.pt epoch-99.pt
+ln -s pretrained-epoch-30-avg-9.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless7_streaming/export-onnx.py \
+./pruned_transducer_stateless7/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  --decode-chunk-len 32 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp \
+  --feedforward-dims "1024,1024,2048,2048,1024"
 
-It will generate the following 3 files in $repo/exp
+It will generate the following 3 files inside $repo/exp:
 
   - encoder-epoch-99-avg-1.onnx
   - decoder-epoch-99-avg-1.onnx
   - joiner-epoch-99-avg-1.onnx
 
-See ./onnx_pretrained.py for how to use the exported models.
+See ./onnx_pretrained.py and ./onnx_check.py for how to
+use the exported ONNX models.
 """
 
 import argparse
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import onnx
 import sentencepiece as spm
@@ -54,7 +56,6 @@ import torch
 import torch.nn as nn
 from decoder import Decoder
 from scaling_converter import convert_scaled_to_non_scaled
-from torch import Tensor
 from train import add_model_arguments, get_params, get_transducer_model
 from zipformer import Zipformer
 
@@ -75,9 +76,9 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 1.
+        default=28,
+        help="""It specifies the checkpoint to use for averaging.
+        Note: Epoch counts from 0.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -94,7 +95,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=9,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -114,7 +115,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_streaming/exp",
+        default="pruned_transducer_stateless5/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -139,6 +140,24 @@ def get_parser():
     return parser
 
 
+def add_meta_data(filename: str, meta_data: Dict[str, str]):
+    """Add meta data to an ONNX model. It is changed in-place.
+
+    Args:
+      filename:
+        Filename of the ONNX model to be changed.
+      meta_data:
+        Key-value pairs.
+    """
+    model = onnx.load(filename)
+    for key, value in meta_data.items():
+        meta = model.metadata_props.add()
+        meta.key = key
+        meta.value = value
+
+    onnx.save(model, filename)
+
+
 class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
@@ -154,22 +173,29 @@ class OnnxEncoder(nn.Module):
         self.encoder = encoder
         self.encoder_proj = encoder_proj
 
-    def forward(self, x: Tensor, states: List[Tensor]) -> Tuple[Tensor, List[Tensor]]:
-        """Please see the help information of Zipformer.streaming_forward"""
-        N = x.size(0)
-        T = x.size(1)
-        x_lens = torch.tensor([T] * N, device=x.device)
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Please see the help information of Zipformer.forward
 
-        output, _, new_states = self.encoder.streaming_forward(
-            x=x,
-            x_lens=x_lens,
-            states=states,
-        )
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C)
+          x_lens:
+            A 1-D tensor of shape (N,). Its dtype is torch.int64
+        Returns:
+          Return a tuple containing:
+            - encoder_out, A 3-D tensor of shape (N, T', joiner_dim)
+            - encoder_out_lens, A 1-D tensor of shape (N,)
+        """
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens)
 
-        output = self.encoder_proj(output)
-        # Now output is of shape (N, T, joiner_dim)
+        encoder_out = self.encoder_proj(encoder_out)
+        # Now encoder_out is of shape (N, T, joiner_dim)
 
-        return output, new_states
+        return encoder_out, encoder_out_lens
 
 
 class OnnxDecoder(nn.Module):
@@ -222,158 +248,52 @@ class OnnxJoiner(nn.Module):
         return logit
 
 
-def add_meta_data(filename: str, meta_data: Dict[str, str]):
-    """Add meta data to an ONNX model. It is changed in-place.
-
-    Args:
-      filename:
-        Filename of the ONNX model to be changed.
-      meta_data:
-        Key-value pairs.
-    """
-    model = onnx.load(filename)
-    for key, value in meta_data.items():
-        meta = model.metadata_props.add()
-        meta.key = key
-        meta.value = value
-
-    onnx.save(model, filename)
-
-
 def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
     opset_version: int = 11,
 ) -> None:
-    """
-    Onnx model inputs:
-      - 0: src
-      - many state tensors (the exact number depending on the actual model)
+    """Export the given encoder model to ONNX format.
+    The exported model has two inputs:
 
-    Onnx model outputs:
-      - 0: output, its shape is (N, T, joiner_dim)
-      - many state tensors (the exact number depending on the actual model)
+        - x, a tensor of shape (N, T, C); dtype is torch.float32
+        - x_lens, a tensor of shape (N,); dtype is torch.int64
+
+    and it has two outputs:
+
+        - encoder_out, a tensor of shape (N, T', joiner_dim)
+        - encoder_out_lens, a tensor of shape (N,)
 
     Args:
       encoder_model:
-        The model to be exported
+        The input encoder model
       encoder_filename:
         The filename to save the exported ONNX model.
       opset_version:
         The opset version to use.
     """
-
-    encoder_model.encoder.__class__.forward = (
-        encoder_model.encoder.__class__.streaming_forward
-    )
-
-    decode_chunk_len = encoder_model.encoder.decode_chunk_size * 2
-    pad_length = 7
-    T = decode_chunk_len + pad_length
-    logging.info(f"decode_chunk_len: {decode_chunk_len}")
-    logging.info(f"pad_length: {pad_length}")
-    logging.info(f"T: {T}")
-
-    x = torch.rand(1, T, 80, dtype=torch.float32)
-
-    init_state = encoder_model.encoder.get_init_state()
-
-    num_encoders = encoder_model.encoder.num_encoders
-    logging.info(f"num_encoders: {num_encoders}")
-    logging.info(f"len(init_state): {len(init_state)}")
-
-    inputs = {}
-    input_names = ["x"]
-
-    outputs = {}
-    output_names = ["encoder_out"]
-
-    def build_inputs_outputs(tensors, name, N):
-        for i, s in enumerate(tensors):
-            logging.info(f"{name}_{i}.shape: {s.shape}")
-            inputs[f"{name}_{i}"] = {N: "N"}
-            outputs[f"new_{name}_{i}"] = {N: "N"}
-            input_names.append(f"{name}_{i}")
-            output_names.append(f"new_{name}_{i}")
-
-    num_encoder_layers = ",".join(map(str, encoder_model.encoder.num_encoder_layers))
-    encoder_dims = ",".join(map(str, encoder_model.encoder.encoder_dims))
-    attention_dims = ",".join(map(str, encoder_model.encoder.attention_dims))
-    cnn_module_kernels = ",".join(map(str, encoder_model.encoder.cnn_module_kernels))
-    ds = encoder_model.encoder.zipformer_downsampling_factors
-    left_context_len = encoder_model.encoder.left_context_len
-    left_context_len = [left_context_len // k for k in ds]
-    left_context_len = ",".join(map(str, left_context_len))
-
-    meta_data = {
-        "model_type": "zipformer",
-        "version": "1",
-        "model_author": "k2-fsa",
-        "decode_chunk_len": str(decode_chunk_len),  # 32
-        "T": str(T),  # 39
-        "num_encoder_layers": num_encoder_layers,
-        "encoder_dims": encoder_dims,
-        "attention_dims": attention_dims,
-        "cnn_module_kernels": cnn_module_kernels,
-        "left_context_len": left_context_len,
-    }
-    logging.info(f"meta_data: {meta_data}")
-
-    # (num_encoder_layers, 1)
-    cached_len = init_state[num_encoders * 0 : num_encoders * 1]
-
-    # (num_encoder_layers, 1, encoder_dim)
-    cached_avg = init_state[num_encoders * 1 : num_encoders * 2]
-
-    # (num_encoder_layers, left_context_len, 1, attention_dim)
-    cached_key = init_state[num_encoders * 2 : num_encoders * 3]
-
-    # (num_encoder_layers, left_context_len, 1, attention_dim//2)
-    cached_val = init_state[num_encoders * 3 : num_encoders * 4]
-
-    # (num_encoder_layers, left_context_len, 1, attention_dim//2)
-    cached_val2 = init_state[num_encoders * 4 : num_encoders * 5]
-
-    # (num_encoder_layers, 1, encoder_dim, cnn_module_kernel-1)
-    cached_conv1 = init_state[num_encoders * 5 : num_encoders * 6]
-
-    # (num_encoder_layers, 1, encoder_dim, cnn_module_kernel-1)
-    cached_conv2 = init_state[num_encoders * 6 : num_encoders * 7]
-
-    build_inputs_outputs(cached_len, "cached_len", 1)
-    build_inputs_outputs(cached_avg, "cached_avg", 1)
-    build_inputs_outputs(cached_key, "cached_key", 2)
-    build_inputs_outputs(cached_val, "cached_val", 2)
-    build_inputs_outputs(cached_val2, "cached_val2", 2)
-    build_inputs_outputs(cached_conv1, "cached_conv1", 1)
-    build_inputs_outputs(cached_conv2, "cached_conv2", 1)
-
-    logging.info(inputs)
-    logging.info(outputs)
-    logging.info(input_names)
-    logging.info(output_names)
+    x = torch.zeros(1, 100, 80, dtype=torch.float32)
+    x_lens = torch.tensor([100], dtype=torch.int64)
 
     torch.onnx.export(
         encoder_model,
-        (x, init_state),
+        (x, x_lens),
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=input_names,
-        output_names=output_names,
+        input_names=["x", "x_lens"],
+        output_names=["encoder_out", "encoder_out_lens"],
         dynamic_axes={
-            "x": {0: "N"},
-            "encoder_out": {0: "N"},
-            **inputs,
-            **outputs,
+            "x": {0: "N", 1: "T"},
+            "x_lens": {0: "N"},
+            "encoder_out": {0: "N", 1: "T"},
+            "encoder_out_lens": {0: "N"},
         },
     )
 
-    add_meta_data(filename=encoder_filename, meta_data=meta_data)
-
 
 def export_decoder_model_onnx(
-    decoder_model: nn.Module,
+    decoder_model: OnnxDecoder,
     decoder_filename: str,
     opset_version: int = 11,
 ) -> None:
@@ -381,13 +301,11 @@ def export_decoder_model_onnx(
 
     The exported model has one input:
 
-        - y: a torch.int64 tensor of shape (N, context_size)
+        - y: a torch.int64 tensor of shape (N, decoder_model.context_size)
 
     and has one output:
 
         - decoder_out: a torch.float32 tensor of shape (N, joiner_dim)
-
-    Note: The argument need_pad is fixed to False.
 
     Args:
       decoder_model:
@@ -399,6 +317,7 @@ def export_decoder_model_onnx(
     """
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
+
     y = torch.zeros(10, context_size, dtype=torch.int64)
     torch.onnx.export(
         decoder_model,
@@ -413,6 +332,7 @@ def export_decoder_model_onnx(
             "decoder_out": {0: "N"},
         },
     )
+
     meta_data = {
         "context_size": str(context_size),
         "vocab_size": str(vocab_size),
@@ -575,6 +495,7 @@ def main():
     model.eval()
 
     convert_scaled_to_non_scaled(model, inplace=True)
+
     encoder = OnnxEncoder(
         encoder=model.encoder,
         encoder_proj=model.joiner.encoder_proj,
@@ -602,8 +523,6 @@ def main():
         suffix = f"epoch-{params.epoch}"
 
     suffix += f"-avg-{params.avg}"
-    if params.use_averaged_model:
-        suffix += "-with-averaged-model"
 
     opset_version = 13
 
@@ -636,4 +555,6 @@ def main():
 
 
 if __name__ == "__main__":
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+
     main()

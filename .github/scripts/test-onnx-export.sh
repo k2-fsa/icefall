@@ -10,6 +10,8 @@ log() {
 
 cd egs/librispeech/ASR
 
+
+
 log "=========================================================================="
 repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 log "Downloading pre-trained model from $repo_url"
@@ -189,6 +191,161 @@ log "Run onnx_pretrained.py"
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
+
+rm -rf $repo
+log "--------------------------------------------------------------------------"
+
+log "=========================================================================="
+repo_url=
+
+rm -rf $repo
+log "--------------------------------------------------------------------------"
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained.pt"
+
+cd exp
+ln -s pretrained.pt epoch-99.pt
+popd
+
+log "Export via torch.jit.script()"
+
+./pruned_transducer_stateless7/export.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --feedforward-dims "1024,1024,2048,2048,1024" \
+  --jit 1
+
+log "Test exporting to ONNX format"
+
+./pruned_transducer_stateless7/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --feedforward-dims "1024,1024,2048,2048,1024"
+
+ls -lh $repo/exp
+
+log "Run onnx_check.py"
+
+./pruned_transducer_stateless7/onnx_check.py \
+  --jit-filename $repo/exp/cpu_jit.pt \
+  --onnx-encoder-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --onnx-decoder-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --onnx-joiner-filename $repo/exp/joiner-epoch-99-avg-1.onnx
+
+log "Run onnx_pretrained.py"
+
+./pruned_transducer_stateless7/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
+log "=========================================================================="
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
+
+cd exp
+ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
+popd
+
+log "Test exporting to ONNX format"
+
+./conv_emformer_transducer_stateless2/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
+
+log "Run onnx_pretrained.py"
+
+./conv_emformer_transducer_stateless2/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1221-135766-0001.wav
+
+rm -rf $repo
+log "--------------------------------------------------------------------------"
+
+log "=========================================================================="
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-iter-468000-avg-16.pt"
+
+cd exp
+ln -s pretrained-iter-468000-avg-16.pt epoch-99.pt
+popd
+
+log "Export via torch.jit.trace()"
+
+./lstm_transducer_stateless2/export.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp/ \
+  --jit-trace 1
+
+log "Test exporting to ONNX format"
+
+./lstm_transducer_stateless2/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp
+
+ls -lh $repo/exp
+
+log "Run onnx_check.py"
+
+./lstm_transducer_stateless2/onnx_check.py \
+  --jit-encoder-filename $repo/exp/encoder_jit_trace.pt \
+  --jit-decoder-filename $repo/exp/decoder_jit_trace.pt \
+  --jit-joiner-filename $repo/exp/joiner_jit_trace.pt \
+  --onnx-encoder-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --onnx-decoder-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --onnx-joiner-filename $repo/exp/joiner-epoch-99-avg-1.onnx
+
+log "Run onnx_pretrained.py"
+
+./lstm_transducer_stateless2/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1221-135766-0001.wav
 
 rm -rf $repo
 log "--------------------------------------------------------------------------"
