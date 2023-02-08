@@ -10,26 +10,6 @@ log() {
 
 cd egs/librispeech/ASR
 
-log  "Install ncnn and pnnx"
-
-# We are using a modified ncnn here. Will try to merge it to the official repo
-# of ncnn
-git clone https://github.com/csukuangfj/ncnn
-pushd ncnn
-git submodule init
-git submodule update python/pybind11
-python3 setup.py bdist_wheel
-ls -lh dist/
-pip install dist/*.whl
-cd tools/pnnx
-mkdir build
-cd build
-cmake -D Python3_EXECUTABLE=/opt/hostedtoolcache/Python/3.8.14/x64/bin/python3 ..
-make -j4 pnnx
-
-./src/pnnx || echo "pass"
-
-popd
 
 
 log "=========================================================================="
@@ -310,16 +290,6 @@ log "Run onnx_pretrained.py"
   --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
   --tokens $repo/data/lang_bpe_500/tokens.txt \
   $repo/test_wavs/1221-135766-0001.wav
-
-python3 ./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
-  --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
-  --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
-  --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \
-  --decoder-bin-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.bin \
-  --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
-  --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
-  $repo/test_wavs/1089-134686-0001.wav
 
 rm -rf $repo
 log "--------------------------------------------------------------------------"
