@@ -20,9 +20,10 @@
 # to a single one using model averaging.
 """
 Usage:
+
 ./conv_emformer_transducer_stateless2/export.py \
   --exp-dir ./conv_emformer_transducer_stateless2/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 10 \
   --use-averaged-model=True \
@@ -42,13 +43,13 @@ you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/tal_csasr/ASR
     ./conv_emformer_transducer_stateless2/decode.py \
         --exp-dir ./conv_emformer_transducer_stateless2/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 100 \
-        --bpe-model data/lang_bpe_500/bpe.model \
+        --lang-dir data/lang_char \
         --use-averaged-model=False \
         --num-encoder-layers 12 \
         --chunk-length 32 \
@@ -65,7 +66,6 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from scaling_converter import convert_scaled_to_non_scaled
 
 
@@ -84,7 +84,7 @@ def get_parser():
     )
  
     parser.add_argument(
-        "--lang_dir",
+        "--lang-dir",
         type=str,
         default="data/lang_char",
         help="""The lang dir
@@ -131,13 +131,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
-    )
-
-    parser.add_argument(
         "--jit",
         type=str2bool,
         default=False,
@@ -179,20 +172,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    #sp = spm.SentencePieceProcessor()
-    #sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    #params.blank_id = sp.piece_to_id("<blk>")
-    #params.vocab_size = sp.get_piece_size()
 
     
     from icefall.lexicon import Lexicon
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
 
     params.blank_id = lexicon.token_table["<blk>"]
     params.unk_id = lexicon.token_table["<unk>"]

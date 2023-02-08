@@ -1,7 +1,7 @@
 #export PYTHONPATH=../../../../icefall
 #export CUDA_VISIBLE_DEVICES="4"
 
-stage=2
+stage=1
 stop_stage=2
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
@@ -11,7 +11,7 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
       --max-duration 200 \
       --use-averaged-model True \
       --exp-dir exp_conv_emformer \
-      --lang_dir data/lang_char/ \
+      --lang-dir data/lang_char/ \
       --num-encoder-layers 12 \
       --chunk-length 32 \
       --cnn-module-kernel 31 \
@@ -27,7 +27,7 @@ fi
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
 ./conv_emformer_transducer_stateless2/decode.py \
         --exp-dir exp_conv_emformer \
-        --lang_dir /data/gepenghua/k2_new/icefall/egs/ch_en_mix/ASR/data/lang_char/ \
+        --lang-dir data/lang_char/ \
         --epoch 999 \
         --avg 1 \
         --max-duration 100 \

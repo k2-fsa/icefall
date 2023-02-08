@@ -77,14 +77,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-#import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule_ch_en import TAL_CSASRAsrDataModule
-from local.text_normalize import text_normalize
+from asr_datamodule import TAL_CSASRAsrDataModule
 from lhotse.cut import Cut
+from local.text_normalize import text_normalize
 
-from icefall.char_graph_compiler_db import CharCtcTrainingGraphCompiler
 from beam_search import (
     beam_search,
     fast_beam_search_one_best,
@@ -116,16 +114,6 @@ LOG_EPS = math.log(1e-10)
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    parser.add_argument(
-        "--lang_dir",
-        type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
     )
 
     parser.add_argument(
@@ -175,10 +163,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -350,7 +341,7 @@ def decode_one_batch(
                 )
             hyp_tokens.append(hyp)
     hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
-    print('=====hyps=====',hyps)
+
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif params.decoding_method == "fast_beam_search":
@@ -408,7 +399,6 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        #texts = [[token_table[int(t)] for t in tokens.split()] for tokens in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -520,24 +510,12 @@ def main():
     logging.info("Decoding started")
 
     device = torch.device("cpu")
-    #if torch.cuda.is_available():
-    #    device = torch.device("cuda", 0)
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
 
     logging.info(f"Device: {device}")
 
-    #sp = spm.SentencePieceProcessor()
-    #sp.load(params.bpe_model)
-
-    # <blk> and <unk> is defined in local/train_bpe_model.py
-    #params.blank_id = sp.piece_to_id("<blk>")
-    #params.unk_id = sp.piece_to_id("<unk>")
-    #params.vocab_size = sp.get_piece_size()
-
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
 
     params.blank_id = lexicon.token_table["<blk>"]
     params.unk_id = lexicon.token_table["<unk>"]
@@ -658,11 +636,9 @@ def main():
     test_cuts = test_cuts.map(text_normalize_for_cut)
     test_dl = tal_csasr.test_dataloaders(test_cuts)
 
-    #test_sets = ["dev", "test"]
-    #test_dl = [dev_dl, test_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
-    test_sets = ["test"]
-    test_dl = [test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

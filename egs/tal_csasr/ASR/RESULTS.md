@@ -136,7 +136,7 @@ avg=6
 use_average_model=True
 
 ## greedy_search
-./conv_emformer_transducer_stateless2/decode_db.py \
+./conv_emformer_transducer_stateless2/decode.py \
       --epoch $epoch \
       --avg $avg \
       --use-averaged-model $use_averaged \
@@ -151,7 +151,7 @@ use_average_model=True
       --decoding-method greedy_search
 
 ## modified_beam_search
-./conv_emformer_transducer_stateless2/decode_db.py \
+./conv_emformer_transducer_stateless2/decode.py \
       --epoch $epoch \
       --avg $avg \
       --exp-dir exp_conv_emformer \

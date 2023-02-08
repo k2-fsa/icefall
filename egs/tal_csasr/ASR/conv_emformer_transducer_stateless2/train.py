@@ -69,7 +69,7 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule_ch_en import TAL_CSASRAsrDataModule
+from asr_datamodule import TAL_CSASRAsrDataModule
 from icefall.lexicon import Lexicon
 
 from decoder import Decoder
@@ -85,7 +85,6 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-#from local.tokenize_with_bpe_model import tokenize_by_bpe_model
 from icefall.utils import tokenize_by_bpe_model
 from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
@@ -947,14 +946,10 @@ def run(rank, world_size, args):
         tb_writer = None
 
     device = torch.device("cpu")
-    #if torch.cuda.is_available():
-    #    device = torch.device("cuda", rank)
+    if torch.cuda.is_available():
+        device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    #import sentencepiece as spm
-
-    #sp = spm.SentencePieceProcessor()
-    #sp.load(params.lang_dir+'/spm_model_name.model')
 
     from bpemb.util import sentencepiece_load
     from bpemb import BPEmb
@@ -1039,7 +1034,6 @@ def run(rank, world_size, args):
         text = c.supervisions[0].text
         text = text.strip("\n").strip("\t")
         text = text_normalize(text)
-        #text = tokenize_by_bpe_model(sp, text)
         text = tokenize_by_bpe_model(bpemb_en, text)
         c.supervisions[0].text = text
         return c

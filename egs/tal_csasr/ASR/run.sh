@@ -26,7 +26,7 @@ fi
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
   ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
   --exp-dir exp_conv_emformer \
-  --lang_dir data/lang_char \
+  --lang-dir data/lang_char \
   --epoch 2 \
   --avg 1 \
   --use-averaged-model 1 \
@@ -44,7 +44,7 @@ avg=1
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
 ./conv_emformer_transducer_stateless2/export.py \
   --exp-dir exp_conv_emformer \
-  --lang_dir data/lang_char \
+  --lang-dir data/lang_char \
   --epoch $epoch \
   --avg $avg \
   --use-averaged-model=True \

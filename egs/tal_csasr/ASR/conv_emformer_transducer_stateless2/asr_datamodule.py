@@ -1,1 +1,1 @@
-../../../librispeech/ASR/conv_emformer_transducer_stateless2/asr_datamodule.py
+../pruned_transducer_stateless5/asr_datamodule.py

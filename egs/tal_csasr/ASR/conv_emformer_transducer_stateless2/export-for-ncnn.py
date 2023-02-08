@@ -4,7 +4,7 @@
 Usage:
 ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
   --exp-dir ./conv_emformer_transducer_stateless2/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 10 \
   --use-averaged-model=True \
@@ -13,7 +13,8 @@ Usage:
   --cnn-module-kernel 31 \
   --left-context-length 32 \
   --right-context-length 8 \
-  --memory-size 32 \
+  --memory-size 32
+fi
 
 cd ./conv_emformer_transducer_stateless2/exp
 pnnx encoder_jit_trace-pnnx.pt
@@ -21,7 +22,7 @@ pnnx decoder_jit_trace-pnnx.pt
 pnnx joiner_jit_trace-pnnx.pt
 
 You can find converted models at
-https://huggingface.co/csukuangfj/sherpa-ncnn-conv-emformer-transducer-2022-12-04
+https://huggingface.co/xuancaiqisehua/icefall_asr_tal-csasr_conv_emformer_transducer_stateless2
 
 See ./streaming-ncnn-decode.py
 and
@@ -33,7 +34,6 @@ import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from train2 import add_model_arguments, get_params, get_transducer_model
@@ -90,19 +90,13 @@ def get_parser():
         """,
     )
     parser.add_argument(
-        "--lang_dir",
+        "--lang-dir",
         type=str,
         default="data/lang_char",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
         """,
-    )
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -228,17 +222,11 @@ def main():
 
     logging.info(f"device: {device}")
 
-    #sp = spm.SentencePieceProcessor()
-    #sp.load(params.bpe_model)
    
     lexicon = Lexicon(params.lang_dir)
 
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
-
-    # <blk> is defined in local/train_bpe_model.py
-    #params.blank_id = sp.piece_to_id("<blk>")
-    #params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 

@@ -9,13 +9,13 @@ from icefall.utils_db import (
 )
 from lhotse.cut import Cut
 from local.text_normalize import text_normalize
-#from local.tokenize_with_bpe_model import tokenize_by_bpe_model
 from icefall.utils import tokenize_by_bpe_model
 
+# If an error occurs you can print
 data=torch.load('exp_conv_emformer/batch-bdd640fb-0667-1ad1-1c80-317fa3b1799d.pt')
 print(data)
-exit()
-from conv_emformer_transducer_stateless2.asr_datamodule_ch_en import TAL_CSASRAsrDataModule
+
+from conv_emformer_transducer_stateless2.asr_datamodule import TAL_CSASRAsrDataModule
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
@@ -154,13 +154,11 @@ def text_normalize_for_cut(c: Cut):
   text = text.strip("\n").strip("\t")
   text = text_normalize(text)
   text = tokenize_by_bpe_model(sp, text)
-  print('text',text)
   c.supervisions[0].text = text
   return c
 
 
 train_cuts = tal_csasr.train_cuts()
-
 train_cuts = train_cuts.filter(remove_short_and_long_utt)
 train_cuts = train_cuts.map(text_normalize_for_cut)
 
