@@ -9,7 +9,7 @@ align="torchaudio"
 # It adds alignments to the existing fbank features dir (e.g., data/fbank)
 # and save cuts to a new dir (e.g., data/fbank_ali).
 cuts_in_dir=data/fbank
-cuts_out_dir=data/fbank_ali_test
+cuts_out_dir=data/fbank_ali
 
 if [ $align == "mfa" ]; then
   # It add alignments from https://github.com/CorentinJ/librispeech-alignments,
