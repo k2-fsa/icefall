@@ -537,7 +537,6 @@ def main():
         encoder=model.encoder,
         encoder_proj=model.joiner.encoder_proj,
     )
-    print(encoder)
 
     decoder = OnnxDecoder(
         decoder=model.decoder,
