@@ -96,8 +96,7 @@ from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     get_texts,
-    get_texts_with_timestamp,
-    parse_hyp_and_timestamp,
+    parse_fsa_timestamps_and_texts,
     setup_logger,
     store_transcripts_and_timestamps,
     str2bool,
@@ -396,13 +395,8 @@ def decode_one_batch(
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
-        # Note: `best_path.aux_labels` contains token IDs, not word IDs
-        # since we are using H, not HLG here.
-        #
-        # token_ids is a lit-of-list of IDs
-        res = get_texts_with_timestamp(best_path)
-        hyps, timestamps = parse_hyp_and_timestamp(
-            res=res,
+        timestamps, hyps = parse_fsa_timestamps_and_texts(
+            best_paths=best_path,
             sp=bpe_model,
             subsampling_factor=params.subsampling_factor,
             frame_shift_ms=params.frame_shift_ms,
@@ -435,12 +429,11 @@ def decode_one_batch(
                 lattice=lattice, use_double_scores=params.use_double_scores
             )
             key = f"no_rescore_hlg_scale_{params.hlg_scale}"
-            res = get_texts_with_timestamp(best_path)
-            hyps, timestamps = parse_hyp_and_timestamp(
-                res=res,
+            timestamps, hyps = parse_fsa_timestamps_and_texts(
+                best_paths=best_path,
+                word_table=word_table,
                 subsampling_factor=params.subsampling_factor,
                 frame_shift_ms=params.frame_shift_ms,
-                word_table=word_table,
             )
         else:
             best_path = nbest_decoding(
@@ -504,7 +497,18 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str], List[float], List[float]]]]:
+) -> Dict[
+    str,
+    List[
+        Tuple[
+            str,
+            List[str],
+            List[str],
+            List[Tuple[float, float]],
+            List[Tuple[float, float]],
+        ]
+    ],
+]:
     """Decode dataset.
 
     Args:
@@ -555,7 +559,7 @@ def decode_dataset(
                 time = []
                 if s.alignment is not None and "word" in s.alignment:
                     time = [
-                        aliword.start
+                        (aliword.start, aliword.end)
                         for aliword in s.alignment["word"]
                         if aliword.symbol != ""
                     ]
@@ -601,7 +605,15 @@ def save_results(
     test_set_name: str,
     results_dict: Dict[
         str,
-        List[Tuple[List[str], List[str], List[str], List[float], List[float]]],
+        List[
+            Tuple[
+                List[str],
+                List[str],
+                List[str],
+                List[Tuple[float, float]],
+                List[Tuple[float, float]],
+            ]
+        ],
     ],
 ):
     test_set_wers = dict()
@@ -621,7 +633,11 @@ def save_results(
         )
         with open(errs_filename, "w") as f:
             wer, mean_delay, var_delay = write_error_stats_with_timestamps(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f,
+                f"{test_set_name}-{key}",
+                results,
+                enable_log=True,
+                with_end_time=True,
             )
             test_set_wers[key] = wer
             test_set_delays[key] = (mean_delay, var_delay)
@@ -637,16 +653,17 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
 
-    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0])
+    # sort according to the mean start symbol delay
+    test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0][0])
     delays_info = (
         params.res_dir
         / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(delays_info, "w") as f:
-        print("settings\tsymbol-delay", file=f)
+        print("settings\t(start, end) symbol-delay (s) (start, end)", file=f)
         for key, val in test_set_delays:
             print(
-                "{}\tmean: {}s, variance: {}".format(key, val[0], val[1]),
+                "{}\tmean: {}, variance: {}".format(key, val[0], val[1]),
                 file=f,
             )
 
@@ -657,10 +674,12 @@ def save_results(
         note = ""
     logging.info(s)
 
-    s = "\nFor {}, symbol-delay of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, (start, end) symbol-delay (s) of different settings are:\n".format(
+        test_set_name
+    )
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_delays:
-        s += "{}\tmean: {}s, variance: {}{}\n".format(key, val[0], val[1], note)
+        s += "{}\tmean: {}, variance: {}{}\n".format(key, val[0], val[1], note)
         note = ""
     logging.info(s)
 
