@@ -641,12 +641,11 @@ for <code class="docutils literal notranslate"><span class="pre">pnnx</span></co
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">iter</span><span class="o">=</span><span class="m">468000</span>
 <span class="nv">avg</span><span class="o">=</span><span class="m">16</span>
 
-./lstm_transducer_stateless2/export.py<span class="w"> </span><span class="se">\</span>
+./lstm_transducer_stateless2/export-for-ncnn.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--exp-dir<span class="w"> </span>./lstm_transducer_stateless2/exp<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--iter<span class="w"> </span><span class="nv">$iter</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--avg<span class="w">  </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--pnnx<span class="w"> </span><span class="m">1</span>
+<span class="w">  </span>--avg<span class="w">  </span><span class="nv">$avg</span>
 </pre></div>
 </div>
 <p>It will generate 3 files:</p>
@@ -676,7 +675,7 @@ for <code class="docutils literal notranslate"><span class="pre">pnnx</span></co
 </div></blockquote>
 <p>To use the above generated files, run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/ncnn-decode.py<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--bpe-model-filename<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w"> </span>--tokens<span class="w"> </span>./data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--encoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--encoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--decoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
@@ -687,7 +686,7 @@ for <code class="docutils literal notranslate"><span class="pre">pnnx</span></co
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/streaming-ncnn-decode.py<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--bpe-model-filename<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w"> </span>--tokens<span class="w"> </span>./data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--encoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--encoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
 <span class="w"> </span>--decoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
@@ -717,9 +716,6 @@ for the details of the above pretrained models</p>
 </div></blockquote>
 <p>You can find more usages of the pretrained models in
 <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html">https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html</a></p>
-<section id="export-convemformer-transducer-models-for-ncnn">
-<h3>Export ConvEmformer transducer models for ncnn<a class="headerlink" href="#export-convemformer-transducer-models-for-ncnn" title="Permalink to this heading"></a></h3>
-</section>
 </section>
 </section>
 

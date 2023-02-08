@@ -49,10 +49,11 @@
 <li class="toctree-l2"><a class="reference internal" href="export-model-state-dict.html">Export model.state_dict()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ONNX</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#when-to-use-it">When to use it</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#how-to-export">How to export</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#how-to-use-the-exported-model">How to use the exported model</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ONNX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example">Example</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#download-the-pre-trained-model">Download the pre-trained model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#export-the-model-to-onnx">Export the model to ONNX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decode-sound-files-with-exported-onnx-models">Decode sound files with exported ONNX models</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="export-ncnn.html">Export to ncnn</a></li>
@@ -94,64 +95,74 @@
              
   <section id="export-to-onnx">
 <h1>Export to ONNX<a class="headerlink" href="#export-to-onnx" title="Permalink to this heading"></a></h1>
-<p>In this section, we describe how to export models to ONNX.</p>
+<p>In this section, we describe how to export the following models to ONNX.</p>
+<p>In each recipe, there is a file called <code class="docutils literal notranslate"><span class="pre">export-onnx.py</span></code>, which is used
+to export trained models to ONNX.</p>
+<p>There is also a file named <code class="docutils literal notranslate"><span class="pre">onnx_pretrained.py</span></code>, which you can use
+the exported ONNX model in Python to decode sound files.</p>
+</section>
+<section id="example">
+<h1>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h1>
+<p>In the following, we demonstrate how to export a streaming Zipformer pre-trained
+model from <a class="reference external" href="python3./python-api-examples/speech-recognition-from-microphone.py">python3./python-api-examples/speech-recognition-from-microphone.py</a>
+to ONNX.</p>
+<section id="download-the-pre-trained-model">
+<h2>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h2>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>Only non-streaming conformer transducer models are tested.</p>
+<p>We assume you have installed <a class="reference external" href="https://git-lfs.com/">git-lfs</a>.</p>
 </div>
-<section id="when-to-use-it">
-<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Permalink to this heading"></a></h2>
-<p>It you want to use an inference framework that supports ONNX
-to run the pretrained model.</p>
-</section>
-<section id="how-to-export">
-<h2>How to export<a class="headerlink" href="#how-to-export" title="Permalink to this heading"></a></h2>
-<p>We use
-<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless3">https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless3</a>
-as an example in the following.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-<span class="nv">epoch</span><span class="o">=</span><span class="m">14</span>
-<span class="nv">avg</span><span class="o">=</span><span class="m">2</span>
 
-./pruned_transducer_stateless3/export.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless3/exp<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--onnx<span class="w"> </span><span class="m">1</span>
+<span class="nv">repo_url</span><span class="o">=</span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+<span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span><span class="nv">$repo_url</span>
+<span class="nv">repo</span><span class="o">=</span><span class="k">$(</span>basename<span class="w"> </span><span class="nv">$repo_url</span><span class="k">)</span>
+
+<span class="nb">pushd</span><span class="w"> </span><span class="nv">$repo</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;data/lang_bpe_500/bpe.model&quot;</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;exp/pretrained.pt&quot;</span>
+<span class="nb">cd</span><span class="w"> </span>exp
+ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
+<span class="nb">popd</span>
 </pre></div>
 </div>
-<p>It will generate the following files inside <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless3/exp</span></code>:</p>
+</section>
+<section id="export-the-model-to-onnx">
+<h2>Export the model to ONNX<a class="headerlink" href="#export-the-model-to-onnx" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export-onnx.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span><span class="nv">$repo</span>/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$repo</span>/exp/
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">export-onnx.py</span></code> from different recipes has different options.</p>
+<p>In the above example, <code class="docutils literal notranslate"><span class="pre">--decode-chunk-len</span></code> is specific for the
+streaming Zipformer. Other models won’t have such an option.</p>
+</div>
+<p>It will generate the following 3 files in <code class="docutils literal notranslate"><span class="pre">$repo/exp</span></code></p>
 <blockquote>
 <div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">encoder.onnx</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">decoder.onnx</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">joiner.onnx</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">joiner_encoder_proj.onnx</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">joiner_decoder_proj.onnx</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">encoder-epoch-99-avg-1.onnx</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">decoder-epoch-99-avg-1.onnx</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">joiner-epoch-99-avg-1.onnx</span></code></p></li>
 </ul>
 </div></blockquote>
-<p>You can use <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless3/exp/onnx_pretrained.py</span></code> to decode
-waves with the generated files:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless3/onnx_pretrained.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bpe-model<span class="w"> </span>./data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--encoder-model-filename<span class="w"> </span>./pruned_transducer_stateless3/exp/encoder.onnx<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--decoder-model-filename<span class="w"> </span>./pruned_transducer_stateless3/exp/decoder.onnx<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--joiner-model-filename<span class="w"> </span>./pruned_transducer_stateless3/exp/joiner.onnx<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--joiner-encoder-proj-model-filename<span class="w"> </span>./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--joiner-decoder-proj-model-filename<span class="w"> </span>./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/path/to/foo.wav<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/path/to/bar.wav<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>/path/to/baz.wav
+</section>
+<section id="decode-sound-files-with-exported-onnx-models">
+<h2>Decode sound files with exported ONNX models<a class="headerlink" href="#decode-sound-files-with-exported-onnx-models" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/onnx_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-model-filename<span class="w"> </span><span class="nv">$repo</span>/exp/encoder-epoch-99-avg-1.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-model-filename<span class="w"> </span><span class="nv">$repo</span>/exp/decoder-epoch-99-avg-1.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-model-filename<span class="w"> </span><span class="nv">$repo</span>/exp/joiner-epoch-99-avg-1.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens<span class="w"> </span><span class="nv">$repo</span>/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="nv">$repo</span>/test_wavs/1089-134686-0001.wav
 </pre></div>
 </div>
-</section>
-<section id="how-to-use-the-exported-model">
-<h2>How to use the exported model<a class="headerlink" href="#how-to-use-the-exported-model" title="Permalink to this heading"></a></h2>
-<p>We also provide <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">https://github.com/k2-fsa/sherpa-onnx</a>
-performing speech recognition using <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a>
-with exported models.
-It has been tested on Linux, macOS, and Windows.</p>
 </section>
 </section>
 
