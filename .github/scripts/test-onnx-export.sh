@@ -10,6 +10,28 @@ log() {
 
 cd egs/librispeech/ASR
 
+log  "Install ncnn and pnnx"
+
+# We are using a modified ncnn here. Will try to merge it to the official repo
+# of ncnn
+git clone https://github.com/csukuangfj/ncnn
+pushd ncnn
+git submodule init
+git submodule update python/pybind11
+python3 setup.py bdist_wheel
+ls -lh dist/
+pip install dist/*.whl
+cd tools/pnnx
+mkdir build
+cd build
+cmake -D Python3_EXECUTABLE=/opt/hostedtoolcache/Python/3.8.14/x64/bin/python3 ..
+make -j4 pnnx
+
+./src/pnnx || echo "pass"
+
+popd
+
+
 log "=========================================================================="
 repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 log "Downloading pre-trained model from $repo_url"
@@ -189,6 +211,115 @@ log "Run onnx_pretrained.py"
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
+
+rm -rf $repo
+log "--------------------------------------------------------------------------"
+
+log "=========================================================================="
+repo_url=
+
+rm -rf $repo
+log "--------------------------------------------------------------------------"
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained.pt"
+
+cd exp
+ln -s pretrained.pt epoch-99.pt
+popd
+
+log "Export via torch.jit.script()"
+
+./pruned_transducer_stateless7/export.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --feedforward-dims "1024,1024,2048,2048,1024" \
+  --jit 1
+
+log "Test exporting to ONNX format"
+
+./pruned_transducer_stateless7/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --feedforward-dims "1024,1024,2048,2048,1024"
+
+ls -lh $repo/exp
+
+log "Run onnx_check.py"
+
+./pruned_transducer_stateless7/onnx_check.py \
+  --jit-filename $repo/exp/cpu_jit.pt \
+  --onnx-encoder-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --onnx-decoder-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --onnx-joiner-filename $repo/exp/joiner-epoch-99-avg-1.onnx
+
+log "Run onnx_pretrained.py"
+
+./pruned_transducer_stateless7/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
+
+log "=========================================================================="
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
+
+cd exp
+ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
+popd
+
+log "Test exporting to ONNX format"
+
+./conv_emformer_transducer_stateless2/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
+
+log "Run onnx_pretrained.py"
+
+./conv_emformer_transducer_stateless2/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1221-135766-0001.wav
+
+python3 ./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
+  --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
+  --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \
+  --decoder-bin-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.bin \
+  --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
+  --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
+  $repo/test_wavs/1089-134686-0001.wav
 
 rm -rf $repo
 log "--------------------------------------------------------------------------"

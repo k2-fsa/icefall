@@ -64,6 +64,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -258,6 +259,7 @@ def main():
     model.eval()
 
     if params.jit:
+        convert_scaled_to_non_scaled(model, inplace=True)
         # We won't use the forward() method of the model in C++, so just ignore
         # it here.
         # Otherwise, one of its arguments is a ragged tensor and is not
