@@ -385,7 +385,7 @@ class ConvolutionModule(nn.Module):
             - output right_context of shape (R, B, D).
             - updated cache tensor of shape (B, D, cache_size).
         """
-        if not self.is_pnnx:
+        if self.is_pnnx is False:
             U, B, D = utterance.size()
             R, _, _ = right_context.size()
         else:
@@ -545,7 +545,7 @@ class EmformerAttention(nn.Module):
         left_context_val: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Underlying chunk-wise attention implementation."""
-        if not self.is_pnnx:
+        if self.is_pnnx is False:
             U, B, _ = utterance.size()
             R = right_context.size(0)
             M = memory.size(0)
@@ -554,7 +554,7 @@ class EmformerAttention(nn.Module):
             B = 1
             R = self.right_context_length
             M = self.memory_size
-            L = self.left_context_length
+        L = self.left_context_length
 
         scaling = float(self.head_dim) ** -0.5
 
@@ -577,7 +577,7 @@ class EmformerAttention(nn.Module):
 
         # KV = key.size(0)
 
-        if self.is_pnnx:
+        if self.is_pnnx is True:
             reshaped_query = query.view(Q, self.nhead, self.head_dim).permute(1, 0, 2)
             reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(
                 1, 0, 2
@@ -592,7 +592,7 @@ class EmformerAttention(nn.Module):
                 .transpose(0, 1)
                 for tensor in [query, key, value]
             ]  # (B * nhead, Q or KV, head_dim)
-        if self.is_pnnx:
+        if self.is_pnnx is True:
             attention_weights = torch.bmm(
                 reshaped_query * scaling, reshaped_key.permute(0, 2, 1)
             )  # (B * nhead, Q, KV)
@@ -612,7 +612,7 @@ class EmformerAttention(nn.Module):
         # compute attention outputs
         attention = torch.bmm(attention_probs, reshaped_value)
         assert attention.shape == (B * self.nhead, Q, self.head_dim)
-        if self.is_pnnx:
+        if self.is_pnnx is True:
             attention = attention.permute(1, 0, 2).reshape(-1, self.embed_dim)
             # TODO(fangjun): ncnn does not support reshape(-1, 1, self.embed_dim)
             # We have to change InnerProduct in ncnn to ignore the extra dim below
@@ -753,7 +753,7 @@ class EmformerAttention(nn.Module):
             - attention value of left context and utterance, which would be
               cached for next computation, with shape (L + U, B, D).
         """
-        if not self.is_pnnx:
+        if self.is_pnnx is False:
             U = utterance.size(0)
             R = right_context.size(0)
             L = left_context_key.size(0)
@@ -1808,7 +1808,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
 
-        if torch.jit.is_tracing() and self.is_pnnx:
+        if torch.jit.is_tracing() and self.is_pnnx is True:
             x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
             x = self.out(x)
         else:
