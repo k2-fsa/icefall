@@ -306,7 +306,7 @@ def export_encoder_model_onnx(
     left_context_len = ",".join(map(str, left_context_len))
 
     meta_data = {
-        "model_type": "streaming_zipformer",
+        "model_type": "zipformer",
         "version": "1",
         "model_author": "k2-fsa",
         "decode_chunk_len": str(decode_chunk_len),  # 32

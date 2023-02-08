@@ -136,6 +136,9 @@ class OnnxModel:
     def init_encoder_states(self, batch_size: int = 1):
         encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
 
+        model_type = encoder_meta["model_type"]
+        assert model_type == "zipformer", model_type
+
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
         T = int(encoder_meta["T"])
 

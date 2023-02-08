@@ -142,7 +142,7 @@ class OnnxModel:
     def init_encoder_states(self, batch_size: int = 1):
         encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
 
-        model_type = int(encoder_meta["model_type"])
+        model_type = encoder_meta["model_type"]
         assert model_type == "conv-emformer", model_type
 
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
