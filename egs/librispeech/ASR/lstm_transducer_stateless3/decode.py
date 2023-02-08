@@ -94,10 +94,7 @@ Usage:
 
 To evaluate symbol delay, you should:
 (1) Generate cuts with word-time alignments:
-./local/add_alignment_librispeech.py \
-    --alignments-dir data/alignment \
-    --cuts-in-dir data/fbank \
-    --cuts-out-dir data/fbank_ali
+./add_alignments.sh
 (2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
 For example:
 ./lstm_transducer_stateless3/decode.py \
