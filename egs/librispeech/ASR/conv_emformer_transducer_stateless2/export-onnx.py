@@ -6,34 +6,39 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
+git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
 
 cd exp
-ln -s pretrained-epoch-30-avg-9.pt epoch-99.pt
+ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless7/export-onnx.py \
+./conv_emformer_transducer_stateless2/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
   --exp-dir $repo/exp \
-  --feedforward-dims "1024,1024,2048,2048,1024"
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
 
 It will generate the following 3 files inside $repo/exp:
 
@@ -41,7 +46,7 @@ It will generate the following 3 files inside $repo/exp:
   - decoder-epoch-99-avg-1.onnx
   - joiner-epoch-99-avg-1.onnx
 
-See ./onnx_pretrained.py and ./onnx_check.py for how to
+See ./onnx_pretrained.py for how to
 use the exported ONNX models.
 """
 

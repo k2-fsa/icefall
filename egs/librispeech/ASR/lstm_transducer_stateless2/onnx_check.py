@@ -7,33 +7,34 @@ This script checks that exported ONNX models produce the same output
 with the given torchscript model for the same input.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained.pt"
+git lfs pull --include "exp/pretrained-iter-468000-avg-16.pt"
+
 cd exp
-ln -s pretrained.pt epoch-99.pt
+ln -s pretrained-iter-468000-avg-16.pt epoch-99.pt
 popd
 
 2. Export the model via torch.jit.trace()
 
-./pruned_transducer_stateless7_streaming/jit_trace_export.py \
+./lstm_transducer_stateless2/export.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  --decode-chunk-len 32 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp/ \
+  --jit-trace 1
 
 It will generate the following 3 files inside $repo/exp
 
@@ -43,13 +44,13 @@ It will generate the following 3 files inside $repo/exp
 
 3. Export the model to ONNX
 
-./pruned_transducer_stateless7_streaming/export-onnx.py \
+./lstm_transducer_stateless2/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  --decode-chunk-len 32 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp
+
 
 It will generate the following 3 files inside $repo/exp:
 
@@ -59,13 +60,14 @@ It will generate the following 3 files inside $repo/exp:
 
 4. Run this file
 
-./pruned_transducer_stateless7_streaming/onnx_check.py \
+./lstm_transducer_stateless2/onnx_check.py \
   --jit-encoder-filename $repo/exp/encoder_jit_trace.pt \
   --jit-decoder-filename $repo/exp/decoder_jit_trace.pt \
   --jit-joiner-filename $repo/exp/joiner_jit_trace.pt \
   --onnx-encoder-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
   --onnx-decoder-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
   --onnx-joiner-filename $repo/exp/joiner-epoch-99-avg-1.onnx
+
 """
 
 import argparse

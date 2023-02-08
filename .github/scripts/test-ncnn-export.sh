@@ -24,6 +24,10 @@ pip install dist/*.whl
 cd tools/pnnx
 mkdir build
 cd build
+
+echo "which python3"
+which python3
+
 cmake -D Python3_EXECUTABLE=/opt/hostedtoolcache/Python/3.8.16/x64/bin/python3 ..
 make -j4 pnnx
 
@@ -59,8 +63,6 @@ log "Export via torch.jit.trace()"
   --left-context-length 32 \
   --right-context-length 8 \
   --memory-size 32
-
-cd $repo/exp
 
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace-pnnx.pt
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
