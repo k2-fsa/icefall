@@ -304,7 +304,7 @@ git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/pretrained-iter-468000-avg-16.pt"
 
 cd exp
-ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
+ln -s pretrained-iter-468000-avg-16.pt epoch-99.pt
 popd
 
 log "Export via torch.jit.trace()"

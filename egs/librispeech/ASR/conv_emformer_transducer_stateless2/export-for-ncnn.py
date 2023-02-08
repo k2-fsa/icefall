@@ -101,14 +101,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--jit",
-        type=str2bool,
-        default=False,
-        help="""True to save a model after applying torch.jit.script.
-        """,
-    )
-
-    parser.add_argument(
         "--context-size",
         type=int,
         default=2,

@@ -259,15 +259,16 @@ def export_encoder_model_onnx(
     opset_version: int = 11,
 ) -> None:
     """Export the given encoder model to ONNX format.
-    The exported model has two inputs:
+    The exported model has the following inputs:
 
         - x, a tensor of shape (N, T, C); dtype is torch.float32
-        - x_lens, a tensor of shape (N,); dtype is torch.int64
+        - a list of states (each layers has 4 states)
+
 
     and it has two outputs:
 
         - encoder_out, a tensor of shape (N, T', joiner_dim)
-        - encoder_out_lens, a tensor of shape (N,)
+        - a list of states (each layers has 4 states)
 
     Args:
       encoder_model:

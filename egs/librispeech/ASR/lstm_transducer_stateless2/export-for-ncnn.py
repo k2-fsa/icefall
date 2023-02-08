@@ -1,79 +1,48 @@
 #!/usr/bin/env python3
-# flake8: noqa
-#
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang, Zengwei Yao)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
-# This script converts several saved checkpoints
-# to a single one using model averaging.
 """
+Please see
+https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+for more details about how to use this file.
 
-Usage:
-
-(1) Export to torchscript model using torch.jit.trace()
-
-./lstm_transducer_stateless2/export.py \
-  --exp-dir ./lstm_transducer_stateless2/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 35 \
-  --avg 10 \
-  --jit-trace 1
-
-It will generate 3 files: `encoder_jit_trace.pt`,
-`decoder_jit_trace.pt`, and `joiner_jit_trace.pt`.
-
-(2) Export `model.state_dict()`
-
-./lstm_transducer_stateless2/export.py \
-  --exp-dir ./lstm_transducer_stateless2/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 35 \
-  --avg 10
-
-It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
-load it by `icefall.checkpoint.load_checkpoint()`.
-
-To use the generated file with `lstm_transducer_stateless2/decode.py`,
-you can do:
-
-    cd /path/to/exp_dir
-    ln -s pretrained.pt epoch-9999.pt
-
-    cd /path/to/egs/librispeech/ASR
-    ./lstm_transducer_stateless2/decode.py \
-        --exp-dir ./lstm_transducer_stateless2/exp \
-        --epoch 9999 \
-        --avg 1 \
-        --max-duration 600 \
-        --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
-
-Check ./pretrained.py for its usage.
-
-Note: If you don't want to train a model from scratch, we have
-provided one for you. You can get it at
-
+We use the pre-trained model from
 https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
+as an example to show how to use this file.
 
-with the following commands:
+1. Download the pre-trained model
 
-    sudo apt-get install git-lfs
-    git lfs install
-    git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
-    # You will find the pre-trained models in icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03/exp
+cd egs/librispeech/ASR
+
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-lstm-transducer-stateless2-2022-09-03
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-iter-468000-avg-16.pt"
+
+cd exp
+ln -s pretrained-iter-468000-avg-16.pt epoch-99.pt
+popd
+
+2. Export via torch.jit.trace()
+
+./lstm_transducer_stateless2/export-for-ncnn.py \
+  --exp-dir $repo/exp \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 99 \
+  --avg 1 \
+  --use-averaged-model 0 \
+
+cd ./lstm_transducer_stateless2/exp
+pnnx encoder_jit_trace-pnnx.pt
+pnnx decoder_jit_trace-pnnx.pt
+pnnx joiner_jit_trace-pnnx.pt
+
+See ./streaming-ncnn-decode.py
+and
+https://github.com/k2-fsa/sherpa-ncnn
+for usage.
 """
 
 import argparse
@@ -82,7 +51,6 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -92,7 +60,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool
+from icefall.utils import setup_logger, str2bool
 
 
 def get_parser():
@@ -129,20 +97,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-averaged-model",
-        type=str2bool,
-        default=True,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless2/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -156,24 +113,21 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--jit-trace",
-        type=str2bool,
-        default=False,
-        help="""True to save a model after applying torch.jit.trace.
-        It will generate 3 files:
-         - encoder_jit_trace.pt
-         - decoder_jit_trace.pt
-         - joiner_jit_trace.pt
-
-        Check ./jit_pretrained.py for how to use them.
-        """,
-    )
-
-    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--use-averaged-model",
+        type=str2bool,
+        default=True,
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
     )
 
     add_model_arguments(parser)
@@ -182,7 +136,7 @@ def get_parser():
 
 
 def export_encoder_model_jit_trace(
-    encoder_model: nn.Module,
+    encoder_model: torch.nn.Module,
     encoder_filename: str,
 ) -> None:
     """Export the given encoder model with torch.jit.trace()
@@ -205,7 +159,7 @@ def export_encoder_model_jit_trace(
 
 
 def export_decoder_model_jit_trace(
-    decoder_model: nn.Module,
+    decoder_model: torch.nn.Module,
     decoder_filename: str,
 ) -> None:
     """Export the given decoder model with torch.jit.trace()
@@ -227,7 +181,7 @@ def export_decoder_model_jit_trace(
 
 
 def export_joiner_model_jit_trace(
-    joiner_model: nn.Module,
+    joiner_model: torch.nn.Module,
     joiner_filename: str,
 ) -> None:
     """Export the given joiner model with torch.jit.trace()
@@ -262,8 +216,8 @@ def main():
     params.update(vars(args))
 
     device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
+
+    setup_logger(f"{params.exp_dir}/log-export/log-export-ncnn")
 
     logging.info(f"device: {device}")
 
@@ -276,11 +230,10 @@ def main():
 
     logging.info(params)
 
+    params.is_pnnx = True
+
     logging.info("About to create model")
     model = get_transducer_model(params, enable_giga=False)
-
-    num_param = sum([p.numel() for p in model.parameters()])
-    logging.info(f"Number of model parameters: {num_param}")
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -299,10 +252,7 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device),
-                strict=False,
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -313,10 +263,7 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device),
-                strict=False,
-            )
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -344,8 +291,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
         else:
             assert params.avg > 0, params.avg
@@ -363,35 +309,29 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                ),
-                strict=False,
+                )
             )
 
     model.to("cpu")
     model.eval()
 
-    if params.jit_trace is True:
-        convert_scaled_to_non_scaled(model, inplace=True)
-        logging.info("Using torch.jit.trace()")
-        encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
-        export_encoder_model_jit_trace(model.encoder, encoder_filename)
+    convert_scaled_to_non_scaled(model, inplace=True)
+    logging.info("Using torch.jit.trace()")
 
-        decoder_filename = params.exp_dir / "decoder_jit_trace.pt"
-        export_decoder_model_jit_trace(model.decoder, decoder_filename)
+    logging.info("Exporting encoder")
+    encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
+    export_encoder_model_jit_trace(model.encoder, encoder_filename)
 
-        joiner_filename = params.exp_dir / "joiner_jit_trace.pt"
-        export_joiner_model_jit_trace(model.joiner, joiner_filename)
-    else:
-        logging.info("Not using torchscript")
-        # Save it using a format so that it can be loaded
-        # by :func:`load_checkpoint`
-        filename = params.exp_dir / "pretrained.pt"
-        torch.save({"model": model.state_dict()}, str(filename))
-        logging.info(f"Saved to {filename}")
+    logging.info("Exporting decoder")
+    decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
+    export_decoder_model_jit_trace(model.decoder, decoder_filename)
+
+    logging.info("Exporting joiner")
+    joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
+    export_joiner_model_jit_trace(model.joiner, joiner_filename)
 
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
-    logging.basicConfig(format=formatter, level=logging.INFO)
     main()
