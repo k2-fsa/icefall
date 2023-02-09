@@ -525,7 +525,6 @@ def decode_one_batch(
         res = DecodingResults(hyps=tokens, timestamps=timestamps)
 
     hyps, timestamps = parse_hyp_and_timestamp(
-        decoding_method=params.decoding_method,
         res=res,
         sp=sp,
         subsampling_factor=params.subsampling_factor,
