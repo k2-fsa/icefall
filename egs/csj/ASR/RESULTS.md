@@ -15,20 +15,20 @@ Number of model parameters: 75688409, i.e. 75.7M.
 
 The CERs are:
 
-| decoding method	         | chunk size | eval1 | eval2 | eval3 | excluded | valid | average through     | decoding mode       |
+| decoding method	         | chunk size | eval1 | eval2 | eval3 | excluded | valid | average     | decoding mode       |
 | -------------------------- | ---------- | ----- | ----- | ----- | -------- | ----- | ------------------- | ------------------- |
-| fast beam search           | 320ms	  | 6.27  | 5.13  | 5.05  | 6.30     | 5.42  | 14->30 | simulated streaming |
-| fast beam search           | 320ms	  | 5.91  | 4.30  | 4.53  | 6.13     | 5.13  | 14->30 | chunk-wise          |
-| greedy search              | 320ms      | 5.81  | 4.29  | 4.63  | 6.07     | 5.13  | 14->30 | simulated streaming |
-| greedy search              | 320ms      | 5.91  | 4.50  | 4.65  | 6.36     | 5.34  | 14->30 | chunk-wise          |
-| modified beam search       | 320ms      | 5.59  | 4.20  | 4.39  | 5.54     | 4.90  | 14->30 | simulated streaming |
-| modified beam search       | 320ms      | 5.79  | 4.48  | 4.41  | 5.98     | 5.19  | 14->30 | chunk-wise          |
-| fast beam search           | 640ms      | 5.76  | 4.35  | 4.39  | 5.40     | 4.92  | 14->30 | simulated streaming |
-| fast beam search           | 640ms      | 5.45  | 4.31  | 4.29  | 5.61     | 4.97  | 14->30 | chunk-wise          |
-| greedy search              | 640ms      | 5.37  | 3.94  | 4.03  | 5.22     | 4.77  | 14->30 | simulated streaming |
-| greedy search              | 640ms      | 5.77  | 4.44  | 4.49  | 5.70     | 5.29  | 14->30 | chunk-wise          |
-| modified beam search       | 640ms      | 5.19  | 3.81  | 3.93  | 4.83     | 4.59  | 14->30 | simulated streaming |
-| modified beam search       | 640ms      | 6.71  | 5.35  | 4.95  | 6.06     | 5.94  | 14->30 | chunk-wise          |
+| fast beam search           | 320ms	  | 6.27  | 5.13  | 5.05  | 6.30     | 5.42  | --epoch 30 --avg 14 | simulated streaming |
+| fast beam search           | 320ms	  | 5.91  | 4.30  | 4.53  | 6.13     | 5.13  | --epoch 30 --avg 14 | chunk-wise          |
+| greedy search              | 320ms      | 5.81  | 4.29  | 4.63  | 6.07     | 5.13  | --epoch 30 --avg 14 | simulated streaming |
+| greedy search              | 320ms      | 5.91  | 4.50  | 4.65  | 6.36     | 5.34  | --epoch 30 --avg 14 | chunk-wise          |
+| modified beam search       | 320ms      | 5.59  | 4.20  | 4.39  | 5.54     | 4.90  | --epoch 30 --avg 14 | simulated streaming |
+| modified beam search       | 320ms      | 5.79  | 4.48  | 4.41  | 5.98     | 5.19  | --epoch 30 --avg 14 | chunk-wise          |
+| fast beam search           | 640ms      | 5.76  | 4.35  | 4.39  | 5.40     | 4.92  | --epoch 30 --avg 14 | simulated streaming |
+| fast beam search           | 640ms      | 5.45  | 4.31  | 4.29  | 5.61     | 4.97  | --epoch 30 --avg 14 | chunk-wise          |
+| greedy search              | 640ms      | 5.37  | 3.94  | 4.03  | 5.22     | 4.77  | --epoch 30 --avg 14 | simulated streaming |
+| greedy search              | 640ms      | 5.77  | 4.44  | 4.49  | 5.70     | 5.29  | --epoch 30 --avg 14 | chunk-wise          |
+| modified beam search       | 640ms      | 5.19  | 3.81  | 3.93  | 4.83     | 4.59  | --epoch 30 --avg 14 | simulated streaming |
+| modified beam search       | 640ms      | 6.71  | 5.35  | 4.95  | 6.06     | 5.94  | --epoch 30 --avg 14 | chunk-wise          |
 
 Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
 while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
@@ -96,20 +96,20 @@ done
 
 The CERs are:
 
-| decoding method  |  chunk size  |  eval1  |  eval2  |  eval3  |  excluded  |  valid  |  average through  |  decoding mode |
+| decoding method  |  chunk size  |  eval1  |  eval2  |  eval3  |  excluded  |  valid  |  average  |  decoding mode |
 | ---------------  | ------------ | ------- | ------ | ------- | ----------- | ------- | --------- | -------------- |
-| fast beam search pad30  |  320ms  |  4.72  |  3.74  |  4.21  |  5.21  |  4.39  |  19->30  |  simulated streaming |
-| fast beam search  |  320ms  |  4.63  |  3.63  |  4.18  |  5.3  |  4.31  |  19->30  |  chunk-wise |
-| greedy search  |  320ms  |  4.83  |  3.71  |  4.27  |  4.89  |  4.38  |  19->30  |  simulated streaming |
-| greedy search  |  320ms  |  4.7  |  3.87  |  4.24  |  5.39  |  4.39  |  19->30  |  chunk-wise |
-| modified beam search  |  320ms  |  4.61  |  3.55  |  4.07  |  4.89  |  4.18  |  19->30  |  simulated streaming |
-| modified beam search  |  320ms  |  4.53  |  3.73  |  3.98  |  5.9  |  4.25  |  19->30  |  chunk-wise |
-| fast beam search pad30  |  640ms  |  4.33  |  3.55  |  4.03  |  4.97  |  4.33  |  19->30  |  simulated streaming |
-| fast beam search  |  640ms  |  4.21  |  3.64  |  3.93  |  5.04  |  4.18  |  19->30  |  chunk-wise |
-| greedy search  |  640ms  |  4.3  |  3.51  |  3.91  |  4.45  |  4.04  |  19->30  |  simulated streaming |
-| greedy search  |  640ms  |  4.4  |  3.83  |  4.03  |  5.14  |  4.31  |  19->30  |  chunk-wise |
-| modified beam search  |  640ms  |  4.11  |  3.29  |  3.66  |  4.33  |  3.88  |  19->30  |  simulated streaming |
-| modified beam search  |  640ms  |  4.42  |  3.91  |  3.93  |  5.62  |  4.33  |  19->30  |  chunk-wise |
+| fast beam search pad30  |  320ms  |  4.72  |  3.74  |  4.21  |  5.21  |  4.39  |  --epoch 30 --avg 19  |  simulated streaming |
+| fast beam search  |  320ms  |  4.63  |  3.63  |  4.18  |  5.3  |  4.31  |  --epoch 30 --avg 19  |  chunk-wise |
+| greedy search  |  320ms  |  4.83  |  3.71  |  4.27  |  4.89  |  4.38  |  --epoch 30 --avg 19  |  simulated streaming |
+| greedy search  |  320ms  |  4.7  |  3.87  |  4.24  |  5.39  |  4.39  |  --epoch 30 --avg 19  |  chunk-wise |
+| modified beam search  |  320ms  |  4.61  |  3.55  |  4.07  |  4.89  |  4.18  |  --epoch 30 --avg 19  |  simulated streaming |
+| modified beam search  |  320ms  |  4.53  |  3.73  |  3.98  |  5.9  |  4.25  |  --epoch 30 --avg 19  |  chunk-wise |
+| fast beam search pad30  |  640ms  |  4.33  |  3.55  |  4.03  |  4.97  |  4.33  |  --epoch 30 --avg 19  |  simulated streaming |
+| fast beam search  |  640ms  |  4.21  |  3.64  |  3.93  |  5.04  |  4.18  |  --epoch 30 --avg 19  |  chunk-wise |
+| greedy search  |  640ms  |  4.3  |  3.51  |  3.91  |  4.45  |  4.04  |  --epoch 30 --avg 19  |  simulated streaming |
+| greedy search  |  640ms  |  4.4  |  3.83  |  4.03  |  5.14  |  4.31  |  --epoch 30 --avg 19  |  chunk-wise |
+| modified beam search  |  640ms  |  4.11  |  3.29  |  3.66  |  4.33  |  3.88  |  --epoch 30 --avg 19  |  simulated streaming |
+| modified beam search  |  640ms  |  4.42  |  3.91  |  3.93  |  5.62  |  4.33  |  --epoch 30 --avg 19  |  chunk-wise |
 
 Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
 while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
