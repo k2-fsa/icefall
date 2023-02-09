@@ -74,7 +74,9 @@ class MmiTrainingGraphCompiler(object):
         # CAUTION: The following line is crucial.
         # Arcs entering the back-off state have label equal to #0.
         # We have to change it to 0 here.
-        P.labels[P.labels >= first_token_disambig_id] = 0
+        labels = P.labels.clone()
+        labels[labels >= first_token_disambig_id] = 0
+        P.labels = labels
 
         P = k2.remove_epsilon(P)
         P = k2.arc_sort(P)
