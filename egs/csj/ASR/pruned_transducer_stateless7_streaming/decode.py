@@ -25,6 +25,7 @@ Usage:
     --exp-dir ./pruned_transducer_stateless7_streaming/exp \
     --max-duration 600 \
     --decode-chunk-len 32 \
+    --lang data/lang_char \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
@@ -35,6 +36,7 @@ Usage:
     --max-duration 600 \
     --decode-chunk-len 32 \
     --decoding-method beam_search \
+    --lang data/lang_char \
     --beam-size 4
 
 (3) modified beam search
@@ -45,6 +47,7 @@ Usage:
     --max-duration 600 \
     --decode-chunk-len 32 \
     --decoding-method modified_beam_search \
+    --lang data/lang_char \
     --beam-size 4
 
 (4) fast beam search (one best)
@@ -57,6 +60,7 @@ Usage:
     --decoding-method fast_beam_search \
     --beam 20.0 \
     --max-contexts 8 \
+    --lang data/lang_char \
     --max-states 64
 
 (5) fast beam search (nbest)
@@ -71,6 +75,7 @@ Usage:
     --max-contexts 8 \
     --max-states 64 \
     --num-paths 200 \
+    --lang data/lang_char \
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
@@ -85,6 +90,7 @@ Usage:
     --max-contexts 8 \
     --max-states 64 \
     --num-paths 200 \
+    --lang data/lang_char \
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
@@ -97,6 +103,7 @@ Usage:
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
     --max-contexts 8 \
+    --lang data/lang_char \
     --max-states 64
 """
 
@@ -210,8 +217,8 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
-        help="The lang dir containing word table and LG graph",
+        default="data/lang_char",
+        help="The lang dir. It should contain at least a word table.",
     )
 
     parser.add_argument(
@@ -691,7 +698,7 @@ def main():
 
     sp = Tokenizer.load(params.lang, params.lang_type)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/prepare_lang_char.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -837,35 +844,6 @@ def main():
                 fout.write(f"{tot_err[0][1]}")
             else:
                 fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
-
-        # results_dict = {
-        #     k: [
-        #         (
-        #             vv[0],
-        #             [i for i in vv[1] if i not in ["↵", "。", "、"]],
-        #             [i for i in vv[2] if i not in ["↵", "。", "、"]],
-        #         )
-        #         for vv in v
-        #     ]
-        #     for k, v in results_dict.items()
-        # }
-
-        # tot_err = save_results(
-        #     params=params,
-        #     test_set_name=subdir + "-txt",
-        #     results_dict=results_dict,
-        # )
-        # with (
-        #     params.res_dir
-        #     / (
-        #         f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
-        #         f"_{params.avg}_{params.epoch}.txtcer"
-        #     )
-        # ).open("w") as fout:
-        #     if len(tot_err) == 1:
-        #         fout.write(f"{tot_err[0][1]}")
-        #     else:
-        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 

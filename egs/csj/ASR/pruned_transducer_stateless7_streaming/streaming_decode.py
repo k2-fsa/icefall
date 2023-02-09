@@ -23,6 +23,7 @@ Usage:
   --decode-chunk-len 32 \
   --exp-dir ./pruned_transducer_stateless7_streaming/exp \
   --decoding_method greedy_search \
+  --lang data/lang_char \
   --num-decode-streams 2000
 """
 
@@ -460,7 +461,7 @@ def main():
 
     sp = Tokenizer.load(params.lang, params.lang_type)
 
-    # <blk> and <unk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> is defined in local/prepare_lang_char.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -588,35 +589,6 @@ def main():
                 fout.write(f"{tot_err[0][1]}")
             else:
                 fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
-
-        # results_dict = {
-        #     k: [
-        #         (
-        #             vv[0],
-        #             [i for i in vv[1] if i not in ["↵", "。", "、"]],
-        #             [i for i in vv[2] if i not in ["↵", "。", "、"]],
-        #         )
-        #         for vv in v
-        #     ]
-        #     for k, v in results_dict.items()
-        # }
-
-        # tot_err = save_results(
-        #     params=params,
-        #     test_set_name=subdir + "-txt",
-        #     results_dict=results_dict,
-        # )
-        # with (
-        #     params.res_dir
-        #     / (
-        #         f"{subdir}-{params.decode_chunk_len}"
-        #         f"_{params.avg}_{params.epoch}.txtcer"
-        #     )
-        # ).open("w") as fout:
-        #     if len(tot_err) == 1:
-        #         fout.write(f"{tot_err[0][1]}")
-        #     else:
-        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 

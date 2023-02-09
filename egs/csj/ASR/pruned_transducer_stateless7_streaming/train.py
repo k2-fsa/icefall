@@ -27,6 +27,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --lang data/lang_char \
   --max-duration 300
 
 # For mix precision training:
@@ -37,6 +38,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --lang data/lang_char \
   --max-duration 550
 """
 
@@ -993,7 +995,7 @@ def run(rank, world_size, args):
         setup_dist(rank, world_size, master_port=params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
-    if HAS_TELEGRAM:
+    if HAS_TELEGRAM and params.telegram_cred:
         TelegramStreamIO.setup_logger(params)
     logging.info("Training started")
 
@@ -1009,7 +1011,7 @@ def run(rank, world_size, args):
 
     sp = Tokenizer.load(args.lang, args.lang_type)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> is defined in local/prepare_lang_char.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
