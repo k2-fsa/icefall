@@ -34,16 +34,6 @@ ln -s pretrained.pt epoch-99.pt
 ls -lh *.pt
 popd
 
-log "Test exporting to ONNX format"
-./pruned_transducer_stateless7_streaming/export.py \
-  --exp-dir $repo/exp \
-  --use-averaged-model false \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
-  --epoch 99 \
-  --avg 1 \
-  --fp16 \
-  --onnx 1
-
 log "Export to torchscript model"
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir $repo/exp \

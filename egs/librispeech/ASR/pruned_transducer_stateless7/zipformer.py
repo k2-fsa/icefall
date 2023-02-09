@@ -44,7 +44,7 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.dist import get_rank
-from icefall.utils import make_pad_mask
+from icefall.utils import is_jit_tracing, make_pad_mask
 
 
 class Zipformer(EncoderInterface):
@@ -792,7 +792,8 @@ class AttentionDownsample(torch.nn.Module):
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
         scores = (src * self.query).sum(dim=-1, keepdim=True)
 
-        scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+            scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
 
@@ -904,6 +905,13 @@ class RelPositionalEncoding(torch.nn.Module):
     def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
         """Construct a PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
+        if is_jit_tracing():
+            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e.,
+            # It assumes that the maximum input won't have more than
+            # 10k frames.
+            #
+            # TODO(fangjun): Use torch.jit.script() for this module
+            max_len = 10000
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None

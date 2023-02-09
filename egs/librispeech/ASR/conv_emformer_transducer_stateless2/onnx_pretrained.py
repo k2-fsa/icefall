@@ -6,35 +6,41 @@ This script loads ONNX models exported by ./export-onnx.py
 and uses them to decode waves.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained.pt"
+git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
+
 cd exp
-ln -s pretrained.pt epoch-99.pt
+ln -s pretrained-epoch-30-avg-10-averaged.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless7_streaming/export-onnx.py \
+./conv_emformer_transducer_stateless2/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  --decode-chunk-len 32 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp \
+  --num-encoder-layers 12 \
+  --chunk-length 32 \
+  --cnn-module-kernel 31 \
+  --left-context-length 32 \
+  --right-context-length 8 \
+  --memory-size 32
 
-It will generate the following 3 files in $repo/exp
+It will generate the following 3 files inside $repo/exp:
 
   - encoder-epoch-99-avg-1.onnx
   - decoder-epoch-99-avg-1.onnx
@@ -42,7 +48,7 @@ It will generate the following 3 files in $repo/exp
 
 3. Run this file with the exported ONNX models
 
-./pruned_transducer_stateless7_streaming/onnx_pretrained.py \
+./conv_emformer_transducer_stateless2/onnx_pretrained.py \
   --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
   --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
   --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
@@ -137,93 +143,42 @@ class OnnxModel:
         encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
 
         model_type = encoder_meta["model_type"]
-        assert model_type == "zipformer", model_type
+        assert model_type == "conv-emformer", model_type
 
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
         T = int(encoder_meta["T"])
 
-        num_encoder_layers = encoder_meta["num_encoder_layers"]
-        encoder_dims = encoder_meta["encoder_dims"]
-        attention_dims = encoder_meta["attention_dims"]
-        cnn_module_kernels = encoder_meta["cnn_module_kernels"]
-        left_context_len = encoder_meta["left_context_len"]
-
-        def to_int_list(s):
-            return list(map(int, s.split(",")))
-
-        num_encoder_layers = to_int_list(num_encoder_layers)
-        encoder_dims = to_int_list(encoder_dims)
-        attention_dims = to_int_list(attention_dims)
-        cnn_module_kernels = to_int_list(cnn_module_kernels)
-        left_context_len = to_int_list(left_context_len)
+        num_encoder_layers = int(encoder_meta["num_encoder_layers"])
+        memory_size = int(encoder_meta["memory_size"])
+        cnn_module_kernel = int(encoder_meta["cnn_module_kernel"])
+        right_context_length = int(encoder_meta["right_context_length"])
+        left_context_length = int(encoder_meta["left_context_length"])
+        encoder_dim = int(encoder_meta["encoder_dim"])
 
         logging.info(f"decode_chunk_len: {decode_chunk_len}")
         logging.info(f"T: {T}")
         logging.info(f"num_encoder_layers: {num_encoder_layers}")
-        logging.info(f"encoder_dims: {encoder_dims}")
-        logging.info(f"attention_dims: {attention_dims}")
-        logging.info(f"cnn_module_kernels: {cnn_module_kernels}")
-        logging.info(f"left_context_len: {left_context_len}")
-
-        num_encoders = len(num_encoder_layers)
-
-        cached_len = []
-        cached_avg = []
-        cached_key = []
-        cached_val = []
-        cached_val2 = []
-        cached_conv1 = []
-        cached_conv2 = []
+        logging.info(f"memory_size: {memory_size}")
+        logging.info(f"cnn_module_kernel: {cnn_module_kernel}")
+        logging.info(f"left_context_length: {left_context_length} (after subsampling)")
+        logging.info(f"right_context_length: {right_context_length}")
+        logging.info(f"encoder_dim: {encoder_dim}")
 
         N = batch_size
 
-        for i in range(num_encoders):
-            cached_len.append(torch.zeros(num_encoder_layers[i], N, dtype=torch.int64))
-            cached_avg.append(torch.zeros(num_encoder_layers[i], N, encoder_dims[i]))
-            cached_key.append(
-                torch.zeros(
-                    num_encoder_layers[i], left_context_len[i], N, attention_dims[i]
-                )
-            )
-            cached_val.append(
-                torch.zeros(
-                    num_encoder_layers[i],
-                    left_context_len[i],
-                    N,
-                    attention_dims[i] // 2,
-                )
-            )
-            cached_val2.append(
-                torch.zeros(
-                    num_encoder_layers[i],
-                    left_context_len[i],
-                    N,
-                    attention_dims[i] // 2,
-                )
-            )
-            cached_conv1.append(
-                torch.zeros(
-                    num_encoder_layers[i], N, encoder_dims[i], cnn_module_kernels[i] - 1
-                )
-            )
-            cached_conv2.append(
-                torch.zeros(
-                    num_encoder_layers[i], N, encoder_dims[i], cnn_module_kernels[i] - 1
-                )
-            )
+        states = []
+        for i in range(num_encoder_layers):
+            s0 = torch.zeros(memory_size, N, encoder_dim)
+            s1 = torch.zeros(left_context_length, N, encoder_dim)
+            s2 = torch.zeros(left_context_length, N, encoder_dim)
+            s3 = torch.zeros(N, encoder_dim, cnn_module_kernel - 1)
+            states.extend([s0, s1, s2, s3])
 
-        self.cached_len = cached_len
-        self.cached_avg = cached_avg
-        self.cached_key = cached_key
-        self.cached_val = cached_val
-        self.cached_val2 = cached_val2
-        self.cached_conv1 = cached_conv1
-        self.cached_conv2 = cached_conv2
-
-        self.num_encoders = num_encoders
+        self.states = states
 
         self.segment = T
         self.offset = decode_chunk_len
+        self.num_encoder_layers = num_encoder_layers
 
     def init_decoder(self, decoder_model_filename: str):
         self.decoder = ort.InferenceSession(
@@ -256,35 +211,24 @@ class OnnxModel:
         encoder_input = {"x": x.numpy()}
         encoder_output = ["encoder_out"]
 
-        def build_states_input(states: List[torch.Tensor], name: str):
-            for i, s in enumerate(states):
-                if isinstance(s, torch.Tensor):
-                    encoder_input[f"{name}_{i}"] = s.numpy()
+        def build_inputs_outputs(states: List[torch.Tensor], name: str):
+            for i in range(4):
+                if isinstance(states[i], torch.Tensor):
+                    encoder_input[f"{name}_{i}"] = states[i].numpy()
                 else:
-                    encoder_input[f"{name}_{i}"] = s
+                    encoder_input[f"{name}_{i}"] = states[i]
 
                 encoder_output.append(f"new_{name}_{i}")
 
-        build_states_input(self.cached_len, "cached_len")
-        build_states_input(self.cached_avg, "cached_avg")
-        build_states_input(self.cached_key, "cached_key")
-        build_states_input(self.cached_val, "cached_val")
-        build_states_input(self.cached_val2, "cached_val2")
-        build_states_input(self.cached_conv1, "cached_conv1")
-        build_states_input(self.cached_conv2, "cached_conv2")
+        for i in range(self.num_encoder_layers):
+            base_name = f"layer{i}"
+            s = self.states[i * 4 : (i + 1) * 4]
+            build_inputs_outputs(s, base_name)
 
         return encoder_input, encoder_output
 
     def _update_states(self, states: List[np.ndarray]):
-        num_encoders = self.num_encoders
-
-        self.cached_len = states[num_encoders * 0 : num_encoders * 1]
-        self.cached_avg = states[num_encoders * 1 : num_encoders * 2]
-        self.cached_key = states[num_encoders * 2 : num_encoders * 3]
-        self.cached_val = states[num_encoders * 3 : num_encoders * 4]
-        self.cached_val2 = states[num_encoders * 4 : num_encoders * 5]
-        self.cached_conv1 = states[num_encoders * 5 : num_encoders * 6]
-        self.cached_conv2 = states[num_encoders * 6 : num_encoders * 7]
+        self.states = states
 
     def run_encoder(self, x: torch.Tensor) -> torch.Tensor:
         """
