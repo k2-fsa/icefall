@@ -137,8 +137,9 @@ class Tokenizer:
             )
 
         if isinstance(input[0], list):
-            if isinstance(input[0][0], int):
+            if not input[0] or isinstance(input[0][0], int):
                 return self.DecodeIdsBatch(input)
+
             if isinstance(input[0][0], str):
                 return self.DecodePiecesBatch(input)
 

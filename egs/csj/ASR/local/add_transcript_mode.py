@@ -15,6 +15,7 @@ This script adds transcript modes to an existing CutSet or SupervisionSet.
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=ARGPARSE_DESCRIPTION,
     )
     parser.add_argument(
         "-f",
