@@ -1,20 +1,21 @@
 Export to ONNX
 ==============
 
-In this section, we describe how to export the following models to ONNX.
+In this section, we describe how to export models to `ONNX`_.
 
 In each recipe, there is a file called ``export-onnx.py``, which is used
-to export trained models to ONNX.
+to export trained models to `ONNX`_.
 
 There is also a file named ``onnx_pretrained.py``, which you can use
-the exported ONNX model in Python to decode sound files.
+the exported `ONNX`_ model in Python with `onnxruntime`_ to decode sound files.
 
 Example
 =======
 
 In the following, we demonstrate how to export a streaming Zipformer pre-trained
-model from `<python3 ./python-api-examples/speech-recognition-from-microphone.py>`_
-to ONNX.
+model from
+`<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>`_
+to `ONNX`_.
 
 Download the pre-trained model
 ------------------------------
