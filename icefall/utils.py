@@ -424,6 +424,8 @@ def store_transcripts(
       texts:
         An iterable of tuples. The first element is the cur_id, the second is
         the reference transcript and the third element is the predicted result.
+        If it is a multi-talker ASR system, the ref and hyp may also be lists of
+        strings.
     Returns:
       Return None.
     """
@@ -818,6 +820,70 @@ def write_error_stats_with_timestamps(
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
     return float(tot_err_rate), float(mean_delay), float(var_delay)
+
+
+def write_surt_error_stats(
+    f: TextIO,
+    test_set_name: str,
+    results: List[Tuple[str, str]],
+    enable_log: bool = True,
+) -> float:
+    """Write statistics based on predicted results and reference transcripts for SURT
+    multi-talker ASR systems. The difference between this and the `write_error_stats`
+    is that this function finds the optimal speaker-agnostic WER using the ``meeteval``
+    toolkit.
+
+    It will write the following to the given file:
+
+        - WER
+        - number of insertions, deletions, substitutions, corrects and total
+          reference words. For example::
+
+              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
+              reference words (2337 correct)
+
+        - The difference between the reference transcript and predicted result.
+          An instance is given below::
+
+            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
+
+          The above example shows that the reference word is `EDISON`,
+          but it is predicted to `ADDISON` (a substitution error).
+
+          Another example is::
+
+            FOR THE FIRST DAY (SIR->*) I THINK
+
+          The reference word `SIR` is missing in the predicted
+          results (a deletion error).
+      results:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+      enable_log:
+        If True, also print detailed WER to the console.
+        Otherwise, it is written only to the given file.
+    Returns:
+      Return None.
+    """
+    from meeteval.wer import wer
+
+    wers = []
+    assignments = []
+    for cut_id, ref, hyp in results:
+        orc_wer = wer.orc_word_error_rate(ref, hyp)
+        wers.append(orc_wer)
+        assignments.append(orc_wer.assignment)
+
+    orc_wer = wer.combine_error_rates(*wers)
+    tot_errs = orc_wer.errors
+    ref_len = orc_wer.length
+    tot_err_rate = orc_wer.error_rate
+
+    if enable_log:
+        logging.info(f"[{test_set_name}] %WER {tot_errs / ref_len:.2%}")
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    return float(tot_err_rate)
 
 
 class MetricsTracker(collections.defaultdict):
