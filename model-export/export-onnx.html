@@ -95,17 +95,18 @@
              
   <section id="export-to-onnx">
 <h1>Export to ONNX<a class="headerlink" href="#export-to-onnx" title="Permalink to this heading"></a></h1>
-<p>In this section, we describe how to export the following models to ONNX.</p>
+<p>In this section, we describe how to export models to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 <p>In each recipe, there is a file called <code class="docutils literal notranslate"><span class="pre">export-onnx.py</span></code>, which is used
-to export trained models to ONNX.</p>
+to export trained models to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 <p>There is also a file named <code class="docutils literal notranslate"><span class="pre">onnx_pretrained.py</span></code>, which you can use
-the exported ONNX model in Python to decode sound files.</p>
+the exported <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a> model in Python with <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a> to decode sound files.</p>
 </section>
 <section id="example">
 <h1>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h1>
 <p>In the following, we demonstrate how to export a streaming Zipformer pre-trained
-model from <a class="reference external" href="python3./python-api-examples/speech-recognition-from-microphone.py">python3./python-api-examples/speech-recognition-from-microphone.py</a>
-to ONNX.</p>
+model from
+<a class="reference external" href="https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11">https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11</a>
+to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 <section id="download-the-pre-trained-model">
 <h2>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h2>
 <div class="admonition hint">
