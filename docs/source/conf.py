@@ -86,4 +86,6 @@ rst_epilog = """
 .. _ncnn: https://github.com/tencent/ncnn
 .. _LibriSpeech: https://www.openslr.org/12
 .. _musan: http://www.openslr.org/17/
+.. _ONNX: https://github.com/onnx/onnx
+.. _onnxruntime: https://github.com/microsoft/onnxruntime
 """
