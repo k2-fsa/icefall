@@ -88,7 +88,7 @@ class Transducer(nn.Module):
           Return a tensor of shape (N, U).
         """
         y_shift = F.pad(
-            y, (context_size, 0), mode="constant", value=self.decoder.blank_id
+            y, (context_size, 0), mode="constant", value=-1
         )[:, :-context_size]
         mask = y_shift != y
 
