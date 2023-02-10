@@ -120,10 +120,13 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 
   # Prepare text.
-  # Note: in Linux, you can install jq with the  following command:
+  # Note: in Linux, you can install jq with the following command:
   # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
   # 2. chmod +x ./jq
   # 3. cp jq /usr/bin
+  # If python version >= 3.8, you can install paddle with the following command:
+  # python -m pip install paddlepaddle==2.2.2 -i https://mirror.baidu.com/pypi/simple
+  # learn more via https://github.com/fxsjy/jieba/issues/920
   if [ ! -f $lang_char_dir/text_full ]; then
     gunzip -c data/manifests/tal_csasr/tal_csasr_supervisions_train_set.jsonl.gz \
       | jq ".text" | sed 's/"//g' \
