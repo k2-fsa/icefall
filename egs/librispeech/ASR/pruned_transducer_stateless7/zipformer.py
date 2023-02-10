@@ -37,6 +37,7 @@ from scaling import (
     SwooshL,
     SwooshR,
     TanSwish,
+    ChunkCausalDepthwiseConv1d,
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
@@ -96,8 +97,12 @@ class Zipformer(EncoderInterface):
         dropout (float): dropout rate
         warmup_batches (float): number of batches to warm up over; this controls
           dropout of encoder layers.
+        causal (bool): if True, support chunkwise causal convolution.  This should
+          not hurt WER as no modeling power is lost, but the convolution modules will be
+          slightly slower and use more memory.  Enables use of the chunk_size and
+          left_context_chunk options in forward(), which simulates streaming
+          decoding.
     """
-
     def __init__(
             self,
             num_features: int,
@@ -116,6 +121,7 @@ class Zipformer(EncoderInterface):
             pos_dim: int = 192,
             dropout: FloatLike = None,  # see code below for default
             warmup_batches: float = 4000.0,
+            causal: bool = False,
     ) -> None:
         super(Zipformer, self).__init__()
 
@@ -144,6 +150,7 @@ class Zipformer(EncoderInterface):
         self.num_features = num_features  # int
         self.output_downsampling_factor = output_downsampling_factor # int
         self.downsampling_factor = downsampling_factor # tuple
+        self.downsampling_factor_gcd = next(n for n in range(1, 10000) if all(n % d == 0 for d in downsampling_factor))
         self.encoder_dim = encoder_dim = _to_tuple(encoder_dim) # tuple
         self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(encoder_unmasked_dim) # tuple
         num_encoder_layers = _to_tuple(num_encoder_layers)
@@ -153,8 +160,7 @@ class Zipformer(EncoderInterface):
         num_heads = _to_tuple(num_heads)
         attention_share_layers = _to_tuple(attention_share_layers)
         feedforward_dim = _to_tuple(feedforward_dim)
-        cnn_module_kernel = _to_tuple(cnn_module_kernel)
-
+        self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
 
         for u,d in zip(encoder_unmasked_dim, encoder_dim):
             assert u <= d
@@ -187,6 +193,7 @@ class Zipformer(EncoderInterface):
                 feedforward_dim=feedforward_dim[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
+                causal=causal,
             )
 
             # For the segment of the warmup period, we let the Conv2dSubsampling
@@ -314,6 +321,8 @@ class Zipformer(EncoderInterface):
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor,
+            chunk_size: int = -1,
+            left_context_chunks: int = -1,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -322,6 +331,14 @@ class Zipformer(EncoderInterface):
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
+          chunk_size: Number of frames per chunk (only set this if causal == True).
+              Must divide all elements of downsampling_factor.  At 50hz frame
+              rate, i.e. after encoder_embed.  If not specified, no chunking.
+          left_context_chunks: Number of left-context chunks for each chunk (affects
+             attention mask); only set this if chunk_size specified.  If -1, there
+             is no limit on the left context.  If not -1, require:
+              left_context_chunks * context_size >= downsampling_factor[i] *
+                                                    cnn_module_kernel[i] // 2.
         Returns:
           Return a tuple containing 2 tensors:
             - embeddings: its shape is (batch_size, output_seq_len, max(encoder_dim))
@@ -340,10 +357,12 @@ class Zipformer(EncoderInterface):
             warnings.simplefilter("ignore")
             lengths = (x_lens - 7) // 2
         assert x.size(0) == lengths.max().item()
-        mask = make_pad_mask(lengths)
+        src_key_padding_mask = make_pad_mask(lengths)
 
         outputs = []
         feature_masks = self.get_feature_masks(x)
+
+        attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
@@ -361,8 +380,12 @@ class Zipformer(EncoderInterface):
                 else:
                     x = skip_x
             x = module(x,
+                       chunk_size=chunk_size,
                        feature_mask=feature_masks[i],
-                       src_key_padding_mask=None if mask is None else mask[...,::ds])
+                       src_key_padding_mask=(None if src_key_padding_mask is None
+                                             else src_key_padding_mask[...,::ds]),
+                       attn_mask=attn_mask,
+            )
             outputs.append(x)
 
         def get_full_dim_output():
@@ -395,6 +418,42 @@ class Zipformer(EncoderInterface):
 
         return x, lengths
 
+    def _get_attn_mask(self, x: Tensor,
+                       chunk_size: int,
+                       left_context_chunks: int
+    ) -> Optional[Tensor]:
+        """
+        Return None if chunk_size == -1, else return attention mask of shape
+          (seq_len, seq_len), interpreted as (tgt_seq_len, src_seq_len).  True
+           means a masked position.
+        Args:
+           x: embeddings after self.encoder_embed(), of shape (seq_len, batch_size, embed_dim).
+          chunk_size: chunk size, must divide
+        """
+        if chunk_size <= 0:
+            return None
+        assert all(chunk_size % d == 0 for d in self.downsampling_factor)
+        if left_context_chunks >= 0:
+            num_encoders = len(self.encoder_dim)
+            assert all (chunk_size * left_context_chunks >=
+                        (self.cnn_module_kernel[i] // 2) * self.downsampling_factor[i]
+                        for i in range(num_encoders))
+        else:
+            left_context_chunks = 1000000
+
+        seq_len = x.shape[0]
+
+        # t is frame index, shape (seq_len,)
+        t = torch.arange(seq_len, dtype=torch.int32)
+        # c is chunk index for each frame, shape (seq_len,)
+        c = t // chunk_size
+        src_c = c
+        tgt_c = c.unsqueeze(-1)
+
+        attn_mask = torch.logical_or(src_c > tgt_c,
+                                     src_c < tgt_c - left_context_chunks)
+        if __name__ == "__main__":
+            logging.info(f"attn_mask = {attn_mask}")
 
 
 
@@ -434,6 +493,7 @@ class ZipformerEncoderLayer(nn.Module):
             feedforward_dim: int,
             dropout: FloatLike = 0.1,
             cnn_module_kernel: int = 31,
+            causal: bool = False,
             # layer_skip_rate will be overwritten to change warmup begin and end times.
             # treating batch_index == 0.0 specially is just to get scan_pessimistic_batches_for_oom()
             # to work correctly.
@@ -487,7 +547,8 @@ class ZipformerEncoderLayer(nn.Module):
                                                 hidden_channels=3 * embed_dim // 4)
 
         self.conv_module = ConvolutionModule(embed_dim,
-                                             cnn_module_kernel)
+                                             cnn_module_kernel,
+                                             causal=causal)
 
 
         #self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
@@ -566,27 +627,24 @@ class ZipformerEncoderLayer(nn.Module):
         self,
         src: Tensor,
         pos_emb: Tensor,
-        src_mask: Optional[Tensor] = None,
+        chunk_size: int = -1,
+        attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         attn_weights: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Pass the input through the encoder layer.
-
         Args:
-            src: the sequence to the encoder layer (required).
-            pos_emb: Positional embedding tensor (required).
-            src_mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
-        attn_weights: possibly attention weights computed by the previous layer,
-           to be used if self.self_attn_weights is None
-
-        Shape:
-            src: (S, N, E).
-            pos_emb: (N, 2*S-1, E)
-            src_mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length, N is the batch size, E is the feature number
+            src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
+         pos_emb: (1, 2*seq_len-1, pos_emb_dim) or (batch_size, 2*seq_len-1, pos_emb_dim)
+         chunk_size: the number of frames per chunk, of >= 0; if -1, no chunking.
+       feature_mask: something that broadcasts with src, that we'll multiply `src`
+              by at every layer: if a Tensor, likely of shape (seq_len, batch_size, embedding_dim)
+         attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
+                interpreted as (batch_size, tgt_seq_len, src_seq_len) or (tgt_seq_len, src_seq_len).
+               True means masked position. May be None.
+    src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
+             masked position.  May be None.
 
         Returns:
            (x, attn_weights) where x has the same shape as src, and attn_weights are of
@@ -602,7 +660,7 @@ class ZipformerEncoderLayer(nn.Module):
             attn_weights = self.self_attn_weights(
                 src,
                 pos_emb=pos_emb,
-                attn_mask=src_mask,
+                attn_mask=attn_mask,
                 key_padding_mask=src_key_padding_mask,
             )
         # else rely on the ones passed in
@@ -642,7 +700,8 @@ class ZipformerEncoderLayer(nn.Module):
                 src, attn_weights)
 
         if torch.jit.is_scripting() or random.random() >=  float(self.conv_skip_rate):
-            src = src + self.conv_module(src, src_key_padding_mask=src_key_padding_mask)
+            src = src + self.conv_module(src, chunk_size=chunk_size,
+                                         src_key_padding_mask=src_key_padding_mask)
 
         if torch.jit.is_scripting() or random.random() >=  float(self.ff2_skip_rate):
             src = src + self.balancer_ff2(self.feed_forward2(src))
@@ -659,7 +718,6 @@ class ZipformerEncoderLayer(nn.Module):
         src = self.whiten(src)
 
         return src, attn_weights
-
 
 class ZipformerEncoder(nn.Module):
     r"""ZipformerEncoder is a stack of N encoder layers
@@ -713,31 +771,28 @@ class ZipformerEncoder(nn.Module):
     def forward(
         self,
         src: Tensor,
+        chunk_size: int = -1,
         feature_mask: Union[Tensor, float] = 1.0,
-        mask: Optional[Tensor] = None,
+        attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
-            src: the sequence to the encoder (required).
+            src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
+            chunk_size: the number of frames per chunk, of >= 0; if -1, no chunking.
             feature_mask: something that broadcasts with src, that we'll multiply `src`
-               by at every layer.
-            mask: the mask for the src sequence (optional).
-            src_key_padding_mask: the mask for the src keys per batch (optional).
+               by at every layer: if a Tensor, likely of shape (seq_len, batch_size, embedding_dim)
+            attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
+                 interpreted as (batch_size, tgt_seq_len, src_seq_len) or (tgt_seq_len, src_seq_len).
+                 True means masked position. May be None.
+            src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
+                 masked position.  May be None.
 
-        Shape:
-            src: (S, N, E).
-            pos_emb: (N, 2*S-1, E)
-            mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
-
-        Returns: (x, x_no_combine), both of shape (S, N, E)
+        Returns: a Tensor with the same shape as src.
         """
         pos_emb = self.encoder_pos(src)
         output = src
-
 
         rnd_seed = src.numel() + random.randint(0, 1000)
 
@@ -749,7 +804,8 @@ class ZipformerEncoder(nn.Module):
             output, attn_weights = mod(
                 output,
                 pos_emb,
-                src_mask=mask,
+                chunk_size=chunk_size,
+                attn_mask=attn_mask,
                 src_key_padding_mask=src_key_padding_mask,
                 attn_weights=attn_weights,
             )
@@ -774,7 +830,7 @@ class DownsampledZipformerEncoder(nn.Module):
         super(DownsampledZipformerEncoder, self).__init__()
         self.downsample_factor = downsample
         self.downsample = SimpleDownsample(input_dim, output_dim,
-                                              downsample, dropout)
+                                           downsample, dropout)
         self.encoder = encoder
         self.upsample = SimpleUpsample(output_dim, downsample)
         self.out_combiner = SimpleCombiner(input_dim,
@@ -784,39 +840,37 @@ class DownsampledZipformerEncoder(nn.Module):
 
     def forward(self,
                 src: Tensor,
+                chunk_size: int = -1,
                 feature_mask: Union[Tensor, float] = 1.0,
-                mask: Optional[Tensor] = None,
+                attn_mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         r"""Downsample, go through encoder, upsample.
 
         Args:
-            src: the sequence to the encoder (required).
+            src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
             feature_mask: something that broadcasts with src, that we'll multiply `src`
-               by at every layer.  feature_mask is expected to be already downsampled by
-               self.downsample_factor.
-            mask: the mask for the src sequence (optional).  CAUTION: we need to downsample
-                  this, if we are to support it.  Won't work correctly yet.
-            src_key_padding_mask: the mask for the src keys per batch (optional).  Should
-                  be downsampled already.
+               by at every layer: if a Tensor, likely of shape (seq_len, batch_size, embedding_dim)
+            attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
+                 interpreted as (batch_size, tgt_seq_len, src_seq_len) or (tgt_seq_len, src_seq_len).
+                 True means masked position. May be None.
+            src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
+                 masked position.  May be None.
 
-        Shape:
-            src: (S, N, E).
-            mask: (S, S).
-            src_key_padding_mask: (N, S).
-            S is the source sequence length, T is the target sequence length, N is the batch size, E is the feature number
-
-        Returns: output of shape (S, N, F) where F is the number of output features
-            (output_dim to constructor)
+        Returns: a Tensor with the same shape as src.
         """
         src_orig = src
         src = self.downsample(src)
         ds = self.downsample_factor
-        if mask is not None:
-            mask = mask[::ds,::ds]
+        if attn_mask is not None:
+            attn_mask = attn_mask[::ds,::ds]
 
         src = self.encoder(
-            src, feature_mask=feature_mask, mask=mask, src_key_padding_mask=mask,
+            src,
+            chunk_size=chunk_size // ds,
+            feature_mask=feature_mask,
+            attn_mask=attn_mask,
+            src_key_padding_mask=src_key_padding_mask,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
@@ -990,8 +1044,9 @@ class SmallConvolutionModule(nn.Module):
     ) -> None:
         super().__init__()
 
-
-        self.depthwise_conv = nn.Conv1d(
+        self.depthwise_conv = ChunkCausalDepthwiseConv1d(
+            channels=channels,
+            kernel_size=kernel_size) if causal else nn.Conv1d(
             in_channels=channels,
             out_channels=channels,
             groups=channels,
@@ -1139,13 +1194,13 @@ class CompactRelPositionalEncoding(torch.nn.Module):
 
 
     def forward(self, x: torch.Tensor) -> Tensor:
-        """Add positional encoding.
+        """Create positional encoding.
 
         Args:
             x (torch.Tensor): Input tensor (time, batch, `*`).
 
         Returns:
-            torch.Tensor: Encoded tensor (batch, 2*time-1, `*`).
+            positional embedding, of shape (1, 2*time-1, `*`).
 
         """
         self.extend_pe(x)
@@ -1235,6 +1290,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self,
         x: Tensor,
         pos_emb: Tensor,
+        chunk_size: int = -1,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
     ) -> Tensor:
@@ -1242,6 +1298,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         Args:
             x: input of shape (seq_len, batch_size, embed_dim)
             pos_emb: Positional embedding tensor, of shape (1, 2*seq_len - 2, pos_dim)
+           chunk_size
             key_padding_mask: a bool tensor of shape (batch_size, seq_len).  Positions that
                are True in this mask will be ignored as sources in the attention weighting.
             attn_mask: mask of shape (seq_len, seq_len) or (batch_size, seq_len, seq_len),
@@ -1687,9 +1744,8 @@ class ConvolutionModule(nn.Module):
         bias (bool): Whether to use bias in conv layers (default=True).
 
     """
-
     def __init__(
-        self, channels: int, kernel_size: int,
+            self, channels: int, kernel_size: int, causal: bool,
     ) -> None:
         """Construct a ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
@@ -1697,7 +1753,7 @@ class ConvolutionModule(nn.Module):
         assert (kernel_size - 1) % 2 == 0
 
         bottleneck_dim = channels
-
+        self.causal = causal
 
         self.in_proj = nn.Linear(
             channels, 2 * bottleneck_dim,
@@ -1705,7 +1761,6 @@ class ConvolutionModule(nn.Module):
         # the gradients on in_proj are a little noisy, likely to do with the
         # sigmoid in glu.
         self.in_proj.lr_scale = 0.9
-
 
         # after in_proj we put x through a gated linear unit (nn.functional.glu).
         # For most layers the normal rms value of channels of x seems to be in the range 1 to 4,
@@ -1734,15 +1789,17 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity() # for diagnostics
 
-        self.depthwise_conv = nn.Conv1d(
-            bottleneck_dim,
-            bottleneck_dim,
-            kernel_size,
-            stride=1,
-            padding=(kernel_size - 1) // 2,
+        assert kernel_size % 2 == 1
+
+        self.depthwise_conv = ChunkCausalDepthwiseConv1d(
+            channels=bottleneck_dim,
+            kernel_size=kernel_size) if causal else nn.Conv1d(
+            in_channels=bottleneck_dim,
+            out_channels=bottleneck_dim,
             groups=bottleneck_dim,
-            bias=True,
-        )
+            kernel_size=kernel_size,
+            padding=kernel_size // 2)
+
 
         self.balancer2 = Balancer(
             bottleneck_dim, channel_dim=1,
@@ -1768,6 +1825,7 @@ class ConvolutionModule(nn.Module):
     def forward(self,
                 x: Tensor,
                 src_key_padding_mask: Optional[Tensor] = None,
+                chunk_size: int = -1,
     ) -> Tensor:
         """Compute convolution module.
 
@@ -1798,8 +1856,11 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
 
-        # 1D Depthwise Conv
-        x = self.depthwise_conv(x)
+        if chunk_size >= 0:
+            assert self.causal, "Must initialize model with causal=True if you use chunk_size"
+            x = self.depthwise_conv(x, chunk_size=chunk_size)
+        else:
+            x = self.depthwise_conv(x)
 
         x = self.balancer2(x)
         x = x.permute(2, 0, 1) # (time, batch, channels)
@@ -2186,7 +2247,7 @@ def _test_random_combine():
     assert torch.allclose(y, x[0])  # .. since actually all ones.
 
 
-def _test_zipformer_main():
+def _test_zipformer_main(causal: bool = False):
     feature_dim = 50
     batch_size = 5
     seq_len = 20
@@ -2194,7 +2255,8 @@ def _test_zipformer_main():
     # Just make sure the forward pass runs.
 
     c = Zipformer(
-        num_features=feature_dim, encoder_dim=(64,96), encoder_unmasked_dim=(48,64), num_heads=(4,4)
+        num_features=feature_dim, encoder_dim=(64,96), encoder_unmasked_dim=(48,64), num_heads=(4,4),
+        causal=causal,
     )
     batch_size = 5
     seq_len = 20
@@ -2202,6 +2264,7 @@ def _test_zipformer_main():
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
+        chunk_size=4 if causal else -1,
     )
     f[0].sum().backward()
     c.eval()
@@ -2212,9 +2275,11 @@ def _test_zipformer_main():
     f  # to remove flake8 warnings
 
 
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     _test_random_combine()
-    _test_zipformer_main()
+    _test_zipformer_main(False)
+    _test_zipformer_main(True)

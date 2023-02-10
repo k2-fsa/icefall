@@ -84,6 +84,8 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        chunk_size: int = -1,
+        left_context_chunks: int = -1,
     ) -> torch.Tensor:
         """
         Args:
@@ -104,6 +106,9 @@ class Transducer(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          chunk_size, left_context_chunks:
+            For chunkwise causal training; will be passed to the zipformer encoder.
+            chunk_size is specified in frames at 50Hz, i.e. after 2x downsampling.
         Returns:
           Return the transducer loss.
 
@@ -119,7 +124,8 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
+        encoder_out, x_lens = self.encoder(x, x_lens, chunk_size=chunk_size,
+                                           left_context_chunks=left_context_chunks)
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network

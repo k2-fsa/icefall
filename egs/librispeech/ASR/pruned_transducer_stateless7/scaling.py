@@ -1014,12 +1014,13 @@ def ScaledConv2d(*args,
                  initial_scale: float = 1.0,
                  **kwargs ) -> nn.Conv2d:
     """
-    Behaves like a constructor of a modified version of nn.Conv1d
+    Behaves like a constructor of a modified version of nn.Conv2d
     that gives an easy way to set the default initial parameter scale.
 
     Args:
         Accepts the standard args and kwargs that nn.Linear accepts
-        e.g. in_features, out_features, bias=False.
+        e.g. in_features, out_features, bias=False, but:
+    NO PADDING-RELATED ARGS.
 
         initial_scale: you can override this if you want to increase
            or decrease the initial magnitude of the module's output
@@ -1035,6 +1036,132 @@ def ScaledConv2d(*args,
                                    -0.1 * initial_scale,
                                    0.1 * initial_scale)
     return ans
+
+
+class ChunkCausalDepthwiseConv1d(torch.nn.Module):
+    """
+    Behaves like a depthwise 1d convolution, except that it is causal in
+    a chunkwise way, as if we had a block-triangular attention mask.
+    The chunk size is provided at test time (it should probably be
+    kept in sync with the attention mask).
+
+    This has a little more than twice the parameters of a conventional
+    depthwise conv1d module: we implement it by having one
+    depthwise convolution, of half the width, that is causal (via
+    right-padding); and one depthwise convolution that is applied only
+    within chunks, that we multiply by a scaling factor which depends
+    on the position within the chunk.
+
+    Args:
+        Accepts the standard args and kwargs that nn.Linear accepts
+        e.g. in_features, out_features, bias=False.
+
+        initial_scale: you can override this if you want to increase
+           or decrease the initial magnitude of the module's output
+           (affects the initialization of weight_scale and bias_scale).
+           Another option, if you want to do something like this, is
+           to re-initialize the parameters.
+    """
+    def __init__(self,
+                 channels: int,
+                 kernel_size: int,
+                 initial_scale: float = 1.0,
+                 bias: bool = True):
+        super().__init__()
+        assert kernel_size % 2 == 1
+
+        half_kernel_size = (kernel_size + 1) // 2
+        # will pad manually, on one side.
+        self.causal_conv = nn.Conv1d(in_channels=channels,
+                                     out_channels=channels,
+                                     groups=channels,
+                                     kernel_size=half_kernel_size,
+                                     padding=0,
+                                     bias=True)
+
+        self.chunkwise_conv = nn.Conv1d(in_channels=channels,
+                                        out_channels=channels,
+                                        groups=channels,
+                                        kernel_size=kernel_size,
+                                        padding=kernel_size // 2,
+                                        bias=bias)
+
+        # first row is correction factors added to the scale near the left edge of the chunk,
+        # second row is correction factors added to the scale near the right edge of the chunk,
+        # both of these are added to a default scale of 1.0.
+        self.chunkwise_conv_scale = nn.Parameter(torch.zeros(2, channels, kernel_size))
+        self.kernel_size = kernel_size
+
+        with torch.no_grad():
+            self.causal_conv.weight[:] *= initial_scale
+            self.chunkwise_conv.weight[:] *= initial_scale
+            if bias:
+                torch.nn.init.uniform_(self.causal_conv.bias,
+                                       -0.1 * initial_scale,
+                                       0.1 * initial_scale)
+
+
+    def forward(self,
+                x: Tensor,
+                chunk_size: int = -1) -> Tensor:
+        """
+        Forward function.  Args:
+          x: a Tensor of shape (batch_size, channels, seq_len)
+   chunk_size: the chunk size, in frames; does not have to divide seq_len exactly.
+        """
+        (batch_size, num_channels, seq_len) = x.shape
+
+        half_kernel_size = self.kernel_size + 1 // 2
+        # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
+        # in the causal conv.  It's the amount by which we must pad on the left,
+        # to make the convolution causal.
+        left_pad = self.kernel_size // 2
+
+        if chunk_size < 0:
+            chunk_size = seq_len
+        right_pad = -seq_len % chunk_size
+
+        x = torch.nn.functional.pad(x, (left_pad, right_pad))
+
+        x_causal = self.causal_conv(x[..., :seq_len + left_pad])
+        assert x_causal.shape == (batch_size, num_channels, seq_len)
+
+        x_chunk = x[..., left_pad:]
+        num_chunks = x_chunk.shape[2] // chunk_size
+        x_chunk = x_chunk.reshape(batch_size, num_channels, num_chunks, chunk_size)
+        x_chunk = x_chunk.permute(0, 2, 1, 3).reshape(batch_size * num_chunks,
+                                                      num_channels, chunk_size)
+        x_chunk = self.chunkwise_conv(x_chunk)  # does not change shape
+
+        chunk_scale = self._get_chunk_scale(chunk_size)
+
+        x_chunk = x_chunk * chunk_scale
+        x_chunk = x_chunk.reshape(batch_size, num_chunks,
+                                  num_channels, chunk_size).permute(0, 2, 1, 3)
+        x_chunk = x_chunk.reshape(batch_size, num_channels, num_chunks * chunk_size)[..., :seq_len]
+
+        return x_chunk + x_causal
+
+    def _get_chunk_scale(self, chunk_size: int):
+        """Returns tensor of shape (num_channels, chunk_size) that will be used to
+           scale the output of self.chunkwise_conv."""
+        left_edge = self.chunkwise_conv_scale[0]
+        right_edge = self.chunkwise_conv_scale[1]
+        if chunk_size < self.kernel_size:
+            left_edge = left_edge[:, :chunk_size]
+            right_edge = right_edge[:, -chunk_size:]
+        else:
+            t = chunk_size - self.kernel_size
+            channels = left_edge.shape[0]
+            pad = torch.zeros(channels, t,
+                              device=left_edge.device,
+                              dtype=left_edge.dtype)
+            left_edge = torch.cat((left_edge, pad), dim=-1)
+            right_edge = torch.cat((pad, right_edge), dim=-1)
+        return 1.0 + (left_edge + right_edge)
+
+
+
 
 
 class ActivationBalancer(torch.nn.Module):
