@@ -12,9 +12,12 @@ stop_stage=100
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-#  - $dl_dir/tal_csasr
+#  - $dl_dir/TALCS_corpus
 #      You can find three directories:train_set, dev_set, and test_set.
 #      You can get it from https://ai.100tal.com/dataset
+#     - dev_set
+#     - test_set
+#     - train_set
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -24,7 +27,7 @@ stop_stage=100
 #     - noise
 #     - speech
 
-dl_dir=$PWD/download
+dl_dir=/mnt/data/asr/dataset
 
 . shared/parse_options.sh || exit 1
 
@@ -44,8 +47,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
   # Before you run this script, you must get the TAL_CSASR dataset
   # from https://ai.100tal.com/dataset
-  mv $dl_dir/TALCS_corpus $dl_dir/tal_csasr
-
+  if [ ! -d $dl_dir/tal_csasr/TALCS_corpus ]; then
+    mv $dl_dir/TALCS_corpus $dl_dir/tal_csasr
+  fi
   # If you have pre-downloaded it to /path/to/TALCS_corpus,
   # you can create a symlink
   #
