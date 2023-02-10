@@ -27,7 +27,7 @@ stop_stage=100
 #     - noise
 #     - speech
 
-dl_dir=/mnt/data/asr/dataset
+dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
 
