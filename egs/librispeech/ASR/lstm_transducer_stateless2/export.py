@@ -170,23 +170,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--pnnx",
-        type=str2bool,
-        default=False,
-        help="""True to save a model after applying torch.jit.trace for later
-        converting to PNNX. It will generate 3 files:
-         - encoder_jit_trace-pnnx.pt
-         - decoder_jit_trace-pnnx.pt
-         - joiner_jit_trace-pnnx.pt
-        """,
-    )
-
-    parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     add_model_arguments(parser)
@@ -289,10 +276,6 @@ def main():
 
     logging.info(params)
 
-    if params.pnnx:
-        params.is_pnnx = params.pnnx
-        logging.info("For PNNX")
-
     logging.info("About to create model")
     model = get_transducer_model(params, enable_giga=False)
 
@@ -301,9 +284,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -336,9 +319,9 @@ def main():
             )
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -387,18 +370,7 @@ def main():
     model.to("cpu")
     model.eval()
 
-    if params.pnnx:
-        convert_scaled_to_non_scaled(model, inplace=True)
-        logging.info("Using torch.jit.trace()")
-        encoder_filename = params.exp_dir / "encoder_jit_trace-pnnx.pt"
-        export_encoder_model_jit_trace(model.encoder, encoder_filename)
-
-        decoder_filename = params.exp_dir / "decoder_jit_trace-pnnx.pt"
-        export_decoder_model_jit_trace(model.decoder, decoder_filename)
-
-        joiner_filename = params.exp_dir / "joiner_jit_trace-pnnx.pt"
-        export_joiner_model_jit_trace(model.joiner, joiner_filename)
-    elif params.jit_trace is True:
+    if params.jit_trace is True:
         convert_scaled_to_non_scaled(model, inplace=True)
         logging.info("Using torch.jit.trace()")
         encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
@@ -419,9 +391,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

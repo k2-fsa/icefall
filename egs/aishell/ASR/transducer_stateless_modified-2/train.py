@@ -149,8 +149,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -168,8 +167,7 @@ def get_parser():
         "--datatang-prob",
         type=float,
         default=0.2,
-        help="The probability to select a batch from the "
-        "aidatatang_200zh dataset",
+        help="The probability to select a batch from the aidatatang_200zh dataset",
     )
 
     return parser
@@ -449,9 +447,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -605,9 +601,7 @@ def train_one_epoch(
                     f"train/current_{prefix}_",
                     params.batch_idx_train,
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 aishell_tot_loss.write_summary(
                     tb_writer, "train/aishell_tot_", params.batch_idx_train
                 )
@@ -735,9 +729,7 @@ def run(rank, world_size, args):
     train_datatang_cuts = train_datatang_cuts.repeat(times=None)
 
     if args.enable_musan:
-        cuts_musan = load_manifest(
-            Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
-        )
+        cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
     else:
         cuts_musan = None
 
@@ -776,9 +768,7 @@ def run(rank, world_size, args):
 
         cur_lr = optimizer._rate
         if tb_writer is not None:
-            tb_writer.add_scalar(
-                "train/learning_rate", cur_lr, params.batch_idx_train
-            )
+            tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         if rank == 0:

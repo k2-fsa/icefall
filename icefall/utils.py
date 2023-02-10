@@ -1,5 +1,6 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                    Mingshuang Luo)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                    Mingshuang Luo,
+#                                                    Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -24,9 +25,10 @@ import re
 import subprocess
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, TextIO, Tuple, Union
+from typing import Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
 import k2
 import k2.version
@@ -129,9 +131,7 @@ def setup_logger(
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:
-        formatter = (
-            "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-        )
+        formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
         log_filename = f"{log_filename}-{date_time}"
 
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
@@ -176,11 +176,13 @@ class AttributeDict(dict):
 
 
 def encode_supervisions(
-    supervisions: dict, subsampling_factor: int
-) -> Tuple[torch.Tensor, List[str]]:
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
     """
     Encodes Lhotse's ``batch["supervisions"]`` dict into
-    a pair of torch Tensor, and a list of transcription strings.
+    a pair of torch Tensor, and a list of transcription strings or token indexes
 
     The supervision tensor has shape ``(batch_size, 3)``.
     Its second dimension contains information about sequence index [0],
@@ -193,18 +195,30 @@ def encode_supervisions(
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
-            supervisions["start_frame"] // subsampling_factor,
-            supervisions["num_frames"] // subsampling_factor,
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
         ),
         1,
     ).to(torch.int32)
 
     indices = torch.argsort(supervision_segments[:, 2], descending=True)
     supervision_segments = supervision_segments[indices]
-    texts = supervisions["text"]
-    texts = [texts[idx] for idx in indices]
 
-    return supervision_segments, texts
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res
 
 
 def get_texts(
@@ -248,6 +262,76 @@ def get_texts(
         return aux_labels.tolist()
 
 
+@dataclass
+class DecodingResults:
+    # timestamps[i][k] contains the frame number on which tokens[i][k]
+    # is decoded
+    timestamps: List[List[int]]
+
+    # hyps[i] is the recognition results, i.e., word IDs or token IDs
+    # for the i-th utterance with fast_beam_search_nbest_LG.
+    hyps: Union[List[List[int]], k2.RaggedTensor]
+
+
+def get_texts_with_timestamp(
+    best_paths: k2.Fsa, return_ragged: bool = False
+) -> DecodingResults:
+    """Extract the texts (as word IDs) and timestamps (as frame indexes)
+    from the best-path FSAs.
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+      return_ragged:
+        True to return a ragged tensor with two axes [utt][word_id].
+        False to return a list-of-list word IDs.
+    Returns:
+      Returns a list of lists of int, containing the label sequences we
+      decoded.
+    """
+    if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        all_aux_shape = (
+            best_paths.arcs.shape().remove_axis(1).compose(best_paths.aux_labels.shape)
+        )
+        all_aux_labels = k2.RaggedTensor(all_aux_shape, best_paths.aux_labels.values)
+        # remove 0's and -1's.
+        aux_labels = best_paths.aux_labels.remove_values_leq(0)
+        # TODO: change arcs.shape() to arcs.shape
+        aux_shape = best_paths.arcs.shape().compose(aux_labels.shape)
+        # remove the states and arcs axes.
+        aux_shape = aux_shape.remove_axis(1)
+        aux_shape = aux_shape.remove_axis(1)
+        aux_labels = k2.RaggedTensor(aux_shape, aux_labels.values)
+    else:
+        # remove axis corresponding to states.
+        aux_shape = best_paths.arcs.shape().remove_axis(1)
+        all_aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels)
+        # remove 0's and -1's.
+        aux_labels = all_aux_labels.remove_values_leq(0)
+
+    assert aux_labels.num_axes == 2
+
+    timestamps = []
+    if isinstance(best_paths.aux_labels, k2.RaggedTensor):
+        for p in range(all_aux_labels.dim0):
+            time = []
+            for i, arc in enumerate(all_aux_labels[p].tolist()):
+                if len(arc) == 1 and arc[0] > 0:
+                    time.append(i)
+            timestamps.append(time)
+    else:
+        for labels in all_aux_labels.tolist():
+            time = [i for i, v in enumerate(labels) if v > 0]
+            timestamps.append(time)
+
+    return DecodingResults(
+        timestamps=timestamps,
+        hyps=aux_labels if return_ragged else aux_labels.tolist(),
+    )
+
+
 def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
     """Extract labels or aux_labels from the best-path FSAs.
 
@@ -280,9 +364,7 @@ def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
     token_shape = best_paths.arcs.shape().remove_axis(1)
     # token_shape has axes [fsa][arc]
-    tokens = k2.RaggedTensor(
-        token_shape, getattr(best_paths, kind).contiguous()
-    )
+    tokens = k2.RaggedTensor(token_shape, getattr(best_paths, kind).contiguous())
     tokens = tokens.remove_values_eq(-1)
     return tokens.tolist()
 
@@ -350,6 +432,54 @@ def store_transcripts(
         for cut_id, ref, hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
+
+
+def store_transcripts_and_timestamps(
+    filename: Pathlike,
+    texts: Iterable[Tuple[str, List[str], List[str], List[float], List[float]]],
+) -> None:
+    """Save predicted results and reference transcripts as well as their timestamps
+    to a file.
+
+    Args:
+      filename:
+        File to save the results to.
+      texts:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+    Returns:
+      Return None.
+    """
+    with open(filename, "w") as f:
+        for cut_id, ref, hyp, time_ref, time_hyp in texts:
+            print(f"{cut_id}:\tref={ref}", file=f)
+            print(f"{cut_id}:\thyp={hyp}", file=f)
+
+            if len(time_ref) > 0:
+                if isinstance(time_ref[0], tuple):
+                    # each element is <start, end> pair
+                    s = (
+                        "["
+                        + ", ".join(["(%0.3f, %.03f)" % (i, j) for (i, j) in time_ref])
+                        + "]"
+                    )
+                else:
+                    # each element is a float number
+                    s = "[" + ", ".join(["%0.3f" % i for i in time_ref]) + "]"
+                print(f"{cut_id}:\ttimestamp_ref={s}", file=f)
+
+            if len(time_hyp) > 0:
+                if isinstance(time_hyp[0], tuple):
+                    # each element is <start, end> pair
+                    s = (
+                        "["
+                        + ", ".join(["(%0.3f, %.03f)" % (i, j) for (i, j) in time_hyp])
+                        + "]"
+                    )
+                else:
+                    # each element is a float number
+                    s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
+                print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
 
 
 def write_error_stats(
@@ -476,9 +606,7 @@ def write_error_stats(
             f"{cut_id}:\t"
             + " ".join(
                 (
-                    ref_word
-                    if ref_word == hyp_word
-                    else f"({ref_word}->{hyp_word})"
+                    ref_word if ref_word == hyp_word else f"({ref_word}->{hyp_word})"
                     for ref_word, hyp_word in ali
                 )
             ),
@@ -488,9 +616,7 @@ def write_error_stats(
     print("", file=f)
     print("SUBSTITUTIONS: count ref -> hyp", file=f)
 
-    for count, (ref, hyp) in sorted(
-        [(v, k) for k, v in subs.items()], reverse=True
-    ):
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
         print(f"{count}   {ref} -> {hyp}", file=f)
 
     print("", file=f)
@@ -504,9 +630,7 @@ def write_error_stats(
         print(f"{count}   {hyp}", file=f)
 
     print("", file=f)
-    print(
-        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
-    )
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
     for _, word, counts in sorted(
         [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
     ):
@@ -517,6 +641,249 @@ def write_error_stats(
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
     return float(tot_err_rate)
+
+
+def write_error_stats_with_timestamps(
+    f: TextIO,
+    test_set_name: str,
+    results: List[
+        Tuple[
+            str,
+            List[str],
+            List[str],
+            List[Union[float, Tuple[float, float]]],
+            List[Union[float, Tuple[float, float]]],
+        ]
+    ],
+    enable_log: bool = True,
+    with_end_time: bool = False,
+) -> Tuple[float, Union[float, Tuple[float, float]], Union[float, Tuple[float, float]]]:
+    """Write statistics based on predicted results and reference transcripts
+    as well as their timestamps.
+
+    It will write the following to the given file:
+
+        - WER
+        - number of insertions, deletions, substitutions, corrects and total
+          reference words. For example::
+
+              Errors: 23 insertions, 57 deletions, 212 substitutions, over 2606
+              reference words (2337 correct)
+
+        - The difference between the reference transcript and predicted result.
+          An instance is given below::
+
+            THE ASSOCIATION OF (EDISON->ADDISON) ILLUMINATING COMPANIES
+
+          The above example shows that the reference word is `EDISON`,
+          but it is predicted to `ADDISON` (a substitution error).
+
+          Another example is::
+
+            FOR THE FIRST DAY (SIR->*) I THINK
+
+          The reference word `SIR` is missing in the predicted
+          results (a deletion error).
+      results:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the predicted result.
+      enable_log:
+        If True, also print detailed WER to the console.
+        Otherwise, it is written only to the given file.
+      with_end_time:
+        Whether use end timestamps.
+
+    Returns:
+      Return total word error rate and mean delay.
+    """
+    subs: Dict[Tuple[str, str], int] = defaultdict(int)
+    ins: Dict[str, int] = defaultdict(int)
+    dels: Dict[str, int] = defaultdict(int)
+
+    # `words` stores counts per word, as follows:
+    #   corr, ref_sub, hyp_sub, ins, dels
+    words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    num_corr = 0
+    ERR = "*"
+    # Compute mean alignment delay on the correct words
+    all_delay = []
+    for cut_id, ref, hyp, time_ref, time_hyp in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        has_time = len(time_ref) > 0 and len(time_hyp) > 0
+        if has_time:
+            # pointer to timestamp_hyp
+            p_hyp = 0
+            # pointer to timestamp_ref
+            p_ref = 0
+        for ref_word, hyp_word in ali:
+            if ref_word == ERR:
+                ins[hyp_word] += 1
+                words[hyp_word][3] += 1
+                if has_time:
+                    p_hyp += 1
+            elif hyp_word == ERR:
+                dels[ref_word] += 1
+                words[ref_word][4] += 1
+                if has_time:
+                    p_ref += 1
+            elif hyp_word != ref_word:
+                subs[(ref_word, hyp_word)] += 1
+                words[ref_word][1] += 1
+                words[hyp_word][2] += 1
+                if has_time:
+                    p_hyp += 1
+                    p_ref += 1
+            else:
+                words[ref_word][0] += 1
+                num_corr += 1
+                if has_time:
+                    if with_end_time:
+                        all_delay.append(
+                            (
+                                time_hyp[p_hyp][0] - time_ref[p_ref][0],
+                                time_hyp[p_hyp][1] - time_ref[p_ref][1],
+                            )
+                        )
+                    else:
+                        all_delay.append(time_hyp[p_hyp] - time_ref[p_ref])
+                    p_hyp += 1
+                    p_ref += 1
+        if has_time:
+            assert p_hyp == len(hyp), (p_hyp, len(hyp))
+            assert p_ref == len(ref), (p_ref, len(ref))
+
+    ref_len = sum([len(r) for _, r, _, _, _ in results])
+    sub_errs = sum(subs.values())
+    ins_errs = sum(ins.values())
+    del_errs = sum(dels.values())
+    tot_errs = sub_errs + ins_errs + del_errs
+    tot_err_rate = float("%.2f" % (100.0 * tot_errs / ref_len))
+
+    if with_end_time:
+        mean_delay = (float("inf"), float("inf"))
+        var_delay = (float("inf"), float("inf"))
+    else:
+        mean_delay = float("inf")
+        var_delay = float("inf")
+    num_delay = len(all_delay)
+    if num_delay > 0:
+        if with_end_time:
+            all_delay_start = [i[0] for i in all_delay]
+            mean_delay_start = sum(all_delay_start) / num_delay
+            var_delay_start = (
+                sum([(i - mean_delay_start) ** 2 for i in all_delay_start]) / num_delay
+            )
+
+            all_delay_end = [i[1] for i in all_delay]
+            mean_delay_end = sum(all_delay_end) / num_delay
+            var_delay_end = (
+                sum([(i - mean_delay_end) ** 2 for i in all_delay_end]) / num_delay
+            )
+
+            mean_delay = (
+                float("%.3f" % mean_delay_start),
+                float("%.3f" % mean_delay_end),
+            )
+            var_delay = (float("%.3f" % var_delay_start), float("%.3f" % var_delay_end))
+        else:
+            mean_delay = sum(all_delay) / num_delay
+            var_delay = sum([(i - mean_delay) ** 2 for i in all_delay]) / num_delay
+            mean_delay = float("%.3f" % mean_delay)
+            var_delay = float("%.3f" % var_delay)
+
+    if enable_log:
+        logging.info(
+            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
+            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
+            f"{del_errs} del, {sub_errs} sub ]"
+        )
+        logging.info(
+            f"[{test_set_name}] %symbol-delay mean (s): "
+            f"{mean_delay}, variance: {var_delay} "  # noqa
+            f"computed on {num_delay} correct words"
+        )
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    print(
+        f"Errors: {ins_errs} insertions, {del_errs} deletions, "
+        f"{sub_errs} substitutions, over {ref_len} reference "
+        f"words ({num_corr} correct)",
+        file=f,
+    )
+    print(
+        "Search below for sections starting with PER-UTT DETAILS:, "
+        "SUBSTITUTIONS:, DELETIONS:, INSERTIONS:, PER-WORD STATS:",
+        file=f,
+    )
+
+    print("", file=f)
+    print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
+    for cut_id, ref, hyp, _, _ in results:
+        ali = kaldialign.align(ref, hyp, ERR)
+        combine_successive_errors = True
+        if combine_successive_errors:
+            ali = [[[x], [y]] for x, y in ali]
+            for i in range(len(ali) - 1):
+                if ali[i][0] != ali[i][1] and ali[i + 1][0] != ali[i + 1][1]:
+                    ali[i + 1][0] = ali[i][0] + ali[i + 1][0]
+                    ali[i + 1][1] = ali[i][1] + ali[i + 1][1]
+                    ali[i] = [[], []]
+            ali = [
+                [
+                    list(filter(lambda a: a != ERR, x)),
+                    list(filter(lambda a: a != ERR, y)),
+                ]
+                for x, y in ali
+            ]
+            ali = list(filter(lambda x: x != [[], []], ali))
+            ali = [
+                [
+                    ERR if x == [] else " ".join(x),
+                    ERR if y == [] else " ".join(y),
+                ]
+                for x, y in ali
+            ]
+
+        print(
+            f"{cut_id}:\t"
+            + " ".join(
+                (
+                    ref_word if ref_word == hyp_word else f"({ref_word}->{hyp_word})"
+                    for ref_word, hyp_word in ali
+                )
+            ),
+            file=f,
+        )
+
+    print("", file=f)
+    print("SUBSTITUTIONS: count ref -> hyp", file=f)
+
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
+        print(f"{count}   {ref} -> {hyp}", file=f)
+
+    print("", file=f)
+    print("DELETIONS: count ref", file=f)
+    for count, ref in sorted([(v, k) for k, v in dels.items()], reverse=True):
+        print(f"{count}   {ref}", file=f)
+
+    print("", file=f)
+    print("INSERTIONS: count hyp", file=f)
+    for count, hyp in sorted([(v, k) for k, v in ins.items()], reverse=True):
+        print(f"{count}   {hyp}", file=f)
+
+    print("", file=f)
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
+    for _, word, counts in sorted(
+        [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
+    ):
+        (corr, ref_sub, hyp_sub, ins, dels) = counts
+        tot_errs = ref_sub + hyp_sub + ins + dels
+        ref_count = corr + ref_sub + dels
+        hyp_count = corr + hyp_sub + ins
+
+        print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
+
+    return tot_err_rate, mean_delay, var_delay
 
 
 class MetricsTracker(collections.defaultdict):
@@ -576,9 +943,7 @@ class MetricsTracker(collections.defaultdict):
             if k == "frames" or k == "utterances":
                 continue
             norm_value = (
-                float(v) / num_frames
-                if "utt_" not in k
-                else float(v) / num_utterances
+                float(v) / num_frames if "utt_" not in k else float(v) / num_utterances
             )
             ans.append((k, norm_value))
         return ans
@@ -612,9 +977,7 @@ class MetricsTracker(collections.defaultdict):
             tb_writer.add_scalar(prefix + k, v, batch_idx)
 
 
-def concat(
-    ragged: k2.RaggedTensor, value: int, direction: str
-) -> k2.RaggedTensor:
+def concat(ragged: k2.RaggedTensor, value: int, direction: str) -> k2.RaggedTensor:
     """Prepend a value to the beginning of each sublist or append a value.
     to the end of each sublist.
 
@@ -710,11 +1073,13 @@ def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
     return concat(ragged, eos_id, direction="right")
 
 
-def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
+def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     """
     Args:
       lengths:
         A 1-D tensor containing sentence lengths.
+      max_len:
+        The length of masks.
     Returns:
       Return a 2-D bool tensor, where masked positions
       are filled with `True` and non-masked positions are
@@ -728,8 +1093,7 @@ def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
             [False, False, False, False, False]])
     """
     assert lengths.ndim == 1, lengths.ndim
-
-    max_len = lengths.max()
+    max_len = max(max_len, lengths.max())
     n = lengths.size(0)
 
     expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
@@ -785,9 +1149,7 @@ def linf_norm(x):
     return torch.max(torch.abs(x))
 
 
-def measure_weight_norms(
-    model: nn.Module, norm: str = "l2"
-) -> Dict[str, float]:
+def measure_weight_norms(model: nn.Module, norm: str = "l2") -> Dict[str, float]:
     """
     Compute the norms of the model's parameters.
 
@@ -810,9 +1172,7 @@ def measure_weight_norms(
         return norms
 
 
-def measure_gradient_norms(
-    model: nn.Module, norm: str = "l1"
-) -> Dict[str, float]:
+def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, float]:
     """
     Compute the norms of the gradients for each of model's parameters.
 
@@ -976,3 +1336,431 @@ def display_and_save_batch(
     y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
+
+
+def convert_timestamp(
+    frames: List[int],
+    subsampling_factor: int,
+    frame_shift_ms: float = 10,
+) -> List[float]:
+    """Convert frame numbers to time (in seconds) given subsampling factor
+    and frame shift (in milliseconds).
+
+    Args:
+      frames:
+        A list of frame numbers after subsampling.
+      subsampling_factor:
+        The subsampling factor of the model.
+      frame_shift_ms:
+        Frame shift in milliseconds between two contiguous frames.
+    Return:
+      Return the time in seconds corresponding to each given frame.
+    """
+    frame_shift = frame_shift_ms / 1000.0
+    time = []
+    for f in frames:
+        time.append(f * subsampling_factor * frame_shift)
+
+    return time
+
+
+def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
+    """
+    Parse timestamp of each word.
+
+    Args:
+      tokens:
+        List of tokens.
+      timestamp:
+        List of timestamp of each token.
+
+    Returns:
+      List of timestamp of each word.
+    """
+    start_token = b"\xe2\x96\x81".decode()  # '_'
+    assert len(tokens) == len(timestamp)
+    ans = []
+    for i in range(len(tokens)):
+        flag = False
+        if i == 0 or tokens[i].startswith(start_token):
+            flag = True
+            if len(tokens[i]) == 1 and tokens[i].startswith(start_token):
+                # tokens[i] == start_token
+                if i == len(tokens) - 1:
+                    # it is the last token
+                    flag = False
+                elif tokens[i + 1].startswith(start_token):
+                    # the next token also starts with start_token
+                    flag = False
+        if flag:
+            ans.append(timestamp[i])
+    return ans
+
+
+def parse_hyp_and_timestamp(
+    res: DecodingResults,
+    subsampling_factor: int,
+    frame_shift_ms: float = 10,
+    sp: Optional[spm.SentencePieceProcessor] = None,
+    word_table: Optional[k2.SymbolTable] = None,
+) -> Tuple[List[List[str]], List[List[float]]]:
+    """Parse hypothesis and timestamp.
+
+    Args:
+      res:
+        A DecodingResults object.
+      subsampling_factor:
+        The integer subsampling factor.
+      frame_shift_ms:
+        The float frame shift used for feature extraction.
+      sp:
+        The BPE model.
+      word_table:
+        The word symbol table.
+
+    Returns:
+       Return a list of hypothesis and timestamp.
+    """
+    hyps = []
+    timestamps = []
+
+    N = len(res.hyps)
+    assert len(res.timestamps) == N, (len(res.timestamps), N)
+    use_word_table = False
+    if word_table is not None:
+        assert sp is None
+        use_word_table = True
+    else:
+        assert sp is not None and word_table is None
+
+    for i in range(N):
+        time = convert_timestamp(res.timestamps[i], subsampling_factor, frame_shift_ms)
+        if use_word_table:
+            words = [word_table[i] for i in res.hyps[i]]
+        else:
+            tokens = sp.id_to_piece(res.hyps[i])
+            words = sp.decode_pieces(tokens).split()
+            time = parse_timestamp(tokens, time)
+        assert len(time) == len(words), (len(time), len(words))
+
+        hyps.append(words)
+        timestamps.append(time)
+
+    return hyps, timestamps
+
+
+# `is_module_available` is copied from
+# https://github.com/pytorch/audio/blob/6bad3a66a7a1c7cc05755e9ee5931b7391d2b94c/torchaudio/_internal/module_utils.py#L9
+def is_module_available(*modules: str) -> bool:
+    r"""Returns if a top-level module with :attr:`name` exists *without**
+    importing it. This is generally safer than try-catch block around a
+    `import X`.
+
+    Note: "borrowed" from torchaudio:
+    """
+    import importlib
+
+    return all(importlib.util.find_spec(m) is not None for m in modules)
+
+
+def filter_uneven_sized_batch(batch: dict, allowed_max_frames: int):
+    """For the uneven-sized batch, the total duration after padding would possibly
+    cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    we simply drop the last few shortest samples, so that the retained total frames
+    (after padding) would not exceed the given allow_max_frames.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      allowed_max_frames:
+        The allowed max number of frames in batch.
+    """
+    features = batch["inputs"]
+    supervisions = batch["supervisions"]
+
+    N, T, _ = features.size()
+    assert T == supervisions["num_frames"].max(), (T, supervisions["num_frames"].max())
+    keep_num_utt = allowed_max_frames // T
+
+    if keep_num_utt >= N:
+        return batch
+
+    # Note: we assume the samples in batch is sorted descendingly by length
+    logging.info(
+        f"Filtering uneven-sized batch, original batch size is {N}, "
+        f"retained batch size is {keep_num_utt}."
+    )
+    batch["inputs"] = features[:keep_num_utt]
+    for k, v in supervisions.items():
+        assert len(v) == N, (len(v), N)
+        batch["supervisions"][k] = v[:keep_num_utt]
+
+    return batch
+
+
+def parse_bpe_start_end_pairs(
+    tokens: List[str], is_first_token: List[bool]
+) -> List[Tuple[int, int]]:
+    """Parse pairs of start and end frame indexes for each word.
+
+    Args:
+      tokens:
+        List of BPE tokens.
+      is_first_token:
+        List of bool values, which indicates whether it is the first token,
+        i.e., not repeat or blank.
+
+    Returns:
+      List of (start-frame-index, end-frame-index) pairs for each word.
+    """
+    assert len(tokens) == len(is_first_token), (len(tokens), len(is_first_token))
+
+    start_token = b"\xe2\x96\x81".decode()  # '_'
+    blank_token = "<blk>"
+
+    non_blank_idx = [i for i in range(len(tokens)) if tokens[i] != blank_token]
+    num_non_blank = len(non_blank_idx)
+
+    pairs = []
+    start = -1
+    end = -1
+    for j in range(num_non_blank):
+        # The index in all frames
+        i = non_blank_idx[j]
+
+        found_start = False
+        if is_first_token[i] and (j == 0 or tokens[i].startswith(start_token)):
+            found_start = True
+            if tokens[i] == start_token:
+                if j == num_non_blank - 1:
+                    # It is the last non-blank token
+                    found_start = False
+                elif is_first_token[non_blank_idx[j + 1]] and tokens[
+                    non_blank_idx[j + 1]
+                ].startswith(start_token):
+                    # The next not-blank token is a first-token and also starts with start_token
+                    found_start = False
+        if found_start:
+            start = i
+
+        if start != -1:
+            found_end = False
+            if j == num_non_blank - 1:
+                # It is the last non-blank token
+                found_end = True
+            elif is_first_token[non_blank_idx[j + 1]] and tokens[
+                non_blank_idx[j + 1]
+            ].startswith(start_token):
+                # The next not-blank token is a first-token and also starts with start_token
+                found_end = True
+            if found_end:
+                end = i
+
+        if start != -1 and end != -1:
+            if not all([tokens[t] == start_token for t in range(start, end + 1)]):
+                # except the case of all start_token
+                pairs.append((start, end))
+            # Reset start and end
+            start = -1
+            end = -1
+
+    return pairs
+
+
+def parse_bpe_timestamps_and_texts(
+    best_paths: k2.Fsa, sp: spm.SentencePieceProcessor
+) -> Tuple[List[Tuple[int, int]], List[List[str]]]:
+    """Parse timestamps (frame indexes) and texts.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful). Its attribtutes `labels` and `aux_labels`
+        are both BPE tokens.
+      sp:
+        The BPE model.
+
+    Returns:
+      utt_index_pairs:
+        A list of pair list. utt_index_pairs[i] is a list of
+        (start-frame-index, end-frame-index) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    shape = best_paths.arcs.shape().remove_axis(1)
+
+    # labels: [utt][arcs]
+    labels = k2.RaggedTensor(shape, best_paths.labels.contiguous())
+    # remove -1's.
+    labels = labels.remove_values_eq(-1)
+    labels = labels.tolist()
+
+    # aux_labels: [utt][arcs]
+    aux_labels = k2.RaggedTensor(shape, best_paths.aux_labels.contiguous())
+
+    # remove -1's.
+    all_aux_labels = aux_labels.remove_values_eq(-1)
+    # len(all_aux_labels[i]) is equal to the number of frames
+    all_aux_labels = all_aux_labels.tolist()
+
+    # remove 0's and -1's.
+    out_aux_labels = aux_labels.remove_values_leq(0)
+    # len(out_aux_labels[i]) is equal to the number of output BPE tokens
+    out_aux_labels = out_aux_labels.tolist()
+
+    utt_index_pairs = []
+    utt_words = []
+    for i in range(len(labels)):
+        tokens = sp.id_to_piece(labels[i])
+        words = sp.decode(out_aux_labels[i]).split()
+
+        # Indicates whether it is the first token, i.e., not-repeat and not-blank.
+        is_first_token = [a != 0 for a in all_aux_labels[i]]
+        index_pairs = parse_bpe_start_end_pairs(tokens, is_first_token)
+        assert len(index_pairs) == len(words), (len(index_pairs), len(words), tokens)
+        utt_index_pairs.append(index_pairs)
+        utt_words.append(words)
+
+    return utt_index_pairs, utt_words
+
+
+def parse_timestamps_and_texts(
+    best_paths: k2.Fsa, word_table: k2.SymbolTable
+) -> Tuple[List[Tuple[int, int]], List[List[str]]]:
+    """Parse timestamps (frame indexes) and texts.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful). Attribtute `labels` is the prediction unit,
+        e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
+      word_table:
+        The word symbol table.
+
+    Returns:
+      utt_index_pairs:
+        A list of pair list. utt_index_pairs[i] is a list of
+        (start-frame-index, end-frame-index) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    # [utt][words]
+    word_ids = get_texts(best_paths)
+
+    shape = best_paths.arcs.shape().remove_axis(1)
+
+    # labels: [utt][arcs]
+    labels = k2.RaggedTensor(shape, best_paths.labels.contiguous())
+    # remove -1's.
+    labels = labels.remove_values_eq(-1)
+    labels = labels.tolist()
+
+    # aux_labels: [utt][arcs]
+    aux_shape = shape.compose(best_paths.aux_labels.shape)
+    aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels.values.contiguous())
+    aux_labels = aux_labels.tolist()
+
+    utt_index_pairs = []
+    utt_words = []
+    for i, (label, aux_label) in enumerate(zip(labels, aux_labels)):
+        num_arcs = len(label)
+        # The last arc of aux_label is the arc entering the final state
+        assert num_arcs == len(aux_label) - 1, (num_arcs, len(aux_label))
+
+        index_pairs = []
+        start = -1
+        end = -1
+        for arc in range(num_arcs):
+            # len(aux_label[arc]) is 0 or 1
+            if label[arc] != 0 and len(aux_label[arc]) != 0:
+                if start != -1 and end != -1:
+                    index_pairs.append((start, end))
+                start = arc
+            if label[arc] != 0:
+                end = arc
+        if start != -1 and end != -1:
+            index_pairs.append((start, end))
+
+        words = [word_table[w] for w in word_ids[i]]
+        assert len(index_pairs) == len(words), (len(index_pairs), len(words))
+
+        utt_index_pairs.append(index_pairs)
+        utt_words.append(words)
+
+    return utt_index_pairs, utt_words
+
+
+def parse_fsa_timestamps_and_texts(
+    best_paths: k2.Fsa,
+    sp: Optional[spm.SentencePieceProcessor] = None,
+    word_table: Optional[k2.SymbolTable] = None,
+    subsampling_factor: int = 4,
+    frame_shift_ms: float = 10,
+) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
+    """Parse timestamps (in seconds) and texts for given decoded fsa paths.
+    Currently it supports two cases:
+    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+        are both BPE tokens. In this case, sp should be provided.
+    (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
+        e.g., phone or BPE tokens; attribute `aux_labels` is the word index.
+        In this case, word_table should be provided.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+      sp:
+        The BPE model.
+      word_table:
+        The word symbol table.
+      subsampling_factor:
+        The subsampling factor of the model.
+      frame_shift_ms:
+        Frame shift in milliseconds between two contiguous frames.
+
+    Returns:
+      utt_time_pairs:
+        A list of pair list. utt_time_pairs[i] is a list of
+        (start-time, end-time) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    if sp is not None:
+        assert word_table is None, "word_table is not needed if sp is provided."
+        utt_index_pairs, utt_words = parse_bpe_timestamps_and_texts(
+            best_paths=best_paths, sp=sp
+        )
+    elif word_table is not None:
+        assert sp is None, "sp is not needed if word_table is provided."
+        utt_index_pairs, utt_words = parse_timestamps_and_texts(
+            best_paths=best_paths, word_table=word_table
+        )
+    else:
+        raise ValueError("Either sp or word_table should be provided.")
+
+    utt_time_pairs = []
+    for utt in utt_index_pairs:
+        start = convert_timestamp(
+            frames=[i[0] for i in utt],
+            subsampling_factor=subsampling_factor,
+            frame_shift_ms=frame_shift_ms,
+        )
+        end = convert_timestamp(
+            # The duration in frames is (end_frame_index - start_frame_index + 1)
+            frames=[i[1] + 1 for i in utt],
+            subsampling_factor=subsampling_factor,
+            frame_shift_ms=frame_shift_ms,
+        )
+        utt_time_pairs.append(list(zip(start, end)))
+
+    return utt_time_pairs, utt_words

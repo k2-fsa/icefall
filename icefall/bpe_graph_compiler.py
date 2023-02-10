@@ -83,11 +83,12 @@ class BpeCtcTrainingGraphCompiler(object):
         Args:
           piece_ids:
             It is a list-of-list integer IDs.
-         modified:
+          modified:
            See :func:`k2.ctc_graph` for its meaning.
         Return:
           Return an FsaVec, which is the result of composing a
           CTC topology with linear FSAs constructed from the given
           piece IDs.
         """
-        return k2.ctc_graph(piece_ids, modified=modified, device=self.device)
+        graph = k2.ctc_graph(piece_ids, modified=modified, device=self.device)
+        return graph

@@ -22,5 +22,6 @@ typeguard==2.13.3
 multi_quantization
 
 onnx
+onnxmltools
 onnxruntime
-onnx_graphsurgeon -i https://pypi.ngc.nvidia.com
+kaldifst

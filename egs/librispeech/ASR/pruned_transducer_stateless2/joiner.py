@@ -56,13 +56,9 @@ class Joiner(nn.Module):
         """
         if not is_jit_tracing():
             assert encoder_out.ndim == decoder_out.ndim
-            assert encoder_out.ndim in (2, 4)
-            assert encoder_out.shape == decoder_out.shape
 
         if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
-                decoder_out
-            )
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
         else:
             logit = encoder_out + decoder_out
 

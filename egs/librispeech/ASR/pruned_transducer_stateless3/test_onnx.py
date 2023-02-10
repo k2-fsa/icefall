@@ -21,6 +21,11 @@ This file is to test that models can be exported to onnx.
 """
 import os
 
+from icefall import is_module_available
+
+if not is_module_available("onnxruntime"):
+    raise ValueError("Please 'pip install onnxruntime' first.")
+
 import onnxruntime as ort
 import torch
 from conformer import (
@@ -85,9 +90,7 @@ def test_conv2d_subsampling():
 
     onnx_y = torch.from_numpy(onnx_y)
     torch_y = jit_model(x)
-    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (
-        (onnx_y - torch_y).abs().max()
-    )
+    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (onnx_y - torch_y).abs().max()
 
     os.remove(filename)
 
@@ -142,9 +145,7 @@ def test_rel_pos():
     onnx_pos_emb = torch.from_numpy(onnx_pos_emb)
 
     torch_y, torch_pos_emb = jit_model(x)
-    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (
-        (onnx_y - torch_y).abs().max()
-    )
+    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (onnx_y - torch_y).abs().max()
 
     assert torch.allclose(onnx_pos_emb, torch_pos_emb, atol=1e-05), (
         (onnx_pos_emb - torch_pos_emb).abs().max()
@@ -192,9 +193,7 @@ def test_conformer_encoder_layer():
     encoder_layer.eval()
     encoder_layer = convert_scaled_to_non_scaled(encoder_layer, inplace=True)
 
-    jit_model = torch.jit.trace(
-        encoder_layer, (x, pos_emb, src_key_padding_mask)
-    )
+    jit_model = torch.jit.trace(encoder_layer, (x, pos_emb, src_key_padding_mask))
 
     torch.onnx.export(
         encoder_layer,
@@ -231,9 +230,7 @@ def test_conformer_encoder_layer():
     onnx_y = torch.from_numpy(onnx_y)
 
     torch_y = jit_model(x, pos_emb, src_key_padding_mask)
-    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (
-        (onnx_y - torch_y).abs().max()
-    )
+    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (onnx_y - torch_y).abs().max()
 
     print(onnx_y.abs().sum(), torch_y.abs().sum(), onnx_y.shape, torch_y.shape)
 
@@ -317,9 +314,7 @@ def test_conformer_encoder():
     onnx_y = torch.from_numpy(onnx_y)
 
     torch_y = jit_model(x, pos_emb, src_key_padding_mask)
-    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (
-        (onnx_y - torch_y).abs().max()
-    )
+    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (onnx_y - torch_y).abs().max()
 
     print(onnx_y.abs().sum(), torch_y.abs().sum(), onnx_y.shape, torch_y.shape)
 
@@ -374,9 +369,7 @@ def test_conformer():
     onnx_y_lens = torch.from_numpy(onnx_y_lens)
 
     torch_y, torch_y_lens = jit_model(x, x_lens)
-    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (
-        (onnx_y - torch_y).abs().max()
-    )
+    assert torch.allclose(onnx_y, torch_y, atol=1e-05), (onnx_y - torch_y).abs().max()
 
     assert torch.allclose(onnx_y_lens, torch_y_lens, atol=1e-05), (
         (onnx_y_lens - torch_y_lens).abs().max()

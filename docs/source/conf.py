@@ -74,7 +74,18 @@ html_context = {
     "github_user": "k2-fsa",
     "github_repo": "icefall",
     "github_version": "master",
-    "conf_py_path": "/icefall/docs/source/",
+    "conf_py_path": "/docs/source/",
 }
 
 todo_include_todos = True
+
+rst_epilog = """
+.. _sherpa-ncnn: https://github.com/k2-fsa/sherpa-ncnn
+.. _icefall: https://github.com/k2-fsa/icefall
+.. _git-lfs: https://git-lfs.com/
+.. _ncnn: https://github.com/tencent/ncnn
+.. _LibriSpeech: https://www.openslr.org/12
+.. _musan: http://www.openslr.org/17/
+.. _ONNX: https://github.com/onnx/onnx
+.. _onnxruntime: https://github.com/microsoft/onnxruntime
+"""

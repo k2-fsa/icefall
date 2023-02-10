@@ -35,6 +35,7 @@ from pathlib import Path
 
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.cut import Cut
+from lhotse.dataset.speech_recognition import validate_for_asr
 
 
 def get_args():
@@ -55,16 +56,22 @@ def validate_one_supervision_per_cut(c: Cut):
 
 
 def validate_supervision_and_cut_time_bounds(c: Cut):
+    tol = 2e-3  # same tolerance as in 'validate_for_asr()'
     s = c.supervisions[0]
-    if s.start < c.start:
-        raise ValueError(
-            f"{c.id}: Supervision start time {s.start} is less "
-            f"than cut start time {c.start}"
-        )
 
-    if s.end > c.end:
+    # Supervision start time is relative to Cut ...
+    # https://lhotse.readthedocs.io/en/v0.10_e/cuts.html
+    if s.start < -tol:
         raise ValueError(
-            f"{c.id}: Supervision end time {s.end} is larger "
+            f"{c.id}: Supervision start time {s.start} must not be negative."
+        )
+    if s.start > tol:
+        raise ValueError(
+            f"{c.id}: Supervision start time {s.start} is not at the beginning of the Cut. Please apply `lhotse cut trim-to-supervisions`."
+        )
+    if c.start + s.end > c.end + tol:
+        raise ValueError(
+            f"{c.id}: Supervision end time {c.start+s.end} is larger "
             f"than cut end time {c.end}"
         )
 
@@ -83,11 +90,15 @@ def main():
         validate_one_supervision_per_cut(c)
         validate_supervision_and_cut_time_bounds(c)
 
+    # Validation from K2 training
+    # - checks supervision start is 0
+    # - checks supervision.duration is not longer than cut.duration
+    # - there is tolerance 2ms
+    validate_for_asr(cut_set)
+
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

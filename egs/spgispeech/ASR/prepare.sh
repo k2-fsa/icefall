@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 nj=20
@@ -105,7 +108,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     pieces=$(find data/manifests -name "cuts_train_[0-9]*.jsonl.gz")
     lhotse combine $pieces data/manifests/cuts_train.jsonl.gz
   fi
-  gunzip -c data/manifests/train_cuts.jsonl.gz | shuf | gzip -c > data/manifests/train_cuts_shuf.jsonl.gz
+  gunzip -c data/manifests/cuts_train.jsonl.gz | shuf | gzip -c > data/manifests/cuts_train_shuf.jsonl.gz
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
@@ -133,7 +136,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     # Add special words to words.txt
     echo "<eps> 0" > $lang_dir/words.txt
     echo "!SIL 1" >> $lang_dir/words.txt
-    echo "[UNK] 2" >> $lang_dir/words.txt
+    echo "<UNK> 2" >> $lang_dir/words.txt
 
     # Add regular words to words.txt
     gunzip -c data/manifests/cuts_train_raw.jsonl.gz \

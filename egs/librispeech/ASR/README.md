@@ -1,6 +1,6 @@
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/librispeech/index.html> for how to run models in this recipe.
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/librispeech/index.html> for how to run models in this recipe.
 
 [./RESULTS.md](./RESULTS.md) contains the latest results.
 
@@ -19,15 +19,36 @@ The following table lists the differences among them.
 | `pruned_transducer_stateless`         | Conformer           | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
 | `pruned_transducer_stateless2`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss                        |
 | `pruned_transducer_stateless3`        | Conformer(modified) | Embedding + Conv1d | Using k2 pruned RNN-T loss + using GigaSpeech as extra training data |
-| `pruned_transducer_stateless4`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless2 + save averaged models periodically during training                        |
+| `pruned_transducer_stateless4`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless2 + save averaged models periodically during training + delay penalty |
 | `pruned_transducer_stateless5`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + more layers + random combiner|
 | `pruned_transducer_stateless6`        | Conformer(modified) | Embedding + Conv1d | same as pruned_transducer_stateless4 + distillation with hubert|
+| `pruned_transducer_stateless7`        | Zipformer | Embedding + Conv1d | First experiment with Zipformer from Dan|
+| `pruned_transducer_stateless7_ctc`    | Zipformer | Embedding + Conv1d | Same as pruned_transducer_stateless7, but with extra CTC head|
+| `pruned_transducer_stateless7_ctc_bs` | Zipformer | Embedding + Conv1d | pruned_transducer_stateless7_ctc + blank skip |
+| `pruned_transducer_stateless7_streaming` | Streaming Zipformer | Embedding + Conv1d | streaming version of pruned_transducer_stateless7 |
+| `pruned_transducer_stateless8`        | Zipformer | Embedding + Conv1d | Same as pruned_transducer_stateless7, but using extra data from GigaSpeech|
 | `pruned_stateless_emformer_rnnt2`     | Emformer(from torchaudio) | Embedding + Conv1d | Using Emformer from torchaudio for streaming ASR|
 | `conv_emformer_transducer_stateless`  | ConvEmformer | Embedding + Conv1d | Using ConvEmformer for streaming ASR + mechanisms in reworked model |
 | `conv_emformer_transducer_stateless2` | ConvEmformer | Embedding + Conv1d | Using ConvEmformer with simplified memory for streaming ASR + mechanisms in reworked model |
 | `lstm_transducer_stateless`           | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model |
-| `lstm_transducer_stateless2`           | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gigaspeech (multi-dataset setup) |
+| `lstm_transducer_stateless2`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gigaspeech (multi-dataset setup) |
+| `lstm_transducer_stateless3`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gradient filter + delay penalty |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
 We place an additional Conv1d layer right after the input embedding layer.
+
+# CTC
+
+|                              | Encoder            | Comment                      |
+|------------------------------|--------------------|------------------------------|
+| `conformer-ctc`              | Conformer          | Use auxiliary attention head |
+| `conformer-ctc2`             | Reworked Conformer | Use auxiliary attention head |
+| `conformer-ctc3`             | Reworked Conformer | Streaming version + delay penalty |
+
+# MMI
+
+|                              | Encoder   | Comment                                           |
+|------------------------------|-----------|---------------------------------------------------|
+| `conformer-mmi`              | Conformer |                                                   |
+| `zipformer-mmi`              | Zipformer | CTC warmup + use HP as decoding graph for decoding |

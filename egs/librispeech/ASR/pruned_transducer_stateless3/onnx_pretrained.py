@@ -18,35 +18,61 @@
 This script loads ONNX models and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless3/export.py \
-  --exp-dir ./pruned_transducer_stateless3/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10 \
-  --onnx 1
+We use the pre-trained model from
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+as an example to show how to use this file.
 
-Usage of this script:
+1. Download the pre-trained model
+
+cd egs/librispeech/ASR
+
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+
+pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "exp/pretrained-iter-1224000-avg-14.pt"
+
+cd exp
+ln -s pretrained-iter-1224000-avg-14.pt epoch-9999.pt
+popd
+
+2. Export the model to ONNX
+
+./pruned_transducer_stateless3/export-onnx.py \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --epoch 9999 \
+  --avg 1 \
+  --exp-dir $repo/exp/
+
+It will generate the following 3 files inside $repo/exp:
+
+  - encoder-epoch-9999-avg-1.onnx
+  - decoder-epoch-9999-avg-1.onnx
+  - joiner-epoch-9999-avg-1.onnx
+
+3. Run this file
 
 ./pruned_transducer_stateless3/onnx_pretrained.py \
-  --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
-  --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
-  --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
-  /path/to/foo.wav \
-  /path/to/bar.wav
+  --encoder-model-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-9999-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.wav \
+  $repo/test_wavs/1221-135766-0001.wav \
+  $repo/test_wavs/1221-135766-0002.wav
 """
 
 import argparse
 import logging
 import math
-from typing import List
+from typing import List, Tuple
 
+import k2
 import kaldifeat
 import numpy as np
 import onnxruntime as ort
-import sentencepiece as spm
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
@@ -79,23 +105,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--joiner-encoder-proj-model-filename",
+        "--tokens",
         type=str,
-        required=True,
-        help="Path to the joiner encoder_proj onnx model. ",
-    )
-
-    parser.add_argument(
-        "--joiner-decoder-proj-model-filename",
-        type=str,
-        required=True,
-        help="Path to the joiner decoder_proj onnx model. ",
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -115,14 +127,120 @@ def get_parser():
         help="The sample rate of the input sound file",
     )
 
-    parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="Context size of the decoder model",
-    )
-
     return parser
+
+
+class OnnxModel:
+    def __init__(
+        self,
+        encoder_model_filename: str,
+        decoder_model_filename: str,
+        joiner_model_filename: str,
+    ):
+        session_opts = ort.SessionOptions()
+        session_opts.inter_op_num_threads = 1
+        session_opts.intra_op_num_threads = 1
+
+        self.session_opts = session_opts
+
+        self.init_encoder(encoder_model_filename)
+        self.init_decoder(decoder_model_filename)
+        self.init_joiner(joiner_model_filename)
+
+    def init_encoder(self, encoder_model_filename: str):
+        self.encoder = ort.InferenceSession(
+            encoder_model_filename,
+            sess_options=self.session_opts,
+        )
+
+    def init_decoder(self, decoder_model_filename: str):
+        self.decoder = ort.InferenceSession(
+            decoder_model_filename,
+            sess_options=self.session_opts,
+        )
+
+        decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
+        self.context_size = int(decoder_meta["context_size"])
+        self.vocab_size = int(decoder_meta["vocab_size"])
+
+        logging.info(f"context_size: {self.context_size}")
+        logging.info(f"vocab_size: {self.vocab_size}")
+
+    def init_joiner(self, joiner_model_filename: str):
+        self.joiner = ort.InferenceSession(
+            joiner_model_filename,
+            sess_options=self.session_opts,
+        )
+
+        joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
+        self.joiner_dim = int(joiner_meta["joiner_dim"])
+
+        logging.info(f"joiner_dim: {self.joiner_dim}")
+
+    def run_encoder(
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C)
+          x_lens:
+            A 2-D tensor of shape (N,). Its dtype is torch.int64
+        Returns:
+          Return a tuple containing:
+            - encoder_out, its shape is (N, T', joiner_dim)
+            - encoder_out_lens, its shape is (N,)
+        """
+        out = self.encoder.run(
+            [
+                self.encoder.get_outputs()[0].name,
+                self.encoder.get_outputs()[1].name,
+            ],
+            {
+                self.encoder.get_inputs()[0].name: x.numpy(),
+                self.encoder.get_inputs()[1].name: x_lens.numpy(),
+            },
+        )
+        return torch.from_numpy(out[0]), torch.from_numpy(out[1])
+
+    def run_decoder(self, decoder_input: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+          decoder_input:
+            A 2-D tensor of shape (N, context_size)
+        Returns:
+          Return a 2-D tensor of shape (N, joiner_dim)
+        """
+        out = self.decoder.run(
+            [self.decoder.get_outputs()[0].name],
+            {self.decoder.get_inputs()[0].name: decoder_input.numpy()},
+        )[0]
+
+        return torch.from_numpy(out)
+
+    def run_joiner(
+        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Args:
+          encoder_out:
+            A 2-D tensor of shape (N, joiner_dim)
+          decoder_out:
+            A 2-D tensor of shape (N, joiner_dim)
+        Returns:
+          Return a 2-D tensor of shape (N, vocab_size)
+        """
+        out = self.joiner.run(
+            [self.joiner.get_outputs()[0].name],
+            {
+                self.joiner.get_inputs()[0].name: encoder_out.numpy(),
+                self.joiner.get_inputs()[1].name: decoder_out.numpy(),
+            },
+        )[0]
+
+        return torch.from_numpy(out)
 
 
 def read_sound_files(
@@ -140,46 +258,31 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
 
 
 def greedy_search(
-    decoder: ort.InferenceSession,
-    joiner: ort.InferenceSession,
-    joiner_encoder_proj: ort.InferenceSession,
-    joiner_decoder_proj: ort.InferenceSession,
-    encoder_out: np.ndarray,
-    encoder_out_lens: np.ndarray,
-    context_size: int,
+    model: OnnxModel,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
 ) -> List[List[int]]:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
     Args:
-      decoder:
-        The decoder model.
-      joiner:
-        The joiner model.
-      joiner_encoder_proj:
-        The joiner encoder projection model.
-      joiner_decoder_proj:
-        The joiner decoder projection model.
+      model:
+        The transducer model.
       encoder_out:
-        A 3-D tensor of shape (N, T, C)
+        A 3-D tensor of shape (N, T, joiner_dim)
       encoder_out_lens:
         A 1-D tensor of shape (N,).
-      context_size:
-        The context size of the decoder model.
     Returns:
       Return the decoded results for each utterance.
     """
-    encoder_out = torch.from_numpy(encoder_out)
-    encoder_out_lens = torch.from_numpy(encoder_out_lens)
-    assert encoder_out.ndim == 3
+    assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
@@ -189,15 +292,6 @@ def greedy_search(
         enforce_sorted=False,
     )
 
-    projected_encoder_out = joiner_encoder_proj.run(
-        [joiner_encoder_proj.get_outputs()[0].name],
-        {
-            joiner_encoder_proj.get_inputs()[
-                0
-            ].name: packed_encoder_out.data.numpy()
-        },
-    )[0]
-
     blank_id = 0  # hard-code to 0
 
     batch_size_list = packed_encoder_out.batch_sizes.tolist()
@@ -206,50 +300,27 @@ def greedy_search(
     assert torch.all(encoder_out_lens > 0), encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
 
+    context_size = model.context_size
     hyps = [[blank_id] * context_size for _ in range(N)]
-
-    decoder_input_nodes = decoder.get_inputs()
-    decoder_output_nodes = decoder.get_outputs()
-
-    joiner_input_nodes = joiner.get_inputs()
-    joiner_output_nodes = joiner.get_outputs()
 
     decoder_input = torch.tensor(
         hyps,
         dtype=torch.int64,
     )  # (N, context_size)
 
-    decoder_out = decoder.run(
-        [decoder_output_nodes[0].name],
-        {
-            decoder_input_nodes[0].name: decoder_input.numpy(),
-        },
-    )[0].squeeze(1)
-    projected_decoder_out = joiner_decoder_proj.run(
-        [joiner_decoder_proj.get_outputs()[0].name],
-        {joiner_decoder_proj.get_inputs()[0].name: decoder_out},
-    )[0]
-
-    projected_decoder_out = torch.from_numpy(projected_decoder_out)
+    decoder_out = model.run_decoder(decoder_input)
 
     offset = 0
     for batch_size in batch_size_list:
         start = offset
         end = offset + batch_size
-        current_encoder_out = projected_encoder_out[start:end]
-        # current_encoder_out's shape: (batch_size, encoder_out_dim)
+        current_encoder_out = packed_encoder_out.data[start:end]
+        # current_encoder_out's shape: (batch_size, joiner_dim)
         offset = end
 
-        projected_decoder_out = projected_decoder_out[:batch_size]
+        decoder_out = decoder_out[:batch_size]
+        logits = model.run_joiner(current_encoder_out, decoder_out)
 
-        logits = joiner.run(
-            [joiner_output_nodes[0].name],
-            {
-                joiner_input_nodes[0].name: current_encoder_out,
-                joiner_input_nodes[1].name: projected_decoder_out.numpy(),
-            },
-        )[0]
-        logits = torch.from_numpy(logits).squeeze(1).squeeze(1)
         # logits'shape (batch_size, vocab_size)
 
         assert logits.ndim == 2, logits.shape
@@ -266,17 +337,7 @@ def greedy_search(
                 decoder_input,
                 dtype=torch.int64,
             )
-            decoder_out = decoder.run(
-                [decoder_output_nodes[0].name],
-                {
-                    decoder_input_nodes[0].name: decoder_input.numpy(),
-                },
-            )[0].squeeze(1)
-            projected_decoder_out = joiner_decoder_proj.run(
-                [joiner_decoder_proj.get_outputs()[0].name],
-                {joiner_decoder_proj.get_inputs()[0].name: decoder_out},
-            )[0]
-            projected_decoder_out = torch.from_numpy(projected_decoder_out)
+            decoder_out = model.run_decoder(decoder_input)
 
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []
@@ -292,38 +353,11 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     logging.info(vars(args))
-
-    session_opts = ort.SessionOptions()
-    session_opts.inter_op_num_threads = 1
-    session_opts.intra_op_num_threads = 1
-
-    encoder = ort.InferenceSession(
-        args.encoder_model_filename,
-        sess_options=session_opts,
+    model = OnnxModel(
+        encoder_model_filename=args.encoder_model_filename,
+        decoder_model_filename=args.decoder_model_filename,
+        joiner_model_filename=args.joiner_model_filename,
     )
-
-    decoder = ort.InferenceSession(
-        args.decoder_model_filename,
-        sess_options=session_opts,
-    )
-
-    joiner = ort.InferenceSession(
-        args.joiner_model_filename,
-        sess_options=session_opts,
-    )
-
-    joiner_encoder_proj = ort.InferenceSession(
-        args.joiner_encoder_proj_model_filename,
-        sess_options=session_opts,
-    )
-
-    joiner_decoder_proj = ort.InferenceSession(
-        args.joiner_decoder_proj_model_filename,
-        sess_options=session_opts,
-    )
-
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
@@ -352,39 +386,34 @@ def main():
     )
 
     feature_lengths = torch.tensor(feature_lengths, dtype=torch.int64)
-
-    encoder_input_nodes = encoder.get_inputs()
-    encoder_out_nodes = encoder.get_outputs()
-    encoder_out, encoder_out_lens = encoder.run(
-        [encoder_out_nodes[0].name, encoder_out_nodes[1].name],
-        {
-            encoder_input_nodes[0].name: features.numpy(),
-            encoder_input_nodes[1].name: feature_lengths.numpy(),
-        },
-    )
+    encoder_out, encoder_out_lens = model.run_encoder(features, feature_lengths)
 
     hyps = greedy_search(
-        decoder=decoder,
-        joiner=joiner,
-        joiner_encoder_proj=joiner_encoder_proj,
-        joiner_decoder_proj=joiner_decoder_proj,
+        model=model,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
-        context_size=args.context_size,
     )
     s = "\n"
+
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
+
+    def token_ids_to_words(token_ids: List[int]) -> str:
+        text = ""
+        for i in token_ids:
+            text += symbol_table[i]
+        return text.replace("▁", " ").strip()
+
+    context_size = model.context_size
     for filename, hyp in zip(args.sound_files, hyps):
-        words = sp.decode(hyp)
-        s += f"{filename}:\n{words}\n\n"
+        words = token_ids_to_words(hyp[context_size:])
+        s += f"{filename}:\n{words}\n"
     logging.info(s)
 
     logging.info("Decoding Done")
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

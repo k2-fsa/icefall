@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 nj=15
@@ -52,6 +55,9 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
 
   if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
     git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
+    pushd $dl_dir/lm
+    git lfs pull --include "3-gram.unpruned.arpa"
+    popd
   fi
 fi
 
