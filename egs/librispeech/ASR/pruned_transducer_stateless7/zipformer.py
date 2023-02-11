@@ -1069,6 +1069,7 @@ class SmallConvolutionModule(nn.Module):
             self, channels: int,
             hidden_dim: int = 128,
             kernel_size: int = 5,
+            causal: bool = False,
     ) -> None:
         super().__init__()
 
