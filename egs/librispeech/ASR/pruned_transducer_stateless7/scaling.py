@@ -1123,7 +1123,7 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
 
         x = torch.nn.functional.pad(x, (left_pad, right_pad))
 
-        x_causal = self.causal_conv(x[..., :seq_len + left_pad])
+        x_causal = self.causal_conv(x[..., :left_pad + seq_len])
         assert x_causal.shape == (batch_size, num_channels, seq_len)
 
         x_chunk = x[..., left_pad:]
