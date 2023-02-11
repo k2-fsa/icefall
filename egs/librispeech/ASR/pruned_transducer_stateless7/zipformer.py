@@ -479,9 +479,9 @@ class Zipformer(EncoderInterface):
 
         attn_mask = torch.logical_or(src_c > tgt_c,
                                      src_c < tgt_c - left_context_chunks)
-        if __name__ == "__main__":
+        if __name__ == "__main__" or random.random() < 0.1:
             logging.info(f"attn_mask = {attn_mask}")
-
+        return attn_mask
 
 
 def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
