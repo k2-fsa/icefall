@@ -226,20 +226,29 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+
     parser.add_argument(
-        "--chunk-size",
-        type=str,
-        default="-1",
-        help="  Embedding dimension in encoder stacks: a single int or comma-separated list."
+        "--causal",
+        type=str2bool,
+        default=True,
+        help="If True, use causal version of model.",
     )
 
     parser.add_argument(
-        "--chunk-left-context-frames",
+        "--chunk-size",
+        type=str,
+        default="16,32,64,-1",
+        help="Chunk sizes will be chosen randomly from this list during training. "
+        " Must be just -1 if --causal=False"
+    )
+
+    parser.add_argument(
+        "--left-context-frames",
         type=str,
         default="64,128,256,-1",
-        help="Left-contexts for chunkwise training, measured in frames (positive values must be "
-        "multiples of all positive elements of chunk-size).  If --chunk-size is specified, "
-        "chunk left-context frames will be chosen randomly from this list."
+        help="Maximum left-contexts for causal training, measured in frames which will "
+        "be converted to a number of chunks.  If splitting into chunks, "
+        "chunk left-context frames will be chosen randomly from this list; else not relevant."
     )
 
 
@@ -544,7 +553,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         cnn_module_kernel=to_int_tuple(params.cnn_module_kernel),
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
         warmup_batches=4000.0,
-        causal=(params.chunk_size != "-1"),
+        causal=params.causal,
+        chunk_size=to_int_tuple(params.chunk_size),
+        left_context_frames=to_int_tuple(params.left_context_frames),
     )
     return encoder
 
@@ -705,25 +716,6 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
-def get_chunk_info(params: AttributeDict) -> Tuple[int, int]:
-    """
-    Returns chunk_size and left_context_chunks.
-    """
-    chunk_sizes = list(map(int, params.chunk_size.split(',')))
-    n = len(chunk_sizes)
-    chunk_size = random.choice(chunk_sizes)
-    if chunk_size == -1:
-        left_context_chunks = -1
-    else:
-        chunk_left_context_frames = list(map(int, params.chunk_left_context_frames.split(',')))
-        m = len(chunk_left_context_frames)
-        left_context_frames = random.choice(chunk_left_context_frames)
-        if left_context_frames != -1:
-            assert left_context_frames % chunk_size == 0, "Invalid --chunk-left-context-frames value"
-        # Note: in Python, -1 // n == -1 for n > 0
-        left_context_chunks = left_context_frames // chunk_size
-    return chunk_size, left_context_chunks
-
 
 def compute_loss(
     params: AttributeDict,
@@ -770,8 +762,6 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
-    chunk_size, left_context_chunks = get_chunk_info(params)
-
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
@@ -780,8 +770,6 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            chunk_size=chunk_size,
-            left_context_chunks=left_context_chunks,
         )
 
         s = params.simple_loss_scale

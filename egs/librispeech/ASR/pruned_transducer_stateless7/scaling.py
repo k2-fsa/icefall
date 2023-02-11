@@ -1117,7 +1117,7 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
         # to make the convolution causal.
         left_pad = self.kernel_size // 2
 
-        if chunk_size < 0:
+        if chunk_size < 0 or chunk_size > seq_len:
             chunk_size = seq_len
         right_pad = -seq_len % chunk_size
 

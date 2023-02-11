@@ -102,6 +102,12 @@ class Zipformer(EncoderInterface):
           slightly slower and use more memory.  Enables use of the chunk_size and
           left_context_chunk options in forward(), which simulates streaming
           decoding.
+        chunk_size: (list of int): only set this to other than [-1] if causal;
+           the chunk size will be randomly chosen from this list.  -1 means no chunking.
+        left_context_frames: (list of int): determines the number of left-
+           context chunks for causal training; will be rounded to a number of
+           chunks.  Must not be less than cnn_module_kernel (after factoring in
+           rounding and downsampling); an error will be thrown if this is violated.
     """
     def __init__(
             self,
@@ -122,6 +128,8 @@ class Zipformer(EncoderInterface):
             dropout: FloatLike = None,  # see code below for default
             warmup_batches: float = 4000.0,
             causal: bool = False,
+            chunk_size: Tuple[int] = [-1],
+            left_context_frames: Tuple[int] = [-1],
     ) -> None:
         super(Zipformer, self).__init__()
 
@@ -161,6 +169,10 @@ class Zipformer(EncoderInterface):
         attention_share_layers = _to_tuple(attention_share_layers)
         feedforward_dim = _to_tuple(feedforward_dim)
         self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
+
+        self.causal = causal
+        self.chunk_size = chunk_size
+        self.left_context_frames = left_context_frames
 
         for u,d in zip(encoder_unmasked_dim, encoder_dim):
             assert u <= d
@@ -319,10 +331,24 @@ class Zipformer(EncoderInterface):
         return feature_masks
 
 
+    def get_chunk_info(self) -> Tuple[int, int]:
+        """
+        Returns chunk_size and left_context_chunks.
+        """
+        if not self.causal:
+            return -1, -1
+        chunk_size = random.choice(self.chunk_size)
+        if chunk_size == -1:
+            left_context_chunks = -1
+        else:
+            left_context_frames = random.choice(self.left_context_frames)
+            # Note: in Python, -1 // n == -1 for n > 0
+            left_context_chunks = left_context_frames // chunk_size
+        return chunk_size, left_context_chunks
+
+
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor,
-            chunk_size: int = -1,
-            left_context_chunks: int = -1,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -361,6 +387,8 @@ class Zipformer(EncoderInterface):
 
         outputs = []
         feature_masks = self.get_feature_masks(x)
+
+        chunk_size, left_context_chunks = self.get_chunk_info()
 
         attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
@@ -2257,6 +2285,8 @@ def _test_zipformer_main(causal: bool = False):
     c = Zipformer(
         num_features=feature_dim, encoder_dim=(64,96), encoder_unmasked_dim=(48,64), num_heads=(4,4),
         causal=causal,
+        chunk_size=(4,) if causal else (-1,),
+        left_context_frames=(64,)
     )
     batch_size = 5
     seq_len = 20
@@ -2264,7 +2294,6 @@ def _test_zipformer_main(causal: bool = False):
     f = c(
         torch.randn(batch_size, seq_len, feature_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
-        chunk_size=4 if causal else -1,
     )
     f[0].sum().backward()
     c.eval()
