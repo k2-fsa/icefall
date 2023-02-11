@@ -1412,13 +1412,17 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         if attn_mask is not None:
             assert attn_mask.dtype == torch.bool
-            attn_scores = attn_scores.masked_fill(attn_mask, float("-inf"))
+            # use -1000 to avoid nan's where attn_mask and key_padding_mask make
+            # all scores zero.  It's important that this be large enough that exp(-1000)
+            # is exactly zero, for reasons related to const_attention_rate, it
+            # compares the final weights with zero.
+            attn_scores = attn_scores.masked_fill(attn_mask, -1000)
 
         if key_padding_mask is not None:
             assert key_padding_mask.shape == (batch_size, seq_len), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
                 key_padding_mask.unsqueeze(1),
-                float("-inf"),
+                -1000,
             )
 
         # We use our own version of softmax, defined in scaling.py, which should
