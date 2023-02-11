@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from scaling import Balancer
 
 class Decoder(nn.Module):
     """This class modifies the stateless decoder from the following paper:
@@ -58,11 +59,19 @@ class Decoder(nn.Module):
             embedding_dim=decoder_dim,
             padding_idx=blank_id,
         )
+        # the balancers are to avoid any drift in the magnitude of the
+        # embeddings, which would interact badly with parameter averaging.
+        self.balancer = Balancer(decoder_dim, channel_dim=-1,
+                                 min_positive=0.0, max_positive=1.0,
+                                 min_abs=0.5, max_abs=1.0,
+                                 prob=0.05)
+
         self.blank_id = blank_id
 
         assert context_size >= 1, context_size
         self.context_size = context_size
         self.vocab_size = vocab_size
+
         if context_size > 1:
             self.conv = nn.Conv1d(
                 in_channels=decoder_dim,
@@ -72,6 +81,11 @@ class Decoder(nn.Module):
                 groups=decoder_dim//4,  # group size == 4
                 bias=False,
             )
+            self.balancer2 = Balancer(decoder_dim, channel_dim=-1,
+                                      min_positive=0.0, max_positive=1.0,
+                                      min_abs=0.5, max_abs=1.0,
+                                      prob=0.05)
+
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
@@ -88,6 +102,9 @@ class Decoder(nn.Module):
         # this stuff about clamp() is a temporary fix for a mismatch
         # at utterance start, we use negative ids in beam_search.py
         embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
+
+        embedding_out = self.balancer(embedding_out)
+
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:
@@ -100,5 +117,7 @@ class Decoder(nn.Module):
                 assert embedding_out.size(-1) == self.context_size
             embedding_out = self.conv(embedding_out)
             embedding_out = embedding_out.permute(0, 2, 1)
-        embedding_out = F.relu(embedding_out)
+            embedding_out = F.relu(embedding_out)
+            embedding_out = self.balancer2(embedding_out)
+
         return embedding_out
