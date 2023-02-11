@@ -420,7 +420,6 @@ class Zipformer(EncoderInterface):
             num_encoders = len(self.encoder_dim)
             assert len(outputs) == num_encoders
             output_dim = max(self.encoder_dim)
-            output_shape = outputs[-1].shape[:-1] + (output_dim,)
             output_pieces = [ outputs[-1] ]
             cur_dim = self.encoder_dim[-1]
             for i in range(num_encoders - 2, -1, -1):
