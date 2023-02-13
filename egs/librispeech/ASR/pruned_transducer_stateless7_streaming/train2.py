@@ -69,7 +69,7 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from zipformer import Zipformer
+from zipformer2 import Zipformer
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -482,6 +482,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_left_chunks=params.num_left_chunks,
         short_chunk_size=params.short_chunk_size,
         decode_chunk_size=params.decode_chunk_len // 2,
+        is_pnnx=True,
     )
     return encoder
 

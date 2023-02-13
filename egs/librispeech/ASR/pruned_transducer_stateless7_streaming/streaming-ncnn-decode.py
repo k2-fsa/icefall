@@ -18,18 +18,19 @@
 """
 Usage:
 
-./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py \
-  --tokens ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/tokens.txt \
-  --encoder-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/encoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
-  --encoder-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/encoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
-  --decoder-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/decoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
-  --decoder-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/decoder_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
-  --joiner-param-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/joiner_jit_trace-epoch-30-avg-10-pnnx.ncnn.param \
-  --joiner-bin-filename ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/joiner_jit_trace-epoch-30-avg-10-pnnx.ncnn.bin \
-  ./sherpa-ncnn-conv-emformer-transducer-2022-12-04/test_wavs/1089-134686-0001.wav
+./pruned_transducer_stateless7_streaming/streaming-ncnn-decode.py \
+  --tokens ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/tokens.txt \
+  --encoder-param-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/encoder_jit_trace-pnnx.ncnn.param \
+  --encoder-bin-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/encoder_jit_trace-pnnx.ncnn.bin \
+  --decoder-param-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/decoder_jit_trace-pnnx.ncnn.param \
+  --decoder-bin-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/decoder_jit_trace-pnnx.ncnn.bin \
+  --joiner-param-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/joiner_jit_trace-pnnx.ncnn.param \
+  --joiner-bin-filename ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/joiner_jit_trace-pnnx.ncnn.bin \
+  ./sherpa-ncnn-streaming-zipformer-en-2023-02-13/test_wavs/1089-134686-0001.wav
 
 You can find pretrained models at
-https://huggingface.co/csukuangfj/sherpa-ncnn-conv-emformer-transducer-2022-12-04
+- English: https://huggingface.co/csukuangfj/sherpa-ncnn-streaming-zipformer-en-2023-02-13
+- Bilingual (Chinese + English): https://huggingface.co/csukuangfj/sherpa-ncnn-streaming-zipformer-bilingual-zh-en-2023-02-13
 """
 
 import argparse
@@ -97,33 +98,75 @@ def get_args():
     return parser.parse_args()
 
 
+def to_int_tuple(s: str):
+    return tuple(map(int, s.split(",")))
+
+
 class Model:
     def __init__(self, args):
         self.init_encoder(args)
         self.init_decoder(args)
         self.init_joiner(args)
 
-        self.num_layers = 12
-        self.memory_size = 32
-        self.d_model = 512
-        self.cnn_module_kernel = 31
+        # Please change the parameters according to your model
+        self.num_encoder_layers = to_int_tuple("2,4,3,2,4")
+        self.encoder_dims = to_int_tuple("384,384,384,384,384")  # also known as d_model
+        self.attention_dims = to_int_tuple("192,192,192,192,192")
+        self.zipformer_downsampling_factors = to_int_tuple("1,2,4,8,2")
+        self.cnn_module_kernels = to_int_tuple("31,31,31,31,31")
 
-        self.left_context_length = 32 // 4  # after subsampling
-        self.chunk_length = 32  # before subsampling
-        right_context_length = 8  # before subsampling
-        pad_length = right_context_length + 2 * 4 + 3
+        self.decode_chunk_size = 32 // 2
+        num_left_chunks = 4
+        self.left_context_length = self.decode_chunk_size * num_left_chunks  # 64
+
+        self.chunk_length = self.decode_chunk_size * 2
+        pad_length = 7
         self.T = self.chunk_length + pad_length
-        print("T", self.T, self.chunk_length)
 
     def get_init_states(self) -> List[torch.Tensor]:
-        states = []
+        cached_len_list = []
+        cached_avg_list = []
+        cached_key_list = []
+        cached_val_list = []
+        cached_val2_list = []
+        cached_conv1_list = []
+        cached_conv2_list = []
 
-        for i in range(self.num_layers):
-            s0 = torch.zeros(self.memory_size, self.d_model)
-            s1 = torch.zeros(self.left_context_length, self.d_model)
-            s2 = torch.zeros(self.left_context_length, self.d_model)
-            s3 = torch.zeros(self.d_model, self.cnn_module_kernel - 1)
-            states.extend([s0, s1, s2, s3])
+        for i in range(len(self.num_encoder_layers)):
+            num_layers = self.num_encoder_layers[i]
+            ds = self.zipformer_downsampling_factors[i]
+            attention_dim = self.attention_dims[i]
+            left_context_length = self.left_context_length // ds
+            encoder_dim = self.encoder_dims[i]
+            cnn_module_kernel = self.cnn_module_kernels[i]
+
+            cached_len_list.append(torch.zeros(num_layers))
+            cached_avg_list.append(torch.zeros(num_layers, encoder_dim))
+            cached_key_list.append(
+                torch.zeros(num_layers, left_context_length, attention_dim)
+            )
+            cached_val_list.append(
+                torch.zeros(num_layers, left_context_length, attention_dim // 2)
+            )
+            cached_val2_list.append(
+                torch.zeros(num_layers, left_context_length, attention_dim // 2)
+            )
+            cached_conv1_list.append(
+                torch.zeros(num_layers, encoder_dim, cnn_module_kernel - 1)
+            )
+            cached_conv2_list.append(
+                torch.zeros(num_layers, encoder_dim, cnn_module_kernel - 1)
+            )
+
+        states = (
+            cached_len_list
+            + cached_avg_list
+            + cached_key_list
+            + cached_val_list
+            + cached_val2_list
+            + cached_conv1_list
+            + cached_conv2_list
+        )
 
         return states
 
@@ -183,36 +226,25 @@ class Model:
         with self.encoder_net.create_extractor() as ex:
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
 
-            # layer0 in2-in5
-            # layer1 in6-in9
-            for i in range(self.num_layers):
-                offset = 1 + i * 4
-                name = f"in{offset}"
-                # (32, 1, 512) -> (32, 512)
-                ex.input(name, ncnn.Mat(states[i * 4 + 0].numpy()).clone())
-
-                name = f"in{offset+1}"
-                #  (8, 1, 512) -> (8, 512)
-                ex.input(name, ncnn.Mat(states[i * 4 + 1].numpy()).clone())
-
-                name = f"in{offset+2}"
-                #  (8, 1, 512) -> (8, 512)
-                ex.input(name, ncnn.Mat(states[i * 4 + 2].numpy()).clone())
-
-                name = f"in{offset+3}"
-                #  (1, 512, 2) -> (512, 2)
-                ex.input(name, ncnn.Mat(states[i * 4 + 3].numpy()).clone())
+            for i in range(len(states)):
+                name = f"in{i+1}"
+                ex.input(name, ncnn.Mat(states[i].squeeze().numpy()).clone())
 
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
 
             out_states: List[torch.Tensor] = []
-            for i in range(4 * self.num_layers):
+            for i in range(len(states)):
                 name = f"out{i+1}"
                 ret, ncnn_out_state = ex.extract(name)
                 assert ret == 0, ret
                 ncnn_out_state = torch.from_numpy(ncnn_out_state.numpy())
+
+                if i < len(self.num_encoder_layers):
+                    # for cached_len, we need to discard the last dim
+                    ncnn_out_state = ncnn_out_state.squeeze(1)
+
                 out_states.append(ncnn_out_state)
 
             return encoder_out, out_states
@@ -337,6 +369,7 @@ def main():
     wave_samples = torch.cat([wave_samples, tail_padding])
 
     states = model.get_init_states()
+    logging.info(f"number of states: {len(states)}")
 
     hyp = None
     decoder_out = None

@@ -1522,9 +1522,6 @@ class AttentionDownsample(torch.nn.Module):
     """
 
     def __init__(self, in_channels: int, out_channels: int, downsample: int):
-        """
-        Require out_channels > in_channels.
-        """
         super(AttentionDownsample, self).__init__()
         self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
 

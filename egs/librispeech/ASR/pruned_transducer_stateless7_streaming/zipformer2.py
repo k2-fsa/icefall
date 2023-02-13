@@ -41,6 +41,7 @@ from scaling import (  # not as in other dirs.. just scales down initial paramet
     softmax,
 )
 from torch import Tensor, nn
+from zipformer import PoolingModule
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
 
@@ -1605,15 +1606,9 @@ class AttentionDownsample(torch.nn.Module):
         is_pnnx: bool = False,
         in_x_size: int = 0,
     ):
-        """
-        Require out_channels > in_channels.
-        """
         super(AttentionDownsample, self).__init__()
 
-        #  self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
-        self.query = nn.Parameter(
-            torch.randn(1, 1, in_channels) * (in_channels**-0.5)
-        )
+        self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -2746,85 +2741,6 @@ class RelPositionMultiheadAttention(nn.Module):
                 logging.info(
                     f"attn_weights_entropy = {attn_weights_entropy}, covar={attn_covar}, in_proj_covar={in_proj_covar}, out_proj_covar={out_proj_covar}"
                 )
-
-
-class PoolingModule(nn.Module):
-    """
-    Averages the input over the time dimension and project with a square matrix.
-    """
-
-    def __init__(self, d_model: int):
-        super().__init__()
-        self.proj = ScaledLinear(d_model, d_model, initial_scale=0.1, bias=False)
-
-    def forward(
-        self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
-        """
-        Args:
-           x: a Tensor of shape (T, N, C)
-           src_key_padding_mask: a Tensor of bool, of shape (N, T), with True in masked
-               positions.
-
-        Returns:
-           - output, a Tensor of shape (T, N, C).
-        """
-        if src_key_padding_mask is not None:
-            # False in padding positions
-            padding_mask = src_key_padding_mask.logical_not().to(x.dtype)  # (N, T)
-            # Cumulated numbers of frames from start
-            cum_mask = padding_mask.cumsum(dim=1)  # (N, T)
-            x = x.cumsum(dim=0)  # (T, N, C)
-            pooling_mask = padding_mask / cum_mask
-            pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
-            # now pooling_mask: (T, N, 1)
-            x = x * pooling_mask  # (T, N, C)
-        else:
-            num_frames = x.shape[0]
-            cum_mask = torch.arange(1, num_frames + 1).unsqueeze(1)  # (T, 1)
-            x = x.cumsum(dim=0)  # (T, N, C)
-            pooling_mask = (1.0 / cum_mask).unsqueeze(2)
-            # now pooling_mask: (T, N, 1)
-            x = x * pooling_mask
-
-        x = self.proj(x)
-        return x
-
-    def streaming_forward(
-        self,
-        x: Tensor,
-        cached_len: Tensor,
-        cached_avg: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
-        """
-        Args:
-           x: a Tensor of shape (T, N, C)
-           cached_len: a Tensor of int, of shape (N,), containing the number of
-               past frames in batch.
-           cached_avg: a Tensor of shape (N, C), the average over all past frames
-               in batch.
-
-        Returns:
-           A tuple of 2 tensors:
-           - output, a Tensor of shape (T, N, C).
-           - updated cached_avg, a Tensor of shape (N, C).
-        """
-        x = x.cumsum(dim=0)  # (T, N, C)
-        x = x + (cached_avg * cached_len.unsqueeze(1)).unsqueeze(0)
-        # Cumulated numbers of frames from start
-        cum_mask = torch.arange(1, x.size(0) + 1, device=x.device)
-        cum_mask = cum_mask.unsqueeze(1) + cached_len.unsqueeze(0)  # (T, N)
-        pooling_mask = (1.0 / cum_mask).unsqueeze(2)
-        # now pooling_mask: (T, N, 1)
-        x = x * pooling_mask  # (T, N, C)
-
-        cached_len = cached_len + x.size(0)
-        cached_avg = x[-1]
-
-        x = self.proj(x)
-        return x, cached_len, cached_avg
 
 
 class FeedforwardModule(nn.Module):
