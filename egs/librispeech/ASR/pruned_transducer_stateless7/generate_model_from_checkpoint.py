@@ -243,7 +243,10 @@ def main():
                     device=device,
                 )
             )
-            filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}-use-averaged-model.pt"
+            filename = (
+                params.exp_dir
+                / f"iter-{params.iter}-avg-{params.avg}-use-averaged-model.pt"
+            )
             torch.save({"model": model.state_dict()}, filename)
         else:
             assert params.avg > 0, params.avg
@@ -263,7 +266,10 @@ def main():
                     device=device,
                 )
             )
-            filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}-use-averaged-model.pt"
+            filename = (
+                params.exp_dir
+                / f"epoch-{params.epoch}-avg-{params.avg}-use-averaged-model.pt"
+            )
             torch.save({"model": model.state_dict()}, filename)
 
     num_param = sum([p.numel() for p in model.parameters()])
