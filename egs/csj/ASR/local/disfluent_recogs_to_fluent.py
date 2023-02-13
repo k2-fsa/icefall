@@ -6,7 +6,7 @@ from lhotse import CutSet
 
 ARGPARSE_DESCRIPTION = """
 This helper code takes in a disfluent recogs file generated from icefall.utils.store_transcript,
-compares it against a fluent transcript, and save the results in a separate directory.
+compares it against a fluent transcript, and saves the results in a separate directory.
 This is useful to compare disfluent models with fluent models on the same metric.
 
 """

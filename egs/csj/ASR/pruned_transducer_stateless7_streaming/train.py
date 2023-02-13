@@ -46,6 +46,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
+import math
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -84,6 +85,7 @@ from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+LOG_EPS = math.log(1e-10)
 
 try:
     from TelegramStreamIO import TelegramStreamIO
@@ -399,6 +401,15 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--pad",
+        type=int,
+        default=0,
+        help="""
+        Number of frames to pad at the end.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -684,6 +695,14 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
+
+    if params.pad:
+        feature_lens += params.pad
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.pad),
+            value=LOG_EPS,
+        )
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step

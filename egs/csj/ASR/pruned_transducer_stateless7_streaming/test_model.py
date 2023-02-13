@@ -19,7 +19,7 @@
 """
 To run this file, do:
 
-    cd icefall/egs/librispeech/ASR
+    cd icefall/egs/csj/ASR
     python ./pruned_transducer_stateless7_streaming/test_model.py
 """
 

@@ -63,12 +63,6 @@ def main():
         level=logging.INFO,
     )
 
-    # if not args.lang_dir:
-    #     p = "data/lang_char"
-    #     if args.trans_mode:
-    #         p += f"_{args.trans_mode}"
-    #     args.lang_dir = Path(p)
-
     sysdef_string = set(["<blk>", "<unk>", "<sos/eos>"])
 
     # Using disfluent parsing as fluent is a subset of disfluent

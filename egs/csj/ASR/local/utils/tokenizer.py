@@ -19,7 +19,10 @@ class Tokenizer:
             "--lang-type",
             type=str,
             default=None,
-            help="Either 'bpe', 'char', or 'phone'. If not provided, it expects lang_dir/lang_type to exists.",
+            help=(
+                "Either 'bpe' or 'char'. If not provided, it expects lang_dir/lang_type to exists. "
+                "Note: 'bpe' directly loads sentencepiece.SentencePieceProcessor"
+            ),
         )
 
     @staticmethod
@@ -173,6 +176,9 @@ class CharTokenizer(Tokenizer):
             lang_dir / "tokens.txt"
         ).exists(), f"tokens.txt could not be found in {lang_dir}."
         token_table = SymbolTable.from_file(lang_dir / "tokens.txt")
+        assert (
+            "#0" not in token_table
+        ), "This tokenizer does not support disambig symbols."
         self._id2sym = token_table._id2sym
         self._sym2id = token_table._sym2id
         self.oov = oov
