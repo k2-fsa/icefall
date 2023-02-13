@@ -704,10 +704,12 @@ def main():
     tal_csasr = TAL_CSASRAsrDataModule(args)
 
     dev_cuts = tal_csasr.valid_cuts()
+    dev_cuts = dev_cuts.subset(first=300)
     dev_cuts = dev_cuts.map(text_normalize_for_cut)
     dev_dl = tal_csasr.valid_dataloaders(dev_cuts)
 
     test_cuts = tal_csasr.test_cuts()
+    test_cuts = test_cuts.subset(first=300)
     test_cuts = test_cuts.map(text_normalize_for_cut)
     test_dl = tal_csasr.test_dataloaders(test_cuts)
 
