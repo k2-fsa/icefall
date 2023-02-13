@@ -420,6 +420,7 @@ class ConformerEncoder(nn.Module):
         output = src
 
         outputs = []
+        layer_outputs = []
         for i, mod in enumerate(self.layers):
             output = mod(
                 output,
@@ -428,11 +429,12 @@ class ConformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 warmup=warmup,
             )
-
+            
+            layer_outputs.append(output)
             if i in self.aux_layers:
                 outputs.append(output)
 
-        output = self.combiner(outputs)
+        #output = self.combiner(outputs)
 
         return output
 
