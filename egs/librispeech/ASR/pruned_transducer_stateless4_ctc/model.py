@@ -69,6 +69,12 @@ class Transducer(nn.Module):
         self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
+        self.ctc_output = nn.Sequential(
+            nn.Dropout(p=0.1),
+            ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5),
+            nn.LogSoftmax(dim=-1),
+        )
+
     def forward(
         self,
         x: torch.Tensor,
@@ -80,7 +86,7 @@ class Transducer(nn.Module):
         warmup: float = 1.0,
         reduction: str = "sum",
         delay_penalty: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -113,8 +119,7 @@ class Transducer(nn.Module):
             See https://github.com/k2-fsa/k2/issues/955 and
             https://arxiv.org/pdf/2211.00490.pdf for more details.
         Returns:
-        Returns:
-          Return the transducer loss.
+          Return a tuple containing simple loss, pruned loss, and ctc-output.
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -131,6 +136,9 @@ class Transducer(nn.Module):
 
         encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
         assert torch.all(x_lens > 0)
+
+        # compute ctc log-probs
+        ctc_output = self.ctc_output(encoder_out)
 
         # Now for the decoder, i.e., the prediction network
         row_splits = y.shape.row_splits(1)
@@ -204,4 +212,4 @@ class Transducer(nn.Module):
                 reduction=reduction,
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, ctc_output)

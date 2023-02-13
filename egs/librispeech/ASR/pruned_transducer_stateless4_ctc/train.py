@@ -97,6 +97,7 @@ from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     display_and_save_batch,
+    encode_supervisions,
     setup_logger,
     str2bool,
 )
@@ -274,6 +275,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.2,
+        help="Scale for CTC loss.",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -336,6 +344,16 @@ def get_parser():
         type=float,
         default=0.0,
         help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
+
+    parser.add_argument(
+        "--ctc-delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value used to penalize symbol delay for CTC loss,
         to encourage streaming models to emit symbols earlier.
         See https://github.com/k2-fsa/k2/issues/955 and
         https://arxiv.org/pdf/2211.00490.pdf for more details.""",
@@ -412,6 +430,9 @@ def get_params() -> AttributeDict:
             "decoder_dim": 512,
             # parameters for joiner
             "joiner_dim": 512,
+            # parameters for ctc loss
+            "beam_size": 10,
+            "use_double_scores": True,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
@@ -627,11 +648,11 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
+    token_ids = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(token_ids).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, ctc_output = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -640,7 +661,7 @@ def compute_loss(
             lm_scale=params.lm_scale,
             warmup=warmup,
             reduction="none",
-            delay_penalty=params.delay_penalty if warmup >= 2.0 else 0,
+            delay_penalty=params.delay_penalty if warmup >= 1.0 else 0,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -674,6 +695,38 @@ def compute_loss(
         )
         loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
+    # Compute ctc loss
+
+    # NOTE: We need `encode_supervisions` to sort sequences with
+    # different duration in decreasing order, required by
+    # `k2.intersect_dense` called in `k2.ctc_loss`
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        supervision_segments, token_ids = encode_supervisions(
+            supervisions,
+            subsampling_factor=params.subsampling_factor,
+            token_ids=token_ids,
+        )
+
+    # Works with a BPE model
+    decoding_graph = k2.ctc_graph(token_ids, modified=False, device=device)
+    dense_fsa_vec = k2.DenseFsaVec(
+        ctc_output,
+        supervision_segments,
+        allow_truncate=params.subsampling_factor - 1,
+    )
+
+    ctc_loss = k2.ctc_loss(
+        decoding_graph=decoding_graph,
+        dense_fsa_vec=dense_fsa_vec,
+        output_beam=params.beam_size,
+        delay_penalty=params.ctc_delay_penalty if warmup >= 1.0 else 0.0,
+        reduction="sum",
+        use_double_scores=params.use_double_scores,
+    )
+    assert ctc_loss.requires_grad == is_training
+    loss += params.ctc_loss_scale * ctc_loss
+
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -698,6 +751,7 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
 
