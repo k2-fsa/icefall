@@ -44,7 +44,6 @@ from scaling import (
 )
 from torch import Tensor, nn
 
-from icefall.dist import get_rank
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
 
 
@@ -271,7 +270,6 @@ class Zipformer(EncoderInterface):
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
         cnn_module_kernels (int): Kernel size of convolution module
-        vgg_frontend (bool): whether to use vgg frontend.
         warmup_batches (float): number of batches to warm up over
     """
 
@@ -388,9 +386,9 @@ class Zipformer(EncoderInterface):
     def _init_skip_modules(self):
         """
         If self.zipformer_downsampling_factors = (1, 2, 4, 8, 4, 2), then at the input of layer
-        indexed 4 (in zero indexing), with has subsapling_factor=4, we combine the output of
-        layers 2 and 3; and at the input of layer indexed 5, which which has subsampling_factor=2,
-        we combine the outputs of layers 1 and 5.
+        indexed 4 (in zero indexing), which has subsampling_factor=4, we combine the output of
+        layers 2 and 3; and at the input of layer indexed 5, which has subsampling_factor=2,
+        we combine the outputs of layers 1 and 4.
         """
         skip_layers = []
         skip_modules = []
@@ -1272,8 +1270,7 @@ class ZipformerEncoder(nn.Module):
 
         Shape:
             src: (S, N, E).
-            cached_len: (N,)
-              N is the batch size.
+            cached_len: (num_layers,)
             cached_avg: (num_layers, N, C).
               N is the batch size, C is the feature dimension.
             cached_key: (num_layers, left_context_len, N, K).
@@ -1289,8 +1286,8 @@ class ZipformerEncoder(nn.Module):
 
         Returns: A tuple of 8 tensors:
             - output tensor
-            - updated cached number of past frmaes.
-            - updated cached average of past frmaes.
+            - updated cached number of past frames.
+            - updated cached average of past frames.
             - updated cached key tensor of of the first attention module.
             - updated cached value tensor of of the first attention module.
             - updated cached value tensor of of the second attention module.
@@ -1899,8 +1896,6 @@ class RelPositionMultiheadAttention(nn.Module):
         Args:
             x: input to be projected to query, key, value
             pos_emb: Positional embedding tensor
-            attn_mask: 2D or 3D mask that prevents attention to certain positions. A 2D mask will be broadcasted for all
-                the batches while a 3D mask allows to specify a different mask for the entries of each batch.
 
         Shape:
             - Inputs:
@@ -1908,13 +1903,6 @@ class RelPositionMultiheadAttention(nn.Module):
             the embedding dimension.
             - pos_emb: :math:`(N, 2*L-1, E)` where L is the target sequence length, N is the batch size, E is
             the embedding dimension.
-            - attn_mask: 2D mask :math:`(L, S)` where L is the target sequence length, S is the source sequence length.
-            3D mask :math:`(N*num_heads, L, S)` where N is the batch size, L is the target sequence length,
-            S is the source sequence length. attn_mask ensure that position i is allowed to attend the unmasked
-            positions. If a ByteTensor is provided, the non-zero positions are not allowed to attend
-            while the zero positions will be unchanged. If a BoolTensor is provided, positions with ``True``
-            is not allowed to attend while ``False`` values will be unchanged. If a FloatTensor
-            is provided, it will be added to the attention weight.
             - cached_key: :math:`(left_context_len, N, K)`, where N is the batch size, K is the key dimension.
             - cached_val: :math:`(left_context_len, N, V)`, where N is the batch size, V is the value dimension.
 

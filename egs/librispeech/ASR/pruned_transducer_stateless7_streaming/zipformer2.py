@@ -268,7 +268,7 @@ class Zipformer(EncoderInterface):
         dim_feedforward (int, int): feedforward dimension in 2 encoder stacks
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
-        cnn_module_kernel (int): Kernel size of convolution module
+        cnn_module_kernels (int): Kernel size of convolution module
         warmup_batches (float): number of batches to warm up over
         is_pnnx (bool): True if we are going to convert this model via pnnx.
     """
@@ -438,13 +438,13 @@ class Zipformer(EncoderInterface):
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
-        On e.g. 15% of frames, these masks will zero out all enocder dims larger than
+        On e.g. 15% of frames, these masks will zero out all encoder dims larger than
         some supplied number, e.g. >256, so in effect on those frames we are using
-        a smaller encoer dim.
+        a smaller encoder dim.
 
         We generate the random masks at this level because we want the 2 masks to 'agree'
         all the way up the encoder stack. This will mean that the 1st mask will have
-        mask values repeated self.zipformer_subsampling_factor times.
+        mask values repeated self.zipformer_downsampling_factors times.
 
         Args:
            x: the embeddings (needed for the shape and dtype and device), of shape
@@ -1024,7 +1024,7 @@ class ZipformerEncoderLayer(nn.Module):
         """
         src_orig = src
 
-        # macron style feed forward module
+        # macaron style feed forward module
         src = src + self.feed_forward1(src)
 
         src_pool, cached_len, cached_avg = self.pooling.streaming_forward(
@@ -1847,7 +1847,7 @@ class RelPositionalEncoding(torch.nn.Module):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         # Suppose `i` means to the position of query vector and `j` means the
-        # position of key vector. We use position relative positions when keys
+        # position of key vector. We use positive relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x_size_left, self.d_model)
         pe_negative = torch.zeros(x_size_left, self.d_model)
@@ -2767,7 +2767,7 @@ class FeedforwardModule(nn.Module):
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.
