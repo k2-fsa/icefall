@@ -1,69 +1,79 @@
 Export to ONNX
 ==============
 
-In this section, we describe how to export models to ONNX.
+In this section, we describe how to export models to `ONNX`_.
+
+In each recipe, there is a file called ``export-onnx.py``, which is used
+to export trained models to `ONNX`_.
+
+There is also a file named ``onnx_pretrained.py``, which you can use
+the exported `ONNX`_ model in Python with `onnxruntime`_ to decode sound files.
+
+Example
+=======
+
+In the following, we demonstrate how to export a streaming Zipformer pre-trained
+model from
+`<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>`_
+to `ONNX`_.
+
+Download the pre-trained model
+------------------------------
 
 .. hint::
 
-  Only non-streaming conformer transducer models are tested.
-
-
-When to use it
---------------
-
-It you want to use an inference framework that supports ONNX
-to run the pretrained model.
-
-
-How to export
--------------
-
-We use
-`<https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless3>`_
-as an example in the following.
+   We assume you have installed `git-lfs`_.
 
 .. code-block:: bash
 
-    cd egs/librispeech/ASR
-    epoch=14
-    avg=2
 
-    ./pruned_transducer_stateless3/export.py \
-      --exp-dir ./pruned_transducer_stateless3/exp \
-      --bpe-model data/lang_bpe_500/bpe.model \
-      --epoch $epoch \
-      --avg $avg \
-      --onnx 1
+  cd egs/librispeech/ASR
 
-It will generate the following files inside ``pruned_transducer_stateless3/exp``:
+  repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+  repo=$(basename $repo_url)
 
-  - ``encoder.onnx``
-  - ``decoder.onnx``
-  - ``joiner.onnx``
-  - ``joiner_encoder_proj.onnx``
-  - ``joiner_decoder_proj.onnx``
+  pushd $repo
+  git lfs pull --include "data/lang_bpe_500/bpe.model"
+  git lfs pull --include "exp/pretrained.pt"
+  cd exp
+  ln -s pretrained.pt epoch-99.pt
+  popd
 
-You can use ``./pruned_transducer_stateless3/exp/onnx_pretrained.py`` to decode
-waves with the generated files:
+Export the model to ONNX
+------------------------
 
 .. code-block:: bash
 
-  ./pruned_transducer_stateless3/onnx_pretrained.py \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
-    --encoder-model-filename ./pruned_transducer_stateless3/exp/encoder.onnx \
-    --decoder-model-filename ./pruned_transducer_stateless3/exp/decoder.onnx \
-    --joiner-model-filename ./pruned_transducer_stateless3/exp/joiner.onnx \
-    --joiner-encoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_encoder_proj.onnx \
-    --joiner-decoder-proj-model-filename ./pruned_transducer_stateless3/exp/joiner_decoder_proj.onnx \
-    /path/to/foo.wav \
-    /path/to/bar.wav \
-    /path/to/baz.wav
+  ./pruned_transducer_stateless7_streaming/export-onnx.py \
+    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --use-averaged-model 0 \
+    --epoch 99 \
+    --avg 1 \
+    --decode-chunk-len 32 \
+    --exp-dir $repo/exp/
 
+.. warning::
 
-How to use the exported model
------------------------------
+   ``export-onnx.py`` from different recipes has different options.
 
-We also provide `<https://github.com/k2-fsa/sherpa-onnx>`_
-performing speech recognition using `onnxruntime <https://github.com/microsoft/onnxruntime>`_
-with exported models.
-It has been tested on Linux, macOS, and Windows.
+   In the above example, ``--decode-chunk-len`` is specific for the
+   streaming Zipformer. Other models won't have such an option.
+
+It will generate the following 3 files in ``$repo/exp``
+
+  - ``encoder-epoch-99-avg-1.onnx``
+  - ``decoder-epoch-99-avg-1.onnx``
+  - ``joiner-epoch-99-avg-1.onnx``
+
+Decode sound files with exported ONNX models
+--------------------------------------------
+
+.. code-block:: bash
+
+  ./pruned_transducer_stateless7_streaming/onnx_pretrained.py \
+    --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+    --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+    --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
+    $repo/test_wavs/1089-134686-0001.wav

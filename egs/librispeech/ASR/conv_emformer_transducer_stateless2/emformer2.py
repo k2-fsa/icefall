@@ -169,9 +169,11 @@ class ConvolutionModule(nn.Module):
         channels: int,
         kernel_size: int,
         bias: bool = True,
+        is_pnnx: bool = True,
     ) -> None:
         """Construct an ConvolutionModule object."""
         super().__init__()
+        self.is_pnnx = is_pnnx
         # kernerl_size should be an odd number for 'SAME' padding
         assert (kernel_size - 1) % 2 == 0, kernel_size
 
@@ -383,12 +385,14 @@ class ConvolutionModule(nn.Module):
             - output right_context of shape (R, B, D).
             - updated cache tensor of shape (B, D, cache_size).
         """
-        #  U, B, D = utterance.size()
-        #  R, _, _ = right_context.size()
-        U = self.chunk_length
-        B = 1
-        D = self.channels
-        R = self.right_context_length
+        if self.is_pnnx is False:
+            U, B, D = utterance.size()
+            R, _, _ = right_context.size()
+        else:
+            U = self.chunk_length
+            B = 1
+            D = self.channels
+            R = self.right_context_length
 
         # point-wise conv
         x = torch.cat([utterance, right_context], dim=0)  # (U + R, B, D)
@@ -448,8 +452,10 @@ class EmformerAttention(nn.Module):
         dropout: float = 0.0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        is_pnnx: bool = True,
     ):
         super().__init__()
+        self.is_pnnx = is_pnnx
 
         if embed_dim % nhead != 0:
             raise ValueError(
@@ -539,14 +545,15 @@ class EmformerAttention(nn.Module):
         left_context_val: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Underlying chunk-wise attention implementation."""
-        #  U, B, _ = utterance.size()
-        #  R = right_context.size(0)
-        #  M = memory.size(0)
-
-        U = self.chunk_length
-        B = 1
-        R = self.right_context_length
-        M = self.memory_size
+        if self.is_pnnx is False:
+            U, B, _ = utterance.size()
+            R = right_context.size(0)
+            M = memory.size(0)
+        else:
+            U = self.chunk_length
+            B = 1
+            R = self.right_context_length
+            M = self.memory_size
         L = self.left_context_length
 
         scaling = float(self.head_dim) ** -0.5
@@ -570,21 +577,29 @@ class EmformerAttention(nn.Module):
 
         # KV = key.size(0)
 
-        reshaped_query = query.view(Q, self.nhead, self.head_dim).permute(1, 0, 2)
-        reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(
-            1, 0, 2
-        )
-        reshaped_value = value.view(M + R + U + L, self.nhead, self.head_dim).permute(
-            1, 0, 2
-        )
-
-        #  reshaped_query, reshaped_key, reshaped_value = [
-        #      tensor.contiguous().view(-1, B * self.nhead, self.head_dim).transpose(0, 1)
-        #      for tensor in [query, key, value]
-        #  ]  # (B * nhead, Q or KV, head_dim)
-        attention_weights = torch.bmm(
-            reshaped_query * scaling, reshaped_key.permute(0, 2, 1)
-        )  # (B * nhead, Q, KV)
+        if self.is_pnnx is True:
+            reshaped_query = query.view(Q, self.nhead, self.head_dim).permute(1, 0, 2)
+            reshaped_key = key.view(M + R + U + L, self.nhead, self.head_dim).permute(
+                1, 0, 2
+            )
+            reshaped_value = value.view(
+                M + R + U + L, self.nhead, self.head_dim
+            ).permute(1, 0, 2)
+        else:
+            reshaped_query, reshaped_key, reshaped_value = [
+                tensor.contiguous()
+                .view(-1, B * self.nhead, self.head_dim)
+                .transpose(0, 1)
+                for tensor in [query, key, value]
+            ]  # (B * nhead, Q or KV, head_dim)
+        if self.is_pnnx is True:
+            attention_weights = torch.bmm(
+                reshaped_query * scaling, reshaped_key.permute(0, 2, 1)
+            )  # (B * nhead, Q, KV)
+        else:
+            attention_weights = torch.bmm(
+                reshaped_query * scaling, reshaped_key.transpose(1, 2)
+            )  # (B * nhead, Q, KV)
 
         # compute attention probabilities
         if False:
@@ -597,10 +612,15 @@ class EmformerAttention(nn.Module):
         # compute attention outputs
         attention = torch.bmm(attention_probs, reshaped_value)
         assert attention.shape == (B * self.nhead, Q, self.head_dim)
-        attention = attention.permute(1, 0, 2).reshape(-1, self.embed_dim)
-        # TODO(fangjun): ncnn does not support reshape(-1, 1, self.embed_dim)
-        # We have to change InnerProduct in ncnn to ignore the extra dim below
-        attention = attention.unsqueeze(1)
+        if self.is_pnnx is True:
+            attention = attention.permute(1, 0, 2).reshape(-1, self.embed_dim)
+            # TODO(fangjun): ncnn does not support reshape(-1, 1, self.embed_dim)
+            # We have to change InnerProduct in ncnn to ignore the extra dim below
+            attention = attention.unsqueeze(1)
+        else:
+            attention = (
+                attention.transpose(0, 1).contiguous().view(Q, B, self.embed_dim)
+            )
 
         # apply output projection
         output_right_context_utterance = self.out_proj(attention)
@@ -733,15 +753,16 @@ class EmformerAttention(nn.Module):
             - attention value of left context and utterance, which would be
               cached for next computation, with shape (L + U, B, D).
         """
-        #  U = utterance.size(0)
-        #  R = right_context.size(0)
-        #  L = left_context_key.size(0)
-        #  M = memory.size(0)
-
-        U = self.chunk_length
-        R = self.right_context_length
-        L = self.left_context_length
-        M = self.memory_size
+        if self.is_pnnx is False:
+            U = utterance.size(0)
+            R = right_context.size(0)
+            L = left_context_key.size(0)
+            M = memory.size(0)
+        else:
+            U = self.chunk_length
+            R = self.right_context_length
+            L = self.left_context_length
+            M = self.memory_size
 
         # query = [right context, utterance]
         Q = R + U
@@ -811,6 +832,7 @@ class EmformerEncoderLayer(nn.Module):
         memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        is_pnnx: bool = True,
     ):
         super().__init__()
 
@@ -824,6 +846,7 @@ class EmformerEncoderLayer(nn.Module):
             dropout=dropout,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
+            is_pnnx=is_pnnx,
         )
         self.summary_op = nn.AvgPool1d(
             kernel_size=chunk_length, stride=chunk_length, ceil_mode=True
@@ -850,6 +873,7 @@ class EmformerEncoderLayer(nn.Module):
             right_context_length,
             d_model,
             cnn_module_kernel,
+            is_pnnx=is_pnnx,
         )
 
         self.norm_final = BasicNorm(d_model)
@@ -1204,6 +1228,7 @@ class EmformerEncoder(nn.Module):
         memory_size: int = 0,
         tanh_on_mem: bool = False,
         negative_inf: float = -1e8,
+        is_pnnx: bool = True,
     ):
         super().__init__()
 
@@ -1229,6 +1254,7 @@ class EmformerEncoder(nn.Module):
                     memory_size=memory_size,
                     tanh_on_mem=tanh_on_mem,
                     negative_inf=negative_inf,
+                    is_pnnx=is_pnnx,
                 )
                 for layer_idx in range(num_encoder_layers)
             ]
@@ -1561,6 +1587,20 @@ class Emformer(EncoderInterface):
         self.encoder_embed = Conv2dSubsampling(num_features, d_model, is_pnnx=is_pnnx)
         self.is_pnnx = is_pnnx
 
+        self.num_encoder_layers = num_encoder_layers
+        self.memory_size = memory_size
+        self.d_model = d_model
+        self.cnn_module_kernel = cnn_module_kernel
+        self.left_context_length = left_context_length // subsampling_factor
+        self.right_context_length = right_context_length
+        self.subsampling_factor = subsampling_factor
+
+        assert subsampling_factor == 4, subsampling_factor
+        pad_length = right_context_length + 2 * 4 + 3
+
+        # before subsampling
+        self.T = self.chunk_length + pad_length
+
         self.encoder = EmformerEncoder(
             chunk_length=chunk_length // subsampling_factor,
             d_model=d_model,
@@ -1575,6 +1615,7 @@ class Emformer(EncoderInterface):
             memory_size=memory_size,
             tanh_on_mem=tanh_on_mem,
             negative_inf=negative_inf,
+            is_pnnx=is_pnnx,
         )
 
     def _forward(
@@ -1691,7 +1732,7 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 8,
         layer2_channels: int = 32,
         layer3_channels: int = 128,
-        is_pnnx: bool = False,
+        is_pnnx: bool = True,
     ) -> None:
         """
         Args:
@@ -1767,7 +1808,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
 
-        if torch.jit.is_tracing() and self.is_pnnx:
+        if torch.jit.is_tracing() and self.is_pnnx is True:
             x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
             x = self.out(x)
         else:
