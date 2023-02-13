@@ -187,6 +187,9 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
+git lfs pull --include "data/lang_char_bpe/L.pt"
+git lfs pull --include "data/lang_char_bpe/L_disambig.pt"
+git lfs pull --include "data/lang_char_bpe/Linv.pt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp

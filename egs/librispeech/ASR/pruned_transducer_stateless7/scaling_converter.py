@@ -178,6 +178,7 @@ def get_submodule(model, target):
 def convert_scaled_to_non_scaled(
     model: nn.Module,
     inplace: bool = False,
+    is_pnnx: bool = False,
 ):
     """
     Args:
@@ -186,6 +187,8 @@ def convert_scaled_to_non_scaled(
       inplace:
         If True, the input model is modified inplace.
         If False, the input model is copied and we modify the copied version.
+      is_pnnx:
+        True if we are going to export the model for PNNX.
     Return:
       Return a model without scaled layers.
     """
@@ -198,7 +201,7 @@ def convert_scaled_to_non_scaled(
             d[name] = convert_basic_norm(m)
         elif isinstance(m, (ActivationBalancer, Whiten)):
             d[name] = nn.Identity()
-        elif isinstance(m, PoolingModule):
+        elif isinstance(m, PoolingModule) and is_pnnx:
             d[name] = convert_pooling_module(m)
 
     for k, v in d.items():

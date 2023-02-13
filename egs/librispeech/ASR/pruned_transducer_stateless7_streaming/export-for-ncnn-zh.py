@@ -335,7 +335,7 @@ def main():
     model.to("cpu")
     model.eval()
 
-    convert_scaled_to_non_scaled(model, inplace=True)
+    convert_scaled_to_non_scaled(model, inplace=True, is_pnnx=True)
     logging.info("Using torch.jit.trace()")
 
     logging.info("Exporting encoder")
