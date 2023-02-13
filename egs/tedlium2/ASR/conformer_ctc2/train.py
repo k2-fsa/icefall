@@ -336,9 +336,9 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "encoder_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
+            "encoder_dim": 256,
+            "nhead": 4,
+            "dim_feedforward": 1024,
             "num_encoder_layers": 18,
             # parameters for ctc loss
             "beam_size": 10,
