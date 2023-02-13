@@ -90,7 +90,7 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
-        default=24,
+        default=18,
         help="Number of conformer encoder layers..",
     )
 
@@ -115,21 +115,21 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--dim-feedforward",
         type=int,
-        default=1536,
+        default=1024,
         help="Feedforward module dimension of the conformer model.",
     )
 
     parser.add_argument(
         "--nhead",
         type=int,
-        default=8,
+        default=4,
         help="Number of attention heads in the conformer multiheadattention modules.",
     )
 
     parser.add_argument(
         "--dim-model",
         type=int,
-        default=384,
+        default=256,
         help="Attention dimension in the conformer model.",
     )
 
