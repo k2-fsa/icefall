@@ -50,6 +50,7 @@ class Conformer(Transformer):
         layer_dropout: float = 0.075,
         cnn_module_kernel: int = 15,
         aux_layer_period: int = 3,
+        group_num: int = 0,
     ) -> None:
         """
         Args:
