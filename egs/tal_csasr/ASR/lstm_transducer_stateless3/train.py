@@ -156,6 +156,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         `grad_norm_threshold * median`, where `median` is the median
         value of gradient norms of all elememts in batch.""",
     )
+    
+    parser.add_argument(
+        "--is-pnnx",
+        type=str2bool,
+        default=False,
+        help="Only used when exporting model with pnnx."
+    )
 
 
 def get_parser():
