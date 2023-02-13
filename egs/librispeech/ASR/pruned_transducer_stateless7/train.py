@@ -230,15 +230,15 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--causal",
         type=str2bool,
-        default=False,
+        default=True,
         help="If True, use causal version of model.",
     )
 
     parser.add_argument(
         "--chunk-size",
         type=str,
-        default="-1", # "16,32,64,-1",
-        help="Chunk sizes will be chosen randomly from this list during training. "
+        default="16,32,64,-1",
+        help="Chunk sizes (at 50Hz frame rate) will be chosen randomly from this list during training. "
         " Must be just -1 if --causal=False"
     )
 

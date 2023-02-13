@@ -378,20 +378,23 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.left_context
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
-    )
+    # this seems to cause insertions at the end of the utterance if used with zipformer.
+    #feature_lens += params.left_context
+    #feature = torch.nn.functional.pad(
+    #    feature,
+    #    pad=(0, 0, 0, params.left_context),
+    #    value=LOG_EPS,
+    #)
 
     if params.simulate_streaming:
+        # the chunk size and left context are now stored with the model.
+        # TODO: implement streaming_forward.
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
-            chunk_size=params.decode_chunk_size,
-            left_context=params.left_context,
-            simulate_streaming=True,
+            #chunk_size=params.decode_chunk_size,
+            #left_context=params.left_context,
+            #simulate_streaming=True,
         )
     else:
         encoder_out, encoder_out_lens = model.encoder(
@@ -666,9 +669,11 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    if params.simulate_streaming:
-        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
-        params.suffix += f"-left-context-{params.left_context}"
+    # TODO: may still want to add something here? for now I am just
+    # moving the decoding directories around after decoding.
+    #if params.simulate_streaming:
+    #params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
+    #params.suffix += f"-left-context-{params.left_context}"
 
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
