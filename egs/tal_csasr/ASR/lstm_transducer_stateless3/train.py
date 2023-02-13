@@ -62,9 +62,9 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from lstm import RNN
 from local.text_normalize import text_normalize
 from local.tokenize_with_bpe_model import tokenize_by_bpe_model
+from lstm import RNN
 from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
@@ -108,7 +108,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=512,
         help="Encoder output dimesion.",
     )
-    
+
     parser.add_argument(
         "--decoder-dim",
         type=int,
@@ -156,12 +156,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         `grad_norm_threshold * median`, where `median` is the median
         value of gradient norms of all elememts in batch.""",
     )
-    
+
     parser.add_argument(
         "--is-pnnx",
         type=str2bool,
         default=False,
-        help="Only used when exporting model with pnnx."
+        help="Only used when exporting model with pnnx.",
     )
 
 
@@ -643,7 +643,7 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    #import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     y = graph_compiler.texts_to_ids_with_bpe(texts)
     if type(y) == list:
         y = k2.RaggedTensor(y).to(device)
@@ -805,7 +805,7 @@ def train_one_epoch(
     tot_loss = MetricsTracker()
 
     cur_batch_idx = params.get("cur_batch_idx", 0)
-    
+
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx < cur_batch_idx:
             continue
@@ -1031,7 +1031,7 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         return 1.0 <= c.duration <= 20.0
-    
+
     def text_normalize_for_cut(c: Cut):
         # Text normalize for each sample
         text = c.supervisions[0].text
@@ -1040,7 +1040,7 @@ def run(rank, world_size, args):
         text = tokenize_by_bpe_model(sp, text)
         c.supervisions[0].text = text
         return c
-    
+
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     train_cuts = train_cuts.map(text_normalize_for_cut)
 

@@ -55,9 +55,9 @@ Usage:
       --max-contexts 4 \
       --max-states 8
 """
-import re
 import argparse
 import logging
+import re
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -72,12 +72,13 @@ from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
 from lhotse.cut import Cut
-from lstm import LOG_EPSILON, stack_states, unstack_states
 from local.text_normalize import text_normalize
+from lstm import LOG_EPSILON, stack_states, unstack_states
 from stream import Stream
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -85,7 +86,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.decode import one_best_decoding
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -622,10 +622,10 @@ def create_streaming_feature_extractor() -> Fbank:
     opts.mel_opts.num_bins = 80
     return Fbank(opts)
 
+
 def filter_zh_en(text: str):
-    import re
     pattern = re.compile(r"([\u4e00-\u9fff])")
-    
+
     chars = pattern.split(text.upper())
     chars_new = []
     for char in chars:
@@ -633,6 +633,7 @@ def filter_zh_en(text: str):
             tokens = char.strip().split(" ")
             chars_new.extend(tokens)
     return chars_new
+
 
 def decode_dataset(
     cuts: CutSet,
@@ -954,12 +955,12 @@ def main():
         text = text.strip("\n").strip("\t")
         c.supervisions[0].text = text_normalize(text)
         return c
-    
+
     tal_csasr = TAL_CSASRAsrDataModule(args)
 
     dev_cuts = tal_csasr.valid_cuts()
     dev_cuts = dev_cuts.map(text_normalize_for_cut)
-    
+
     test_cuts = tal_csasr.test_cuts()
     test_cuts = test_cuts.map(text_normalize_for_cut)
 
