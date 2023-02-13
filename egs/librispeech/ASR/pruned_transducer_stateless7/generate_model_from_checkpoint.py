@@ -65,13 +65,15 @@ from typing import Dict, List
 
 import sentencepiece as spm
 import torch
-from asr_datamodule import LibriSpeechAsrDataModule
 
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall.utils import str2bool
 from icefall.checkpoint import (
+    average_checkpoints,
     average_checkpoints_with_averaged_model,
     find_checkpoints,
+    load_checkpoint,
 )
 
 
@@ -148,7 +150,6 @@ def get_parser():
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -194,7 +195,7 @@ def main():
                     f"Not enough checkpoints ({len(filenames)}) found for"
                     f" --iter {params.iter}, --avg {params.avg}"
                 )
-            logging.info(f"averaging {filenames}")
+            print(f"averaging {filenames}")
             model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
             filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}.pt"
@@ -209,7 +210,7 @@ def main():
             for i in range(start, params.epoch + 1):
                 if i >= 1:
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
+            print(f"averaging {filenames}")
             model.to(device)
             model.load_state_dict(average_checkpoints(filenames, device=device))
             filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}.pt"
