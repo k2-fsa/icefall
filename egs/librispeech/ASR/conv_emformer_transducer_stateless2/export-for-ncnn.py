@@ -310,6 +310,16 @@ def main():
     model.eval()
 
     convert_scaled_to_non_scaled(model, inplace=True)
+
+    encoder_num_param = sum([p.numel() for p in model.encoder.parameters()])
+    decoder_num_param = sum([p.numel() for p in model.decoder.parameters()])
+    joiner_num_param = sum([p.numel() for p in model.joiner.parameters()])
+    total_num_param = encoder_num_param + decoder_num_param + joiner_num_param
+    logging.info(f"encoder parameters: {encoder_num_param}")
+    logging.info(f"decoder parameters: {decoder_num_param}")
+    logging.info(f"joiner parameters: {joiner_num_param}")
+    logging.info(f"total parameters: {total_num_param}")
+
     logging.info("Using torch.jit.trace()")
 
     logging.info("Exporting encoder")

@@ -26,16 +26,14 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 from encoder_interface import EncoderInterface
-from scaling import (
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-)
-from scaling import (
+from scaling import (  # not as in other dirs.. just scales down initial parameter values.
     ActivationBalancer,
     BasicNorm,
     DoubleSwish,
     Identity,
     MaxEig,
     ScaledConv1d,
+    ScaledLinear,
     Whiten,
     _diag,
     penalize_abs_values_gt,
@@ -43,6 +41,7 @@ from scaling import (
     softmax,
 )
 from torch import Tensor, nn
+from zipformer import PoolingModule
 
 from icefall.utils import make_pad_mask, subsequent_chunk_mask
 
@@ -271,6 +270,7 @@ class Zipformer(EncoderInterface):
         dropout (float): dropout rate
         cnn_module_kernels (int): Kernel size of convolution module
         warmup_batches (float): number of batches to warm up over
+        is_pnnx (bool): True if we are going to convert this model via pnnx.
     """
 
     def __init__(
@@ -292,8 +292,10 @@ class Zipformer(EncoderInterface):
         short_chunk_size: int = 50,
         decode_chunk_size: int = 16,
         warmup_batches: float = 4000.0,
+        is_pnnx: bool = False,
     ) -> None:
         super(Zipformer, self).__init__()
+        self.is_pnnx = is_pnnx
 
         self.num_features = num_features
         assert 0 < encoder_dims[0] <= encoder_dims[1]
@@ -324,17 +326,15 @@ class Zipformer(EncoderInterface):
         #   (1) subsampling: T -> (T - 7)//2
         #   (2) embedding: num_features -> encoder_dims
         self.encoder_embed = Conv2dSubsampling(
-            num_features, encoder_dims[0], dropout=dropout
+            num_features, encoder_dims[0], dropout=dropout, is_pnnx=is_pnnx
         )
 
         # each one will be ZipformerEncoder or DownsampledZipformerEncoder
         encoders = []
 
-        self.num_encoder_layers = num_encoder_layers
         self.num_encoders = len(encoder_dims)
-        self.attention_dims = attention_dim
-        self.cnn_module_kernels = cnn_module_kernels
         for i in range(self.num_encoders):
+            ds = zipformer_downsampling_factors[i]
             encoder_layer = ZipformerEncoderLayer(
                 encoder_dims[i],
                 attention_dim[i],
@@ -343,6 +343,9 @@ class Zipformer(EncoderInterface):
                 dropout,
                 cnn_module_kernels[i],
                 pos_dim,
+                is_pnnx=self.is_pnnx,
+                left_context_len=self.left_context_len // ds,
+                x_size=self.decode_chunk_size // ds,
             )
 
             # For the segment of the warmup period, we let the Conv2dSubsampling
@@ -353,14 +356,21 @@ class Zipformer(EncoderInterface):
                 dropout,
                 warmup_begin=warmup_batches * (i + 1) / (self.num_encoders + 1),
                 warmup_end=warmup_batches * (i + 2) / (self.num_encoders + 1),
+                is_pnnx=is_pnnx,
+                left_context_len=self.left_context_len // ds,
+                x_size=self.decode_chunk_size // ds,
             )
 
             if zipformer_downsampling_factors[i] != 1:
+                in_x_size = self.decode_chunk_size
                 encoder = DownsampledZipformerEncoder(
                     encoder,
                     input_dim=encoder_dims[i - 1] if i > 0 else encoder_dims[0],
                     output_dim=encoder_dims[i],
                     downsample=zipformer_downsampling_factors[i],
+                    is_pnnx=is_pnnx,
+                    left_context_len=self.left_context_len // ds,
+                    in_x_size=in_x_size,
                 )
             encoders.append(encoder)
         self.encoders = nn.ModuleList(encoders)
@@ -369,7 +379,11 @@ class Zipformer(EncoderInterface):
         self._init_skip_modules()
 
         self.downsample_output = AttentionDownsample(
-            encoder_dims[-1], encoder_dims[-1], downsample=output_downsampling_factor
+            encoder_dims[-1],
+            encoder_dims[-1],
+            downsample=output_downsampling_factor,
+            is_pnnx=is_pnnx,
+            in_x_size=self.decode_chunk_size,
         )
 
     def _get_layer_skip_dropout_prob(self):
@@ -573,17 +587,13 @@ class Zipformer(EncoderInterface):
     def streaming_forward(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
         states: List[Tensor],
-    ) -> Tuple[Tensor, Tensor, List[Tensor]]:
+    ) -> Tuple[Tensor, List[Tensor]]:
         """
         Args:
           x:
             The input tensor. Its shape is (batch_size, seq_len, feature_dim).
             seq_len is the input chunk length.
-          x_lens:
-            A tensor of shape (batch_size,) containing the number of frames in
-            `x` before padding.
           states:
             A list of 7 * num_encoders elements:
             ``states[0:num_encoders]`` is the cached numbers of past frames.
@@ -613,8 +623,6 @@ class Zipformer(EncoderInterface):
 
         x = self.encoder_embed(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-        lengths = (x_lens - 7) >> 1
-        assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
 
         outputs = []
         new_cached_len = []
@@ -641,6 +649,7 @@ class Zipformer(EncoderInterface):
                 cached_conv1=cached_conv1[i],
                 cached_conv2=cached_conv2[i],
             )
+
             outputs.append(x)
             # Update caches
             new_cached_len.append(len_avg)
@@ -654,7 +663,6 @@ class Zipformer(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
-        lengths = (lengths + 1) >> 1
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
@@ -667,7 +675,7 @@ class Zipformer(EncoderInterface):
             + new_cached_conv1
             + new_cached_conv2
         )
-        return x, lengths, new_states
+        return x, new_states
 
     @torch.jit.export
     def get_init_state(
@@ -692,13 +700,11 @@ class Zipformer(EncoderInterface):
         cached_conv1 = []
         cached_conv2 = []
 
-        left_context_len = self.decode_chunk_size * self.num_left_chunks
-
         for i, encoder in enumerate(self.encoders):
             num_layers = encoder.num_layers
             ds = self.zipformer_downsampling_factors[i]
 
-            len_avg = torch.zeros(num_layers, 1, dtype=torch.int64, device=device)
+            len_avg = torch.zeros(num_layers, 1, device=device)
             cached_len.append(len_avg)
 
             avg = torch.zeros(num_layers, 1, encoder.d_model, device=device)
@@ -706,7 +712,7 @@ class Zipformer(EncoderInterface):
 
             key = torch.zeros(
                 num_layers,
-                left_context_len // ds,
+                self.left_context_len // ds,
                 1,
                 encoder.attention_dim,
                 device=device,
@@ -715,7 +721,7 @@ class Zipformer(EncoderInterface):
 
             val = torch.zeros(
                 num_layers,
-                left_context_len // ds,
+                self.left_context_len // ds,
                 1,
                 encoder.attention_dim // 2,
                 device=device,
@@ -724,7 +730,7 @@ class Zipformer(EncoderInterface):
 
             val2 = torch.zeros(
                 num_layers,
-                left_context_len // ds,
+                self.left_context_len // ds,
                 1,
                 encoder.attention_dim // 2,
                 device=device,
@@ -788,6 +794,9 @@ class ZipformerEncoderLayer(nn.Module):
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         pos_dim: int = 4,
+        is_pnnx: bool = False,
+        left_context_len: int = 0,
+        x_size: int = 0,
     ) -> None:
         super(ZipformerEncoderLayer, self).__init__()
 
@@ -804,6 +813,9 @@ class ZipformerEncoderLayer(nn.Module):
             nhead,
             pos_dim,
             dropout=0.0,
+            is_pnnx=is_pnnx,
+            left_context_len=left_context_len,
+            x_size=x_size,
         )
 
         self.pooling = PoolingModule(d_model)
@@ -814,9 +826,13 @@ class ZipformerEncoderLayer(nn.Module):
 
         self.feed_forward3 = FeedforwardModule(d_model, feedforward_dim, dropout)
 
-        self.conv_module1 = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module1 = ConvolutionModule(
+            d_model, cnn_module_kernel, is_pnnx=is_pnnx, x_size=x_size
+        )
 
-        self.conv_module2 = ConvolutionModule(d_model, cnn_module_kernel)
+        self.conv_module2 = ConvolutionModule(
+            d_model, cnn_module_kernel, is_pnnx=is_pnnx, x_size=x_size
+        )
 
         self.norm_final = BasicNorm(d_model)
 
@@ -1029,12 +1045,14 @@ class ZipformerEncoderLayer(nn.Module):
             cached_key=cached_key,
             cached_val=cached_val,
         )
+
         src = src + src_attn
 
         src_conv, cached_conv1 = self.conv_module1.streaming_forward(
             src,
             cache=cached_conv1,
         )
+
         src = src + src_conv
 
         src = src + self.feed_forward2(src)
@@ -1072,6 +1090,20 @@ class ZipformerEncoderLayer(nn.Module):
         )
 
 
+class ZipformerStateSelect(nn.Module):
+    """ncnn does not support selecting along batch index.
+    This class provides a workaround for it. We
+    need to change pnnx accordingly.
+    """
+
+    def __init__(self, i: int):
+        super().__init__()
+        self.i = i
+
+    def forward(self, x: torch.Tensor):
+        return x[self.i]
+
+
 class ZipformerEncoder(nn.Module):
     r"""ZipformerEncoder is a stack of N encoder layers
 
@@ -1093,6 +1125,9 @@ class ZipformerEncoder(nn.Module):
         dropout: float,
         warmup_begin: float,
         warmup_end: float,
+        is_pnnx: bool = False,
+        x_size: int = 0,
+        left_context_len: int = 0,
     ) -> None:
         super().__init__()
         # will be written to, see set_batch_count() Note: in inference time this
@@ -1105,13 +1140,25 @@ class ZipformerEncoder(nn.Module):
         # shared across jobs.   It's used to randomly select how many layers to drop,
         # so that we can keep this consistent across worker tasks (for efficiency).
         self.module_seed = torch.randint(0, 1000, ()).item()
+        self.left_context_len = left_context_len
 
-        self.encoder_pos = RelPositionalEncoding(encoder_layer.d_model, dropout)
+        self.encoder_pos = RelPositionalEncoding(
+            encoder_layer.d_model,
+            dropout,
+            is_pnnx=is_pnnx,
+            x_size=x_size,
+            left_context_len=left_context_len,
+        )
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
+
+        state_select_list = []
+        for i in range(num_layers):
+            state_select_list.append(ZipformerStateSelect(i))
+        self.state_select_list = nn.ModuleList(state_select_list)
 
         self.d_model = encoder_layer.d_model
         self.attention_dim = encoder_layer.attention_dim
@@ -1323,8 +1370,14 @@ class ZipformerEncoder(nn.Module):
             self.num_layers,
         )
 
-        left_context_len = cached_key.shape[1]
+        assert self.left_context_len == cached_key.shape[1], (
+            self.left_context_len,
+            cached_key.shape[1],
+        )
+
+        left_context_len = self.left_context_len
         pos_emb = self.encoder_pos(src, left_context_len)
+
         output = src
 
         new_cached_len = []
@@ -1334,7 +1387,9 @@ class ZipformerEncoder(nn.Module):
         new_cached_val2 = []
         new_cached_conv1 = []
         new_cached_conv2 = []
-        for i, mod in enumerate(self.layers):
+        for i, (mod, state_select) in enumerate(
+            zip(self.layers, self.state_select_list)
+        ):
             output, len_avg, avg, key, val, val2, conv1, conv2 = mod.streaming_forward(
                 output,
                 pos_emb,
@@ -1343,8 +1398,8 @@ class ZipformerEncoder(nn.Module):
                 cached_key=cached_key[i],
                 cached_val=cached_val[i],
                 cached_val2=cached_val2[i],
-                cached_conv1=cached_conv1[i],
-                cached_conv2=cached_conv2[i],
+                cached_conv1=state_select(cached_conv1),
+                cached_conv2=state_select(cached_conv2),
             )
             # Update caches
             new_cached_len.append(len_avg)
@@ -1375,11 +1430,20 @@ class DownsampledZipformerEncoder(nn.Module):
     """
 
     def __init__(
-        self, encoder: nn.Module, input_dim: int, output_dim: int, downsample: int
+        self,
+        encoder: nn.Module,
+        input_dim: int,
+        output_dim: int,
+        downsample: int,
+        is_pnnx: bool = False,
+        left_context_len: int = 0,
+        in_x_size: int = 0,
     ):
         super(DownsampledZipformerEncoder, self).__init__()
         self.downsample_factor = downsample
-        self.downsample = AttentionDownsample(input_dim, output_dim, downsample)
+        self.downsample = AttentionDownsample(
+            input_dim, output_dim, downsample, is_pnnx=is_pnnx, in_x_size=in_x_size
+        )
         self.encoder = encoder
         self.num_layers = encoder.num_layers
         self.d_model = encoder.d_model
@@ -1389,6 +1453,7 @@ class DownsampledZipformerEncoder(nn.Module):
         self.out_combiner = SimpleCombiner(
             input_dim, output_dim, min_weight=(0.0, 0.25)
         )
+        self.in_x_size = in_x_size
 
     def forward(
         self,
@@ -1475,7 +1540,10 @@ class DownsampledZipformerEncoder(nn.Module):
         Returns: output of shape (S, N, F) where F is the number of output features
             (output_dim to constructor)
         """
+        assert src.shape[0] == self.in_x_size, (src.shape[0], self.in_x_size)
+
         src_orig = src
+
         src = self.downsample(src)
 
         (
@@ -1497,9 +1565,12 @@ class DownsampledZipformerEncoder(nn.Module):
             cached_conv1=cached_conv1,
             cached_conv2=cached_conv2,
         )
+
         src = self.upsample(src)
-        # remove any extra frames that are not a multiple of downsample_factor
-        src = src[: src_orig.shape[0]]
+
+        if src.shape[0] != self.in_x_size:
+            # remove any extra frames that are not a multiple of downsample_factor
+            src = src[: self.in_x_size]
 
         return (
             self.out_combiner(src_orig, src),
@@ -1513,14 +1584,38 @@ class DownsampledZipformerEncoder(nn.Module):
         )
 
 
+class AttentionDownsampleUnsqueeze(torch.nn.Module):
+    """We apply this operation only in PyTorch
+    and discards in ncnn.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.unsqueeze(1)
+
+
 class AttentionDownsample(torch.nn.Module):
     """
     Does downsampling with attention, by weighted sum, and a projection..
     """
 
-    def __init__(self, in_channels: int, out_channels: int, downsample: int):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        downsample: int,
+        is_pnnx: bool = False,
+        in_x_size: int = 0,
+    ):
         super(AttentionDownsample, self).__init__()
+
         self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.is_pnnx = is_pnnx
+        self.in_x_size = in_x_size
+
+        self.unsqueeze = AttentionDownsampleUnsqueeze()
 
         # fill in the extra dimensions with a projection of the input
         if out_channels > in_channels:
@@ -1531,39 +1626,78 @@ class AttentionDownsample(torch.nn.Module):
             self.extra_proj = None
         self.downsample = downsample
 
+        self.d_seq_len = (in_x_size + downsample - 1) // downsample
+
     def forward(self, src: Tensor) -> Tensor:
         """
         x: (seq_len, 1, in_channels)
         Returns a tensor of shape
            ( (seq_len+downsample-1)//downsample, batch_size, out_channels)
         """
-        (seq_len, batch_size, in_channels) = src.shape
+        assert src.shape[0] == self.in_x_size, (
+            src.shape[0],
+            self.in_x_size,
+            src.shape,
+            type(src),
+        )
+        assert src.shape[2] == self.in_channels, (src.shape[2], self.in_channels)
+        if not self.is_pnnx:
+            (seq_len, batch_size, in_channels) = src.shape
+        else:
+            seq_len = self.in_x_size
+            batch_size = 1
+            in_channels = self.in_channels
+
         ds = self.downsample
-        d_seq_len = (seq_len + ds - 1) // ds
+        d_seq_len = self.d_seq_len
 
         # Pad to an exact multiple of self.downsample
         if seq_len != d_seq_len * ds:
+            assert self.is_pnnx is False, "TODO(fangjun): Handle it!"
             # right-pad src, repeating the last element.
             pad = d_seq_len * ds - seq_len
             src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
             src = torch.cat((src, src_extra), dim=0)
             assert src.shape[0] == d_seq_len * ds, (src.shape[0], d_seq_len, ds)
 
-        src = src.reshape(d_seq_len, ds, batch_size, in_channels)
-        scores = (src * self.query).sum(dim=-1, keepdim=True)
+        if not self.is_pnnx:
+            src = src.reshape(d_seq_len, ds, batch_size, in_channels)
+            scores = (src * self.query).sum(dim=-1, keepdim=True)
 
-        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
-            scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+            if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+                scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
 
-        weights = scores.softmax(dim=1)
+            weights = scores.softmax(dim=1)
 
-        # ans1 is the first `in_channels` channels of the output
-        ans = (src * weights).sum(dim=1)
-        src = src.permute(0, 2, 1, 3).reshape(d_seq_len, batch_size, ds * in_channels)
+            # ans1 is the first `in_channels` channels of the output
+            ans = (src * weights).sum(dim=1)
+            src = src.permute(0, 2, 1, 3).reshape(
+                d_seq_len, batch_size, ds * in_channels
+            )
 
-        if self.extra_proj is not None:
-            ans2 = self.extra_proj(src)
-            ans = torch.cat((ans, ans2), dim=2)
+            if self.extra_proj is not None:
+                ans2 = self.extra_proj(src)
+                ans = torch.cat((ans, ans2), dim=2)
+        else:
+            src = src.reshape(d_seq_len, ds, in_channels)
+            scores = (src * self.query).sum(dim=-1, keepdim=True)
+
+            if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+                scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+
+            weights = scores.softmax(dim=1)
+
+            # ans1 is the first `in_channels` channels of the output
+            ans = (src * weights).sum(dim=1)
+
+            assert (
+                self.extra_proj is None
+            ), "The code for it being not None is not tested"
+            #  ans = ans.unsqueeze(1)
+            ans = self.unsqueeze(ans)
+            # Note: In ncnn, we ignore self.unsqueeze
+            # so ans in ncnn is still a 2-D tensor, e.g., (8, 384)
+
         return ans
 
 
@@ -1576,6 +1710,8 @@ class SimpleUpsample(torch.nn.Module):
     def __init__(self, num_channels: int, upsample: int):
         super(SimpleUpsample, self).__init__()
         self.bias = nn.Parameter(torch.randn(upsample, num_channels) * 0.01)
+        self.upsample = upsample
+        self.num_channels = num_channels
 
     def forward(self, src: Tensor) -> Tensor:
         """
@@ -1614,6 +1750,8 @@ class SimpleCombiner(torch.nn.Module):
         assert dim2 >= dim1, (dim2, dim1)
         self.weight1 = nn.Parameter(torch.zeros(()))
         self.min_weight = min_weight
+        self.dim1 = dim1
+        self.dim2 = dim2
 
     def forward(self, src1: Tensor, src2: Tensor) -> Tensor:
         """
@@ -1638,8 +1776,12 @@ class SimpleCombiner(torch.nn.Module):
         src1 = src1 * weight1
         src2 = src2 * (1.0 - weight1)
 
-        src1_dim = src1.shape[-1]
-        src2_dim = src2.shape[-1]
+        assert src1.shape[-1] == self.dim1, (src1.shape[-1], self.dim1)
+        assert src2.shape[-1] == self.dim2, (src2.shape[-1], self.dim2)
+
+        src1_dim = self.dim1
+        src2_dim = self.dim2
+
         if src1_dim != src2_dim:
             if src1_dim < src2_dim:
                 src1 = torch.nn.functional.pad(src1, (0, src2_dim - src1_dim))
@@ -1667,13 +1809,31 @@ class RelPositionalEncoding(torch.nn.Module):
         d_model: int,
         dropout_rate: float,
         max_len: int = 5000,
+        is_pnnx: bool = False,
+        x_size: int = 0,
+        left_context_len: int = 0,
     ) -> None:
         """Construct a PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(dropout_rate)
+        self.is_pnnx = is_pnnx
+        self.x_size = x_size
+        self.left_context_len = left_context_len
         self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(max_len))
+        if is_pnnx:
+            x_size_left = x_size + left_context_len
+            self.extend_pe(torch.tensor(0.0).expand(x_size_left))
+            self.pe = self.pe[:, :-left_context_len]
+            assert self.pe.size(1) == x_size + left_context_len - 1 + x_size, (
+                self.pe.size(1),
+                x_size,
+                left_context_len,
+                x_size,
+                self.pe.shape,
+            )
+        else:
+            self.extend_pe(torch.tensor(0.0).expand(max_len))
 
     def extend_pe(self, x: Tensor, left_context_len: int = 0) -> None:
         """Reset the positional encodings."""
@@ -1720,6 +1880,14 @@ class RelPositionalEncoding(torch.nn.Module):
             torch.Tensor: Encoded tensor (batch, left_context_len + 2*time-1, `*`).
 
         """
+        if self.is_pnnx:
+            assert self.x_size == x.size(0), (self.x_size, x.size(0))
+            assert self.left_context_len == left_context_len, (
+                self.left_context_len,
+                left_context_len,
+            )
+            return self.pe
+
         self.extend_pe(x, left_context_len)
         x_size_left = x.size(0) + left_context_len
         pos_emb = self.pe[
@@ -1730,6 +1898,25 @@ class RelPositionalEncoding(torch.nn.Module):
             + x.size(0),
         ]
         return self.dropout(pos_emb)
+
+
+class RelPositionMultiheadAttentionPermute(nn.Module):
+    """ncnn does not support permuatation relating to the batch axis 0.
+    This is a workaround for exporting to ncnn via PNNX.
+    """
+
+    def __init__(self, kind: int):
+        super().__init__()
+        self.kind = kind
+        assert self.kind in (2, 3), self.kind
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.kind == 2:
+            return x.permute(1, 0, 2)
+        elif self.kind == 3:
+            return x.permute(1, 2, 0)
+        else:
+            assert False, f"Unsupported kind {self.kind}"
 
 
 class RelPositionMultiheadAttention(nn.Module):
@@ -1759,6 +1946,9 @@ class RelPositionMultiheadAttention(nn.Module):
         num_heads: int,
         pos_dim: int,
         dropout: float = 0.0,
+        is_pnnx: bool = False,
+        left_context_len: int = 0,
+        x_size: int = 0,
     ) -> None:
         super(RelPositionMultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -1774,13 +1964,20 @@ class RelPositionMultiheadAttention(nn.Module):
             attention_dim,
         )
 
+        self.is_pnnx = is_pnnx
+
+        self.my_permute_pqv = RelPositionMultiheadAttentionPermute(kind=2)
+        self.my_permute_k_pos = RelPositionMultiheadAttentionPermute(kind=3)
+        self.left_context_len = left_context_len
+        self.x_size = x_size
+
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
         in_proj_dim = (
-            2 * attention_dim  # query, key
-            + attention_dim // 2  # value
-            + pos_dim * num_heads  # positional encoding query
-        )
+            2 * attention_dim
+            + attention_dim // 2  # query (attention_dim,), key (attention_dim,)
+            + pos_dim * num_heads  # value (attention_dim // 2,)
+        )  # positional encoding query (pos_dim * num_heads, )
 
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim**-0.25
@@ -2074,26 +2271,16 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        if torch.jit.is_tracing():
-            (batch_size, num_heads, time1, n) = pos_weights.shape
-            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
-            cols = torch.arange(seq_len)
-            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
-            indexes = rows + cols
-            pos_weights = pos_weights.reshape(-1, n)
-            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
-            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
-        else:
-            pos_weights = pos_weights.as_strided(
-                (bsz, num_heads, seq_len, seq_len),
-                (
-                    pos_weights.stride(0),
-                    pos_weights.stride(1),
-                    pos_weights.stride(2) - pos_weights.stride(3),
-                    pos_weights.stride(3),
-                ),
-                storage_offset=pos_weights.stride(3) * (seq_len - 1),
-            )
+        pos_weights = pos_weights.as_strided(
+            (bsz, num_heads, seq_len, seq_len),
+            (
+                pos_weights.stride(0),
+                pos_weights.stride(1),
+                pos_weights.stride(2) - pos_weights.stride(3),
+                pos_weights.stride(3),
+            ),
+            storage_offset=pos_weights.stride(3) * (seq_len - 1),
+        )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
@@ -2223,8 +2410,12 @@ class RelPositionMultiheadAttention(nn.Module):
             - cached_key: :math:`(left_context_len, N, K)`, updated cached attention key tensor of left context.
             - cached_val: :math:`(left_context_len, N, K)`, updated cached attention value tensor of left context.
         """
-
-        seq_len, bsz, _ = x_proj.size()
+        if not self.is_pnnx:
+            seq_len, bsz, _ = x_proj.size()
+            assert seq_len == self.x_size, (seq_len, self.x_size)
+        else:
+            seq_len = self.x_size
+            bsz = 1
 
         head_dim = attention_dim // num_heads
         pos_dim = self.pos_dim  # positional-encoding dim per head
@@ -2233,58 +2424,114 @@ class RelPositionMultiheadAttention(nn.Module):
         ), f"attention_dim must be divisible by num_heads: {head_dim}, {num_heads}, {attention_dim}"
 
         # self-attention
-        q = x_proj[..., 0:attention_dim]
-        k = x_proj[..., attention_dim : 2 * attention_dim]
+        q = x_proj[:, :, 0:attention_dim]  # (x_size, N, attention_dim)
+        #  return q, q, q, q
+        k = x_proj[:, :, attention_dim : 2 * attention_dim]
+        # k is (x_size, N, attention_dim)
         value_dim = attention_dim // 2
-        v = x_proj[..., 2 * attention_dim : 2 * attention_dim + value_dim]
-        # p is the position-encoding query, its dimension is num_heads*pos_dim..
-        p = x_proj[..., 2 * attention_dim + value_dim :]
+        v = x_proj[:, :, 2 * attention_dim : 2 * attention_dim + value_dim]
+        # v is (x_size, 0, attention_dim//2)
 
-        left_context_len = cached_key.shape[0]
+        # p is the position-encoding query, its dimension is num_heads*pos_dim..
+        p = x_proj[:, :, 2 * attention_dim + value_dim :]
+        # p is (x_size, N, pos_dim * num_heads)
+
+        if not self.is_pnnx:
+            left_context_len = cached_key.shape[0]
+        else:
+            assert cached_key.shape[0] == self.left_context_len, (
+                cached_key.shape,
+                self.left_context_len,
+            )
+            left_context_len = self.left_context_len
+
         assert left_context_len > 0, left_context_len
         assert cached_key.shape[0] == cached_val.shape[0], (
             cached_key.shape,
             cached_val.shape,
         )
+        # Note: We need to fix the Concat in ncnn
+        # cached_key is (1, 64, 192) in ncnn
+        # k is (16, 192) in ncnn
         # Pad cached left contexts
         k = torch.cat([cached_key, k], dim=0)
+        # (left_context_len + x_size, N, attention_dim)
+
         v = torch.cat([cached_val, v], dim=0)
+        # v: (left_context_len + x_size, N, attention_dim//2)
         # Update cached left contexts
-        cached_key = k[-left_context_len:, ...]
-        cached_val = v[-left_context_len:, ...]
+        if not self.is_pnnx:
+            cached_key = k[-left_context_len:, ...]
+            cached_val = v[-left_context_len:, ...]
+        else:
+            cached_key = k[self.x_size :]
+            cached_val = v[self.x_size :]
+            assert cached_key.shape[0] == left_context_len, (
+                cached_key.shape,
+                left_context_len,
+            )
+            assert cached_val.shape[0] == left_context_len, (
+                cached_val.shape,
+                left_context_len,
+            )
 
-        # The length of key and value
-        kv_len = k.shape[0]
+        if not self.is_pnnx:
+            # The length of key and value
+            kv_len = k.shape[0]
+        else:
+            kv_len = left_context_len + self.x_size
+            assert kv_len == k.shape[0], (kv_len, k.shape)
 
-        q = q.reshape(seq_len, bsz, num_heads, head_dim)
-        p = p.reshape(seq_len, bsz, num_heads, pos_dim)
-        k = k.reshape(kv_len, bsz, num_heads, head_dim)
-        v = v.reshape(kv_len, bsz * num_heads, head_dim // 2).transpose(0, 1)
+        if not self.is_pnnx:
+            q = q.reshape(seq_len, bsz, num_heads, head_dim)
+            p = p.reshape(seq_len, bsz, num_heads, pos_dim)
+            k = k.reshape(kv_len, bsz, num_heads, head_dim)
 
-        q = q.permute(1, 2, 0, 3)  # (batch, head, time1, head_dim)
-        p = p.permute(1, 2, 0, 3)  # (batch, head, time1, pos_dim)
-        k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
+            v = v.reshape(kv_len, bsz * num_heads, head_dim // 2).transpose(0, 1)
+            # v is (bsz * num_heads, kv_len, head_dim//2)
 
-        seq_len2 = 2 * seq_len - 1 + left_context_len
-        pos = pos.reshape(1, seq_len2, num_heads, pos_dim).permute(0, 2, 3, 1)
-        # pos shape now: (batch, head, pos_dim, seq_len2)
+            q = q.permute(1, 2, 0, 3)  # (batch, head, time1, head_dim)
+            p = p.permute(1, 2, 0, 3)  # (batch, head, time1, pos_dim)
+            k = k.permute(1, 2, 3, 0)  # (batch, head, d_k, time2)
 
-        # (batch, head, time1, pos_dim) x (1, head, pos_dim, seq_len2) -> (batch, head, time1, seq_len2)
+            seq_len2 = 2 * seq_len - 1 + left_context_len
+            pos = pos.reshape(1, seq_len2, num_heads, pos_dim).permute(0, 2, 3, 1)
+            # pos shape now: (batch, head, pos_dim, seq_len2)
+        else:
+            q = q.reshape(seq_len, num_heads, head_dim)
+            p = p.reshape(seq_len, num_heads, pos_dim)
+            k = k.reshape(kv_len, num_heads, head_dim)
+            #  v = v.reshape(kv_len, num_heads, head_dim // 2).permute(1, 0, 2)
+            v = v.reshape(kv_len, num_heads, head_dim // 2)
+            v = self.my_permute_pqv(v)
+            # v is (num_heads, kv_len, head_dim//2) e.g., (8, 80, 12)
+
+            #  q = q.permute(1, 0, 2)  # (head, time1, head_dim)
+            #  p = p.permute(1, 0, 2)  # (head, time1, pos_dim)
+            #  k = k.permute(1, 2, 0)  # (head, d_k, time2)
+
+            q = self.my_permute_pqv(q)  # (head, time1, head_dim), e.g., (8, 16, 24)
+            p = self.my_permute_pqv(p)  # (head, time1, pos_dim), e.g., (8, 16, 4)
+            k = self.my_permute_k_pos(k)  # (head, d_k, time2) e.g., (8, 24, 80)
+
+            seq_len2 = 2 * seq_len - 1 + left_context_len
+            #  pos = pos.reshape(seq_len2, num_heads, pos_dim).permute(1, 2, 0)
+            # pos shape now: (head, pos_dim, seq_len2)
+
+            pos = pos.reshape(seq_len2, num_heads, pos_dim)
+            pos = self.my_permute_k_pos(
+                pos
+            )  # (head, pos_dim, seq_len2), e.g, (8, 4, 95)
+
+        # (batch, head, time1, pos_dim) x (1, head, pos_dim, seq_len2) -> (batch, head, time1, seq_len2) ,e.g., (1, 8, 16, 95)
         #  [where seq_len2 represents relative position.]
         pos_weights = torch.matmul(p, pos)
+
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        if torch.jit.is_tracing():
-            (batch_size, num_heads, time1, n) = pos_weights.shape
-            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
-            cols = torch.arange(kv_len)
-            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
-            indexes = rows + cols
-            pos_weights = pos_weights.reshape(-1, n)
-            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
-            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, kv_len)
-        else:
+
+        if not self.is_pnnx:
             pos_weights = pos_weights.as_strided(
                 (bsz, num_heads, seq_len, kv_len),
                 (
@@ -2294,6 +2541,16 @@ class RelPositionMultiheadAttention(nn.Module):
                     pos_weights.stride(3),
                 ),
                 storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
+        else:
+            pos_weights = pos_weights.as_strided(
+                (num_heads, seq_len, kv_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1) - pos_weights.stride(2),
+                    pos_weights.stride(2),
+                ),
+                storage_offset=pos_weights.stride(2) * (seq_len - 1),
             )
 
         # caution: they are really scores at this point.
@@ -2309,13 +2566,29 @@ class RelPositionMultiheadAttention(nn.Module):
         attn_output_weights = softmax(attn_output_weights, dim=-1)
 
         attn_output = torch.bmm(attn_output_weights, v)
+
         assert list(attn_output.size()) == [bsz * num_heads, seq_len, head_dim // 2]
-        attn_output = (
-            attn_output.transpose(0, 1)
-            .contiguous()
-            .view(seq_len, bsz, attention_dim // 2)
-        )
-        attn_output = nn.functional.linear(attn_output, out_proj_weight, out_proj_bias)
+        # (8, 16, 12)
+
+        if not self.is_pnnx:
+            attn_output = (
+                attn_output.transpose(0, 1)
+                .contiguous()
+                .view(seq_len, bsz, attention_dim // 2)
+            )
+            attn_output = nn.functional.linear(
+                attn_output, out_proj_weight, out_proj_bias
+            )
+        else:
+            attn_output = self.my_permute_pqv(attn_output)  # (1, 0, 2)
+            attn_output = attn_output.reshape(seq_len, bsz, attention_dim // 2)
+            # We have changed InnerProduct in ncnn to treat
+            # (seq_len, bsz, attention_dim//2) as
+            # (seq_len, attention_dim//2)
+
+            attn_output = nn.functional.linear(
+                attn_output, out_proj_weight, out_proj_bias
+            )
 
         return attn_output, attn_output_weights, cached_key, cached_val
 
@@ -2375,28 +2648,55 @@ class RelPositionMultiheadAttention(nn.Module):
             - updated cached attention value tensor of left context.
         """
         num_heads = self.num_heads
-        (seq_len, bsz, embed_dim) = x.shape
+
+        assert x.shape[0] == self.x_size, (x.shape[0], self.x_size)
+        assert x.shape[2] == self.embed_dim, (x.shape[2], self.embed_dim)
+
+        if not self.is_pnnx:
+            (seq_len, bsz, embed_dim) = x.shape
+        else:
+            seq_len = self.x_size
+            bsz = 1
+            embed_dim = self.embed_dim
+
         head_dim = self.attention_dim // num_heads
         # v: (tgt_len, bsz, embed_dim // 2)
         v = self.in_proj2(x)
 
-        left_context_len = cached_val.shape[0]
+        assert cached_val.shape[0] == self.left_context_len, (
+            cached_val.shape[0],
+            self.left_context_len,
+        )
+
+        left_context_len = self.left_context_len
         assert left_context_len > 0, left_context_len
         v = torch.cat([cached_val, v], dim=0)
         cached_val = v[-left_context_len:]
 
         seq_len2 = left_context_len + seq_len
-        v = v.reshape(seq_len2, bsz * num_heads, head_dim // 2).transpose(0, 1)
+        if not self.is_pnnx:
+            v = v.reshape(seq_len2, bsz * num_heads, head_dim // 2).transpose(0, 1)
+        else:
+            v = v.reshape(seq_len2, bsz * num_heads, head_dim // 2)
+            #  v = v.permute(1, 0, 2)
+            v = self.my_permute_pqv(v)
 
         # now v: (bsz * num_heads, seq_len, head_dim // 2)
         attn_output = torch.bmm(attn_weights, v)
 
-        # attn_output: (bsz * num_heads, seq_len, head_dim)
-        attn_output = (
-            attn_output.transpose(0, 1)
-            .contiguous()
-            .view(seq_len, bsz, self.attention_dim // 2)
-        )
+        if not self.is_pnnx:
+            # attn_output: (bsz * num_heads, seq_len, head_dim)
+            attn_output = (
+                attn_output.transpose(0, 1)
+                .contiguous()
+                .view(seq_len, bsz, self.attention_dim // 2)
+            )
+        else:
+            attn_output = self.my_permute_pqv(attn_output)  # (1, 0, 2)
+            attn_output = attn_output.reshape(seq_len, bsz, self.attention_dim // 2)
+            # We have changed InnerProduct in ncnn to ignore bsz
+            # when invoking self.out_proj2(attn_output)
+
         # returned value is of shape (seq_len, bsz, embed_dim), like x.
         return self.out_proj2(attn_output), cached_val
 
@@ -2443,85 +2743,6 @@ class RelPositionMultiheadAttention(nn.Module):
                 )
 
 
-class PoolingModule(nn.Module):
-    """
-    Averages the input over the time dimension and project with a square matrix.
-    """
-
-    def __init__(self, d_model: int):
-        super().__init__()
-        self.proj = ScaledLinear(d_model, d_model, initial_scale=0.1, bias=False)
-
-    def forward(
-        self,
-        x: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
-        """
-        Args:
-           x: a Tensor of shape (T, N, C)
-           src_key_padding_mask: a Tensor of bool, of shape (N, T), with True in masked
-               positions.
-
-        Returns:
-           - output, a Tensor of shape (T, N, C).
-        """
-        if src_key_padding_mask is not None:
-            # False in padding positions
-            padding_mask = src_key_padding_mask.logical_not().to(x.dtype)  # (N, T)
-            # Cumulated numbers of frames from start
-            cum_mask = padding_mask.cumsum(dim=1)  # (N, T)
-            x = x.cumsum(dim=0)  # (T, N, C)
-            pooling_mask = padding_mask / cum_mask
-            pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
-            # now pooling_mask: (T, N, 1)
-            x = x * pooling_mask  # (T, N, C)
-        else:
-            num_frames = x.shape[0]
-            cum_mask = torch.arange(1, num_frames + 1).unsqueeze(1)  # (T, 1)
-            x = x.cumsum(dim=0)  # (T, N, C)
-            pooling_mask = (1.0 / cum_mask).unsqueeze(2)
-            # now pooling_mask: (T, N, 1)
-            x = x * pooling_mask
-
-        x = self.proj(x)
-        return x
-
-    def streaming_forward(
-        self,
-        x: Tensor,
-        cached_len: Tensor,
-        cached_avg: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
-        """
-        Args:
-           x: a Tensor of shape (T, N, C)
-           cached_len: a Tensor of int, of shape (N,), containing the number of
-               past frames in batch.
-           cached_avg: a Tensor of shape (N, C), the average over all past frames
-               in batch.
-
-        Returns:
-           A tuple of 2 tensors:
-           - output, a Tensor of shape (T, N, C).
-           - updated cached_avg, a Tensor of shape (N, C).
-        """
-        x = x.cumsum(dim=0)  # (T, N, C)
-        x = x + (cached_avg * cached_len.unsqueeze(1)).unsqueeze(0)
-        # Cumulated numbers of frames from start
-        cum_mask = torch.arange(1, x.size(0) + 1, device=x.device)
-        cum_mask = cum_mask.unsqueeze(1) + cached_len.unsqueeze(0)  # (T, N)
-        pooling_mask = (1.0 / cum_mask).unsqueeze(2)
-        # now pooling_mask: (T, N, 1)
-        x = x * pooling_mask  # (T, N, C)
-
-        cached_len = cached_len + x.size(0)
-        cached_avg = x[-1]
-
-        x = self.proj(x)
-        return x, cached_len, cached_avg
-
-
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer model."""
 
@@ -2555,7 +2776,14 @@ class ConvolutionModule(nn.Module):
 
     """
 
-    def __init__(self, channels: int, kernel_size: int, bias: bool = True) -> None:
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int,
+        bias: bool = True,
+        is_pnnx: bool = False,
+        x_size: int = 0,
+    ) -> None:
         """Construct an ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
         # kernerl_size should be a odd number for 'SAME' padding
@@ -2622,6 +2850,9 @@ class ConvolutionModule(nn.Module):
             bias=bias,
             initial_scale=0.05,
         )
+
+        self.is_pnnx = is_pnnx
+        self.x_size = x_size
 
     def forward(
         self,
@@ -2697,8 +2928,9 @@ class ConvolutionModule(nn.Module):
             (x.size(0), x.size(1), self.lorder),
         )
         x = torch.cat([cache, x], dim=2)
-        # Update cache
-        cache = x[:, :, -self.lorder :]
+
+        cache = x[:, :, self.x_size :]
+
         x = self.depthwise_conv(x)
 
         x = self.deriv_balancer2(x)
@@ -2728,6 +2960,7 @@ class Conv2dSubsampling(nn.Module):
         layer2_channels: int = 32,
         layer3_channels: int = 128,
         dropout: float = 0.1,
+        is_pnnx: bool = False,
     ) -> None:
         """
         Args:
@@ -2742,6 +2975,9 @@ class Conv2dSubsampling(nn.Module):
             Number of channels in layer2
           layer3_channels:
             Number of channels in layer3
+          is_pnnx:
+            True if we are converting the model to PNNX format.
+            False otherwise.
         """
         assert in_channels >= 7, in_channels
         super().__init__()
@@ -2753,6 +2989,7 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
             ),
+            # After this layer (N, 1, T, C) -> (N, layer1_channels, T-2, C)
             ActivationBalancer(layer1_channels, channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
@@ -2762,6 +2999,9 @@ class Conv2dSubsampling(nn.Module):
                 stride=2,
                 padding=0,
             ),
+            # After this layer (N, layer1_channels, T-2, C) -> (N, layer2_channels, ((T-2) - 3)//2+1, (C-3)//2+1)
+            # i.e., (N, layer2_channels, (T-5)//2+1, (C-3)//2+1)
+            # i.e., (N, layer2_channels, (T-3)//2, (C-1)//2)
             ActivationBalancer(layer2_channels, channel_dim=1),
             DoubleSwish(),
             nn.Conv2d(
@@ -2770,12 +3010,20 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 stride=(1, 2),  # (time, freq)
             ),
+            # After this layer, (N, layer2_channels, (T-3)//2, (C-1)//2)
+            # ->
+            # (N, layer3_channels, (T-3)//2-2, ((C-1)//2 - 3)//2 + 1)
+            # (N, layer3_channels, (T-7)//2, (C-3)//4)
             ActivationBalancer(layer3_channels, channel_dim=1),
             DoubleSwish(),
         )
         out_height = (((in_channels - 1) // 2) - 1) // 2
         self.out = ScaledLinear(out_height * layer3_channels, out_channels)
         self.dropout = nn.Dropout(dropout)
+
+        # ncnn supports only batch size == 1
+        self.is_pnnx = is_pnnx
+        self.conv_out_dim = self.out.weight.shape[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Subsample x.
@@ -2790,9 +3038,14 @@ class Conv2dSubsampling(nn.Module):
         # On entry, x is (N, T, idim)
         x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
         x = self.conv(x)
-        # Now x is of shape (N, odim, (T-7)//2, ((idim-1)//2 - 1)//2)
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).reshape(b, t, c * f))
+
+        if torch.jit.is_tracing() and self.is_pnnx:
+            x = x.permute(0, 2, 1, 3).reshape(1, -1, self.conv_out_dim)
+            x = self.out(x)
+        else:
+            # Now x is of shape (N, odim, (T-7)//2, ((idim-1)//2 - 1)//2)
+            b, c, t, f = x.size()
+            x = self.out(x.transpose(1, 2).reshape(b, t, c * f))
         # Now x is of shape (N, (T-7)//2, odim)
         x = self.dropout(x)
         return x
