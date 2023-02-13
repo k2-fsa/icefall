@@ -262,9 +262,9 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "subsampling_factor": 4,
             "feature_dim": 80,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "encoder_dim": 512,
+            "nhead": 4,
+            "dim_feedforward": 1024,
+            "encoder_dim": 256,
             "num_encoder_layers": 18,
             # parameters for decoding
             "search_beam": 20,
