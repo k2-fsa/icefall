@@ -18,7 +18,7 @@
 """
 Usage:
 (1) use the averaged model with checkpoint exp_dir/epoch-xxx.pt
-./pruned_transducer_stateless7/generate_averaged_model.py \
+./pruned_transducer_stateless7/generate_model_from_checkpoint.py \
     --epoch 28 \
     --avg 15 \
     --use-averaged-model True \
@@ -28,7 +28,7 @@ It will generate a file `epoch-28-avg-15-use-averaged-model.pt` in the given `ex
 You can later load it by `torch.load("epoch-28-avg-15-use-averaged-model.pt")`.
 
 (2) use the averaged model with checkpoint exp_dir/checkpoint-iter.pt
-./pruned_transducer_stateless7/generate_averaged_model.py \
+./pruned_transducer_stateless7/generate_model_from_checkpoint.py \
     --iter 22000 \
     --avg 5 \
     --use-averaged-model True \
@@ -38,7 +38,7 @@ It will generate a file `iter-22000-avg-5-use-averaged-model.pt` in the given `e
 You can later load it by `torch.load("iter-22000-avg-5-use-averaged-model.pt")`.
 
 (3) use the original model with checkpoint exp_dir/epoch-xxx.pt
-./pruned_transducer_stateless7/generate_averaged_model.py \
+./pruned_transducer_stateless7/generate_model_from_checkpoint.py \
     --epoch 28 \
     --avg 15 \
     --use-averaged-model False \
@@ -48,7 +48,7 @@ It will generate a file `epoch-28-avg-15.pt` in the given `exp_dir`.
 You can later load it by `torch.load("epoch-28-avg-15.pt")`.
 
 (4) use the original model with checkpoint exp_dir/checkpoint-iter.pt
-./pruned_transducer_stateless7/generate_averaged_model.py \
+./pruned_transducer_stateless7/generate_model_from_checkpoint.py \
     --iter 22000 \
     --avg 5 \
     --use-averaged-model False \
