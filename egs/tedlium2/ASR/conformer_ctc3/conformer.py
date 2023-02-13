@@ -130,6 +130,13 @@ class Conformer(Transformer):
             ),
         )
 
+        self.group_num = group_num
+        if self.group_num != 0:
+            self.group_layer_num = int(num_encoder_layers // self.group_num)
+            self.alpha = nn.Parameter(torch.rand(self.group_num))
+            self.sigmoid = nn.Sigmoid()
+            self.layer_norm = nn.LayerNorm(d_model)
+
     def run_encoder(
         self,
         x: torch.Tensor,
