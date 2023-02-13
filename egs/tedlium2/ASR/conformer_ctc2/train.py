@@ -58,7 +58,7 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule, TedAsrDataModule
+from asr_datamodule import TedAsrDataModule
 from conformer import Conformer
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
