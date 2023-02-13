@@ -435,7 +435,6 @@ class ConformerEncoder(nn.Module):
                 outputs.append(output)
 
         #output = self.combiner(outputs)
-
         return output
 
 
