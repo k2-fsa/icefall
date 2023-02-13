@@ -135,6 +135,7 @@ class RNN(EncoderInterface):
         dropout: float = 0.1,
         layer_dropout: float = 0.075,
         aux_layer_period: int = 0,
+        is_pnnx: bool = False,
     ) -> None:
         super(RNN, self).__init__()
 
@@ -176,6 +177,8 @@ class RNN(EncoderInterface):
             else None,
         )
 
+        self.is_pnnx = is_pnnx
+
     def forward(
         self,
         x: torch.Tensor,
@@ -216,7 +219,14 @@ class RNN(EncoderInterface):
         # lengths = ((x_lens - 3) // 2 - 1) // 2 # issue an warning
         #
         # Note: rounding_mode in torch.div() is available only in torch >= 1.8.0
-        lengths = (((x_lens - 3) >> 1) - 1) >> 1
+        if not self.is_pnnx:
+            lengths = (((x_lens - 3) >> 1) - 1) >> 1
+        else:
+            lengths1 = torch.floor((x_lens - 3) / 2)
+            lengths = torch.floor((lengths1 - 1) / 2)
+            lengths = lengths.to(x_lens)
+
+
         if not torch.jit.is_tracing():
             assert x.size(0) == lengths.max().item()
 
