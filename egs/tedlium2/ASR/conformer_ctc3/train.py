@@ -522,7 +522,8 @@ def compute_loss(
             supervisions, subsampling_factor=params.subsampling_factor
         )
 
-        token_ids = convert_texts_into_ids(texts, graph_compiler.sp)
+        #token_ids = convert_texts_into_ids(texts, graph_compiler.sp)
+        token_ids = graph_compiler.texts_to_ids(texts)
         decoding_graph = graph_compiler.compile(token_ids)
 
         dense_fsa_vec = k2.DenseFsaVec(
