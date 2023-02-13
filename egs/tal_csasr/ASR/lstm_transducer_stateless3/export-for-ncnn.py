@@ -27,14 +27,14 @@ popd
 
 2. Export via torch.jit.trace()
 
-./lstm_transducer_stateless2/export-for-ncnn.py \
+./lstm_transducer_stateless3/export-for-ncnn.py \
   --exp-dir $repo/exp \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --lang-dir $repo/data/lang_char \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
 
-cd ./lstm_transducer_stateless2/exp
+cd ./lstm_transducer_stateless3/exp
 pnnx encoder_jit_trace-pnnx.pt
 pnnx decoder_jit_trace-pnnx.pt
 pnnx joiner_jit_trace-pnnx.pt
@@ -232,7 +232,7 @@ def main():
     params.is_pnnx = True
 
     logging.info("About to create model")
-    model = get_transducer_model(params, enable_giga=False)
+    model = get_transducer_model(params)
 
     if not params.use_averaged_model:
         if params.iter > 0:
