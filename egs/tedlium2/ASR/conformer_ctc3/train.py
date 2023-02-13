@@ -132,6 +132,13 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         default=256,
         help="Attention dimension in the conformer model.",
     )
+    
+    parser.add_argument(
+        "--kernel-size",
+        type=int,
+        default=15,
+        help="Attention dimension in the conformer model.",
+    )
 
 
 def get_parser() -> argparse.ArgumentParser:
