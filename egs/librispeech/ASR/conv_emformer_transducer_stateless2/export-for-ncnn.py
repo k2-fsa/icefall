@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
 """
+Please see
+https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+for more details about how to use this file.
+
 Usage:
 ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
   --exp-dir ./conv_emformer_transducer_stateless2/exp \
@@ -44,7 +48,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool
+from icefall.utils import setup_logger, str2bool
 
 
 def get_parser():
@@ -94,14 +98,6 @@ def get_parser():
         type=str,
         default="data/lang_bpe_500/bpe.model",
         help="Path to the BPE model",
-    )
-
-    parser.add_argument(
-        "--jit",
-        type=str2bool,
-        default=False,
-        help="""True to save a model after applying torch.jit.script.
-        """,
     )
 
     parser.add_argument(
@@ -217,6 +213,8 @@ def main():
 
     device = torch.device("cpu")
 
+    setup_logger(f"{params.exp_dir}/log-export/log-export-ncnn")
+
     logging.info(f"device: {device}")
 
     sp = spm.SentencePieceProcessor()
@@ -330,5 +328,4 @@ def main():
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
-    logging.basicConfig(format=formatter, level=logging.INFO)
     main()

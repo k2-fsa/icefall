@@ -374,21 +374,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--filter-uneven-sized-batch",
-        type=str2bool,
-        default=True,
-        help="""Whether to filter uneven-sized minibatch.
-        For the uneven-sized batch, the total duration after padding would possibly
-        cause OOM. Hence, for each batch, which is sorted descendingly by length,
-        we simply drop the last few shortest samples, so that the retained total frames
-        (after padding) would not exceed `allowed_max_frames`:
-        `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
-        where `max_frames = max_duration * 1000 // frame_shift_ms`.
-        We set allowed_excess_duration_ratio=0.1.
-        """,
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -442,7 +427,6 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "frame_shift_ms": 10.0,
-            # only used when params.filter_uneven_sized_batch is True
             "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
@@ -666,12 +650,16 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    if params.filter_uneven_sized_batch:
-        max_frames = params.max_duration * 1000 // params.frame_shift_ms
-        allowed_max_frames = int(
-            max_frames * (1.0 + params.allowed_excess_duration_ratio)
-        )
-        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    # For the uneven-sized batch, the total duration after padding would possibly
+    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    # we simply drop the last few shortest samples, so that the retained total frames
+    # (after padding) would not exceed `allowed_max_frames`:
+    # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
+    # where `max_frames = max_duration * 1000 // frame_shift_ms`.
+    # We set allowed_excess_duration_ratio=0.1.
+    max_frames = params.max_duration * 1000 // params.frame_shift_ms
+    allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
+    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -1055,10 +1043,10 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

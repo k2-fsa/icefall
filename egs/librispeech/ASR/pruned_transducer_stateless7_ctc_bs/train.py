@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,
@@ -35,7 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_ctc_bs/exp \
   --full-libri 1 \
-  --max-duration 550
+  --max-duration 750
 """
 
 
@@ -55,9 +54,9 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
+from frame_reducer import FrameReducer
 from joiner import Joiner
 from lconv import LConv
-from frame_reducer import FrameReducer
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -1063,10 +1062,10 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

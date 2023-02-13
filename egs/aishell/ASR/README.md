@@ -1,7 +1,7 @@
 
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/aishell/index.html>
+Please refer to <https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/aishell/index.html>
 for how to run models in this recipe.
 
 
