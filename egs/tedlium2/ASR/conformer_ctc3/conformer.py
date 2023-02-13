@@ -171,7 +171,7 @@ class Conformer(Transformer):
         mask = encoder_padding_mask(x.size(0), supervisions)
         mask = mask.to(x.device) if mask is not None else None
 
-        x = self.encoder(
+        x, layer_outputs = self.encoder(
             x, pos_emb, src_key_padding_mask=mask, warmup=warmup
         )  # (S, N, C)
 
