@@ -219,7 +219,7 @@ popd
 ./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace-pnnx.pt
 
 python3 ./pruned_transducer_stateless7_streaming/streaming-ncnn-decode.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --tokens $repo/data/lang_char_bpe/tokens.txt \
   --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
   --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
   --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \
