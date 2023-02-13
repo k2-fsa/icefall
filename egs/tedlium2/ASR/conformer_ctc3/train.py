@@ -137,7 +137,6 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         "--kernel-size",
         type=int,
         default=15,
-        help="Attention dimension in the conformer model.",
     )
 
 
@@ -881,6 +880,8 @@ def run(rank, world_size, args):
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
+        cnn_module_kernel=params.kernel_size,
+        group_num=params.group_num,
     )
     logging.info(model)
 
