@@ -395,7 +395,7 @@ class TedAsrDataModule:
     
     @lru_cache()
     def train_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
+        logging.info("About to get train cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         )
