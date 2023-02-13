@@ -402,7 +402,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--pad",
+        "--pad-feature",
         type=int,
         default=0,
         help="""
@@ -696,11 +696,11 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    if params.pad:
-        feature_lens += params.pad
+    if params.pad_feature:
+        feature_lens += params.pad_feature
         feature = torch.nn.functional.pad(
             feature,
-            pad=(0, 0, 0, params.pad),
+            pad=(0, 0, 0, params.pad_feature),
             value=LOG_EPS,
         )
 
@@ -1102,9 +1102,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 0.3 or c.duration > 20.0:
-            # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
             return False
 
         # In pruned RNN-T, we require that T >= S

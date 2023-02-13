@@ -329,7 +329,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--pad",
+        "--pad-feature",
         type=int,
         default=30,
         help="""
@@ -391,11 +391,11 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    if params.pad:
-        feature_lens += params.pad
+    if params.pad_feature:
+        feature_lens += params.pad_feature
         feature = torch.nn.functional.pad(
             feature,
-            pad=(0, 0, 0, params.pad),
+            pad=(0, 0, 0, params.pad_feature),
             value=LOG_EPS,
         )
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
