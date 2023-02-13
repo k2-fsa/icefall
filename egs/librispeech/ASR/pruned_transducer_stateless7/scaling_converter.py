@@ -22,11 +22,101 @@ BasicNorm is replaced by a module with `exp` removed.
 """
 
 import copy
-from typing import List
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
 from scaling import ActivationBalancer, BasicNorm, Whiten
+from zipformer import PoolingModule
+
+
+class PoolingModuleNoProj(nn.Module):
+    def forward(
+        self,
+        x: torch.Tensor,
+        cached_len: torch.Tensor,
+        cached_avg: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          x:
+            A tensor of shape (T, N, C)
+          cached_len:
+            A tensor of shape (N,)
+          cached_avg:
+            A tensor of shape (N, C)
+        Returns:
+          Return a tuple containing:
+            - new_x
+            - new_cached_len
+            - new_cached_avg
+        """
+        x = x.cumsum(dim=0)  # (T, N, C)
+        x = x + (cached_avg * cached_len.unsqueeze(1)).unsqueeze(0)
+        # Cumulated numbers of frames from start
+        cum_mask = torch.arange(1, x.size(0) + 1, device=x.device)
+        cum_mask = cum_mask.unsqueeze(1) + cached_len.unsqueeze(0)  # (T, N)
+        pooling_mask = (1.0 / cum_mask).unsqueeze(2)
+        # now pooling_mask: (T, N, 1)
+        x = x * pooling_mask  # (T, N, C)
+
+        cached_len = cached_len + x.size(0)
+        cached_avg = x[-1]
+
+        return x, cached_len, cached_avg
+
+
+class PoolingModuleWithProj(nn.Module):
+    def __init__(self, proj: torch.nn.Module):
+        super().__init__()
+        self.proj = proj
+        self.pooling = PoolingModuleNoProj()
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        cached_len: torch.Tensor,
+        cached_avg: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          x:
+            A tensor of shape (T, N, C)
+          cached_len:
+            A tensor of shape (N,)
+          cached_avg:
+            A tensor of shape (N, C)
+        Returns:
+          Return a tuple containing:
+            - new_x
+            - new_cached_len
+            - new_cached_avg
+        """
+        x, cached_len, cached_avg = self.pooling(x, cached_len, cached_avg)
+        return self.proj(x), cached_len, cached_avg
+
+    def streaming_forward(
+        self,
+        x: torch.Tensor,
+        cached_len: torch.Tensor,
+        cached_avg: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Args:
+          x:
+            A tensor of shape (T, N, C)
+          cached_len:
+            A tensor of shape (N,)
+          cached_avg:
+            A tensor of shape (N, C)
+        Returns:
+          Return a tuple containing:
+            - new_x
+            - new_cached_len
+            - new_cached_avg
+        """
+        x, cached_len, cached_avg = self.pooling(x, cached_len, cached_avg)
+        return self.proj(x), cached_len, cached_avg
 
 
 class NonScaledNorm(nn.Module):
@@ -53,13 +143,18 @@ class NonScaledNorm(nn.Module):
 
 
 def convert_basic_norm(basic_norm: BasicNorm) -> NonScaledNorm:
-    assert isinstance(basic_norm, BasicNorm), type(BasicNorm)
+    assert isinstance(basic_norm, BasicNorm), type(basic_norm)
     norm = NonScaledNorm(
         num_channels=basic_norm.num_channels,
         eps_exp=basic_norm.eps.data.exp().item(),
         channel_dim=basic_norm.channel_dim,
     )
     return norm
+
+
+def convert_pooling_module(pooling: PoolingModule) -> PoolingModuleWithProj:
+    assert isinstance(pooling, PoolingModule), type(pooling)
+    return PoolingModuleWithProj(proj=pooling.proj)
 
 
 # Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
@@ -103,6 +198,8 @@ def convert_scaled_to_non_scaled(
             d[name] = convert_basic_norm(m)
         elif isinstance(m, (ActivationBalancer, Whiten)):
             d[name] = nn.Identity()
+        elif isinstance(m, PoolingModule):
+            d[name] = convert_pooling_module(m)
 
     for k, v in d.items():
         if "." in k:
