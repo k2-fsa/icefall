@@ -337,7 +337,7 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "subsampling_factor": 4,
             "encoder_dim": 256,
-            "nhead": 8,
+            "nhead": 4,
             "dim_feedforward": 1024,
             "num_encoder_layers": 18,
             # parameters for ctc loss
