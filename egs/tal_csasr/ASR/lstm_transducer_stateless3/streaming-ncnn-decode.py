@@ -77,7 +77,7 @@ def get_args():
         type=str,
         help="Path to joiner.ncnn.bin",
     )
-    
+
     parser.add_argument(
         "--num-encoder-layers",
         type=int,
@@ -91,7 +91,7 @@ def get_args():
         default=512,
         help="Encoder output dimesion.",
     )
-    
+
     parser.add_argument(
         "--rnn-hidden-size",
         type=int,
