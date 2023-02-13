@@ -100,7 +100,7 @@ class Zipformer(EncoderInterface):
         causal (bool): if True, support chunkwise causal convolution.  This should
           not hurt WER as no modeling power is lost, but the convolution modules will be
           slightly slower and use more memory.  Enables use of the chunk_size and
-          left_context_chunk options in forward(), which simulates streaming
+          left_context_chunks options in forward(), which simulates streaming
           decoding.
         chunk_size: (list of int): only set this to other than [-1] if causal;
            the chunk size will be randomly chosen from this list.  -1 means no chunking.
@@ -344,6 +344,8 @@ class Zipformer(EncoderInterface):
             left_context_frames = random.choice(self.left_context_frames)
             # Note: in Python, -1 // n == -1 for n > 0
             left_context_chunks = left_context_frames // chunk_size
+            if left_context_chunks == 0:
+                left_context_chunks = 1
         return chunk_size, left_context_chunks
 
 
