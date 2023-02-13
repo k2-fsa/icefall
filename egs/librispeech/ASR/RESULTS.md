@@ -77,6 +77,18 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+#### Smaller model
+
+A smaller model (~20M params) is also available with configuration based on [this comment](https://github.com/k2-fsa/icefall/pull/745#issuecomment-1405282740). The WERs are:
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 3.94       | 9.79       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search | 320ms      | 3.88       | 9.53       | --epoch 30 --avg 9  | simulated streaming  |
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at: <https://huggingface.co/desh2608/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-small>
+
 
 ### zipformer_mmi (zipformer with mmi loss)
 
