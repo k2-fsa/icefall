@@ -974,11 +974,11 @@ def main():
     dev_cuts = tedlium.dev_cuts()
     test_cuts = tedlium.test_cuts()
 
-    dev_dl = tedlium.valid_dataloaders(test_clean_cuts)
-    test_dl = tedlium.test_dataloaders(test_other_cuts)
+    dev_dl = tedlium.valid_dataloaders(dev_cuts)
+    test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dl = [dev_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
