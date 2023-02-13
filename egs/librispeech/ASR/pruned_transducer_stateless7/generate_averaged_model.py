@@ -17,19 +17,41 @@
 # limitations under the License.
 """
 Usage:
-(1) use the checkpoint exp_dir/epoch-xxx.pt
+(1) use the averaged model with checkpoint exp_dir/epoch-xxx.pt
 ./pruned_transducer_stateless7/generate_averaged_model.py \
     --epoch 28 \
     --avg 15 \
+    --use-averaged-model True \
+    --exp-dir ./pruned_transducer_stateless7/exp
+
+It will generate a file `epoch-28-avg-15-use-averaged-model.pt` in the given `exp_dir`.
+You can later load it by `torch.load("epoch-28-avg-15-use-averaged-model.pt")`.
+
+(2) use the averaged model with checkpoint exp_dir/checkpoint-iter.pt
+./pruned_transducer_stateless7/generate_averaged_model.py \
+    --iter 22000 \
+    --avg 5 \
+    --use-averaged-model True \
+    --exp-dir ./pruned_transducer_stateless7/exp
+
+It will generate a file `iter-22000-avg-5-use-averaged-model.pt` in the given `exp_dir`.
+You can later load it by `torch.load("iter-22000-avg-5-use-averaged-model.pt")`.
+
+(3) use the original model with checkpoint exp_dir/epoch-xxx.pt
+./pruned_transducer_stateless7/generate_averaged_model.py \
+    --epoch 28 \
+    --avg 15 \
+    --use-averaged-model False \
     --exp-dir ./pruned_transducer_stateless7/exp
 
 It will generate a file `epoch-28-avg-15.pt` in the given `exp_dir`.
 You can later load it by `torch.load("epoch-28-avg-15.pt")`.
 
-(2) use the checkpoint exp_dir/checkpoint-iter.pt
+(4) use the original model with checkpoint exp_dir/checkpoint-iter.pt
 ./pruned_transducer_stateless7/generate_averaged_model.py \
     --iter 22000 \
     --avg 5 \
+    --use-averaged-model False \
     --exp-dir ./pruned_transducer_stateless7/exp
 
 It will generate a file `iter-22000-avg-5.pt` in the given `exp_dir`.
@@ -87,6 +109,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-averaged-model",
+        type=str2bool,
+        default=True,
+        help="Whether to load averaged model."
+        "If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
+    )
+
+    parser.add_argument(
         "--exp-dir",
         type=str,
         default="pruned_transducer_stateless7/exp",
@@ -127,6 +160,9 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
+    if params.use_averaged_model:
+        params.suffix += "-use-averaged-model"
+
     print("Script started")
 
     device = torch.device("cpu")
@@ -143,55 +179,91 @@ def main():
     print("About to create model")
     model = get_transducer_model(params)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg + 1
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg + 1:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        filename_start = filenames[-1]
-        filename_end = filenames[0]
-        print(
-            "Calculating the averaged model over iteration checkpoints"
-            f" from {filename_start} (excluded) to {filename_end}"
-        )
-        model.to(device)
-        model.load_state_dict(
-            average_checkpoints_with_averaged_model(
-                filename_start=filename_start,
-                filename_end=filename_end,
-                device=device,
-            )
-        )
-        filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}.pt"
-        torch.save({"model": model.state_dict()}, filename)
+    if not params.use_averaged_model:
+        if params.iter > 0:
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
+            filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}.pt"
+            torch.save({"model": model.state_dict()}, filename)
+        elif params.avg == 1:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+            filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}.pt"
+            torch.save({"model": model.state_dict()}, filename)
+        else:
+            start = params.epoch - params.avg + 1
+            filenames = []
+            for i in range(start, params.epoch + 1):
+                if i >= 1:
+                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
+            filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}.pt"
+            torch.save({"model": model.state_dict()}, filename)
     else:
-        assert params.avg > 0, params.avg
-        start = params.epoch - params.avg
-        assert start >= 1, start
-        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-        print(
-            f"Calculating the averaged model over epoch range from "
-            f"{start} (excluded) to {params.epoch}"
-        )
-        model.to(device)
-        model.load_state_dict(
-            average_checkpoints_with_averaged_model(
-                filename_start=filename_start,
-                filename_end=filename_end,
-                device=device,
+        if params.iter > 0:
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg + 1:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            filename_start = filenames[-1]
+            filename_end = filenames[0]
+            print(
+                "Calculating the averaged model over iteration checkpoints"
+                f" from {filename_start} (excluded) to {filename_end}"
             )
-        )
-        filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}.pt"
-        torch.save({"model": model.state_dict()}, filename)
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+            filename = params.exp_dir / f"iter-{params.iter}-avg-{params.avg}-use-averaged-model.pt"
+            torch.save({"model": model.state_dict()}, filename)
+        else:
+            assert params.avg > 0, params.avg
+            start = params.epoch - params.avg
+            assert start >= 1, start
+            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+            print(
+                f"Calculating the averaged model over epoch range from "
+                f"{start} (excluded) to {params.epoch}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+            filename = params.exp_dir / f"epoch-{params.epoch}-avg-{params.avg}-use-averaged-model.pt"
+            torch.save({"model": model.state_dict()}, filename)
 
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
