@@ -138,6 +138,11 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=15,
     )
+    parser.add_argument(
+        "--group-num",
+        type=int,
+        default=0,
+    )
 
 
 def get_parser() -> argparse.ArgumentParser:
