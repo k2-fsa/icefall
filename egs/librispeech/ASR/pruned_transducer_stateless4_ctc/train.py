@@ -22,31 +22,31 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --max-duration 550
 
 # train a streaming model
-./pruned_transducer_stateless4/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless4/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --dynamic-chunk-training 1 \
   --causal-convolution 1 \
@@ -196,7 +196,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4_ctc/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved

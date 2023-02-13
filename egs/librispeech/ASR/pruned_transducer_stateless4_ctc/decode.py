@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -56,7 +56,7 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless3/exp \
@@ -69,10 +69,10 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -82,10 +82,10 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
@@ -93,14 +93,14 @@ Usage:
     --max-states 64
 
 (8) decode in streaming mode (take greedy search as an example)
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 30 \
     --avg 15 \
     --simulate-streaming 1 \
     --causal-convolution 1 \
     --decode-chunk-size 16 \
     --left-context 64 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method greedy_search
     --beam 20.0 \
@@ -109,16 +109,13 @@ Usage:
 
 To evaluate symbol delay, you should:
 (1) Generate cuts with word-time alignments:
-./local/add_alignment_librispeech.py \
-    --alignments-dir data/alignment \
-    --cuts-in-dir data/fbank \
-    --cuts-out-dir data/fbank_ali
+./add_alignments.sh
 (2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
 For example:
-./pruned_transducer_stateless4/decode.py \
+./pruned_transducer_stateless4_ctc/decode.py \
     --epoch 40 \
     --avg 20 \
-    --exp-dir ./pruned_transducer_stateless4/exp \
+    --exp-dir ./pruned_transducer_stateless4_ctc/exp \
     --max-duration 600 \
     --decoding-method greedy_search \
     --manifest-dir data/fbank_ali
@@ -216,7 +213,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless4/exp",
+        default="pruned_transducer_stateless4_ctc/exp",
         help="The experiment dir",
     )
 
@@ -528,7 +525,6 @@ def decode_one_batch(
         res = DecodingResults(hyps=tokens, timestamps=timestamps)
 
     hyps, timestamps = parse_hyp_and_timestamp(
-        decoding_method=params.decoding_method,
         res=res,
         sp=sp,
         subsampling_factor=params.subsampling_factor,
