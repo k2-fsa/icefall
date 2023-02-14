@@ -665,21 +665,21 @@ def compute_loss(
                 #    supervision_segments,
                 #    allow_truncate=params.subsampling_factor - 1,
                 #),
-                k2.DenseFsaVec(
-                    nnet_output[1][5],
-                    supervision_segments,
-                    allow_truncate=params.subsampling_factor - 1,
-                ),
                 #k2.DenseFsaVec(
-                #    nnet_output[1][8],
+                #    nnet_output[1][5],
                 #    supervision_segments,
                 #    allow_truncate=params.subsampling_factor - 1,
                 #),
                 k2.DenseFsaVec(
-                    nnet_output[1][11],
+                    nnet_output[1][8],
                     supervision_segments,
                     allow_truncate=params.subsampling_factor - 1,
                 ),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][11],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
                 #k2.DenseFsaVec(
                 #    nnet_output[1][14],
                 #    supervision_segments,
