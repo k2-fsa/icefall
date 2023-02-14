@@ -550,6 +550,12 @@ def compute_loss(
                 supervision_segments,
                 allow_truncate=params.subsampling_factor - 1,
             )
+            
+            dense_fsa_vec1 = k2.DenseFsaVec(
+                nnet_output[-1],
+                supervision_segments,
+                allow_truncate=params.subsampling_factor - 1,
+            )
 
             ctc_loss = k2.ctc_loss(
                 decoding_graph=decoding_graph,
