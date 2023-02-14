@@ -590,31 +590,31 @@ def compute_loss(
             )
             
             dense_fsa_vec_inter = [
-                k2.DenseFsaVec(
-                    nnet_output[1][2],
-                    supervision_segments,
-                    allow_truncate=params.subsampling_factor - 1,
-                ),
-                k2.DenseFsaVec(
-                    nnet_output[1][5],
-                    supervision_segments,
-                    allow_truncate=params.subsampling_factor - 1,
-                ),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][2],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][5],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
                 k2.DenseFsaVec(
                     nnet_output[1][8],
                     supervision_segments,
                     allow_truncate=params.subsampling_factor - 1,
                 ),
-                k2.DenseFsaVec(
-                    nnet_output[1][11],
-                    supervision_segments,
-                    allow_truncate=params.subsampling_factor - 1,
-                ),
-                k2.DenseFsaVec(
-                    nnet_output[1][14],
-                    supervision_segments,
-                    allow_truncate=params.subsampling_factor - 1,
-                )
+                #k2.DenseFsaVec(
+                #    nnet_output[1][11],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][14],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #)
             ]
 
             ctc_loss = k2.ctc_loss(
