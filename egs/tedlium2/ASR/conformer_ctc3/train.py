@@ -582,7 +582,7 @@ def compute_loss(
                 use_double_scores=params.use_double_scores,
             )
 
-        elif params.condition:
+        elif parmas.interctc and params.condition:
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output[0],
                 supervision_segments,
