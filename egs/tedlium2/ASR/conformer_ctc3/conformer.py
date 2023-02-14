@@ -141,6 +141,9 @@ class Conformer(Transformer):
             self.layer_norm = nn.LayerNorm(d_model)
 
         self.interctc = interctc
+        self.interctc_condition = interctc_condition
+        if self.interctc_condition:
+            self.condition_layer = ScaledLinear(d_model, 500)
 
     def run_encoder(
         self,
