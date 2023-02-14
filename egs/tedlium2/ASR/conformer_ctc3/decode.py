@@ -763,7 +763,7 @@ def main() -> None:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
-        group_num=6,
+        group_num=params.group_num,
     )
 
     if not params.use_averaged_model:
