@@ -186,12 +186,15 @@ class Transformer(nn.Module):
         encoder_memory, memory_key_padding_mask = self.run_encoder(
             x, supervision, warmup
         )
+        x = self.ctc_output(encoder_memory)
+        
         if type(encoder_memory) == tuple:
             (encoder_memory, layer_outputs) = encoder_memory
             layer_outputs = [self.ctc_output(x) for x in layer_outputs]
 
-        x = self.ctc_output(encoder_memory)
-        return (x, layer_outputs), encoder_memory, memory_key_padding_mask
+            return (x, layer_outputs), encoder_memory, memory_key_padding_mask
+        else:
+            return x, encoder_memory, memory_key_padding_mask
 
     def run_encoder(
         self,
