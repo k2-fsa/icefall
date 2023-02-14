@@ -303,6 +303,14 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         help="Whether to use half precision training.",
     )
+    
+    parser.add_argument(
+        "--interctc-weight",
+        type=float,
+        default=0.3,
+        help="""Number of steps that affects how rapidly the learning rate
+        decreases. We suggest not to change this.""",
+    )
 
     add_model_arguments(parser)
 
