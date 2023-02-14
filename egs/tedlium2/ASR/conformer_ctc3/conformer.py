@@ -139,6 +139,8 @@ class Conformer(Transformer):
             self.sigmoid = nn.Sigmoid()
             self.layer_norm = nn.LayerNorm(d_model)
 
+        self.interctc = interctc
+
     def run_encoder(
         self,
         x: torch.Tensor,
