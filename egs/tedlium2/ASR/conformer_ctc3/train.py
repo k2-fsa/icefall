@@ -301,14 +301,12 @@ def get_parser() -> argparse.ArgumentParser:
         "--interctc",
         type=str2bool,
         default=False,
-        help="Whether to use half precision training.",
     )
     
     parser.add_argument(
         "--condition",
         type=str2bool,
         default=False,
-        help="Whether to use half precision training.",
     )
 
     parser.add_argument(
