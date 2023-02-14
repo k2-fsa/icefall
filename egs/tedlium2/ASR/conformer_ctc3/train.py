@@ -683,7 +683,7 @@ def compute_loss(
                 f"ctc_loss: {ctc_loss}\n"
                 f"att_loss: {att_loss}"
             )
-            display_and_save_batch(batch, params=params, sp=graph_compiler.sp)
+            #display_and_save_batch(batch, params=params, sp=graph_compiler.sp)
             ctc_loss = ctc_loss[ctc_loss_is_finite]
             att_loss = att_loss[att_loss_is_finite]
 
