@@ -619,7 +619,7 @@ def compute_loss(
 
             ctc_loss = k2.ctc_loss(
                 decoding_graph=decoding_graph,
-                dense_fsa_vec=dense_fsa_vec1,
+                dense_fsa_vec=dense_fsa_vec,
                 output_beam=params.beam_size,
                 reduction=params.reduction,
                 use_double_scores=params.use_double_scores,
