@@ -143,7 +143,7 @@ class Conformer(Transformer):
         self.interctc = interctc
         self.interctc_condition = interctc_condition
         if self.interctc_condition:
-            self.condition_layer = ScaledLinear(d_model, 500)
+            self.condition_layer = ScaledLinear(500, d_model)
 
     def run_encoder(
         self,
