@@ -185,7 +185,7 @@ class Conformer(Transformer):
             x = self.layer_norm(x)
 
         if self.interctc:
-            return layer_outputs, mask
+            return (x, layer_outputs), mask
         else:
             return x, mask
 
