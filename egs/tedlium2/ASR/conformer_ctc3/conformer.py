@@ -52,6 +52,7 @@ class Conformer(Transformer):
         aux_layer_period: int = 3,
         group_num: int = 0,
         interctc: bool = False,
+        interctc_condition: bool = True,
     ) -> None:
         """
         Args:
