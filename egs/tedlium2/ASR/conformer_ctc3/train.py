@@ -546,13 +546,13 @@ def compute_loss(
         
         if params.interctc:
             dense_fsa_vec1 = k2.DenseFsaVec(
-                nnet_output[8],
+                nnet_output[0],
                 supervision_segments,
                 allow_truncate=params.subsampling_factor - 1,
             )
             
             dense_fsa_vec1 = k2.DenseFsaVec(
-                nnet_output[-1],
+                nnet_output[1][8],
                 supervision_segments,
                 allow_truncate=params.subsampling_factor - 1,
             )
