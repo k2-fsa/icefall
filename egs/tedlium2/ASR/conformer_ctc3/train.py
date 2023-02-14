@@ -678,11 +678,11 @@ def compute_loss(
         ctc_loss_is_finite = torch.isfinite(ctc_loss)
         att_loss_is_finite = torch.isfinite(att_loss)
         if torch.any(~ctc_loss_is_finite) or torch.any(~att_loss_is_finite):
-            logging.info(
-                "Not all losses are finite!\n"
-                f"ctc_loss: {ctc_loss}\n"
-                f"att_loss: {att_loss}"
-            )
+            #logging.info(
+            #    "Not all losses are finite!\n"
+            #    f"ctc_loss: {ctc_loss}\n"
+            #    f"att_loss: {att_loss}"
+            #)
             #display_and_save_batch(batch, params=params, sp=graph_compiler.sp)
             ctc_loss = ctc_loss[ctc_loss_is_finite]
             att_loss = att_loss[att_loss_is_finite]
