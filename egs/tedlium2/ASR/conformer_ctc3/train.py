@@ -557,13 +557,20 @@ def compute_loss(
                 allow_truncate=params.subsampling_factor - 1,
             )
 
-            ctc_loss = k2.ctc_loss(
+            ctc_loss = 0.7* k2.ctc_loss(
                 decoding_graph=decoding_graph,
-                dense_fsa_vec=dense_fsa_vec,
+                dense_fsa_vec=dense_fsa_vec1,
+                output_beam=params.beam_size,
+                reduction=params.reduction,
+                use_double_scores=params.use_double_scores,
+            ) + 0.3 * k2.ctc_loss(
+                decoding_graph=decoding_graph,
+                dense_fsa_vec=dense_fsa_vec2,
                 output_beam=params.beam_size,
                 reduction=params.reduction,
                 use_double_scores=params.use_double_scores,
             )
+
 
         else:
             dense_fsa_vec = k2.DenseFsaVec(
