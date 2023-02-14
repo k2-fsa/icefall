@@ -144,7 +144,6 @@ class Conformer(Transformer):
         self.interctc_condition = interctc_condition
         if self.interctc_condition:
             self.condition_layer = ScaledLinear(500, d_model)
-            #self.condition_layer = torch.nn.Linear(500, d_model)
         else:
             self.condition_layer = None
 
