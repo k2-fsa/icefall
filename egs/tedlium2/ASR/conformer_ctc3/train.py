@@ -551,7 +551,7 @@ def compute_loss(
                 allow_truncate=params.subsampling_factor - 1,
             )
             
-            dense_fsa_vec1 = k2.DenseFsaVec(
+            dense_fsa_vec2 = k2.DenseFsaVec(
                 nnet_output[1][8],
                 supervision_segments,
                 allow_truncate=params.subsampling_factor - 1,
