@@ -296,6 +296,13 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         help="Whether to use half precision training.",
     )
+    
+    parser.add_argument(
+        "--interctc",
+        type=str2bool,
+        default=False,
+        help="Whether to use half precision training.",
+    )
 
     add_model_arguments(parser)
 
