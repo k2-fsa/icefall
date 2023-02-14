@@ -455,10 +455,7 @@ class ConformerEncoder(nn.Module):
 
             if i+1 in [3,6,9,12,15] and condition_layer is not None:
                 ctc_out = ctc_output(output, log_prob=False)
-                print(ctc_out.size())
-                print(output.size())
-                print(condition_layer(ctc_out).size())
-                output = output + condition_layer(ctc_out)
+                output = output + condition_layer(ctc_out).transpose(0,1)
 
         #output = self.combiner(outputs)
         return output, layer_outputs
