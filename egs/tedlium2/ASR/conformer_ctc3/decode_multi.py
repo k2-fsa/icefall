@@ -93,6 +93,18 @@ def get_parser() -> argparse.ArgumentParser:
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
     )
+    
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=1,
+    )
+    
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=1,
+    )
 
     parser.add_argument(
         "--method",
