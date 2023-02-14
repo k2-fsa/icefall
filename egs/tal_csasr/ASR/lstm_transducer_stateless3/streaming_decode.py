@@ -215,7 +215,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--sampling-rate", type=float, default=16000, help="Sample rate of the audio",
+        "--sampling-rate",
+        type=float,
+        default=16000,
+        help="Sample rate of the audio",
     )
 
     parser.add_argument(
@@ -231,7 +234,9 @@ def get_parser():
 
 
 def greedy_search(
-    model: nn.Module, encoder_out: torch.Tensor, streams: List[Stream],
+    model: nn.Module,
+    encoder_out: torch.Tensor,
+    streams: List[Stream],
 ) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
 
@@ -288,12 +293,18 @@ def greedy_search(
                 device=device,
                 dtype=torch.int64,
             )
-            decoder_out = model.decoder(decoder_input, need_pad=False,)
+            decoder_out = model.decoder(
+                decoder_input,
+                need_pad=False,
+            )
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
 
 def modified_beam_search(
-    model: nn.Module, encoder_out: torch.Tensor, streams: List[Stream], beam: int = 4,
+    model: nn.Module,
+    encoder_out: torch.Tensor,
+    streams: List[Stream],
+    beam: int = 4,
 ):
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
 
@@ -347,7 +358,9 @@ def modified_beam_search(
         # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
         # as index, so we use `to(torch.int64)` below.
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, encoder_out_dim)
 
         logits = model.joiner(current_encoder_out, decoder_out, project_input=False)
@@ -534,19 +547,26 @@ def decode_one_chunk(
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length
         features = torch.nn.functional.pad(
-            features, (0, 0, 0, pad_length), mode="constant", value=LOG_EPSILON,
+            features,
+            (0, 0, 0, pad_length),
+            mode="constant",
+            value=LOG_EPSILON,
         )
 
     # Stack states of all streams
     states = stack_states(state_list)
 
     encoder_out, encoder_out_lens, states = model.encoder(
-        x=features, x_lens=feature_lens, states=states,
+        x=features,
+        x_lens=feature_lens,
+        states=states,
     )
 
     if params.decoding_method == "greedy_search":
         greedy_search(
-            model=model, streams=streams, encoder_out=encoder_out,
+            model=model,
+            streams=streams,
+            encoder_out=encoder_out,
         )
     elif params.decoding_method == "modified_beam_search":
         modified_beam_search(
@@ -705,7 +725,10 @@ def decode_dataset(
 
     while len(streams) > 0:
         finished_streams = decode_one_chunk(
-            model=model, streams=streams, params=params, decoding_graph=decoding_graph,
+            model=model,
+            streams=streams,
+            params=params,
+            decoding_graph=decoding_graph,
         )
 
         for i in sorted(finished_streams, reverse=True):
@@ -825,7 +848,10 @@ def main():
     sp.load(bpe_model)
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(lexicon=lexicon, device=device,)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
 
@@ -953,7 +979,9 @@ def main():
         )
 
         save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
         )
 
     logging.info("Done!")

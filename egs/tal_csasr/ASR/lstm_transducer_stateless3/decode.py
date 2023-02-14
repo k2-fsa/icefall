@@ -302,7 +302,9 @@ def decode_one_batch(
             en_hyps.append(en_text)
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for i in range(encoder_out.size(0)):
             hyp = sp.decode([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -358,7 +360,9 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
                 )
             else:
                 raise ValueError(
@@ -722,13 +726,19 @@ def main():
             sp=sp,
         )
         save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
         )
         save_results(
-            params=params, test_set_name=test_set, results_dict=zh_results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=zh_results_dict,
         )
         save_results(
-            params=params, test_set_name=test_set, results_dict=en_results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=en_results_dict,
         )
 
     logging.info("Done!")

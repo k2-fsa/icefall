@@ -107,7 +107,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir", type=str, default="data/lang_char", help="Path to the lang",
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="Path to the lang",
     )
 
     parser.add_argument(
@@ -134,7 +137,8 @@ def get_parser():
 
 
 def export_encoder_model_jit_trace(
-    encoder_model: torch.nn.Module, encoder_filename: str,
+    encoder_model: torch.nn.Module,
+    encoder_filename: str,
 ) -> None:
     """Export the given encoder model with torch.jit.trace()
 
@@ -156,7 +160,8 @@ def export_encoder_model_jit_trace(
 
 
 def export_decoder_model_jit_trace(
-    decoder_model: torch.nn.Module, decoder_filename: str,
+    decoder_model: torch.nn.Module,
+    decoder_filename: str,
 ) -> None:
     """Export the given decoder model with torch.jit.trace()
 
@@ -177,7 +182,8 @@ def export_decoder_model_jit_trace(
 
 
 def export_joiner_model_jit_trace(
-    joiner_model: torch.nn.Module, joiner_filename: str,
+    joiner_model: torch.nn.Module,
+    joiner_filename: str,
 ) -> None:
     """Export the given joiner model with torch.jit.trace()
 

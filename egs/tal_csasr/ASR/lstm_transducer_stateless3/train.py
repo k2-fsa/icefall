@@ -103,23 +103,38 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--encoder-dim", type=int, default=512, help="Encoder output dimesion.",
+        "--encoder-dim",
+        type=int,
+        default=512,
+        help="Encoder output dimesion.",
     )
 
     parser.add_argument(
-        "--decoder-dim", type=int, default=512, help="Decoder output dimension.",
+        "--decoder-dim",
+        type=int,
+        default=512,
+        help="Decoder output dimension.",
     )
 
     parser.add_argument(
-        "--joiner-dim", type=int, default=512, help="Joiner output dimension.",
+        "--joiner-dim",
+        type=int,
+        default=512,
+        help="Joiner output dimension.",
     )
 
     parser.add_argument(
-        "--dim-feedforward", type=int, default=2048, help="Dimension of feed forward.",
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Dimension of feed forward.",
     )
 
     parser.add_argument(
-        "--rnn-hidden-size", type=int, default=1024, help="Hidden dim for LSTM layers.",
+        "--rnn-hidden-size",
+        type=int,
+        default=1024,
+        help="Hidden dim for LSTM layers.",
     )
 
     parser.add_argument(
@@ -156,7 +171,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
+        "--world-size",
+        type=int,
+        default=1,
+        help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -174,7 +192,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs", type=int, default=40, help="Number of epochs to train.",
+        "--num-epochs",
+        type=int,
+        default=40,
+        help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -825,7 +846,9 @@ def train_one_epoch(
             and params.batch_idx_train % params.average_period == 0
         ):
             update_averaged_model(
-                params=params, model_cur=model, model_avg=model_avg,
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
             )
 
         if (
@@ -847,7 +870,9 @@ def train_one_epoch(
             )
             del params.cur_batch_idx
             remove_checkpoints(
-                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank,
+                out_dir=params.exp_dir,
+                topk=params.keep_last_k,
+                rank=rank,
             )
 
         if batch_idx % params.log_interval == 0 and not params.print_diagnostics:
@@ -935,7 +960,10 @@ def run(rank, world_size, args):
     sp.load(bpe_model)
 
     lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(lexicon=lexicon, device=device,)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
 
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
@@ -986,7 +1014,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
