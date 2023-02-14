@@ -19,7 +19,7 @@
 """
 Usage:
   ./lstm_transducer_stateless2/ncnn-decode.py \
-   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --tokens ./data/lang_bpe_500/tokens.txt \
    --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
    --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
    --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
@@ -27,15 +27,19 @@ Usage:
    --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
    --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
    ./test_wavs/1089-134686-0001.wav
+
+Please see
+https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+for details.
 """
 
 import argparse
 import logging
 from typing import List
 
+import k2
 import kaldifeat
 import ncnn
-import sentencepiece as spm
 import torch
 import torchaudio
 
@@ -44,9 +48,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--bpe-model-filename",
+        "--tokens",
         type=str,
-        help="Path to bpe.model",
+        help="Path to tokens.txt",
     )
 
     parser.add_argument(
@@ -240,9 +244,6 @@ def main():
 
     model = Model(args)
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model_filename)
-
     sound_file = args.sound_filename
 
     sample_rate = 16000
@@ -280,8 +281,16 @@ def main():
 
     encoder_out, encoder_out_lens, hx, cx = model.run_encoder(features, states)
     hyp = greedy_search(model, encoder_out)
+
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
+
+    text = ""
+    for i in hyp:
+        text += symbol_table[i]
+    text = text.replace("▁", " ").strip()
+
     logging.info(sound_file)
-    logging.info(sp.decode(hyp))
+    logging.info(text)
 
 
 if __name__ == "__main__":

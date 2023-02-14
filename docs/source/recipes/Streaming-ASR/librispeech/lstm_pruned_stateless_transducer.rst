@@ -580,12 +580,11 @@ for ``pnnx``:
   iter=468000
   avg=16
 
-  ./lstm_transducer_stateless2/export.py \
+  ./lstm_transducer_stateless2/export-for-ncnn.py \
     --exp-dir ./lstm_transducer_stateless2/exp \
     --bpe-model data/lang_bpe_500/bpe.model \
     --iter $iter \
-    --avg  $avg \
-    --pnnx 1
+    --avg  $avg
 
 It will generate 3 files:
 
@@ -615,7 +614,7 @@ To use the above generated files, run:
 .. code-block:: bash
 
   ./lstm_transducer_stateless2/ncnn-decode.py \
-   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --tokens ./data/lang_bpe_500/tokens.txt \
    --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
    --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
    --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
@@ -627,7 +626,7 @@ To use the above generated files, run:
 .. code-block:: bash
 
   ./lstm_transducer_stateless2/streaming-ncnn-decode.py \
-   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --tokens ./data/lang_bpe_500/tokens.txt \
    --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param \
    --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin \
    --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param \
@@ -657,6 +656,3 @@ by visiting the following links:
 
 You can find more usages of the pretrained models in
 `<https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html>`_
-
-Export ConvEmformer transducer models for ncnn
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
