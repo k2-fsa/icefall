@@ -189,7 +189,6 @@ class Transformer(nn.Module):
         if type(encoder_memory) == tuple:
             (encoder_memory, layer_outputs) = encoder_memory
             layer_outputs = [self.ctc_output(x) for x in layer_outputs]
-
             return (x, layer_outputs), encoder_memory, memory_key_padding_mask
         else:
             x = self.ctc_output(encoder_memory)
