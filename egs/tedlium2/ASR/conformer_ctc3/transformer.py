@@ -236,7 +236,7 @@ class Transformer(nn.Module):
 
         return x, mask
 
-    def ctc_output(self, x: torch.Tensor) -> torch.Tensor:
+    def ctc_output(self, x: torch.Tensor, log_prob: bool = True) -> torch.Tensor:
         """
         Args:
           x:
