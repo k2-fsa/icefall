@@ -26,7 +26,7 @@ Usage:
 
 ./lstm_transducer_stateless3/export.py \
   --exp-dir ./lstm_transducer_stateless3/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 40 \
   --avg 20 \
   --jit-trace 1
@@ -38,7 +38,7 @@ It will generate 3 files: `encoder_jit_trace.pt`,
 
 ./lstm_transducer_stateless3/export.py \
   --exp-dir ./lstm_transducer_stateless3/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 40 \
   --avg 20
 
@@ -181,7 +181,8 @@ def get_parser():
 
 
 def export_encoder_model_jit_trace(
-    encoder_model: nn.Module, encoder_filename: str,
+    encoder_model: nn.Module,
+    encoder_filename: str,
 ) -> None:
     """Export the given encoder model with torch.jit.trace()
 
@@ -203,7 +204,8 @@ def export_encoder_model_jit_trace(
 
 
 def export_decoder_model_jit_trace(
-    decoder_model: nn.Module, decoder_filename: str,
+    decoder_model: nn.Module,
+    decoder_filename: str,
 ) -> None:
     """Export the given decoder model with torch.jit.trace()
 
@@ -224,7 +226,8 @@ def export_decoder_model_jit_trace(
 
 
 def export_joiner_model_jit_trace(
-    joiner_model: nn.Module, joiner_filename: str,
+    joiner_model: nn.Module,
+    joiner_filename: str,
 ) -> None:
     """Export the given joiner model with torch.jit.trace()
 
@@ -266,10 +269,6 @@ def main():
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
-
-    # # <blk> is defined in local/train_bpe_model.py
-    # params.blank_id = sp.piece_to_id("<blk>")
-    # params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
