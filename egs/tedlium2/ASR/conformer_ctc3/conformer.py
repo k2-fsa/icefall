@@ -457,6 +457,7 @@ class ConformerEncoder(nn.Module):
                 ctc_out = ctc_output(output, log_prob=False)
                 print(ctc_out.size())
                 print(output.size())
+                print(condition_layer(ctc_out).size())
                 output = output + condition_layer(ctc_out)
 
         #output = self.combiner(outputs)
