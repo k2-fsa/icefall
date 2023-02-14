@@ -181,7 +181,7 @@ class Conformer(Transformer):
         mask = mask.to(x.device) if mask is not None else None
 
         x, layer_outputs = self.encoder(
-            x, pos_emb, src_key_padding_mask=mask, warmup=warmup, 
+            x, pos_emb, src_key_padding_mask=mask, warmup=warmup, condition_layer=self.condition_layer, 
         )  # (S, N, C)
         
         if self.group_num != 0:
