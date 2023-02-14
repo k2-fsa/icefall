@@ -633,6 +633,8 @@ def save_results(
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
+        print(key)
+        print(val)
     logging.info(s)
 
 
@@ -815,7 +817,6 @@ def main() -> None:
             )
 
             save_results(params=params, test_set_name=test_set, results_dict=results_dict)
-
 
 torch.set_num_threads(1)
 # when we import add_model_arguments from train.py
