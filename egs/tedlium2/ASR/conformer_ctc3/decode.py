@@ -861,7 +861,7 @@ def main() -> None:
     #test_sets = ["dev", "test"]
     #test_dls = [valid_dl, test_dl]
     test_sets = ["dev"]
-    test_dls = [test_dl]
+    test_dls = [dev_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
