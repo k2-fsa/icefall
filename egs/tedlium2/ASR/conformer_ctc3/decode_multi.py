@@ -821,8 +821,14 @@ def main() -> None:
             wer_dict[epoch] = wer
     
     wer_dict = sorted(wer_dict.items(), key=lambda x:x[1])
-    for k, v in wer_dict:
-        print(k, v)
+    import shutil
+    import os
+
+    if not os.makedir(
+    for i, (k, v) in enumerate(wer_dict):
+        shutil.copy(f"{params.exp_dir}/epoch-{k}.pt", f"{params.exp_dir}/sorted/epoch-{100-i}.pt")
+        if i > 20:
+            break
 
 torch.set_num_threads(1)
 # when we import add_model_arguments from train.py
