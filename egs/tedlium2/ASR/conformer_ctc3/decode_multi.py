@@ -824,7 +824,9 @@ def main() -> None:
     import shutil
     import os
 
-    if not os.makedir(
+    try: os.makedir(f"{params.exp_dir}/sorted")
+    except: pass
+
     for i, (k, v) in enumerate(wer_dict):
         shutil.copy(f"{params.exp_dir}/epoch-{k}.pt", f"{params.exp_dir}/sorted/epoch-{100-i}.pt")
         if i > 20:
