@@ -788,6 +788,8 @@ def main() -> None:
 
     test_sets = ["dev"]
     test_dls = [valid_dl]
+    
+    wer_dict = {}
 
     for epoch in range(params.start, params.end+1):
         load_checkpoint(f"{params.exp_dir}/epoch-{epoch}.pt", model)
@@ -813,8 +815,6 @@ def main() -> None:
             )
 
             save_results(params=params, test_set_name=test_set, results_dict=results_dict)
-
-        logging.info("Done!")
 
 
 torch.set_num_threads(1)
