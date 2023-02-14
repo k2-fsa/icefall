@@ -51,6 +51,7 @@ class Conformer(Transformer):
         cnn_module_kernel: int = 15,
         aux_layer_period: int = 3,
         group_num: int = 0,
+        interctc: bool = False,
     ) -> None:
         """
         Args:
