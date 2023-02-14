@@ -923,6 +923,7 @@ def run(rank, world_size, args):
         num_decoder_layers=params.num_decoder_layers,
         cnn_module_kernel=params.kernel_size,
         group_num=params.group_num,
+        interctc=params.interctc,
     )
     logging.info(model)
 
