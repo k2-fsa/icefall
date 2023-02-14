@@ -824,7 +824,7 @@ def main() -> None:
     import shutil
     import os
 
-    try: os.makedir(f"{params.exp_dir}/sorted")
+    try: os.makedirs(f"{params.exp_dir}/sorted")
     except: pass
 
     for i, (k, v) in enumerate(wer_dict):
