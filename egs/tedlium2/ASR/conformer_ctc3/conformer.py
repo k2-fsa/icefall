@@ -405,6 +405,7 @@ class ConformerEncoder(nn.Module):
         mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
         warmup: float = 1.0,
+        condition_layer = None,
     ) -> torch.Tensor:
         """
         Pass the input through the encoder layers in turn.
