@@ -652,6 +652,17 @@ def compute_loss(
                     ) 
                 for i in [2,5,8,11,14]
             ]
+            
+            inter_ctc_loss = 0
+            for fsa_vec_inter in dense_fsa_vec_inter:
+                inter_ctc_loss += k2.ctc_loss(
+                    decoding_graph=decoding_graph,
+                    dense_fsa_vec=dense_fsa_vec_inter,
+                    output_beam=params.beam_size,
+                    reduction=params.reduction,
+                    use_double_scores=params.use_double_scores,
+                )
+
 
             ctc_loss = (1-params.interctc_weight) * k2.ctc_loss(
                 decoding_graph=decoding_graph,
