@@ -682,6 +682,7 @@ def compute_loss(
             
             inter_ctc_loss = 0
             for fsa in dense_fsa_vec_inter:
+                print(fsa)
                 inter_ctc_loss += k2.ctc_loss(
                     decoding_graph=decoding_graph,
                     dense_fsa_vec=fsa,
