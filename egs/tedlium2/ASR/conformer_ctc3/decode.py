@@ -764,6 +764,7 @@ def main() -> None:
         num_encoder_layers=params.num_encoder_layers,
         num_decoder_layers=params.num_decoder_layers,
         group_num=params.group_num,
+        cnn_module_kernel=params.kernel_size,
     )
 
     if not params.use_averaged_model:
