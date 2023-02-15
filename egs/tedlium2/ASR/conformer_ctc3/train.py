@@ -636,7 +636,61 @@ def compute_loss(
                 ) 
             
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
+        
+        elif params.group_num > 0:
+            dense_fsa_vec = k2.DenseFsaVec(
+                nnet_output[0],
+                supervision_segments,
+                allow_truncate=params.subsampling_factor - 1,
+            )
+            
+            dense_fsa_vec_inter = [
+                #k2.DenseFsaVec(
+                #    nnet_output[1][2],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][5],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
+                k2.DenseFsaVec(
+                    nnet_output[1][8],
+                    supervision_segments,
+                    allow_truncate=params.subsampling_factor - 1,
+                ),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][11],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #),
+                #k2.DenseFsaVec(
+                #    nnet_output[1][14],
+                #    supervision_segments,
+                #    allow_truncate=params.subsampling_factor - 1,
+                #)
+            ]
 
+            ctc_loss = k2.ctc_loss(
+                decoding_graph=decoding_graph,
+                dense_fsa_vec=dense_fsa_vec,
+                output_beam=params.beam_size,
+                reduction=params.reduction,
+                use_double_scores=params.use_double_scores,
+            ) 
+            
+            inter_ctc_loss = 0
+            for fsa in dense_fsa_vec_inter:
+                inter_ctc_loss += k2.ctc_loss(
+                    decoding_graph=decoding_graph,
+                    dense_fsa_vec=fsa,
+                    output_beam=params.beam_size,
+                    reduction=params.reduction,
+                    use_double_scores=params.use_double_scores,
+                ) 
+            
+            ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
         else:
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output,
