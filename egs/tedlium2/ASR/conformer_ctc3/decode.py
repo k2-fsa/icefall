@@ -859,8 +859,10 @@ def main() -> None:
     valid_dl = tedlium.valid_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_sets = ["dev", "test"]
-    test_dls = [valid_dl, test_dl]
+    #test_sets = ["dev", "test"]
+    #test_dls = [valid_dl, test_dl]
+    test_sets = ["dev"]
+    test_dls = [valid_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
