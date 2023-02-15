@@ -650,24 +650,19 @@ def compute_loss(
                 allow_truncate=params.subsampling_factor - 1,
             )
 
-            ctc_loss = k2.ctc_loss(
+            ctc_loss = (1-params.interctc_weight) * k2.ctc_loss(
                 decoding_graph=decoding_graph,
                 dense_fsa_vec=dense_fsa_vec,
                 output_beam=params.beam_size,
                 reduction=params.reduction,
                 use_double_scores=params.use_double_scores,
-            ) 
-            
-            inter_ctc_loss = 0
-            for fsa in dense_fsa_vec_inter:
-                print(fsa)
-                inter_ctc_loss += k2.ctc_loss(
-                    decoding_graph=decoding_graph,
-                    dense_fsa_vec=fsa,
-                    output_beam=params.beam_size,
-                    reduction=params.reduction,
-                    use_double_scores=params.use_double_scores,
-                ) 
+            ) + params.interctc_weight * k2.ctc_loss(
+                decoding_graph=decoding_graph,
+                dense_fsa_vec=dense_fsa_vec_inter,
+                output_beam=params.beam_size,
+                reduction=params.reduction,
+                use_double_scores=params.use_double_scores,
+
             
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
         else:
