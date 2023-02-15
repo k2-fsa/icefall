@@ -671,7 +671,7 @@ def compute_loss(
                     use_double_scores=params.use_double_scores,
                 )
 
-            ctc_loss = (1-params.interctc_weight) * ctc_loss
+            ctc_loss = (1-params.interctc_weight) * ctc_loss 
                             + params.interctc_weight * inter_ctc_loss
         else:
             dense_fsa_vec = k2.DenseFsaVec(
