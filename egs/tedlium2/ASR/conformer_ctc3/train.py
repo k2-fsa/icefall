@@ -644,11 +644,14 @@ def compute_loss(
                 allow_truncate=params.subsampling_factor - 1,
             )
             
-            dense_fsa_vec_inter = k2.DenseFsaVec(
-                nnet_output[1][8],
-                supervision_segments,
-                allow_truncate=params.subsampling_factor - 1,
-            )
+            dense_fsa_vec_inter = [
+                k2.DenseFsaVec(
+                    nnet_output[1][8],
+                    supervision_segments,
+                    allow_truncate=params.subsampling_factor - 1,
+                )
+            for i in [2,5,8,11,14]
+            ]
 
             ctc_loss = (1-params.interctc_weight) * k2.ctc_loss(
                 decoding_graph=decoding_graph,
