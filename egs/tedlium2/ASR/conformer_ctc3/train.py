@@ -663,6 +663,7 @@ def compute_loss(
                 reduction=params.reduction,
                 use_double_scores=params.use_double_scores,
             )
+        
         else:
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output,
