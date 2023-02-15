@@ -649,7 +649,7 @@ def compute_loss(
                     nnet_output[1][8],
                     supervision_segments,
                     allow_truncate=params.subsampling_factor - 1,
-                )
+                ) 
             for i in [2,5,8,11,14]
             ]
 
