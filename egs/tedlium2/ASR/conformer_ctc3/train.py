@@ -637,7 +637,7 @@ def compute_loss(
             
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
         
-        elif params.group_num > 0:
+        if params.condition and params.group_num > 0:
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output[0],
                 supervision_segments,
@@ -673,7 +673,7 @@ def compute_loss(
 
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
 
-        else:
+        if not params.interctc and not params.condition and params.group_num == 0:
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output,
                 supervision_segments,
