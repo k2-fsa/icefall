@@ -646,7 +646,7 @@ def compute_loss(
             
             dense_fsa_vec_inter = [
                     k2.DenseFsaVec(
-                        nnet_output[1][8],
+                        nnet_output[1][i],
                         supervision_segments,
                         allow_truncate=params.subsampling_factor - 1,
                     ) 
