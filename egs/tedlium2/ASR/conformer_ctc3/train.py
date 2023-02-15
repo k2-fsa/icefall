@@ -638,7 +638,6 @@ def compute_loss(
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
 
         else:
-            '''
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output,
                 supervision_segments,
@@ -652,6 +651,7 @@ def compute_loss(
                 reduction=params.reduction,
                 use_double_scores=params.use_double_scores,
             )
+
             '''
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output[0],
@@ -706,6 +706,7 @@ def compute_loss(
                 ) 
             
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
+            '''
 
         if params.att_rate > 0.0:
             with torch.set_grad_enabled(is_training):
