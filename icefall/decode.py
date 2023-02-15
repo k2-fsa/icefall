@@ -138,6 +138,8 @@ def get_lattice(
     Returns:
       An FsaVec containing the decoding result. It has axes [utt][state][arc].
     """
+    if type(nnet_output) == tuple:
+        nnet_output = nnet_output[0]
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
         supervision_segments,
