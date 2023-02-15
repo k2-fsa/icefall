@@ -650,7 +650,7 @@ def compute_loss(
                         supervision_segments,
                         allow_truncate=params.subsampling_factor - 1,
                     ) 
-                for i in [2,5,8,11,14]
+                for i in [2,5,8,11,14,17]
             ]
             
             ctc_loss = k2.ctc_loss(
