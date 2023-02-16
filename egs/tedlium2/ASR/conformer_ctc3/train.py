@@ -144,6 +144,25 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         default=0,
     )
 
+    parser.add_argument(
+        "--interctc",
+        type=str2bool,
+        default=False,
+    )
+    
+    parser.add_argument(
+        "--condition",
+        type=str2bool,
+        default=False,
+    )
+
+    parser.add_argument(
+        "--interctc-weight",
+        type=float,
+        default=0.3,
+    )
+
+
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -297,24 +316,6 @@ def get_parser() -> argparse.ArgumentParser:
         help="Whether to use half precision training.",
     )
     
-    parser.add_argument(
-        "--interctc",
-        type=str2bool,
-        default=False,
-    )
-    
-    parser.add_argument(
-        "--condition",
-        type=str2bool,
-        default=False,
-    )
-
-    parser.add_argument(
-        "--interctc-weight",
-        type=float,
-        default=0.3,
-    )
-
     add_model_arguments(parser)
 
     return parser
