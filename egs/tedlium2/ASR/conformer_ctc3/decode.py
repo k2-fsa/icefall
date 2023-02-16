@@ -768,7 +768,6 @@ def main() -> None:
         interctc=params.interctc,
         interctc_condition=params.condition,
     )
-    )
 
     if not params.use_averaged_model:
         if params.iter > 0:
