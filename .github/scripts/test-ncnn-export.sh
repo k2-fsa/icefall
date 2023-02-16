@@ -284,7 +284,7 @@ for exp in exp_fluent exp_disfluent; do
   pnnx $repo/$exp/decoder_jit_trace-pnnx.pt
   pnnx $repo/$exp/joiner_jit_trace-pnnx.pt
 
-  for wav in aps-smp.wav interview_aps-smp.wav reproduction-smp.wav sps-smp.wav do;
+  for wav in aps-smp.wav interview_aps-smp.wav reproduction-smp.wav sps-smp.wav; do
     python3 ./pruned_transducer_stateless7_streaming/streaming-ncnn-decode.py \
       --tokens $repo/data/lang_char/tokens.txt \
       --encoder-param-filename $repo/$exp/encoder_jit_trace-pnnx.ncnn.param \
