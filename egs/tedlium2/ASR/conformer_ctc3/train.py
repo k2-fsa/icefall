@@ -1025,6 +1025,7 @@ def run(rank, world_size, args):
         cnn_module_kernel=params.kernel_size,
         group_num=params.group_num,
         interctc=params.interctc,
+        interctc_condition=params.condition,
     )
     logging.info(model)
 
