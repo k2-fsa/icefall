@@ -56,6 +56,8 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
 import sys
 sys.path.append('/home/work/workspace/icefall/egs/tedlium2/ASR')
 from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
