@@ -765,6 +765,9 @@ def main() -> None:
         num_decoder_layers=params.num_decoder_layers,
         group_num=params.group_num,
         cnn_module_kernel=params.kernel_size,
+        interctc=params.interctc,
+        interctc_condition=params.condition,
+    )
     )
 
     if not params.use_averaged_model:
