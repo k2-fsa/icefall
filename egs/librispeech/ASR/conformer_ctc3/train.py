@@ -601,20 +601,21 @@ def compute_loss(
     else:
         raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
 
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
+    with torch.cuda.amp.autocast(enabled=False):
+        dense_fsa_vec = k2.DenseFsaVec(
+            nnet_output.float(),
+            supervision_segments,
+            allow_truncate=params.subsampling_factor - 1,
+        )
+        ctc_loss = k2.ctc_loss(
+            decoding_graph=decoding_graph,
+            dense_fsa_vec=dense_fsa_vec,
+            output_beam=params.beam_size,
+            delay_penalty=params.delay_penalty if warmup >= 1.0 else 0.0,
+            reduction=params.reduction,
+            use_double_scores=params.use_double_scores,
+        )
 
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        delay_penalty=params.delay_penalty if warmup >= 1.0 else 0.0,
-        reduction=params.reduction,
-        use_double_scores=params.use_double_scores,
-    )
     ctc_loss_is_finite = torch.isfinite(ctc_loss)
     if not torch.all(ctc_loss_is_finite):
         logging.info("Not all losses are finite!\n" f"ctc_loss: {ctc_loss}")

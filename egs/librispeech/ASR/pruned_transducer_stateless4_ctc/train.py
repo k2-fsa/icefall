@@ -710,20 +710,21 @@ def compute_loss(
 
     # Works with a BPE model
     decoding_graph = k2.ctc_graph(token_ids, modified=False, device=device)
-    dense_fsa_vec = k2.DenseFsaVec(
-        ctc_output,
-        supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
-    )
+    with torch.cuda.amp.autocast(enabled=False):
+        dense_fsa_vec = k2.DenseFsaVec(
+            ctc_output.float(),
+            supervision_segments,
+            allow_truncate=params.subsampling_factor - 1,
+        )
+        ctc_loss = k2.ctc_loss(
+            decoding_graph=decoding_graph,
+            dense_fsa_vec=dense_fsa_vec,
+            output_beam=params.beam_size,
+            delay_penalty=params.ctc_delay_penalty if warmup >= 1.0 else 0.0,
+            reduction="none",
+            use_double_scores=params.use_double_scores,
+        )
 
-    ctc_loss = k2.ctc_loss(
-        decoding_graph=decoding_graph,
-        dense_fsa_vec=dense_fsa_vec,
-        output_beam=params.beam_size,
-        delay_penalty=params.ctc_delay_penalty if warmup >= 1.0 else 0.0,
-        reduction="none",
-        use_double_scores=params.use_double_scores,
-    )
     ctc_loss_is_finite = torch.isfinite(ctc_loss)
     if not torch.all(ctc_loss_is_finite):
         logging.info("Not all losses are finite!\n" f"ctc_loss: {ctc_loss}")
