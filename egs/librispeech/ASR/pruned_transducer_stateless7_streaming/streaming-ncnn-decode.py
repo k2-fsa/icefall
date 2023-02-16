@@ -110,8 +110,8 @@ class Model:
 
         # Please change the parameters according to your model
         self.num_encoder_layers = to_int_tuple("2,4,3,2,4")
-        self.encoder_dims = to_int_tuple("384,384,384,384,384")  # also known as d_model
-        self.attention_dims = to_int_tuple("192,192,192,192,192")
+        self.encoder_dims = to_int_tuple("144,144,144,144,144")  # also known as d_model
+        self.attention_dims = to_int_tuple("72,72,72,72,72")
         self.zipformer_downsampling_factors = to_int_tuple("1,2,4,8,2")
         self.cnn_module_kernels = to_int_tuple("31,31,31,31,31")
 

@@ -61,6 +61,40 @@ def test_model():
     print("Using torch.jit.script")
     model = torch.jit.script(model)
 
+def test_model_small():
+    params = get_params()
+    params.vocab_size = 500
+    params.blank_id = 0
+    params.context_size = 2
+    params.num_encoder_layers = "2,3,2,2,3"
+    params.feedforward_dims = "320,320,640,640,320"
+    params.nhead = "4,4,4,4,4"
+    params.encoder_dims = "160,160,160,160,160"
+    params.attention_dims = "96,96,96,96,96"
+    params.encoder_unmasked_dims = "128,128,128,128,128"
+    params.zipformer_downsampling_factors = "1,2,4,8,2"
+    params.cnn_module_kernels = "31,31,31,31,31"
+    params.decoder_dim = 320
+    params.joiner_dim = 320
+    params.num_left_chunks = 4
+    params.short_chunk_size = 50
+    params.decode_chunk_len = 32
+    import pdb; pdb.set_trace()
+    model = get_transducer_model(params)
+
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
+    import pdb; pdb.set_trace()
+
+    # Test jit script
+    convert_scaled_to_non_scaled(model, inplace=True)
+    # We won't use the forward() method of the model in C++, so just ignore
+    # it here.
+    # Otherwise, one of its arguments is a ragged tensor and is not
+    # torch scriptabe.
+    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+    print("Using torch.jit.script")
+    model = torch.jit.script(model)
 
 def test_model_jit_trace():
     params = get_params()
@@ -142,7 +176,7 @@ def test_model_jit_trace():
 
 
 def main():
-    test_model()
+    test_model_small()
     test_model_jit_trace()
 
 

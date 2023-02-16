@@ -33,7 +33,6 @@ popd
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  \
   --decode-chunk-len 32 \
   --num-encoder-layers "2,4,3,2,4" \
   --feedforward-dims "1024,1024,2048,2048,1024" \
