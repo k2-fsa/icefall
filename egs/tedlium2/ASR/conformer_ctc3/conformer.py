@@ -195,7 +195,7 @@ class Conformer(Transformer):
                 x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
             x = self.layer_norm(x)
 
-        if self.interctc or self.interctc_condition or  self.group_num > 0:
+        if self.interctc or self.interctc_condition orself.group_num > 0:
             return (x, layer_outputs), mask
         else:
             return x, mask
