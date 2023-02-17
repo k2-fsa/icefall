@@ -99,7 +99,7 @@ In the above code, we downloaded the pre-trained model into the directory
 
 Congratulations! You have successfully installed the following components:
 
-  - ``pnxx``, which is an executable located in
+  - ``pnnx``, which is an executable located in
     ``$HOME/open-source/ncnn/tools/pnnx/build/src``. We will use
     it to convert models exported by ``torch.jit.trace()``.
   - ``ncnn2int8``, which is an executable located in
