@@ -28,7 +28,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import TedLiumAsrDataModule
+from asr_datamodule import LibriSpeechAsrDataModule
+#from asr_datamodule import TedLiumAsrDataModule
 from conformer import Conformer
 from train import add_model_arguments
 
