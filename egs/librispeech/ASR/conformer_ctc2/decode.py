@@ -852,6 +852,7 @@ def main() -> None:
     logging.info(f"Number of model parameters: {num_param}")
 
     # we need cut ids to display recognition results.
+    '''
     args.return_cuts = True
     tedlium = TedLiumAsrDataModule(args)
 
@@ -865,6 +866,18 @@ def main() -> None:
     test_dls = [valid_dl, test_dl]
     #test_sets = ["dev"]
     #test_dls = [valid_dl]
+    '''
+    args.return_cuts = True
+    librispeech = LibriSpeechAsrDataModule(args)
+
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
