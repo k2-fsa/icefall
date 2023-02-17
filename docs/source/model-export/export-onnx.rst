@@ -10,7 +10,7 @@ There is also a file named ``onnx_pretrained.py``, which you can use
 the exported `ONNX`_ model in Python with `onnxruntime`_ to decode sound files.
 
 Example
-=======
+-------
 
 In the following, we demonstrate how to export a streaming Zipformer pre-trained
 model from
