@@ -559,7 +559,7 @@ def compute_loss(
         token_ids = graph_compiler.texts_to_ids(texts)
         decoding_graph = graph_compiler.compile(token_ids)
         
-        if params.interctc:
+        if params.interctc and params.group_num == 0:
             dense_fsa_vec1 = k2.DenseFsaVec(
                 nnet_output[0],
                 supervision_segments,
@@ -641,7 +641,7 @@ def compute_loss(
             
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
         
-        if (params.condition and params.group_num > 0) or (params.group_num > 0):
+        if (params.condition and params.group_num > 0) or (params.interctc and params.group_num > 0) or (params.group_num > 0):
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output[0],
                 supervision_segments,
